@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CCB Admin · Centro Cultural Banreservas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="/assets/logo.png" alt="Centro Cultural Banreservas" class="brand-logo-img" />
+        <div class="brand-subtitle">Panel administrativo</div>
+      </div>
+      <nav class="nav">
+        <a href="#/dashboard" data-route="dashboard" class="nav-link">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="#/checkin" data-route="checkin" class="nav-link">
+          <i class="fa-solid fa-qrcode"></i>
+          <span>Check-in</span>
+        </a>
+        <a href="#/users" data-route="users" class="nav-link">
+          <i class="fa-solid fa-users"></i>
+          <span>Usuarios</span>
+        </a>
+        <a href="#/activities" data-route="activities" class="nav-link">
+          <i class="fa-solid fa-calendar-days"></i>
+          <span>Actividades</span>
+        </a>
+        <a href="#/attendance" data-route="attendance" class="nav-link">
+          <i class="fa-solid fa-clipboard-check"></i>
+          <span>Registros</span>
+        </a>
+        <a href="#/segments" data-route="segments" class="nav-link">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>Segmentos</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>v1.0.0</span>
+      </div>
+    </aside>
+
+    <div class="layout-main">
+      <header class="topbar">
+        <button
+          class="topbar-toggle"
+          id="sidebar-toggle"
+          aria-label="Abrir menú"
+        >
+          <i class="fa-solid fa-bars"></i>
+        </button>
+        <div class="topbar-title">
+          <h1 id="page-title">Dashboard</h1>
+          <p id="page-subtitle">Resumen general del centro cultural</p>
+        </div>
+        <div class="topbar-actions" id="topbar-actions"></div>
+      </header>
+
+      <main id="content" class="content">
+        <div class="loader">
+          <div class="spinner"></div>
+        </div>
+      </main>
+    </div>
+
+    <div id="modal-root" class="modal hidden">
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <header class="modal-header">
+          <h2 id="modal-title"></h2>
+          <button class="icon-btn" data-close aria-label="Cerrar">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </header>
+        <div id="modal-body" class="modal-body"></div>
+      </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
