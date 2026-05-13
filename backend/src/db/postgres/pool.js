@@ -1,11 +1,6 @@
 import pg from 'pg';
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { config } from '../../config.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
+import { runMigrations } from './migrations.js';
 
 let _pool = null;
 
@@ -26,10 +21,7 @@ export function getPool() {
 }
 
 export async function applySchema() {
-  const sql = await fs.readFile(SCHEMA_PATH, 'utf8');
-  const pool = getPool();
-  await pool.query(sql);
-  console.log('[postgres] schema aplicado');
+  await runMigrations(getPool());
 }
 
 export async function closePool() {

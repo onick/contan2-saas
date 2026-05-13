@@ -23,6 +23,9 @@ const DB_FILE = path.join(__dirname, '..', 'data', 'db.json');
 const RESET = process.argv.includes('--reset');
 const DRY = process.argv.includes('--dry-run');
 
+// UUID fijo de la organization CCB (definido en migration 004_backfill_ccb.sql)
+const CCB_ORG_ID = '00000000-0000-0000-0000-000000000001';
+
 async function main() {
   if (!config.DATABASE_URL) {
     console.error('✗ Falta DATABASE_URL en env');
@@ -53,14 +56,16 @@ async function main() {
       await client.query('TRUNCATE attendance, activities, users RESTART IDENTITY CASCADE');
     }
 
-    // Activities primero (sin FK)
+    console.log(`[migrate] todas las filas se asignarán a organization ${CCB_ORG_ID} (CCB)`);
+
+    // Activities primero (sin FK a users/attendance)
     let okAct = 0;
     for (const a of activities) {
       try {
         await client.query(
           `INSERT INTO activities
-            (id, name, type, location, date, capacity, description, image_url, enrolled_count, status, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            (id, organization_id, name, type, location, date, capacity, description, image_url, enrolled_count, status, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            ON CONFLICT (id) DO UPDATE SET
              name = EXCLUDED.name,
              type = EXCLUDED.type,
@@ -73,7 +78,7 @@ async function main() {
              status = EXCLUDED.status,
              updated_at = EXCLUDED.updated_at`,
           [
-            a.id, a.name, a.type, a.location, a.date, a.capacity,
+            a.id, CCB_ORG_ID, a.name, a.type, a.location, a.date, a.capacity,
             a.description ?? '', a.imageUrl ?? null,
             a.enrolledCount ?? 0, a.status ?? 'activa',
             a.createdAt, a.updatedAt,
@@ -92,8 +97,8 @@ async function main() {
       try {
         await client.query(
           `INSERT INTO users
-            (id, code, first_name, last_name, email, phone, visit_count, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            (id, organization_id, code, first_name, last_name, email, phone, visit_count, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            ON CONFLICT (id) DO UPDATE SET
              code = EXCLUDED.code,
              first_name = EXCLUDED.first_name,
@@ -103,7 +108,7 @@ async function main() {
              visit_count = EXCLUDED.visit_count,
              updated_at = EXCLUDED.updated_at`,
           [
-            u.id, u.code, u.firstName, u.lastName,
+            u.id, CCB_ORG_ID, u.code, u.firstName, u.lastName,
             u.email ?? null, u.phone ?? null,
             u.visitCount ?? 1,
             u.createdAt, u.updatedAt,
@@ -122,10 +127,10 @@ async function main() {
       try {
         await client.query(
           `INSERT INTO attendance
-            (id, user_id, user_code, activity_id, activity_name, registered_at)
-           VALUES ($1, $2, $3, $4, $5, $6)
+            (id, organization_id, user_id, user_code, activity_id, activity_name, registered_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (id) DO NOTHING`,
-          [a.id, a.userId, a.userCode, a.activityId, a.activityName, a.registeredAt],
+          [a.id, CCB_ORG_ID, a.userId, a.userCode, a.activityId, a.activityName, a.registeredAt],
         );
         okAtt += 1;
       } catch (e) {

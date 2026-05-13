@@ -1,12 +1,14 @@
--- ============================================================================
--- CCB / contan2-saas — schema PostgreSQL
--- Coincide 1:1 con el modelo de los repositorios en memoria.
--- Mantener nombres en snake_case en DB, los repos hacen el mapping a camelCase.
--- ============================================================================
+-- =============================================================================
+-- 001_initial · schema base (visitantes, actividades, asistencias)
+-- Idempotente: se puede correr en DB vacía o sobre la actual del CCB.
+-- =============================================================================
 
+CREATE EXTENSION IF NOT EXISTS citext;
+
+-- Visitantes (audiencia del centro cultural)
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
-  code          TEXT NOT NULL UNIQUE,
+  code          TEXT NOT NULL,
   first_name    TEXT NOT NULL,
   last_name     TEXT NOT NULL,
   email         TEXT,
@@ -16,13 +18,6 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique
-  ON users (LOWER(email))
-  WHERE email IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS users_created_at_idx ON users (created_at DESC);
-
--- ============================================================================
 CREATE TABLE IF NOT EXISTS activities (
   id              TEXT PRIMARY KEY,
   name            TEXT NOT NULL,
@@ -40,21 +35,20 @@ CREATE TABLE IF NOT EXISTS activities (
   CHECK (enrolled_count <= capacity)
 );
 
-CREATE INDEX IF NOT EXISTS activities_status_idx ON activities (status);
-CREATE INDEX IF NOT EXISTS activities_date_idx ON activities (date);
-CREATE INDEX IF NOT EXISTS activities_type_idx ON activities (type);
-
--- ============================================================================
 CREATE TABLE IF NOT EXISTS attendance (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   user_code      TEXT NOT NULL,
   activity_id    TEXT NOT NULL REFERENCES activities(id) ON DELETE RESTRICT,
   activity_name  TEXT NOT NULL,
-  registered_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (user_id, activity_id)
+  registered_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Índices viejos (single-tenant). Se eliminarán en 005.
+CREATE UNIQUE INDEX IF NOT EXISTS users_code_unique_legacy ON users (code);
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique_legacy
+  ON users (LOWER(email)) WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS attendance_user_activity_unique_legacy
+  ON attendance (user_id, activity_id);
 CREATE INDEX IF NOT EXISTS attendance_user_idx ON attendance (user_id);
 CREATE INDEX IF NOT EXISTS attendance_activity_idx ON attendance (activity_id);
-CREATE INDEX IF NOT EXISTS attendance_registered_at_idx ON attendance (registered_at DESC);
