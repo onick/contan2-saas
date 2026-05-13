@@ -1,14 +1,14 @@
 import { Router } from 'express';
-import { config } from '../config.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import {
-  createSession,
-  destroySession,
-  setSessionCookie,
-  clearSessionCookie,
-  getCookieName,
-  isSessionValid,
+  createStaffSession,
+  destroyStaffSession,
+  getStaffSession,
+  setStaffCookie,
+  clearStaffCookie,
+  getStaffCookieName,
 } from '../middleware/staffAuth.js';
+import { verifyPin } from '../services/staffPin.js';
 
 const loginAttempts = new Map();
 
@@ -27,35 +27,58 @@ function rateLimited(ip) {
 export function createStaffRouter() {
   const router = Router();
 
-  router.post('/login', (req, res, next) => {
+  router.post('/login', async (req, res, next) => {
     try {
+      if (!req.organization) {
+        throw new HttpError(400, 'Login no disponible sin tenant');
+      }
       const ip = req.ip || req.socket.remoteAddress || 'unknown';
       if (rateLimited(ip)) {
         throw new HttpError(429, 'Demasiados intentos. Espera 1 minuto.');
       }
       const pin = String(req.body?.pin || '').trim();
       if (!pin) throw new HttpError(400, 'PIN requerido');
-      if (pin !== config.STAFF_PIN) {
-        throw new HttpError(401, 'PIN incorrecto');
+
+      const hash = req.organization.staffPinHash;
+      if (!hash) {
+        throw new HttpError(500, 'Organización sin PIN configurado');
       }
-      const { id, expiresAt } = createSession();
-      setSessionCookie(res, id, expiresAt);
-      res.json({ ok: true, expiresAt: new Date(expiresAt).toISOString() });
+      const ok = await verifyPin(pin, hash);
+      if (!ok) throw new HttpError(401, 'PIN incorrecto');
+
+      const { id, expiresAt } = await createStaffSession({
+        organizationId: req.organization.id,
+        ip,
+        userAgent: req.headers['user-agent'],
+      });
+      setStaffCookie(res, id, expiresAt);
+      res.json({ ok: true, expiresAt });
     } catch (e) {
       next(e);
     }
   });
 
-  router.post('/logout', (req, res) => {
-    const sid = req.cookies?.[getCookieName()];
-    if (sid) destroySession(sid);
-    clearSessionCookie(res);
-    res.json({ ok: true });
+  router.post('/logout', async (req, res, next) => {
+    try {
+      const sid = req.cookies?.[getStaffCookieName()];
+      if (sid) await destroyStaffSession(sid);
+      clearStaffCookie(res);
+      res.json({ ok: true });
+    } catch (e) {
+      next(e);
+    }
   });
 
-  router.get('/me', (req, res) => {
-    const sid = req.cookies?.[getCookieName()];
-    res.json({ authenticated: isSessionValid(sid) });
+  router.get('/me', async (req, res, next) => {
+    try {
+      const sid = req.cookies?.[getStaffCookieName()];
+      const session = await getStaffSession(sid);
+      const authenticated =
+        !!session && (!req.organization || session.organizationId === req.organization.id);
+      res.json({ authenticated });
+    } catch (e) {
+      next(e);
+    }
   });
 
   return router;

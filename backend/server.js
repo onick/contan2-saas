@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 
 import { config } from './src/config.js';
 import { initRepositories, createTenantRepos, CCB_ORG_ID } from './src/db/repositories.js';
+import { runBootstrap } from './src/bootstrap.js';
 import { seedDatabase } from './src/utils/seed.js';
 import { startAutoFinalize } from './src/utils/autoFinalize.js';
 import { errorHandler, notFoundHandler } from './src/middleware/errorHandler.js';
@@ -30,6 +31,7 @@ const app = express();
 
 // Init backend (DB pool + migrations en Postgres; load snapshot en memory)
 await initRepositories();
+await runBootstrap();
 
 // Sprint 2: en memory + Postgres seedeamos actividades por defecto en la org CCB
 // si la org está vacía. Esto sustituye al seed legacy.
