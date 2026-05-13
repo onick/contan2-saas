@@ -10,6 +10,8 @@ import { seedDatabase } from './src/utils/seed.js';
 import { startAutoFinalize } from './src/utils/autoFinalize.js';
 import { errorHandler, notFoundHandler } from './src/middleware/errorHandler.js';
 import { forceCcbTenant, buildTenantRepos } from './src/middleware/tenantRepos.js';
+import { resolveTenant } from './src/middleware/resolveTenant.js';
+import { createTenantRouter } from './src/routes/tenant.js';
 import { createUsersRouter } from './src/routes/users.js';
 import { createActivitiesRouter } from './src/routes/activities.js';
 import { createAttendanceRouter } from './src/routes/attendance.js';
@@ -60,17 +62,20 @@ app.use((req, res, next) => {
   next();
 });
 
-// Tenant resolution (Sprint 2: hardcoded a CCB; Sprint 3 lo reemplaza por subdomain lookup)
-app.use('/api', forceCcbTenant);
-app.use('/api', buildTenantRepos);
-
-// Static (no requiere tenant)
+// Static uploads (no requieren tenant en URL, pero el path tendrá org-id en Sprint 6+)
 app.use('/uploads', express.static(UPLOADS_DIR, {
   maxAge: '7d',
   immutable: true,
 }));
 
-// Routers tenant-aware
+// Tenant resolution + repos (basado en subdomain o custom domain)
+app.use('/api', resolveTenant);
+app.use('/api', buildTenantRepos);
+
+// Endpoint de branding público (consumido por el frontend para aplicar tema)
+app.use('/api/_tenant', createTenantRouter());
+
+// Routers tenant-aware (todos requieren req.organization)
 app.use('/api/public', createPublicRouter());
 app.use('/api/uploads', createUploadsRouter());
 app.use('/api/users', createUsersRouter());

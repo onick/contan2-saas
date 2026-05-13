@@ -26,4 +26,5 @@ export const config = {
   EMAIL_FROM: process.env.EMAIL_FROM || 'CCB <onboarding@resend.dev>',
   PUBLIC_URL: process.env.PUBLIC_URL || `http://localhost:${Number(process.env.PORT) || 3000}`,
   DATABASE_URL: process.env.DATABASE_URL || '',
+  ROOT_DOMAIN: process.env.ROOT_DOMAIN || 'localhost',
 };
