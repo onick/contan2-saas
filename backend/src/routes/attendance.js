@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { HttpError } from '../middleware/errorHandler.js';
 import { validateAttendanceCreate } from '../domain/schemas.js';
 
-export function createAttendanceRouter(repos) {
+export function createAttendanceRouter() {
   const router = Router();
 
   router.post('/', async (req, res, next) => {
@@ -11,13 +11,13 @@ export function createAttendanceRouter(repos) {
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
       const { userCode, activityId } = req.body;
 
-      const user = await repos.users.findByCode(userCode);
+      const user = await req.repos.users.findByCode(userCode);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
 
-      const activity = await repos.activities.findById(activityId);
+      const activity = await req.repos.activities.findById(activityId);
       if (!activity) throw new HttpError(404, 'Actividad no encontrada');
 
-      const existing = await repos.attendance.findOne({
+      const existing = await req.repos.attendance.findOne({
         userId: user.id,
         activityId,
       });
@@ -25,7 +25,7 @@ export function createAttendanceRouter(repos) {
         throw new HttpError(409, 'El usuario ya está registrado en esta actividad');
       }
 
-      const result = await repos.activities.incrementEnrolledIfRoom(activityId);
+      const result = await req.repos.activities.incrementEnrolledIfRoom(activityId);
       if (!result.ok) {
         if (result.reason === 'full') throw new HttpError(409, 'Cupo agotado');
         if (result.reason === 'not_active') {
@@ -34,14 +34,14 @@ export function createAttendanceRouter(repos) {
         throw new HttpError(404, 'Actividad no encontrada');
       }
 
-      const attendance = await repos.attendance.create({
+      const attendance = await req.repos.attendance.create({
         userId: user.id,
         userCode: user.code,
         activityId,
         activityName: activity.name,
       });
 
-      await repos.users.incrementVisit(user.code);
+      await req.repos.users.incrementVisit(user.code);
 
       res.status(201).json(attendance);
     } catch (e) {
@@ -54,7 +54,7 @@ export function createAttendanceRouter(repos) {
       const filters = {};
       if (req.query.userCode) filters.userCode = req.query.userCode;
       if (req.query.activityId) filters.activityId = req.query.activityId;
-      const attendances = await repos.attendance.findAll(filters);
+      const attendances = await req.repos.attendance.findAll(filters);
       res.json({ attendances, total: attendances.length });
     } catch (e) {
       next(e);
@@ -63,9 +63,9 @@ export function createAttendanceRouter(repos) {
 
   router.get('/by-user/:userCode', async (req, res, next) => {
     try {
-      const user = await repos.users.findByCode(req.params.userCode);
+      const user = await req.repos.users.findByCode(req.params.userCode);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
-      const attendances = await repos.attendance.findByUserId(user.id);
+      const attendances = await req.repos.attendance.findByUserId(user.id);
       res.json({ attendances, total: attendances.length });
     } catch (e) {
       next(e);
@@ -74,9 +74,9 @@ export function createAttendanceRouter(repos) {
 
   router.get('/by-activity/:activityId', async (req, res, next) => {
     try {
-      const activity = await repos.activities.findById(req.params.activityId);
+      const activity = await req.repos.activities.findById(req.params.activityId);
       if (!activity) throw new HttpError(404, 'Actividad no encontrada');
-      const attendances = await repos.attendance.findByActivityId(
+      const attendances = await req.repos.attendance.findByActivityId(
         req.params.activityId,
       );
       res.json({ attendances, total: attendances.length });
@@ -87,9 +87,9 @@ export function createAttendanceRouter(repos) {
 
   router.delete('/:id', async (req, res, next) => {
     try {
-      const att = await repos.attendance.delete(req.params.id);
+      const att = await req.repos.attendance.delete(req.params.id);
       if (!att) throw new HttpError(404, 'Registro no encontrado');
-      await repos.activities.decrementEnrolled(att.activityId);
+      await req.repos.activities.decrementEnrolled(att.activityId);
       res.status(204).end();
     } catch (e) {
       next(e);

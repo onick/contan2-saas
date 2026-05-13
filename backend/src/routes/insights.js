@@ -66,14 +66,14 @@ function computeScore(affinity, { type, location } = {}) {
   return score;
 }
 
-export function createInsightsRouter(repos) {
+export function createInsightsRouter() {
   const router = Router();
 
   router.get('/user-affinity/:code', async (req, res, next) => {
     try {
-      const user = await repos.users.findByCode(req.params.code);
+      const user = await req.repos.users.findByCode(req.params.code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
-      const affinity = await buildAffinityForUser(repos, user);
+      const affinity = await buildAffinityForUser(req.repos,user);
       res.json(affinity);
     } catch (e) {
       next(e);
@@ -84,18 +84,18 @@ export function createInsightsRouter(repos) {
     try {
       const { type, location, limit, excludeActivityId } = req.query;
       const limitNum = Math.min(parseInt(limit, 10) || 50, 500);
-      const users = await repos.users.findAll();
+      const users = await req.repos.users.findAll();
 
       let excludeUserIds = new Set();
       if (excludeActivityId) {
-        const attendances = await repos.attendance.findByActivityId(excludeActivityId);
+        const attendances = await req.repos.attendance.findByActivityId(excludeActivityId);
         attendances.forEach(a => excludeUserIds.add(a.userId));
       }
 
       const filtered = users.filter(u => !excludeUserIds.has(u.id));
       const enriched = await Promise.all(
         filtered.map(async u => {
-          const aff = await buildAffinityForUser(repos, u);
+          const aff = await buildAffinityForUser(req.repos,u);
           return {
             user: {
               code: u.code,
@@ -132,9 +132,9 @@ export function createInsightsRouter(repos) {
 
   router.get('/segments', async (req, res, next) => {
     try {
-      const users = await repos.users.findAll();
+      const users = await req.repos.users.findAll();
       const affs = await Promise.all(
-        users.map(u => buildAffinityForUser(repos, u)),
+        users.map(u => buildAffinityForUser(req.repos,u)),
       );
       const counts = computeSegmentCounts(affs);
       res.json({ segments: counts });
@@ -145,11 +145,11 @@ export function createInsightsRouter(repos) {
 
   router.get('/segments/:id', async (req, res, next) => {
     try {
-      const users = await repos.users.findAll();
+      const users = await req.repos.users.findAll();
       const all = await Promise.all(
         users.map(async u => ({
           user: u,
-          affinity: await buildAffinityForUser(repos, u),
+          affinity: await buildAffinityForUser(req.repos,u),
         })),
       );
       const matches = filterBySegment(all, req.params.id);
@@ -179,15 +179,15 @@ export function createInsightsRouter(repos) {
 
   router.get('/activity-summary/:id', async (req, res, next) => {
     try {
-      const activity = await repos.activities.findById(req.params.id);
+      const activity = await req.repos.activities.findById(req.params.id);
       if (!activity) throw new HttpError(404, 'Actividad no encontrada');
 
-      const attendances = await repos.attendance.findByActivityId(req.params.id);
+      const attendances = await req.repos.attendance.findByActivityId(req.params.id);
       const userAffs = await Promise.all(
         attendances.map(async a => {
-          const user = await repos.users.findById(a.userId);
+          const user = await req.repos.users.findById(a.userId);
           if (!user) return null;
-          const aff = await buildAffinityForUser(repos, user);
+          const aff = await buildAffinityForUser(req.repos,user);
           return { user, attendance: a, affinity: aff };
         }),
       );

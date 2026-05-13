@@ -7,7 +7,7 @@ import {
 } from '../domain/schemas.js';
 import { sendCredentialEmail } from '../services/email.js';
 
-export function createUsersRouter(repos) {
+export function createUsersRouter() {
   const router = Router();
 
   router.post('/', async (req, res, next) => {
@@ -15,9 +15,9 @@ export function createUsersRouter(repos) {
       const errors = validateUserCreate(req.body);
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
       const data = normalizeUserData(req.body);
-      const existing = await repos.users.findByEmail(data.email);
+      const existing = await req.repos.users.findByEmail(data.email);
       if (existing) throw new HttpError(409, 'El email ya está registrado');
-      const user = await repos.users.create(data);
+      const user = await req.repos.users.create(data);
       if (user.email) {
         sendCredentialEmail(user).catch(err =>
           console.error('[users] envío credencial falló:', err.message),
@@ -66,7 +66,7 @@ export function createUsersRouter(repos) {
           }
           seenEmails.add(data.email);
 
-          const existing = await repos.users.findByEmail(data.email);
+          const existing = await req.repos.users.findByEmail(data.email);
           if (existing) {
             errors.push({
               index: i,
@@ -77,7 +77,7 @@ export function createUsersRouter(repos) {
           }
         }
         try {
-          const user = await repos.users.create(data);
+          const user = await req.repos.users.create(data);
           created.push(user);
         } catch (e) {
           errors.push({
@@ -104,7 +104,7 @@ export function createUsersRouter(repos) {
 
   router.get('/', async (req, res, next) => {
     try {
-      const users = await repos.users.findAll();
+      const users = await req.repos.users.findAll();
       users.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       res.json({ users, total: users.length });
     } catch (e) {
@@ -114,7 +114,7 @@ export function createUsersRouter(repos) {
 
   router.get('/:code', async (req, res, next) => {
     try {
-      const user = await repos.users.findByCode(req.params.code);
+      const user = await req.repos.users.findByCode(req.params.code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
       res.json(user);
     } catch (e) {
@@ -124,7 +124,7 @@ export function createUsersRouter(repos) {
 
   router.patch('/:code/visit', async (req, res, next) => {
     try {
-      const user = await repos.users.incrementVisit(req.params.code);
+      const user = await req.repos.users.incrementVisit(req.params.code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
       res.json(user);
     } catch (e) {
@@ -136,14 +136,14 @@ export function createUsersRouter(repos) {
     try {
       const errors = validateUserUpdate(req.body);
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
-      const user = await repos.users.findByCode(req.params.code);
+      const user = await req.repos.users.findByCode(req.params.code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
       const data = normalizeUserData(req.body);
       if (data.email && data.email !== user.email) {
-        const conflict = await repos.users.findByEmail(data.email);
+        const conflict = await req.repos.users.findByEmail(data.email);
         if (conflict) throw new HttpError(409, 'El email ya está registrado');
       }
-      const updated = await repos.users.update(req.params.code, data);
+      const updated = await req.repos.users.update(req.params.code, data);
       res.json(updated);
     } catch (e) {
       next(e);
@@ -152,13 +152,13 @@ export function createUsersRouter(repos) {
 
   router.delete('/:code', async (req, res, next) => {
     try {
-      const user = await repos.users.findByCode(req.params.code);
+      const user = await req.repos.users.findByCode(req.params.code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
-      const attendances = await repos.attendance.findByUserId(user.id);
+      const attendances = await req.repos.attendance.findByUserId(user.id);
       if (attendances.length > 0) {
         throw new HttpError(409, 'El usuario tiene asistencias registradas');
       }
-      await repos.users.delete(req.params.code);
+      await req.repos.users.delete(req.params.code);
       res.status(204).end();
     } catch (e) {
       next(e);

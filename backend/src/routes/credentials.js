@@ -3,7 +3,7 @@ import { HttpError } from '../middleware/errorHandler.js';
 import { generateCredentialPng } from '../services/credential.js';
 import { sendCredentialEmail } from '../services/email.js';
 
-export function createCredentialsRouter(repos) {
+export function createCredentialsRouter() {
   const router = Router();
 
   router.get('/:code.png', async (req, res, next) => {
@@ -12,7 +12,7 @@ export function createCredentialsRouter(repos) {
       if (!/^CCB-[A-Z0-9]{6}$/.test(code)) {
         throw new HttpError(400, 'Formato de código inválido');
       }
-      const user = await repos.users.findByCode(code);
+      const user = await req.repos.users.findByCode(code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
       const png = await generateCredentialPng(user);
       res.setHeader('Content-Type', 'image/png');
@@ -30,7 +30,7 @@ export function createCredentialsRouter(repos) {
       if (!/^CCB-[A-Z0-9]{6}$/.test(code)) {
         throw new HttpError(400, 'Formato de código inválido');
       }
-      const user = await repos.users.findByCode(code);
+      const user = await req.repos.users.findByCode(code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
       if (!user.email) {
         throw new HttpError(400, 'El usuario no tiene email registrado');

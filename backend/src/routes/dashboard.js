@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-export function createDashboardRouter(repos) {
+export function createDashboardRouter() {
   const router = Router();
 
   router.get('/stats', async (req, res, next) => {
@@ -15,13 +15,13 @@ export function createDashboardRouter(repos) {
         topActivities,
         allUsers,
       ] = await Promise.all([
-        repos.users.count(),
-        repos.activities.count(),
-        repos.activities.countByDate(today),
-        repos.activities.countByStatus('activa'),
-        repos.attendance.count(),
-        repos.activities.findTopByEnrolled(5),
-        repos.users.findAll(),
+        req.repos.users.count(),
+        req.repos.activities.count(),
+        req.repos.activities.countByDate(today),
+        req.repos.activities.countByStatus('activa'),
+        req.repos.attendance.count(),
+        req.repos.activities.findTopByEnrolled(5),
+        req.repos.users.findAll(),
       ]);
 
       const recentUsers = allUsers

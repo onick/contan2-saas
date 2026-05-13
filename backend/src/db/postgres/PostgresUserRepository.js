@@ -17,8 +17,12 @@ function rowToUser(r) {
 }
 
 export class PostgresUserRepository {
-  constructor(pool) {
+  constructor(pool, organizationId) {
+    if (!organizationId) {
+      throw new Error('PostgresUserRepository requiere organizationId');
+    }
     this.pool = pool;
+    this.orgId = organizationId;
   }
 
   async create(data) {
@@ -30,10 +34,11 @@ export class PostgresUserRepository {
       attempts += 1;
       try {
         const result = await this.pool.query(
-          `INSERT INTO users (id, code, first_name, last_name, email, phone, visit_count)
-           VALUES ($1, $2, $3, $4, $5, $6, 1)
+          `INSERT INTO users
+            (id, organization_id, code, first_name, last_name, email, phone, visit_count)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 1)
            RETURNING *`,
-          [id, code, data.firstName, data.lastName, data.email ?? null, data.phone ?? null],
+          [id, this.orgId, code, data.firstName, data.lastName, data.email ?? null, data.phone ?? null],
         );
         return rowToUser(result.rows[0]);
       } catch (e) {
@@ -50,42 +55,52 @@ export class PostgresUserRepository {
   }
 
   async findAll() {
-    const { rows } = await this.pool.query('SELECT * FROM users ORDER BY created_at DESC');
+    const { rows } = await this.pool.query(
+      'SELECT * FROM users WHERE organization_id = $1 ORDER BY created_at DESC',
+      [this.orgId],
+    );
     return rows.map(rowToUser);
   }
 
   async findById(id) {
-    const { rows } = await this.pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    const { rows } = await this.pool.query(
+      'SELECT * FROM users WHERE organization_id = $1 AND id = $2',
+      [this.orgId, id],
+    );
     return rowToUser(rows[0]);
   }
 
   async findByCode(code) {
-    const { rows } = await this.pool.query('SELECT * FROM users WHERE code = $1', [code]);
+    const { rows } = await this.pool.query(
+      'SELECT * FROM users WHERE organization_id = $1 AND code = $2',
+      [this.orgId, code],
+    );
     return rowToUser(rows[0]);
   }
 
   async findByEmail(email) {
     if (!email) return null;
     const { rows } = await this.pool.query(
-      'SELECT * FROM users WHERE LOWER(email) = LOWER($1)',
-      [email],
+      'SELECT * FROM users WHERE organization_id = $1 AND LOWER(email) = LOWER($2)',
+      [this.orgId, email],
     );
     return rowToUser(rows[0]);
   }
 
   async update(code, partial) {
     const fields = [];
-    const values = [];
-    let idx = 1;
+    const values = [this.orgId, code];
+    let idx = 3;
     if (partial.firstName != null) { fields.push(`first_name = $${idx++}`); values.push(partial.firstName); }
     if (partial.lastName != null) { fields.push(`last_name = $${idx++}`); values.push(partial.lastName); }
     if ('email' in partial) { fields.push(`email = $${idx++}`); values.push(partial.email); }
     if ('phone' in partial) { fields.push(`phone = $${idx++}`); values.push(partial.phone); }
     if (fields.length === 0) return this.findByCode(code);
     fields.push('updated_at = NOW()');
-    values.push(code);
     const { rows } = await this.pool.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE code = $${idx} RETURNING *`,
+      `UPDATE users SET ${fields.join(', ')}
+       WHERE organization_id = $1 AND code = $2
+       RETURNING *`,
       values,
     );
     return rowToUser(rows[0]);
@@ -94,27 +109,26 @@ export class PostgresUserRepository {
   async incrementVisit(code) {
     const { rows } = await this.pool.query(
       `UPDATE users SET visit_count = visit_count + 1, updated_at = NOW()
-       WHERE code = $1 RETURNING *`,
-      [code],
+       WHERE organization_id = $1 AND code = $2
+       RETURNING *`,
+      [this.orgId, code],
     );
     return rowToUser(rows[0]);
   }
 
   async delete(code) {
-    const { rowCount } = await this.pool.query('DELETE FROM users WHERE code = $1', [code]);
+    const { rowCount } = await this.pool.query(
+      'DELETE FROM users WHERE organization_id = $1 AND code = $2',
+      [this.orgId, code],
+    );
     return rowCount > 0;
   }
 
   async count() {
-    const { rows } = await this.pool.query('SELECT COUNT(*)::int AS n FROM users');
+    const { rows } = await this.pool.query(
+      'SELECT COUNT(*)::int AS n FROM users WHERE organization_id = $1',
+      [this.orgId],
+    );
     return rows[0].n;
-  }
-
-  dump() {
-    throw new Error('dump() no aplicable a PostgresUserRepository (usar pg_dump)');
-  }
-
-  hydrate() {
-    throw new Error('hydrate() no aplicable a PostgresUserRepository (usar scripts/migrate)');
   }
 }

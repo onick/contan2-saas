@@ -5,10 +5,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { config } from './src/config.js';
-import { getRepositories } from './src/db/repositories.js';
+import { initRepositories, createTenantRepos, CCB_ORG_ID } from './src/db/repositories.js';
 import { seedDatabase } from './src/utils/seed.js';
 import { startAutoFinalize } from './src/utils/autoFinalize.js';
 import { errorHandler, notFoundHandler } from './src/middleware/errorHandler.js';
+import { forceCcbTenant, buildTenantRepos } from './src/middleware/tenantRepos.js';
 import { createUsersRouter } from './src/routes/users.js';
 import { createActivitiesRouter } from './src/routes/activities.js';
 import { createAttendanceRouter } from './src/routes/attendance.js';
@@ -24,16 +25,22 @@ const __dirname = path.dirname(__filename);
 const frontendPath = path.join(__dirname, '..', 'frontend');
 
 const app = express();
-const repos = await getRepositories();
-await seedDatabase(repos);
-await repos.persistNow();
 
-const finalized = await repos.activities.finalizePastActivities();
+// Init backend (DB pool + migrations en Postgres; load snapshot en memory)
+await initRepositories();
+
+// Sprint 2: en memory + Postgres seedeamos actividades por defecto en la org CCB
+// si la org está vacía. Esto sustituye al seed legacy.
+const ccbRepos = await createTenantRepos(CCB_ORG_ID);
+await seedDatabase(ccbRepos);
+await ccbRepos.persistNow();
+
+const finalized = await ccbRepos.activities.finalizePastActivities();
 if (finalized.length) {
-  console.log(`[auto-finalize] ${finalized.length} actividad(es) marcadas como finalizadas al arrancar`);
-  await repos.persist();
+  console.log(`[auto-finalize] ${finalized.length} actividad(es) marcadas como finalizadas al arrancar (org CCB)`);
+  await ccbRepos.persist();
 }
-startAutoFinalize(repos);
+startAutoFinalize(ccbRepos);
 
 app.use(cors());
 app.use(cookieParser());
@@ -43,29 +50,36 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Persistencia debounced (solo aplica a memory driver)
 app.use((req, res, next) => {
   const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
   if (!isMutation || !req.path.startsWith('/api')) return next();
   res.on('finish', () => {
-    if (res.statusCode < 400) repos.persist();
+    if (res.statusCode < 400 && req.repos?.persist) req.repos.persist();
   });
   next();
 });
 
+// Tenant resolution (Sprint 2: hardcoded a CCB; Sprint 3 lo reemplaza por subdomain lookup)
+app.use('/api', forceCcbTenant);
+app.use('/api', buildTenantRepos);
+
+// Static (no requiere tenant)
 app.use('/uploads', express.static(UPLOADS_DIR, {
   maxAge: '7d',
   immutable: true,
 }));
 
-app.use('/api/public', createPublicRouter(repos));
+// Routers tenant-aware
+app.use('/api/public', createPublicRouter());
 app.use('/api/uploads', createUploadsRouter());
-app.use('/api/users', createUsersRouter(repos));
-app.use('/api/activities', createActivitiesRouter(repos));
-app.use('/api/attendance', createAttendanceRouter(repos));
-app.use('/api/dashboard', createDashboardRouter(repos));
-app.use('/api/insights', createInsightsRouter(repos));
+app.use('/api/users', createUsersRouter());
+app.use('/api/activities', createActivitiesRouter());
+app.use('/api/attendance', createAttendanceRouter());
+app.use('/api/dashboard', createDashboardRouter());
+app.use('/api/insights', createInsightsRouter());
 app.use('/api/staff', createStaffRouter());
-app.use('/api/credentials', createCredentialsRouter(repos));
+app.use('/api/credentials', createCredentialsRouter());
 
 app.use('/api', notFoundHandler);
 
@@ -101,14 +115,14 @@ app.use((req, res, next) => {
 app.use(errorHandler);
 
 const server = app.listen(config.PORT, () => {
-  console.log(`CCB Admin escuchando en http://localhost:${config.PORT}`);
+  console.log(`contan2-saas escuchando en http://localhost:${config.PORT}`);
   console.log(`DB_DRIVER=${config.DB_DRIVER}`);
 });
 
 async function gracefulShutdown(signal) {
   console.log(`\n[shutdown] ${signal} recibido, guardando snapshot…`);
   try {
-    await repos.persistNow();
+    if (ccbRepos.persistNow) await ccbRepos.persistNow();
     console.log('[shutdown] snapshot guardado');
   } catch (e) {
     console.error('[shutdown] error guardando snapshot:', e.message);

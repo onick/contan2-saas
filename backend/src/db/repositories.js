@@ -4,13 +4,15 @@ import { MemoryActivityRepository } from './memoryActivityRepository.js';
 import { MemoryAttendanceRepository } from './memoryAttendanceRepository.js';
 import { loadSnapshot, createScheduler } from './persistence.js';
 
-let instance = null;
+const CCB_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
-export async function getRepositories() {
-  if (instance) return instance;
+let _pgInstance = null;
+let _memoryInstance = null;
 
+export async function initRepositories() {
   if (config.DB_DRIVER === 'memory') {
-    instance = {
+    if (_memoryInstance) return _memoryInstance;
+    _memoryInstance = {
       users: new MemoryUserRepository(),
       activities: new MemoryActivityRepository(),
       attendance: new MemoryAttendanceRepository(),
@@ -18,9 +20,9 @@ export async function getRepositories() {
 
     const snapshot = await loadSnapshot();
     if (snapshot) {
-      instance.users.hydrate(snapshot.users);
-      instance.activities.hydrate(snapshot.activities);
-      instance.attendance.hydrate(snapshot.attendance);
+      _memoryInstance.users.hydrate(snapshot.users);
+      _memoryInstance.activities.hydrate(snapshot.activities);
+      _memoryInstance.attendance.hydrate(snapshot.attendance);
       console.log(
         `[persistence] cargado: ${snapshot.users.length} usuarios, ${snapshot.activities.length} actividades, ${snapshot.attendance.length} asistencias`,
       );
@@ -29,37 +31,61 @@ export async function getRepositories() {
     }
 
     const scheduler = createScheduler(() => ({
-      users: instance.users.dump(),
-      activities: instance.activities.dump(),
-      attendance: instance.attendance.dump(),
+      users: _memoryInstance.users.dump(),
+      activities: _memoryInstance.activities.dump(),
+      attendance: _memoryInstance.attendance.dump(),
     }));
-    instance.persist = () => scheduler.schedule();
-    instance.persistNow = () => scheduler.flushNow();
-    instance.driver = 'memory';
+    _memoryInstance.persist = () => scheduler.schedule();
+    _memoryInstance.persistNow = () => scheduler.flushNow();
+    _memoryInstance.driver = 'memory';
+    return _memoryInstance;
   } else if (config.DB_DRIVER === 'postgres') {
+    if (_pgInstance) return _pgInstance;
     const { getPool, applySchema } = await import('./postgres/pool.js');
-    const { PostgresUserRepository } = await import('./postgres/PostgresUserRepository.js');
-    const { PostgresActivityRepository } = await import('./postgres/PostgresActivityRepository.js');
-    const { PostgresAttendanceRepository } = await import('./postgres/PostgresAttendanceRepository.js');
-
     const pool = getPool();
     await applySchema();
-
-    instance = {
-      users: new PostgresUserRepository(pool),
-      activities: new PostgresActivityRepository(pool),
-      attendance: new PostgresAttendanceRepository(pool),
-    };
-    instance.persist = () => {};
-    instance.persistNow = async () => {};
-    instance.driver = 'postgres';
-
-    const total = await instance.users.count();
-    const totalAct = await instance.activities.count();
-    console.log(`[postgres] conectado · ${total} usuarios · ${totalAct} actividades`);
+    _pgInstance = { pool, driver: 'postgres' };
+    console.log('[postgres] pool listo, migrations al día');
+    return _pgInstance;
   } else {
     throw new Error(`DB_DRIVER no soportado: ${config.DB_DRIVER}`);
   }
-
-  return instance;
 }
+
+/**
+ * Devuelve un set de repositorios scopeados a una organización.
+ * Para postgres: instancias bindeadas al organization_id.
+ * Para memory: las mismas instancias singleton (single-tenant legacy).
+ */
+export async function createTenantRepos(organizationId) {
+  if (config.DB_DRIVER === 'memory') {
+    const inst = await initRepositories();
+    return { ...inst, organizationId: organizationId || CCB_ORG_ID };
+  }
+  if (config.DB_DRIVER === 'postgres') {
+    const inst = await initRepositories();
+    const { PostgresUserRepository } = await import('./postgres/PostgresUserRepository.js');
+    const { PostgresActivityRepository } = await import('./postgres/PostgresActivityRepository.js');
+    const { PostgresAttendanceRepository } = await import('./postgres/PostgresAttendanceRepository.js');
+    return {
+      users: new PostgresUserRepository(inst.pool, organizationId),
+      activities: new PostgresActivityRepository(inst.pool, organizationId),
+      attendance: new PostgresAttendanceRepository(inst.pool, organizationId),
+      driver: 'postgres',
+      organizationId,
+      persist: () => {},
+      persistNow: async () => {},
+    };
+  }
+}
+
+/**
+ * Compat layer: hasta Sprint 3, las rutas siguen usando un "repos" singleton
+ * hardcodeado al CCB. En Sprint 3 lo reemplazamos por middleware tenantRepos
+ * que crea `req.repos` por request.
+ */
+export async function getRepositories() {
+  return createTenantRepos(CCB_ORG_ID);
+}
+
+export { CCB_ORG_ID };

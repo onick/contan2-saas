@@ -19,25 +19,25 @@ function rowToActivity(r) {
 }
 
 export class PostgresActivityRepository {
-  constructor(pool) {
+  constructor(pool, organizationId) {
+    if (!organizationId) {
+      throw new Error('PostgresActivityRepository requiere organizationId');
+    }
     this.pool = pool;
+    this.orgId = organizationId;
   }
 
   async create(data) {
     const id = randomUUID();
     const { rows } = await this.pool.query(
-      `INSERT INTO activities (id, name, type, location, date, capacity, description, image_url, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO activities
+        (id, organization_id, name, type, location, date, capacity,
+         description, image_url, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
-        id,
-        data.name,
-        data.type,
-        data.location,
-        data.date,
-        data.capacity,
-        data.description ?? '',
-        data.imageUrl ?? null,
+        id, this.orgId, data.name, data.type, data.location, data.date,
+        data.capacity, data.description ?? '', data.imageUrl ?? null,
         data.status ?? 'activa',
       ],
     );
@@ -45,32 +45,34 @@ export class PostgresActivityRepository {
   }
 
   async findAll(filters = {}) {
-    const where = [];
-    const params = [];
-    let idx = 1;
+    const where = ['organization_id = $1'];
+    const params = [this.orgId];
+    let idx = 2;
     if (filters.status) { where.push(`status = $${idx++}`); params.push(filters.status); }
     if (filters.type) { where.push(`type = $${idx++}`); params.push(filters.type); }
     if (filters.date) {
       where.push(`DATE(date AT TIME ZONE 'UTC') = $${idx++}::date`);
       params.push(filters.date);
     }
-    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const { rows } = await this.pool.query(
-      `SELECT * FROM activities ${clause} ORDER BY date ASC`,
+      `SELECT * FROM activities WHERE ${where.join(' AND ')} ORDER BY date ASC`,
       params,
     );
     return rows.map(rowToActivity);
   }
 
   async findById(id) {
-    const { rows } = await this.pool.query('SELECT * FROM activities WHERE id = $1', [id]);
+    const { rows } = await this.pool.query(
+      'SELECT * FROM activities WHERE organization_id = $1 AND id = $2',
+      [this.orgId, id],
+    );
     return rowToActivity(rows[0]);
   }
 
   async update(id, partial) {
     const fields = [];
-    const values = [];
-    let idx = 1;
+    const values = [this.orgId, id];
+    let idx = 3;
     if (partial.name != null) { fields.push(`name = $${idx++}`); values.push(partial.name); }
     if (partial.type != null) { fields.push(`type = $${idx++}`); values.push(partial.type); }
     if (partial.location != null) { fields.push(`location = $${idx++}`); values.push(partial.location); }
@@ -81,16 +83,20 @@ export class PostgresActivityRepository {
     if (partial.status != null) { fields.push(`status = $${idx++}`); values.push(partial.status); }
     if (fields.length === 0) return this.findById(id);
     fields.push('updated_at = NOW()');
-    values.push(id);
     const { rows } = await this.pool.query(
-      `UPDATE activities SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+      `UPDATE activities SET ${fields.join(', ')}
+       WHERE organization_id = $1 AND id = $2
+       RETURNING *`,
       values,
     );
     return rowToActivity(rows[0]);
   }
 
   async delete(id) {
-    const { rowCount } = await this.pool.query('DELETE FROM activities WHERE id = $1', [id]);
+    const { rowCount } = await this.pool.query(
+      'DELETE FROM activities WHERE organization_id = $1 AND id = $2',
+      [this.orgId, id],
+    );
     return rowCount > 0;
   }
 
@@ -98,18 +104,19 @@ export class PostgresActivityRepository {
     const { rows } = await this.pool.query(
       `UPDATE activities
        SET enrolled_count = enrolled_count + 1, updated_at = NOW()
-       WHERE id = $1
+       WHERE organization_id = $1
+         AND id = $2
          AND status = 'activa'
          AND enrolled_count < capacity
        RETURNING *`,
-      [id],
+      [this.orgId, id],
     );
     if (rows.length > 0) {
       return { ok: true, activity: rowToActivity(rows[0]) };
     }
     const check = await this.pool.query(
-      'SELECT status, enrolled_count, capacity FROM activities WHERE id = $1',
-      [id],
+      'SELECT status, enrolled_count, capacity FROM activities WHERE organization_id = $1 AND id = $2',
+      [this.orgId, id],
     );
     if (check.rows.length === 0) return { ok: false, reason: 'not_found' };
     if (check.rows[0].status !== 'activa') return { ok: false, reason: 'not_active' };
@@ -120,38 +127,46 @@ export class PostgresActivityRepository {
     const { rows } = await this.pool.query(
       `UPDATE activities
        SET enrolled_count = GREATEST(enrolled_count - 1, 0), updated_at = NOW()
-       WHERE id = $1 RETURNING *`,
-      [id],
+       WHERE organization_id = $1 AND id = $2
+       RETURNING *`,
+      [this.orgId, id],
     );
     return rowToActivity(rows[0]);
   }
 
   async count() {
-    const { rows } = await this.pool.query('SELECT COUNT(*)::int AS n FROM activities');
+    const { rows } = await this.pool.query(
+      'SELECT COUNT(*)::int AS n FROM activities WHERE organization_id = $1',
+      [this.orgId],
+    );
     return rows[0].n;
   }
 
   async countByDate(dateStr) {
     const { rows } = await this.pool.query(
       `SELECT COUNT(*)::int AS n FROM activities
-       WHERE DATE(date AT TIME ZONE 'UTC') = $1::date`,
-      [dateStr],
+       WHERE organization_id = $1
+         AND DATE(date AT TIME ZONE 'UTC') = $2::date`,
+      [this.orgId, dateStr],
     );
     return rows[0].n;
   }
 
   async countByStatus(status) {
     const { rows } = await this.pool.query(
-      'SELECT COUNT(*)::int AS n FROM activities WHERE status = $1',
-      [status],
+      'SELECT COUNT(*)::int AS n FROM activities WHERE organization_id = $1 AND status = $2',
+      [this.orgId, status],
     );
     return rows[0].n;
   }
 
   async findTopByEnrolled(limit = 5) {
     const { rows } = await this.pool.query(
-      'SELECT * FROM activities ORDER BY enrolled_count DESC LIMIT $1',
-      [limit],
+      `SELECT * FROM activities
+       WHERE organization_id = $1
+       ORDER BY enrolled_count DESC
+       LIMIT $2`,
+      [this.orgId, limit],
     );
     return rows.map(rowToActivity);
   }
@@ -160,18 +175,12 @@ export class PostgresActivityRepository {
     const { rows } = await this.pool.query(
       `UPDATE activities
        SET status = 'finalizada', updated_at = NOW()
-       WHERE status = 'activa' AND date < $1
+       WHERE organization_id = $1
+         AND status = 'activa'
+         AND date < $2
        RETURNING *`,
-      [new Date(now).toISOString()],
+      [this.orgId, new Date(now).toISOString()],
     );
     return rows.map(rowToActivity);
-  }
-
-  dump() {
-    throw new Error('dump() no aplicable a PostgresActivityRepository');
-  }
-
-  hydrate() {
-    throw new Error('hydrate() no aplicable a PostgresActivityRepository');
   }
 }

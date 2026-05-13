@@ -24,12 +24,12 @@ function publicActivity(a) {
   };
 }
 
-export function createPublicRouter(repos) {
+export function createPublicRouter() {
   const router = Router();
 
   router.get('/activities', async (req, res, next) => {
     try {
-      const all = await repos.activities.findAll({ status: 'activa' });
+      const all = await req.repos.activities.findAll({ status: 'activa' });
       const available = all
         .filter(a => a.enrolledCount < a.capacity)
         .map(publicActivity);
@@ -45,7 +45,7 @@ export function createPublicRouter(repos) {
       if (!/^CCB-[A-Z0-9]{6}$/.test(code)) {
         throw new HttpError(400, 'Formato de código inválido');
       }
-      const user = await repos.users.findByCode(code);
+      const user = await req.repos.users.findByCode(code);
       if (!user) throw new HttpError(404, 'Código no encontrado');
       res.json(publicUser(user));
     } catch (e) {
@@ -59,7 +59,7 @@ export function createPublicRouter(repos) {
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
 
       const activityId = String(req.body.activityId).trim();
-      const activity = await repos.activities.findById(activityId);
+      const activity = await req.repos.activities.findById(activityId);
       if (!activity) throw new HttpError(404, 'Actividad no encontrada');
       if (activity.status !== 'activa') {
         throw new HttpError(409, 'La actividad no está activa');
@@ -70,10 +70,10 @@ export function createPublicRouter(repos) {
 
       if (req.body.userCode) {
         const code = String(req.body.userCode).trim().toUpperCase();
-        user = await repos.users.findByCode(code);
+        user = await req.repos.users.findByCode(code);
         if (!user) throw new HttpError(404, 'Código no encontrado');
 
-        const existing = await repos.attendance.findOne({
+        const existing = await req.repos.attendance.findOne({
           userId: user.id,
           activityId,
         });
@@ -81,7 +81,7 @@ export function createPublicRouter(repos) {
           throw new HttpError(409, 'Ya estás registrado en esta actividad');
         }
 
-        const reservation = await repos.activities.incrementEnrolledIfRoom(activityId);
+        const reservation = await req.repos.activities.incrementEnrolledIfRoom(activityId);
         if (!reservation.ok) {
           if (reservation.reason === 'full') throw new HttpError(409, 'Cupo agotado');
           if (reservation.reason === 'not_active') {
@@ -91,22 +91,22 @@ export function createPublicRouter(repos) {
         }
 
         try {
-          await repos.attendance.create({
+          await req.repos.attendance.create({
             userId: user.id,
             userCode: user.code,
             activityId,
             activityName: activity.name,
           });
-          user = await repos.users.incrementVisit(user.code);
+          user = await req.repos.users.incrementVisit(user.code);
         } catch (e) {
-          await repos.activities.decrementEnrolled(activityId);
+          await req.repos.activities.decrementEnrolled(activityId);
           throw e;
         }
       } else {
         const data = normalizeUserData(req.body.newUser);
 
         if (data.email) {
-          const existing = await repos.users.findByEmail(data.email);
+          const existing = await req.repos.users.findByEmail(data.email);
           if (existing) {
             return res.status(409).json({
               error: 'Este email ya tiene un código registrado',
@@ -116,7 +116,7 @@ export function createPublicRouter(repos) {
           }
         }
 
-        const reservation = await repos.activities.incrementEnrolledIfRoom(activityId);
+        const reservation = await req.repos.activities.incrementEnrolledIfRoom(activityId);
         if (!reservation.ok) {
           if (reservation.reason === 'full') throw new HttpError(409, 'Cupo agotado');
           if (reservation.reason === 'not_active') {
@@ -126,16 +126,16 @@ export function createPublicRouter(repos) {
         }
 
         try {
-          user = await repos.users.create(data);
+          user = await req.repos.users.create(data);
           isNewUser = true;
-          await repos.attendance.create({
+          await req.repos.attendance.create({
             userId: user.id,
             userCode: user.code,
             activityId,
             activityName: activity.name,
           });
         } catch (e) {
-          await repos.activities.decrementEnrolled(activityId);
+          await req.repos.activities.decrementEnrolled(activityId);
           throw e;
         }
         if (user.email) {
