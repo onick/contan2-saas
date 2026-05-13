@@ -5,10 +5,10 @@ import { MemoryAttendanceRepository } from './memoryAttendanceRepository.js';
 import { loadSnapshot, createScheduler } from './persistence.js';
 
 let instance = null;
-let scheduler = null;
 
 export async function getRepositories() {
   if (instance) return instance;
+
   if (config.DB_DRIVER === 'memory') {
     instance = {
       users: new MemoryUserRepository(),
@@ -28,16 +28,38 @@ export async function getRepositories() {
       console.log('[persistence] sin snapshot previo, iniciando vacío');
     }
 
-    scheduler = createScheduler(() => ({
+    const scheduler = createScheduler(() => ({
       users: instance.users.dump(),
       activities: instance.activities.dump(),
       attendance: instance.attendance.dump(),
     }));
     instance.persist = () => scheduler.schedule();
     instance.persistNow = () => scheduler.flushNow();
-    instance.hasSnapshot = snapshot !== null;
+    instance.driver = 'memory';
+  } else if (config.DB_DRIVER === 'postgres') {
+    const { getPool, applySchema } = await import('./postgres/pool.js');
+    const { PostgresUserRepository } = await import('./postgres/PostgresUserRepository.js');
+    const { PostgresActivityRepository } = await import('./postgres/PostgresActivityRepository.js');
+    const { PostgresAttendanceRepository } = await import('./postgres/PostgresAttendanceRepository.js');
+
+    const pool = getPool();
+    await applySchema();
+
+    instance = {
+      users: new PostgresUserRepository(pool),
+      activities: new PostgresActivityRepository(pool),
+      attendance: new PostgresAttendanceRepository(pool),
+    };
+    instance.persist = () => {};
+    instance.persistNow = async () => {};
+    instance.driver = 'postgres';
+
+    const total = await instance.users.count();
+    const totalAct = await instance.activities.count();
+    console.log(`[postgres] conectado · ${total} usuarios · ${totalAct} actividades`);
   } else {
     throw new Error(`DB_DRIVER no soportado: ${config.DB_DRIVER}`);
   }
+
   return instance;
 }
