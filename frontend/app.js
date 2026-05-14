@@ -1648,10 +1648,31 @@ async function handleActivityEdit(id) {
   Modal.open('Editar actividad', activityFormHtml(activity), async form => {
     try {
       const payload = readActivityForm(form);
+
+      // Si el usuario está cambiando a "cancelada" Y hay inscritos, confirmar
+      if (
+        activity.status !== 'cancelada' &&
+        payload.status === 'cancelada' &&
+        activity.enrolledCount > 0
+      ) {
+        const ok = await Modal.confirm({
+          title: 'Cancelar actividad',
+          message: `Se enviará un email de cancelación a los ${activity.enrolledCount} inscrito(s) con correo registrado. ¿Continuar?`,
+          confirmLabel: 'Sí, cancelar y notificar',
+          cancelLabel: 'Volver',
+          danger: true,
+        });
+        if (!ok) return;
+      }
+
       const imageUrl = await resolveImageUrl(form, activity.imageUrl);
       if (imageUrl !== undefined) payload.imageUrl = imageUrl;
       await API.activities.update(id, payload);
-      Toast.success('Actividad actualizada');
+      if (activity.status !== 'cancelada' && payload.status === 'cancelada' && activity.enrolledCount > 0) {
+        Toast.success(`Actividad cancelada. Enviando ${activity.enrolledCount} email(s)…`);
+      } else {
+        Toast.success('Actividad actualizada');
+      }
       Modal.close();
       renderActivities();
     } catch (e) {
@@ -2055,9 +2076,14 @@ async function removeAttendanceFromActivity(attendanceId, activityId) {
 async function handleActivityDelete(id) {
   const a = State.activities.find(x => x.id === id);
   if (!a) return;
+  const hasAttendees = a.enrolledCount > 0;
+  const isCancelled = a.status === 'cancelada';
+  const message = isCancelled && hasAttendees
+    ? `¿Eliminar definitivamente "${a.name}"? Se borrarán también los ${a.enrolledCount} registro(s) de asistencia asociados. Esta acción no se puede deshacer.`
+    : `¿Eliminar la actividad "${a.name}"? Esta acción no se puede deshacer.`;
   const ok = await Modal.confirm({
     title: 'Eliminar actividad',
-    message: `¿Eliminar la actividad "${a.name}"? Esta acción no se puede deshacer.`,
+    message,
     confirmLabel: 'Eliminar',
     danger: true,
   });

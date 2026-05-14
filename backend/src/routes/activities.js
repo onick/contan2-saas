@@ -6,6 +6,7 @@ import {
   normalizeActivityData,
 } from '../domain/schemas.js';
 import { deleteUploadFile } from './uploads.js';
+import { notifyActivityCancelled } from '../services/activityCancellation.js';
 
 export function createActivitiesRouter() {
   const router = Router();
@@ -86,9 +87,19 @@ export function createActivitiesRouter() {
         );
       }
       const oldImage = activity.imageUrl;
+      const oldStatus = activity.status;
       const updated = await req.repos.activities.update(req.params.id, data);
       if (oldImage && oldImage !== updated.imageUrl) {
         deleteUploadFile(oldImage);
+      }
+      if (oldStatus !== 'cancelada' && updated.status === 'cancelada') {
+        notifyActivityCancelled({
+          repos: req.repos,
+          activity: updated,
+          organization: req.organization,
+        }).catch(err =>
+          console.error('[activities] notify cancelled failed:', err.message),
+        );
       }
       res.json(updated);
     } catch (e) {
@@ -101,8 +112,17 @@ export function createActivitiesRouter() {
       const activity = await req.repos.activities.findById(req.params.id);
       if (!activity) throw new HttpError(404, 'Actividad no encontrada');
       const attendances = await req.repos.attendance.findByActivityId(req.params.id);
+      if (attendances.length > 0 && activity.status !== 'cancelada') {
+        throw new HttpError(
+          409,
+          'La actividad tiene asistencias registradas. Cancélala primero (los inscritos serán notificados por email) y luego podrás borrarla.',
+        );
+      }
+      // Si está cancelada o sin asistencias, borrar (purgando attendance asociado primero)
       if (attendances.length > 0) {
-        throw new HttpError(409, 'La actividad tiene asistencias registradas');
+        for (const att of attendances) {
+          await req.repos.attendance.delete(att.id);
+        }
       }
       const imageToDelete = activity.imageUrl;
       await req.repos.activities.delete(req.params.id);
