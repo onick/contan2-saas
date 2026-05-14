@@ -292,6 +292,7 @@ function renderIdentify(root) {
 }
 
 // ============ Screen: codeInput ============
+// Acepta código CCB-XXXXXX O email. El sistema autodetecta.
 function renderCodeInput(root) {
   const prefilled = State.prefilledCode || '';
   State.prefilledCode = null;
@@ -301,14 +302,15 @@ function renderCodeInput(root) {
         <i class="fa-solid fa-ticket"></i>
         ${escapeHtml(State.activity.name)}
       </div>
-      <h1 class="k-h1">Introduce tu código</h1>
-      <p class="k-lead">Es el código <strong>CCB-XXXXXX</strong> que recibiste en tu primera visita</p>
+      <h1 class="k-h1">Identifícate</h1>
+      <p class="k-lead">Escribe tu <strong>código CCB-XXXXXX</strong> o tu <strong>correo electrónico</strong></p>
 
       <div id="k-code-stage">
-        <div class="k-form" style="max-width:520px">
-          <input type="text" class="k-input k-input--code" id="k-code-input"
-                 placeholder="CCB-XXXXXX" maxlength="10" autocomplete="off"
-                 inputmode="text" autocapitalize="characters" value="${escapeHtml(prefilled)}" />
+        <div class="k-form" style="max-width:560px">
+          <input type="text" class="k-input k-input--identifier" id="k-code-input"
+                 placeholder="CCB-XXXXXX  o  tu@correo.com" maxlength="80" autocomplete="off"
+                 inputmode="text" value="${escapeHtml(prefilled)}" />
+          <div class="k-input-hint" id="k-mode-hint">&nbsp;</div>
           <div class="k-input-error" id="k-code-err"></div>
         </div>
 
@@ -327,52 +329,109 @@ function renderCodeInput(root) {
   const input = $('#k-code-input');
   const searchBtn = $('#k-search');
   const errEl = $('#k-code-err');
+  const hintEl = $('#k-mode-hint');
 
-  const formatCode = v => {
-    let s = v.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (!s.startsWith('CCB')) {
-      s = 'CCB' + s.replace(/^CCB/, '');
+  // Detecta si lo escrito es un email (contiene @) o un código.
+  // Para código: auto-uppercase y auto-format (CCB-XXXXXX).
+  // Para email: dejar lowercase y validar formato.
+  const transform = raw => {
+    const trimmed = raw.trim();
+    if (trimmed.includes('@')) {
+      return { mode: 'email', value: trimmed.toLowerCase() };
     }
+    let s = trimmed.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (s && !s.startsWith('CCB')) s = 'CCB' + s.replace(/^CCB/, '');
     if (s.length > 3) s = 'CCB-' + s.slice(3, 9);
-    return s;
+    return { mode: 'code', value: s };
   };
-  const validate = v => /^CCB-[A-Z0-9]{6}$/.test(v);
+  const validate = ({ mode, value }) => {
+    if (mode === 'code') return /^CCB-[A-Z0-9]{6}$/.test(value);
+    if (mode === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    return false;
+  };
+  const updateHint = mode => {
+    if (mode === 'email') {
+      hintEl.innerHTML = '<i class="fa-solid fa-envelope"></i> Detectado correo';
+      hintEl.style.color = 'var(--k-primary)';
+    } else if (mode === 'code') {
+      hintEl.innerHTML = '<i class="fa-solid fa-id-card"></i> Detectado código';
+      hintEl.style.color = 'var(--k-primary)';
+    } else {
+      hintEl.innerHTML = '&nbsp;';
+    }
+  };
 
   input.addEventListener('input', () => {
-    input.value = formatCode(input.value);
+    const { mode, value } = transform(input.value);
+    // Solo aplicamos auto-format si el usuario está escribiendo código (no email).
+    if (mode === 'code') input.value = value;
     errEl.classList.remove('visible');
-    searchBtn.disabled = !validate(input.value);
+    updateHint(value ? mode : null);
+    searchBtn.disabled = !validate({ mode, value });
   });
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && validate(input.value)) searchBtn.click();
+    if (e.key === 'Enter') {
+      const r = transform(input.value);
+      if (validate(r)) searchBtn.click();
+    }
   });
   input.focus();
   if (prefilled) {
-    input.value = formatCode(prefilled);
-    searchBtn.disabled = !validate(input.value);
+    const r = transform(input.value);
+    input.value = r.value;
+    updateHint(r.mode);
+    searchBtn.disabled = !validate(r);
   }
 
   $('#k-back').addEventListener('click', () => go('identify'));
 
   searchBtn.addEventListener('click', async () => {
-    const code = input.value.trim().toUpperCase();
-    if (!validate(code)) return;
+    const r = transform(input.value);
+    if (!validate(r)) return;
     searchBtn.disabled = true;
     searchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Buscando…';
     try {
-      const user = await api(`/users/${encodeURIComponent(code)}`);
+      const user = await api(`/users/lookup?q=${encodeURIComponent(r.value)}`);
       showUserBanner(user);
     } catch (e) {
       searchBtn.disabled = false;
       searchBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Buscar';
       if (e.status === 404) {
-        errEl.textContent = 'No encontramos ese código. Verifica que esté bien escrito.';
+        showNotFoundOptions(r.mode);
+      } else if (e.status === 429) {
+        errEl.textContent = 'Demasiadas búsquedas. Espera un minuto.';
         errEl.classList.add('visible');
       } else {
-        showError('No pudimos validar tu código. Intenta de nuevo.');
+        showError('No pudimos completar la búsqueda. Intenta de nuevo.');
       }
     }
   });
+}
+
+function showNotFoundOptions(mode) {
+  const codeStage = $('#k-code-stage');
+  const userStage = $('#k-user-stage');
+  if (!codeStage || !userStage) return;
+  codeStage.style.display = 'none';
+  userStage.style.display = 'block';
+  const msg = mode === 'email'
+    ? 'No encontramos a nadie con ese correo. ¿Es tu primera visita?'
+    : 'No encontramos ese código. Verifica que esté bien escrito o regístrate como nuevo.';
+  userStage.innerHTML = `
+    <div class="k-not-found">
+      <div class="k-not-found-icon"><i class="fa-solid fa-user-slash"></i></div>
+      <div class="k-not-found-msg">${escapeHtml(msg)}</div>
+    </div>
+    <div class="k-actions">
+      <button class="k-btn k-btn--ghost" id="k-retry">
+        <i class="fa-solid fa-rotate-left"></i> Intentar de nuevo
+      </button>
+      <button class="k-btn k-btn--accent k-btn--xl" id="k-go-new">
+        <i class="fa-solid fa-user-plus"></i> Soy nuevo, regístrame
+      </button>
+    </div>`;
+  $('#k-retry').addEventListener('click', () => go('codeInput'));
+  $('#k-go-new').addEventListener('click', () => go('newUserForm'));
 }
 
 function showUserBanner(user) {

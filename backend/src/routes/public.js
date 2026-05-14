@@ -14,6 +14,35 @@ function publicUser(u) {
   return { code: u.code, firstName: u.firstName, lastName: u.lastName, visitCount: u.visitCount };
 }
 
+// Rate limiter in-memory para el endpoint de lookup público
+// (previene enumeración de emails registrados)
+const lookupAttempts = new Map(); // ip -> { count, resetAt }
+const LOOKUP_MAX_PER_MIN = 15;
+
+function publicLookupRateLimit(req, res, next) {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = lookupAttempts.get(ip) || { count: 0, resetAt: now + 60_000 };
+  if (entry.resetAt < now) {
+    entry.count = 0;
+    entry.resetAt = now + 60_000;
+  }
+  entry.count += 1;
+  lookupAttempts.set(ip, entry);
+  if (entry.count > LOOKUP_MAX_PER_MIN) {
+    return next(new HttpError(429, 'Demasiadas búsquedas. Espera un minuto.'));
+  }
+  next();
+}
+
+// Cleanup periódico
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, e] of lookupAttempts) {
+    if (e.resetAt < now - 60_000) lookupAttempts.delete(ip);
+  }
+}, 5 * 60 * 1000).unref();
+
 function publicActivity(a) {
   return {
     id: a.id,
@@ -38,6 +67,35 @@ export function createPublicRouter() {
         .filter(a => a.enrolledCount < a.capacity)
         .map(publicActivity);
       res.json({ activities: available, total: available.length });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // Lookup flexible: acepta código o email. Para el kiosko, cuando el usuario
+  // no recuerda su código. Rate-limited para prevenir enumeración de emails.
+  // IMPORTANTE: debe declararse ANTES de /users/:code (Express match order).
+  router.get('/users/lookup', publicLookupRateLimit, async (req, res, next) => {
+    try {
+      const q = String(req.query.q || '').trim();
+      if (!q) throw new HttpError(400, 'Parámetro q requerido');
+      let user = null;
+      if (q.includes('@')) {
+        user = await req.repos.users.findByEmail(q);
+      } else {
+        let code = q.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+        if (!code.startsWith('CCB-') && /^[A-Z0-9]{6}$/.test(code)) {
+          code = (req.organization?.codePrefix || 'CCB') + '-' + code;
+        }
+        if (!/^[A-Z]{2,8}-[A-Z0-9]{6}$/.test(code)) {
+          throw new HttpError(400, 'Formato inválido (código o email)');
+        }
+        user = await req.repos.users.findByCode(code);
+      }
+      if (!user) {
+        throw new HttpError(404, 'No te encontramos en el sistema');
+      }
+      res.json(publicUser(user));
     } catch (e) {
       next(e);
     }

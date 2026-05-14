@@ -408,6 +408,56 @@ input {
   text-transform: uppercase;
 }
 
+.k-input--identifier {
+  font-size: 26px;
+  text-align: center;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.k-input-hint {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--k-text-muted);
+  text-align: center;
+  margin-top: -6px;
+  min-height: 22px;
+  letter-spacing: 0.3px;
+}
+
+.k-input-hint i {
+  margin-right: 6px;
+}
+
+.k-not-found {
+  background: rgba(245, 158, 11, 0.08);
+  border: 2px dashed var(--k-warning);
+  border-radius: var(--k-radius);
+  padding: 32px 24px;
+  text-align: center;
+  animation: kFadeUp 240ms ease;
+}
+
+.k-not-found-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--k-warning);
+  display: grid;
+  place-items: center;
+  font-size: 32px;
+  margin: 0 auto 16px;
+}
+
+.k-not-found-msg {
+  font-size: 18px;
+  color: var(--k-text);
+  font-weight: 500;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
 .k-form {
   display: flex;
   flex-direction: column;
