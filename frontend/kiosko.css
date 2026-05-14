@@ -415,6 +415,62 @@ input {
   font-weight: 600;
 }
 
+.k-input-wrap {
+  position: relative;
+}
+
+.k-suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: white;
+  border: 1px solid var(--k-border);
+  border-radius: var(--k-radius-sm);
+  box-shadow: 0 12px 32px -6px rgba(15, 23, 42, 0.18);
+  max-height: 320px;
+  overflow-y: auto;
+  animation: kFadeUp 160ms ease;
+}
+
+.k-suggestions.hidden {
+  display: none;
+}
+
+.k-suggestion {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: white;
+  border: none;
+  border-bottom: 1px solid var(--k-border);
+  padding: 14px 18px;
+  font-size: 18px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--k-text);
+  transition: background-color 120ms ease;
+}
+
+.k-suggestion:last-child {
+  border-bottom: none;
+}
+
+.k-suggestion:hover,
+.k-suggestion.is-active {
+  background: rgba(26, 35, 126, 0.08);
+}
+
+.k-suggestion-local {
+  color: var(--k-text-muted);
+}
+
+.k-suggestion-domain {
+  color: var(--k-primary);
+  font-weight: 700;
+}
+
 .k-input-hint {
   font-size: 15px;
   font-weight: 600;

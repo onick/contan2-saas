@@ -291,6 +291,39 @@ function renderIdentify(root) {
   $('#k-back').addEventListener('click', () => go('activities'));
 }
 
+// Dominios sugeridos en orden de probabilidad para audiencia DO
+const POPULAR_DOMAINS = [
+  'gmail.com',
+  'hotmail.com',
+  'outlook.com',
+  'yahoo.com',
+  'icloud.com',
+  'live.com',
+  'me.com',
+  'protonmail.com',
+  'aol.com',
+  'msn.com',
+  'banreservas.com.do',
+  'claro.net.do',
+  'hotmail.es',
+];
+
+function emailSuggestions(rawInput) {
+  const at = rawInput.indexOf('@');
+  if (at === -1) return [];
+  const local = rawInput.slice(0, at).trim();
+  if (!local || !/^[^\s@]+$/.test(local)) return [];
+  const partial = rawInput.slice(at + 1).toLowerCase().trim();
+  if (POPULAR_DOMAINS.includes(partial)) return []; // ya completo
+  const matches = partial
+    ? POPULAR_DOMAINS.filter(d => d.startsWith(partial))
+    : POPULAR_DOMAINS.slice(0, 5);
+  return matches.slice(0, 5).map(domain => ({
+    domain,
+    full: `${local}@${domain}`,
+  }));
+}
+
 // ============ Screen: codeInput ============
 // Acepta código CCB-XXXXXX O email. El sistema autodetecta.
 function renderCodeInput(root) {
@@ -307,9 +340,12 @@ function renderCodeInput(root) {
 
       <div id="k-code-stage">
         <div class="k-form" style="max-width:560px">
-          <input type="text" class="k-input k-input--identifier" id="k-code-input"
-                 placeholder="CCB-XXXXXX  o  tu@correo.com" maxlength="80" autocomplete="off"
-                 inputmode="text" value="${escapeHtml(prefilled)}" />
+          <div class="k-input-wrap">
+            <input type="text" class="k-input k-input--identifier" id="k-code-input"
+                   placeholder="CCB-XXXXXX  o  tu@correo.com" maxlength="80" autocomplete="off"
+                   inputmode="text" value="${escapeHtml(prefilled)}" />
+            <div class="k-suggestions hidden" id="k-suggestions"></div>
+          </div>
           <div class="k-input-hint" id="k-mode-hint">&nbsp;</div>
           <div class="k-input-error" id="k-code-err"></div>
         </div>
@@ -365,15 +401,88 @@ function renderCodeInput(root) {
     }
   };
 
+  const suggestionsEl = $('#k-suggestions');
+  let activeSuggestion = -1; // índice del item seleccionado por teclado
+
+  const renderSuggestions = () => {
+    const items = emailSuggestions(input.value);
+    if (items.length === 0) {
+      suggestionsEl.classList.add('hidden');
+      suggestionsEl.innerHTML = '';
+      activeSuggestion = -1;
+      return;
+    }
+    activeSuggestion = 0;
+    suggestionsEl.innerHTML = items
+      .map((it, i) => `
+        <button type="button" class="k-suggestion ${i === 0 ? 'is-active' : ''}" data-full="${escapeHtml(it.full)}" data-index="${i}">
+          <span class="k-suggestion-local">${escapeHtml(it.full.split('@')[0])}@</span><span class="k-suggestion-domain">${escapeHtml(it.domain)}</span>
+        </button>`)
+      .join('');
+    suggestionsEl.classList.remove('hidden');
+  };
+
+  const applySuggestion = index => {
+    const btns = suggestionsEl.querySelectorAll('[data-full]');
+    if (!btns[index]) return;
+    input.value = btns[index].dataset.full;
+    suggestionsEl.classList.add('hidden');
+    suggestionsEl.innerHTML = '';
+    activeSuggestion = -1;
+    // Recalcular state
+    const det = detect(input.value);
+    updateHint(det.mode);
+    searchBtn.disabled = !validate(det);
+    input.focus();
+  };
+
+  const moveActive = delta => {
+    const btns = suggestionsEl.querySelectorAll('[data-full]');
+    if (btns.length === 0) return;
+    activeSuggestion = (activeSuggestion + delta + btns.length) % btns.length;
+    btns.forEach((b, i) => b.classList.toggle('is-active', i === activeSuggestion));
+  };
+
+  suggestionsEl.addEventListener('click', e => {
+    const btn = e.target.closest('[data-full]');
+    if (btn) applySuggestion(Number(btn.dataset.index));
+  });
+
   input.addEventListener('input', () => {
-    // NO tocar el valor del input. Solo actualizar hint + enabled state.
     const det = detect(input.value);
     errEl.classList.remove('visible');
     updateHint(det.mode);
     searchBtn.disabled = !validate(det);
+    renderSuggestions();
   });
   input.addEventListener('keydown', e => {
+    const isOpen = !suggestionsEl.classList.contains('hidden');
+    if (e.key === 'Tab' && isOpen) {
+      e.preventDefault();
+      applySuggestion(activeSuggestion >= 0 ? activeSuggestion : 0);
+      return;
+    }
+    if (e.key === 'ArrowDown' && isOpen) {
+      e.preventDefault();
+      moveActive(1);
+      return;
+    }
+    if (e.key === 'ArrowUp' && isOpen) {
+      e.preventDefault();
+      moveActive(-1);
+      return;
+    }
+    if (e.key === 'Escape' && isOpen) {
+      suggestionsEl.classList.add('hidden');
+      return;
+    }
     if (e.key === 'Enter') {
+      // Si hay sugerencia activa, aplicarla en vez de buscar
+      if (isOpen && activeSuggestion >= 0) {
+        e.preventDefault();
+        applySuggestion(activeSuggestion);
+        return;
+      }
       const det = detect(input.value);
       if (validate(det)) searchBtn.click();
     }
