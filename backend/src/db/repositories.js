@@ -60,7 +60,22 @@ export async function initRepositories() {
 export async function createTenantRepos(organizationId) {
   if (config.DB_DRIVER === 'memory') {
     const inst = await initRepositories();
-    return { ...inst, organizationId: organizationId || CCB_ORG_ID };
+    // Stub de invitations para modo memory (single-tenant legacy, sin RSVP real)
+    const invitationsStub = {
+      async findByActivity() { return []; },
+      async findByActivityAndUser() { return null; },
+      async findById() { return null; },
+      async create() { throw new Error('RSVP no soportado en modo memory'); },
+      async respond() { throw new Error('RSVP no soportado en modo memory'); },
+      async cancel() { return null; },
+      async markSent() { return null; },
+      async countByActivityAndStatus() { return 0; },
+    };
+    return {
+      ...inst,
+      invitations: invitationsStub,
+      organizationId: organizationId || CCB_ORG_ID,
+    };
   }
   if (config.DB_DRIVER === 'postgres') {
     const inst = await initRepositories();

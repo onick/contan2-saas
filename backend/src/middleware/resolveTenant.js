@@ -1,7 +1,33 @@
 import { config } from '../config.js';
-import { initRepositories } from '../db/repositories.js';
+import { initRepositories, CCB_ORG_ID } from '../db/repositories.js';
 import { OrganizationRepository } from '../db/postgres/platform/OrganizationRepository.js';
 import { HttpError } from './errorHandler.js';
+
+// Org sintética para modo memory (single-tenant legacy)
+const MEMORY_ORG = {
+  id: CCB_ORG_ID,
+  slug: 'ccb',
+  name: 'Centro Cultural Banreservas',
+  legalName: 'Centro Cultural Banreservas',
+  primaryColor: '#1a237e',
+  secondaryColor: '#ff6f00',
+  codePrefix: 'CCB',
+  locale: 'es',
+  timezone: 'America/Santo_Domingo',
+  plan: 'enterprise',
+  status: 'active',
+  staffPinHash: null,
+  logoUrl: null,
+  emailFromAddr: null,
+  emailFromName: null,
+  emailReplyTo: null,
+  customDomain: null,
+  customDomainVerifiedAt: null,
+  trialEndsAt: null,
+  createdAt: null,
+  updatedAt: null,
+  deletedAt: null,
+};
 
 const SUBDOMAIN_RE = /^([a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?)\.(.+)$/;
 const CACHE_TTL_MS = 60_000;
@@ -93,6 +119,14 @@ async function resolveDevFallback() {
 
 export async function resolveTenant(req, res, next) {
   try {
+    // Legacy: modo memory es single-tenant (CCB hardcoded)
+    if (config.DB_DRIVER === 'memory') {
+      req.organization = MEMORY_ORG;
+      req.organizationId = MEMORY_ORG.id;
+      req.tenantSource = 'memory-legacy';
+      return next();
+    }
+
     // Dev convenience: en localhost/127.0.0.1 sin subdomain, fallback al CCB
     if (DEV_FALLBACK_HOSTS.has(req.hostname)) {
       const org = await resolveDevFallback();
