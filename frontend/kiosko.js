@@ -227,9 +227,11 @@ function paintActivities(activities) {
         const pct = a.capacity ? (a.enrolledCount / a.capacity) : 0;
         const low = pct >= 0.8;
         return `
-          <button type="button" class="k-card" data-activity-id="${escapeHtml(a.id)}" data-activity-name="${escapeHtml(a.name)}">
+          <button type="button" class="k-card" data-activity-id="${escapeHtml(a.id)}" data-activity-name="${escapeHtml(a.name)}" data-activity-type="${escapeHtml(a.type)}">
             ${a.imageUrl
-              ? `<div class="k-card-cover" style="background-image:url('${escapeHtml(a.imageUrl)}')"></div>`
+              ? `<div class="k-card-cover">
+                   <img class="k-card-cover-img" src="${escapeHtml(a.imageUrl)}" alt="" loading="lazy" data-cover-img />
+                 </div>`
               : `<div class="k-card-band k-card-band--${escapeHtml(a.type)}"></div>`}
             <div class="k-card-body">
               ${a.imageUrl ? '' : `<div class="k-card-icon"><i class="fa-solid ${typeIcon(a.type)}"></i></div>`}
@@ -255,6 +257,24 @@ function paintActivities(activities) {
       const name = btn.dataset.activityName;
       go('identify', { activity: { id, name } });
     });
+  });
+  // Si la imagen de portada falla (archivo no existe en el servidor), caer
+  // al banner de tipo + icono para no dejar un cuadro blanco vacío.
+  list.querySelectorAll('[data-cover-img]').forEach(img => {
+    img.addEventListener('error', () => {
+      const card = img.closest('[data-activity-id]');
+      if (!card) return;
+      const type = card.dataset.activityType || 'otro';
+      const cover = img.closest('.k-card-cover');
+      const body = card.querySelector('.k-card-body');
+      if (cover) {
+        cover.outerHTML = `<div class="k-card-band k-card-band--${type}"></div>`;
+      }
+      if (body && !body.querySelector('.k-card-icon')) {
+        body.insertAdjacentHTML('afterbegin',
+          `<div class="k-card-icon"><i class="fa-solid ${typeIcon(type)}"></i></div>`);
+      }
+    }, { once: true });
   });
 }
 

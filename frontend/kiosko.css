@@ -309,9 +309,15 @@ input {
 
 .k-card-cover {
   height: 180px;
-  background-size: cover;
-  background-position: center;
   background-color: var(--k-bg);
+  overflow: hidden;
+}
+
+.k-card-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .k-card-band--exposicion { background: linear-gradient(90deg, #7c3aed, #a855f7); }
