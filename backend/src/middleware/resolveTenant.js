@@ -11,6 +11,7 @@ const MEMORY_ORG = {
   legalName: 'Centro Cultural Banreservas',
   primaryColor: '#1a237e',
   secondaryColor: '#ff6f00',
+  sidebarStyle: 'brand',
   codePrefix: 'CCB',
   locale: 'es',
   timezone: 'America/Santo_Domingo',

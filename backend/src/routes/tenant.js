@@ -16,6 +16,7 @@ export function createTenantRouter() {
       logoUrl: o.logoUrl,
       primaryColor: o.primaryColor,
       secondaryColor: o.secondaryColor,
+      sidebarStyle: o.sidebarStyle || 'brand',
       codePrefix: o.codePrefix,
       locale: o.locale,
       timezone: o.timezone,

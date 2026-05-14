@@ -12,6 +12,7 @@ import { startAutoFinalize } from './src/utils/autoFinalize.js';
 import { errorHandler, notFoundHandler } from './src/middleware/errorHandler.js';
 import { forceCcbTenant, buildTenantRepos } from './src/middleware/tenantRepos.js';
 import { resolveTenant } from './src/middleware/resolveTenant.js';
+import { serveHtmlWithBranding } from './src/middleware/serveHtmlWithBranding.js';
 import { createTenantRouter } from './src/routes/tenant.js';
 import { createUsersRouter } from './src/routes/users.js';
 import { createActivitiesRouter } from './src/routes/activities.js';
@@ -90,20 +91,16 @@ app.use('/api/credentials', createCredentialsRouter());
 
 app.use('/api', notFoundHandler);
 
-app.get(/^\/kiosko(?:\/.*)?$/, (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(frontendPath, 'kiosko.html'));
-});
+// HTML routes: resolveTenant para tener req.organization y poder inyectar
+// el branding SSR (paleta + on-primary) antes del primer paint.
+const kioskoHtml = serveHtmlWithBranding(path.join(frontendPath, 'kiosko.html'));
+const scannerHtml = serveHtmlWithBranding(path.join(frontendPath, 'scanner.html'));
+const rsvpHtml = serveHtmlWithBranding(path.join(frontendPath, 'rsvp.html'));
+const indexHtml = serveHtmlWithBranding(path.join(frontendPath, 'index.html'));
 
-app.get(/^\/scanner(?:\/.*)?$/, (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(frontendPath, 'scanner.html'));
-});
-
-app.get(/^\/rsvp(?:\/.*)?$/, (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(frontendPath, 'rsvp.html'));
-});
+app.get(/^\/kiosko(?:\/.*)?$/, resolveTenant, kioskoHtml);
+app.get(/^\/scanner(?:\/.*)?$/, resolveTenant, scannerHtml);
+app.get(/^\/rsvp(?:\/.*)?$/, resolveTenant, rsvpHtml);
 
 app.use(express.static(frontendPath, {
   setHeaders: (res, filePath) => {
@@ -111,20 +108,23 @@ app.use(express.static(frontendPath, {
       res.setHeader('Cache-Control', 'no-cache');
     }
   },
+  // index:false evita que express.static sirva index.html sin pasar por
+  // el middleware de branding SSR.
+  index: false,
 }));
 app.use((req, res, next) => {
   if (req.method !== 'GET') return next();
   if (req.path.startsWith('/api')) return next();
   if (req.path === '/kiosko' || req.path.startsWith('/kiosko/')) {
-    return res.sendFile(path.join(frontendPath, 'kiosko.html'));
+    return resolveTenant(req, res, () => kioskoHtml(req, res, next));
   }
   if (req.path === '/scanner' || req.path.startsWith('/scanner/')) {
-    return res.sendFile(path.join(frontendPath, 'scanner.html'));
+    return resolveTenant(req, res, () => scannerHtml(req, res, next));
   }
   if (req.path === '/rsvp' || req.path.startsWith('/rsvp/')) {
-    return res.sendFile(path.join(frontendPath, 'rsvp.html'));
+    return resolveTenant(req, res, () => rsvpHtml(req, res, next));
   }
-  res.sendFile(path.join(frontendPath, 'index.html'));
+  return resolveTenant(req, res, () => indexHtml(req, res, next));
 });
 
 app.use(errorHandler);

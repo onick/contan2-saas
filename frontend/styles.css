@@ -1,19 +1,57 @@
 :root {
-  --color-primary: #1a237e;
-  --color-primary-dark: #0d144f;
-  --color-primary-light: #534bae;
+  /* === Brand palette (50-900). branding.js puede sobrescribir en runtime
+     generando los stops por HSL desde un solo color primario por org. === */
+  --color-primary-50:  #e8eaf6;
+  --color-primary-100: #c5cae9;
+  --color-primary-200: #9fa8da;
+  --color-primary-300: #7986cb;
+  --color-primary-400: #534bae;
+  --color-primary-500: #3949ab;
+  --color-primary-600: #283593;
+  --color-primary-700: #1a237e;
+  --color-primary-800: #121858;
+  --color-primary-900: #0d144f;
+
+  /* Aliases compatibles con el código existente */
+  --color-primary: var(--color-primary-700);
+  --color-primary-dark: var(--color-primary-900);
+  --color-primary-light: var(--color-primary-400);
+  --color-on-primary: #ffffff;
+
+  /* === Accent === */
   --color-accent: #ff6f00;
   --color-accent-light: #ffa040;
+  --color-accent-dark: #ff3d00;
+  --color-on-accent: #ffffff;
+
+  /* === Surface / text === */
   --color-bg: #f4f6fa;
   --color-surface: #ffffff;
   --color-surface-alt: #f9fafb;
   --color-text: #1f2937;
   --color-text-muted: #6b7280;
   --color-border: #e5e7eb;
+
+  /* === Status (independientes de marca, siempre legibles) === */
   --color-success: #10b981;
+  --color-success-dark: #047857;
   --color-warning: #f59e0b;
+  --color-warning-dark: #b45309;
   --color-danger: #ef4444;
+  --color-danger-dark: #b91c1c;
   --color-info: #3b82f6;
+  --color-info-dark: #1d4ed8;
+
+  /* === Sidebar (3 estilos vía branding.js: brand | dark | light)
+     Default = brand: gradiente del primario de la organización. === */
+  --color-sidebar-bg-from: var(--color-primary-700);
+  --color-sidebar-bg-to: var(--color-primary-900);
+  --color-sidebar-text: #ffffff;
+  --color-sidebar-text-muted: rgba(255, 255, 255, 0.6);
+  --color-sidebar-hover-bg: rgba(255, 255, 255, 0.08);
+  --color-sidebar-active-bg: var(--color-accent);
+  --color-sidebar-active-text: var(--color-on-accent);
+  --color-sidebar-border: rgba(255, 255, 255, 0.1);
 
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08);
@@ -75,8 +113,8 @@ textarea {
   position: fixed;
   inset: 0 auto 0 0;
   width: var(--sidebar-w);
-  background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-  color: #fff;
+  background: linear-gradient(180deg, var(--color-sidebar-bg-from) 0%, var(--color-sidebar-bg-to) 100%);
+  color: var(--color-sidebar-text);
   display: flex;
   flex-direction: column;
   padding: 24px 0;
@@ -90,7 +128,7 @@ textarea {
   align-items: center;
   gap: 6px;
   padding: 8px 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--color-sidebar-border);
 }
 
 .brand-logo-img {
@@ -105,7 +143,7 @@ textarea {
 
 .brand-subtitle {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--color-sidebar-text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-top: 6px;
@@ -125,7 +163,7 @@ textarea {
   gap: 12px;
   padding: 12px 16px;
   border-radius: var(--radius-md);
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--color-sidebar-text-muted);
   font-weight: 500;
   font-size: 14px;
   transition: var(--transition);
@@ -138,13 +176,13 @@ textarea {
 }
 
 .nav-link:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--color-sidebar-hover-bg);
+  color: var(--color-sidebar-text);
 }
 
 .nav-link.active {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: var(--color-sidebar-hover-bg);
+  color: var(--color-sidebar-text);
 }
 
 .nav-link.active::before {
@@ -154,15 +192,15 @@ textarea {
   top: 8px;
   bottom: 8px;
   width: 4px;
-  background: var(--color-accent);
+  background: var(--color-sidebar-active-bg);
   border-radius: 0 4px 4px 0;
 }
 
 .sidebar-footer {
   padding: 16px 24px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--color-sidebar-border);
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--color-sidebar-text-muted);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -357,9 +395,9 @@ textarea {
   flex-shrink: 0;
 }
 
-.stat-icon--blue { background: linear-gradient(135deg, #1a237e, #534bae); }
-.stat-icon--orange { background: linear-gradient(135deg, #ff6f00, #ffa040); }
-.stat-icon--green { background: linear-gradient(135deg, #059669, #10b981); }
+.stat-icon--blue { background: linear-gradient(135deg, var(--color-primary-700), var(--color-primary-400)); }
+.stat-icon--orange { background: linear-gradient(135deg, var(--color-accent), var(--color-accent-light)); }
+.stat-icon--green { background: linear-gradient(135deg, var(--color-success-dark), var(--color-success)); }
 .stat-icon--purple { background: linear-gradient(135deg, #7c3aed, #a855f7); }
 
 .stat-info {
@@ -509,7 +547,7 @@ textarea {
 }
 
 .progress-bar--hot {
-  background: linear-gradient(90deg, var(--color-accent), #ff3d00);
+  background: linear-gradient(90deg, var(--color-accent), var(--color-accent-dark));
 }
 
 /* ====== Pagination ====== */
@@ -1390,9 +1428,9 @@ textarea {
   flex-shrink: 0;
 }
 
-.segment-icon--blue { background: linear-gradient(135deg, #1a237e, #534bae); }
-.segment-icon--orange { background: linear-gradient(135deg, #ff6f00, #ffa040); }
-.segment-icon--green { background: linear-gradient(135deg, #059669, #10b981); }
+.segment-icon--blue { background: linear-gradient(135deg, var(--color-primary-700), var(--color-primary-400)); }
+.segment-icon--orange { background: linear-gradient(135deg, var(--color-accent), var(--color-accent-light)); }
+.segment-icon--green { background: linear-gradient(135deg, var(--color-success-dark), var(--color-success)); }
 .segment-icon--purple { background: linear-gradient(135deg, #7c3aed, #a855f7); }
 
 .segment-info {
