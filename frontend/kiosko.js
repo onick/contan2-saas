@@ -331,23 +331,27 @@ function renderCodeInput(root) {
   const errEl = $('#k-code-err');
   const hintEl = $('#k-mode-hint');
 
-  // Detecta si lo escrito es un email (contiene @) o un código.
-  // Para código: auto-uppercase y auto-format (CCB-XXXXXX).
-  // Para email: dejar lowercase y validar formato.
-  const transform = raw => {
-    const trimmed = raw.trim();
-    if (trimmed.includes('@')) {
-      return { mode: 'email', value: trimmed.toLowerCase() };
-    }
-    let s = trimmed.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (s && !s.startsWith('CCB')) s = 'CCB' + s.replace(/^CCB/, '');
-    if (s.length > 3) s = 'CCB-' + s.slice(3, 9);
-    return { mode: 'code', value: s };
+  // Detecta el modo SIN modificar el input. La normalización solo
+  // sucede al hacer click "Buscar" (para enviar al backend en el formato correcto).
+  const detect = raw => {
+    const t = (raw || '').trim();
+    if (!t) return { mode: null, value: '' };
+    if (t.includes('@')) return { mode: 'email', value: t.toLowerCase() };
+    return { mode: 'code', value: t };
   };
-  const validate = ({ mode, value }) => {
-    if (mode === 'code') return /^CCB-[A-Z0-9]{6}$/.test(value);
-    if (mode === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-    return false;
+  const normalizeForQuery = ({ mode, value }) => {
+    if (mode === 'email') return value;
+    // Code: uppercase, strip junk, prepend CCB- si falta
+    let s = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!s.startsWith('CCB')) s = 'CCB' + s.replace(/^CCB/, '');
+    if (s.length > 3) s = 'CCB-' + s.slice(3, 9);
+    return s;
+  };
+  const validate = det => {
+    if (!det.value) return false;
+    if (det.mode === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(det.value);
+    const normalized = normalizeForQuery(det);
+    return /^CCB-[A-Z0-9]{6}$/.test(normalized);
   };
   const updateHint = mode => {
     if (mode === 'email') {
@@ -362,42 +366,41 @@ function renderCodeInput(root) {
   };
 
   input.addEventListener('input', () => {
-    const { mode, value } = transform(input.value);
-    // Solo aplicamos auto-format si el usuario está escribiendo código (no email).
-    if (mode === 'code') input.value = value;
+    // NO tocar el valor del input. Solo actualizar hint + enabled state.
+    const det = detect(input.value);
     errEl.classList.remove('visible');
-    updateHint(value ? mode : null);
-    searchBtn.disabled = !validate({ mode, value });
+    updateHint(det.mode);
+    searchBtn.disabled = !validate(det);
   });
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
-      const r = transform(input.value);
-      if (validate(r)) searchBtn.click();
+      const det = detect(input.value);
+      if (validate(det)) searchBtn.click();
     }
   });
   input.focus();
   if (prefilled) {
-    const r = transform(input.value);
-    input.value = r.value;
-    updateHint(r.mode);
-    searchBtn.disabled = !validate(r);
+    const det = detect(prefilled);
+    updateHint(det.mode);
+    searchBtn.disabled = !validate(det);
   }
 
   $('#k-back').addEventListener('click', () => go('identify'));
 
   searchBtn.addEventListener('click', async () => {
-    const r = transform(input.value);
-    if (!validate(r)) return;
+    const det = detect(input.value);
+    if (!validate(det)) return;
+    const q = normalizeForQuery(det); // solo aquí normalizamos antes de enviar
     searchBtn.disabled = true;
     searchBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Buscando…';
     try {
-      const user = await api(`/users/lookup?q=${encodeURIComponent(r.value)}`);
+      const user = await api(`/users/lookup?q=${encodeURIComponent(q)}`);
       showUserBanner(user);
     } catch (e) {
       searchBtn.disabled = false;
       searchBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Buscar';
       if (e.status === 404) {
-        showNotFoundOptions(r.mode);
+        showNotFoundOptions(det.mode);
       } else if (e.status === 429) {
         errEl.textContent = 'Demasiadas búsquedas. Espera un minuto.';
         errEl.classList.add('visible');
