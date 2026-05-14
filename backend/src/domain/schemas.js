@@ -172,9 +172,13 @@ export function normalizeActivityData(data) {
   if (data.capacity != null) out.capacity = data.capacity;
   if (data.description != null) out.description = String(data.description).trim();
   if (data.status != null) out.status = data.status;
-  if (data.imageUrl != null) {
-    const trimmed = String(data.imageUrl).trim();
-    out.imageUrl = trimmed === '' ? null : trimmed;
+  if ('imageUrl' in data) {
+    if (data.imageUrl == null) {
+      out.imageUrl = null;
+    } else {
+      const trimmed = String(data.imageUrl).trim();
+      out.imageUrl = trimmed === '' ? null : trimmed;
+    }
   }
   return out;
 }
