@@ -58,15 +58,21 @@ export class MemoryUserRepository {
     return id ? { ...this.users.get(id) } : null;
   }
 
-  async findByEmailPrefix(prefix) {
-    if (!prefix || prefix.length < 3) return null;
+  async findByEmailPrefix(prefix, limit = 3) {
+    if (!prefix || prefix.length < 3) return { matches: [], total: 0 };
     const p = prefix.toLowerCase();
+    const all = [];
     for (const u of this.users.values()) {
       if (u.email && u.email.toLowerCase().startsWith(p)) {
-        return { ...u };
+        all.push({ ...u });
       }
     }
-    return null;
+    // Ordenar: más visitas primero, después más recientes
+    all.sort((a, b) => {
+      if (b.visitCount !== a.visitCount) return b.visitCount - a.visitCount;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+    return { matches: all.slice(0, limit), total: all.length };
   }
 
   async update(code, partial) {

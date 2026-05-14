@@ -407,40 +407,93 @@ function renderCodeInput(root) {
   let lastSuggestQ = '';
   let suggestController = null; // AbortController para cancelar fetches obsoletos
 
-  // Renderiza match real de DB (type-ahead)
-  const renderUserMatch = match => {
-    if (!match) {
+  // Renderiza payload del type-ahead: 0 / 1 / 2-3 matches, tooBroad, hasMore.
+  const renderUserMatches = payload => {
+    if (!payload) {
       suggestionsEl.classList.add('hidden');
       suggestionsEl.innerHTML = '';
       activeSuggestion = -1;
       return;
     }
-    const fullName = `${match.firstName} ${match.lastName}`.trim();
+    const { matches = [], total = 0, tooBroad = false, hasMore = false } = payload;
+
+    // Demasiados resultados con prefijo corto: pedir más letras para no enumerar.
+    if (tooBroad) {
+      suggestionsEl.innerHTML = `
+        <div class="k-suggestion-hint">
+          <i class="fa-solid fa-keyboard"></i>
+          Sigue escribiendo para identificarte (hay ${total} coincidencias)
+        </div>`;
+      suggestionsEl.classList.remove('hidden');
+      activeSuggestion = -1;
+      return;
+    }
+
+    if (matches.length === 0) {
+      suggestionsEl.classList.add('hidden');
+      suggestionsEl.innerHTML = '';
+      activeSuggestion = -1;
+      return;
+    }
+
+    if (matches.length === 1) {
+      const m = matches[0];
+      const fullName = `${m.firstName} ${m.lastName}`.trim();
+      suggestionsEl.innerHTML = `
+        <button type="button" class="k-suggestion-match" data-match-code="${escapeHtml(m.code)}">
+          <div class="k-suggestion-match-avatar"><i class="fa-solid fa-user-check"></i></div>
+          <div class="k-suggestion-match-info">
+            <div class="k-suggestion-match-greeting">¿Eres tú?</div>
+            <div class="k-suggestion-match-name">${escapeHtml(fullName)}</div>
+            <div class="k-suggestion-match-meta">${m.visitCount} visita(s) registrada(s)</div>
+          </div>
+          <i class="fa-solid fa-arrow-right k-suggestion-match-arrow"></i>
+        </button>`;
+      suggestionsEl.classList.remove('hidden');
+      activeSuggestion = -1;
+      return;
+    }
+
+    // 2-3 matches: lista compacta con header "¿Cuál eres tú?"
+    const items = matches.map(m => {
+      const fullName = `${m.firstName} ${m.lastName}`.trim();
+      return `
+        <button type="button" class="k-suggestion-match-row" data-match-code="${escapeHtml(m.code)}">
+          <div class="k-suggestion-match-row-avatar"><i class="fa-solid fa-user"></i></div>
+          <div class="k-suggestion-match-row-info">
+            <div class="k-suggestion-match-row-name">${escapeHtml(fullName)}</div>
+            <div class="k-suggestion-match-row-meta">${m.visitCount} visita(s)</div>
+          </div>
+          <i class="fa-solid fa-arrow-right k-suggestion-match-row-arrow"></i>
+        </button>`;
+    }).join('');
+
+    const footer = hasMore
+      ? `<div class="k-suggestion-hint k-suggestion-hint--foot">
+           <i class="fa-solid fa-circle-info"></i>
+           Hay ${total - matches.length} más — sigue escribiendo para afinar
+         </div>`
+      : '';
+
     suggestionsEl.innerHTML = `
-      <button type="button" class="k-suggestion-match" data-match-code="${escapeHtml(match.code)}">
-        <div class="k-suggestion-match-avatar"><i class="fa-solid fa-user-check"></i></div>
-        <div class="k-suggestion-match-info">
-          <div class="k-suggestion-match-greeting">¿Eres tú?</div>
-          <div class="k-suggestion-match-name">${escapeHtml(fullName)}</div>
-          <div class="k-suggestion-match-meta">${match.visitCount} visita(s) registrada(s)</div>
-        </div>
-        <i class="fa-solid fa-arrow-right k-suggestion-match-arrow"></i>
-      </button>`;
+      <div class="k-suggestion-match-header">¿Cuál eres tú?</div>
+      ${items}
+      ${footer}`;
     suggestionsEl.classList.remove('hidden');
     activeSuggestion = -1;
   };
 
-  // Llamada debounced al backend para buscar match por prefix
+  // Llamada debounced al backend para buscar matches por prefix
   const triggerSuggest = q => {
     if (suggestController) suggestController.abort();
     if (!q || q.length < 3 || q === lastSuggestQ) return;
     lastSuggestQ = q;
     suggestController = new AbortController();
     api(`/users/suggest?q=${encodeURIComponent(q)}`, { signal: suggestController.signal })
-      .then(match => {
+      .then(payload => {
         // Solo aplicar si el input no cambió desde que se disparó la búsqueda
-        if (lastSuggestQ === q && detect(input.value).mode !== 'email-complete') {
-          renderUserMatch(match);
+        if (lastSuggestQ === q && !input.value.includes('@')) {
+          renderUserMatches(payload);
         }
       })
       .catch(e => {

@@ -78,23 +78,28 @@ export function createPublicRouter() {
   router.get('/users/suggest', publicLookupRateLimit, async (req, res, next) => {
     try {
       const q = String(req.query.q || '').trim();
-      if (q.length < 3) {
-        return res.status(204).end(); // No Content
+      if (q.length < 3) return res.status(204).end();
+      if (!/^[a-zA-Z0-9._+-]+$/.test(q)) return res.status(204).end();
+
+      const { matches, total } = await req.repos.users.findByEmailPrefix(q, 3);
+
+      if (total === 0) return res.status(204).end();
+
+      // Privacy guard: si hay >1 match, requerir al menos 4 chars para listar varios.
+      // Con 3 chars solo mostramos si el match es único (evita scraping con prefix corto).
+      if (total > 1 && q.length < 4) {
+        return res.json({ matches: [], total, tooBroad: true });
       }
-      // Solo aceptar prefix válido (chars típicos de email local-part)
-      if (!/^[a-zA-Z0-9._+-]+$/.test(q)) {
-        return res.status(204).end();
-      }
-      const user = await req.repos.users.findByEmailPrefix(q);
-      if (!user) return res.status(204).end();
-      // Devolver solo lo mínimo para que el usuario confirme: nombre + código.
-      // NO devolver email completo para evitar revelar info sensible si fuera otra persona.
-      res.json({
-        code: user.code,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        visitCount: user.visitCount,
-      });
+
+      // Si hay más de 3 matches en total, devolvemos los top 3 + flag para que el front
+      // sugiera al usuario seguir escribiendo
+      const payload = matches.map(u => ({
+        code: u.code,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        visitCount: u.visitCount,
+      }));
+      res.json({ matches: payload, total, hasMore: total > matches.length });
     } catch (e) {
       next(e);
     }

@@ -88,21 +88,27 @@ export class PostgresUserRepository {
   }
 
   /**
-   * Busca un usuario cuyo email empieza con el prefix dado (case-insensitive).
-   * Devuelve solo el primer match. Diseñado para type-ahead suggest del kiosko.
+   * Busca usuarios cuyo email empieza con el prefix dado (case-insensitive).
+   * Devuelve hasta `limit` resultados + `total` real (sin limitar).
+   * Ordenados por relevancia: más visitas primero (frecuentes), después más recientes.
    */
-  async findByEmailPrefix(prefix) {
-    if (!prefix || prefix.length < 3) return null;
-    const { rows } = await this.pool.query(
-      `SELECT * FROM users
-       WHERE organization_id = $1
-         AND email IS NOT NULL
-         AND LOWER(email) LIKE LOWER($2)
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [this.orgId, prefix + '%'],
+  async findByEmailPrefix(prefix, limit = 3) {
+    if (!prefix || prefix.length < 3) return { matches: [], total: 0 };
+    const like = prefix + '%';
+    const countQ = this.pool.query(
+      `SELECT COUNT(*)::int AS n FROM users
+       WHERE organization_id = $1 AND email IS NOT NULL AND LOWER(email) LIKE LOWER($2)`,
+      [this.orgId, like],
     );
-    return rowToUser(rows[0]);
+    const matchesQ = this.pool.query(
+      `SELECT * FROM users
+       WHERE organization_id = $1 AND email IS NOT NULL AND LOWER(email) LIKE LOWER($2)
+       ORDER BY visit_count DESC, created_at DESC
+       LIMIT $3`,
+      [this.orgId, like, limit],
+    );
+    const [{ rows: cnt }, { rows: matches }] = await Promise.all([countQ, matchesQ]);
+    return { matches: matches.map(rowToUser), total: cnt[0].n };
   }
 
   async update(code, partial) {
