@@ -22,6 +22,12 @@ export function createAttendanceRouter() {
         activityId,
       });
       if (existing) {
+        if (!existing.checkedInAt) {
+          // RSVP previo confirmado, ahora check-in real
+          const updated = await req.repos.attendance.markCheckedIn(existing.id);
+          await req.repos.users.incrementVisit(user.code);
+          return res.status(200).json({ ...updated, upgradedFromRsvp: true });
+        }
         throw new HttpError(409, 'El usuario ya está registrado en esta actividad');
       }
 

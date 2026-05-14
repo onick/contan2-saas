@@ -131,6 +131,112 @@ function cancellationHtml({ user, activity, orgName }) {
 </html>`;
 }
 
+function invitationHtml({ user, activity, orgName, rsvpUrl }) {
+  const greeting = user.firstName ? `Hola ${user.firstName}` : 'Hola';
+  const date = new Date(activity.date).toLocaleString('es-DO', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const yesUrl = `${rsvpUrl}?action=yes`;
+  const noUrl = `${rsvpUrl}?action=no`;
+  return `<!DOCTYPE html>
+<html lang="es">
+  <body style="margin:0;padding:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;background:#f4f6fa;color:#1f2937;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fa;padding:32px 16px;">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,0.08);">
+          <tr><td style="background:linear-gradient(135deg,#1a237e 0%,#534bae 100%);padding:32px;text-align:center;">
+            <div style="font-size:11px;letter-spacing:2px;color:rgba(255,255,255,0.85);font-weight:600;margin-bottom:6px;">${escapeHtml(orgName)}</div>
+            <div style="color:#ffffff;font-size:22px;font-weight:700;">Te invitamos a una actividad</div>
+          </td></tr>
+          <tr><td style="padding:32px 36px 8px;">
+            <p style="font-size:17px;font-weight:600;margin:0 0 8px;">${escapeHtml(greeting)},</p>
+            <p style="font-size:15px;line-height:1.6;color:#4b5563;margin:0 0 12px;">
+              Nos gustaría contar con tu presencia en:
+            </p>
+          </td></tr>
+          <tr><td style="padding:0 36px 8px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-left:4px solid #ff6f00;border-radius:8px;">
+              <tr><td style="padding:18px 22px;">
+                <div style="font-size:20px;font-weight:700;color:#1f2937;margin-bottom:8px;">${escapeHtml(activity.name)}</div>
+                <div style="font-size:14px;color:#6b7280;line-height:1.7;">
+                  📅 ${escapeHtml(date)}<br>
+                  📍 ${escapeHtml(activity.location)}
+                </div>
+                ${activity.description ? `<div style="font-size:13px;color:#6b7280;line-height:1.5;margin-top:10px;padding-top:10px;border-top:1px solid #e5e7eb;">${escapeHtml(activity.description)}</div>` : ''}
+              </td></tr>
+            </table>
+          </td></tr>
+          <tr><td style="padding:24px 36px 8px;">
+            <p style="font-size:15px;color:#1f2937;margin:0 0 16px;text-align:center;font-weight:600;">
+              ¿Podrás asistir?
+            </p>
+          </td></tr>
+          <tr><td style="padding:0 36px 8px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td width="50%" style="padding-right:8px;">
+                  <a href="${escapeHtml(yesUrl)}" style="display:block;background:#10b981;color:#ffffff;text-decoration:none;text-align:center;padding:16px 12px;border-radius:10px;font-weight:700;font-size:16px;">
+                    ✓ Sí, asistiré
+                  </a>
+                </td>
+                <td width="50%" style="padding-left:8px;">
+                  <a href="${escapeHtml(noUrl)}" style="display:block;background:#f3f4f6;color:#4b5563;text-decoration:none;text-align:center;padding:16px 12px;border-radius:10px;font-weight:700;font-size:16px;border:1px solid #e5e7eb;">
+                    ✗ No podré
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+          <tr><td style="padding:16px 36px 0;">
+            <p style="font-size:12px;color:#9ca3af;line-height:1.5;margin:0;text-align:center;">
+              Tu respuesta nos ayuda a organizar mejor la actividad.<br>
+              Si los botones no funcionan, copia este link en tu navegador:<br>
+              <a href="${escapeHtml(rsvpUrl)}" style="color:#1a237e;word-break:break-all;">${escapeHtml(rsvpUrl)}</a>
+            </p>
+          </td></tr>
+          <tr><td style="padding:24px 36px 32px;">
+            <p style="font-size:11px;color:#9ca3af;margin:0;text-align:center;letter-spacing:0.5px;">${escapeHtml(orgName.toUpperCase())}</p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>`;
+}
+
+export async function sendInvitationEmail({ user, activity, orgName, rsvpUrl }) {
+  if (!user.email) {
+    return { skipped: true, reason: 'sin email' };
+  }
+  const c = client();
+  if (!c) {
+    console.log(`[email-dev] invitación a ${user.email} (actividad: ${activity.name}) url=${rsvpUrl}`);
+    return { skipped: true, reason: 'sin RESEND_API_KEY' };
+  }
+  try {
+    const result = await c.emails.send({
+      from: config.EMAIL_FROM,
+      to: user.email,
+      subject: `Te invitamos: ${activity.name}`,
+      html: invitationHtml({ user, activity, orgName: orgName || 'Centro Cultural', rsvpUrl }),
+    });
+    if (result.error) {
+      console.error(`[invite-email] error a ${user.email}:`, result.error.message);
+      return { sent: false, error: result.error.message };
+    }
+    console.log(`[invite-email] enviado a ${user.email} (id=${result.data?.id})`);
+    return { sent: true, id: result.data?.id };
+  } catch (e) {
+    console.error(`[invite-email] excepción a ${user.email}:`, e.message);
+    return { sent: false, error: e.message };
+  }
+}
+
 export async function sendActivityCancellationEmail({ user, activity, orgName }) {
   if (!user.email) {
     return { skipped: true, reason: 'sin email' };

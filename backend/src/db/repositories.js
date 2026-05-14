@@ -67,10 +67,13 @@ export async function createTenantRepos(organizationId) {
     const { PostgresUserRepository } = await import('./postgres/PostgresUserRepository.js');
     const { PostgresActivityRepository } = await import('./postgres/PostgresActivityRepository.js');
     const { PostgresAttendanceRepository } = await import('./postgres/PostgresAttendanceRepository.js');
+    const { PostgresInvitationRepository } = await import('./postgres/PostgresInvitationRepository.js');
     return {
       users: new PostgresUserRepository(inst.pool, organizationId),
       activities: new PostgresActivityRepository(inst.pool, organizationId),
       attendance: new PostgresAttendanceRepository(inst.pool, organizationId),
+      invitations: new PostgresInvitationRepository(inst.pool, organizationId),
+      pool: inst.pool,
       driver: 'postgres',
       organizationId,
       persist: () => {},

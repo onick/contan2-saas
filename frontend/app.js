@@ -247,6 +247,16 @@ const API = {
         body: JSON.stringify(data),
       }),
     remove: id => API.request(`/activities/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    listInvitations: id => API.request(`/activities/${encodeURIComponent(id)}/invitations`),
+    invite: (id, userIds) =>
+      API.request(`/activities/${encodeURIComponent(id)}/invitations`, {
+        method: 'POST',
+        body: JSON.stringify({ userIds }),
+      }),
+    cancelInvitation: (activityId, invId) =>
+      API.request(`/activities/${encodeURIComponent(activityId)}/invitations/${encodeURIComponent(invId)}`, {
+        method: 'DELETE',
+      }),
   },
   attendance: {
     list: () => API.request('/attendance'),
@@ -1817,10 +1827,13 @@ const _activityDetailCache = { id: null, data: null };
 
 async function handleActivityDetail(id) {
   if (!id) return;
-  let data, summary;
+  let data, summary, invitations;
   try {
-    data = await API.request(`/activities/${encodeURIComponent(id)}/attendees`);
-    summary = await API.insights.activitySummary(id).catch(() => null);
+    [data, summary, invitations] = await Promise.all([
+      API.request(`/activities/${encodeURIComponent(id)}/attendees`),
+      API.insights.activitySummary(id).catch(() => null),
+      API.activities.listInvitations(id).catch(() => ({ counts: { pending: 0, confirmed: 0, declined: 0 }, total: 0 })),
+    ]);
   } catch (e) {
     Toast.error(explainError(e));
     return;
@@ -1828,6 +1841,7 @@ async function handleActivityDetail(id) {
   _activityDetailCache.id = id;
   _activityDetailCache.data = data;
   _activityDetailCache.summary = summary;
+  _activityDetailCache.invitations = invitations;
   renderActivityDetailModal();
 }
 
@@ -1911,6 +1925,8 @@ function renderActivityDetailModal() {
         ? renderActivitySummary(_activityDetailCache.summary)
         : ''}
 
+      ${renderInvitationsSection(activity, _activityDetailCache.invitations)}
+
       <div class="activity-detail-section">
         <div class="activity-detail-section-header">
           <h4>Asistentes <span class="muted-count">(${total})</span></h4>
@@ -1929,6 +1945,10 @@ function renderActivityDetailModal() {
 
       <div class="form-actions">
         <button type="button" class="btn btn--ghost" data-close>Cerrar</button>
+        ${activity.status === 'activa' ? `
+          <button type="button" class="btn btn--accent" data-action="activity-invite" data-id="${Utils.escapeHtml(activity.id)}">
+            <i class="fa-solid fa-envelope"></i> Invitar usuarios
+          </button>` : ''}
         <button type="button" class="btn btn--primary" id="activity-detail-edit">
           <i class="fa-solid fa-pen"></i> Editar actividad
         </button>
@@ -1940,6 +1960,158 @@ function renderActivityDetailModal() {
     Modal.close();
     handleActivityEdit(activity.id);
   };
+}
+
+function renderInvitationsSection(activity, invitations) {
+  if (!invitations) return '';
+  const c = invitations.counts || { pending: 0, confirmed: 0, declined: 0, canceled: 0 };
+  if (invitations.total === 0) {
+    if (activity.status !== 'activa') return '';
+    return `
+      <div class="activity-detail-section">
+        <div class="activity-detail-section-header">
+          <h4>Invitaciones</h4>
+        </div>
+        <div class="form-hint" style="text-align:center;padding:16px;border:1px dashed var(--color-border);border-radius:var(--radius-md)">
+          Sin invitaciones enviadas. Usa el botón "Invitar usuarios" abajo para enviar invitaciones con RSVP.
+        </div>
+      </div>`;
+  }
+  const rows = invitations.invitations.map(inv => {
+    const u = inv.user || {};
+    const name = u.firstName ? `${u.firstName} ${u.lastName || ''}` : '—';
+    const statusBadge = {
+      pending: '<span class="badge badge--neutral">Pendiente</span>',
+      confirmed: '<span class="badge badge--success">Confirmada</span>',
+      declined: '<span class="badge badge--warning">Declinada</span>',
+      canceled: '<span class="badge badge--danger">Cancelada</span>',
+      expired: '<span class="badge badge--neutral">Expirada</span>',
+    }[inv.status] || '';
+    return `
+      <tr>
+        <td><span class="user-code">${Utils.escapeHtml(u.code || '—')}</span></td>
+        <td class="cell-strong">${Utils.escapeHtml(name)}</td>
+        <td class="cell-muted">${Utils.escapeHtml(u.email || '—')}</td>
+        <td>${statusBadge}</td>
+        <td class="cell-muted">${inv.respondedAt ? Utils.formatDate(inv.respondedAt) : (inv.sentAt ? 'Enviada ' + Utils.formatDate(inv.sentAt, false) : '—')}</td>
+      </tr>`;
+  }).join('');
+  return `
+    <div class="activity-detail-section">
+      <div class="activity-detail-section-header">
+        <h4>Invitaciones <span class="muted-count">(${invitations.total})</span></h4>
+      </div>
+      <div class="summary-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px">
+        <div class="summary-card"><div class="summary-card-label">Pendientes</div><div class="summary-card-value" style="color:var(--color-text-muted)">${c.pending}</div></div>
+        <div class="summary-card"><div class="summary-card-label">Confirmadas</div><div class="summary-card-value" style="color:var(--color-success)">${c.confirmed}</div></div>
+        <div class="summary-card"><div class="summary-card-label">Declinadas</div><div class="summary-card-value" style="color:var(--color-warning)">${c.declined}</div></div>
+        <div class="summary-card"><div class="summary-card-label">Aceptación</div><div class="summary-card-value">${invitations.total ? Math.round((c.confirmed / invitations.total) * 100) : 0}%</div></div>
+      </div>
+      <div class="table-wrapper" style="max-height:240px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-md)">
+        <table class="table">
+          <thead><tr><th>Código</th><th>Nombre</th><th>Email</th><th>Estado</th><th>Respondida</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function handleActivityInvite(activityId) {
+  const activity = _activityDetailCache.data?.activity || State.activities.find(a => a.id === activityId);
+  if (!activity) return;
+  // Cargar usuarios si no están cacheados
+  if (!State.users || State.users.length === 0) {
+    try {
+      const r = await API.users.list();
+      State.users = r.users;
+    } catch (e) {
+      Toast.error(explainError(e));
+      return;
+    }
+  }
+  // Filtrar: solo usuarios con email + que no estén ya invitados/inscritos
+  const invitedIds = new Set((_activityDetailCache.invitations?.invitations || []).map(i => i.user?.code).filter(Boolean));
+  const enrolledIds = new Set((_activityDetailCache.data?.attendees || []).map(a => a.code));
+  const candidates = State.users.filter(
+    u => u.email && !invitedIds.has(u.code) && !enrolledIds.has(u.code),
+  );
+
+  const listHtml = candidates.length
+    ? candidates.map(u => `
+        <label class="invite-row">
+          <input type="checkbox" name="userId" value="${Utils.escapeHtml(u.id)}" />
+          <div class="invite-row-info">
+            <div class="cell-strong">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</div>
+            <div class="cell-muted">${Utils.escapeHtml(u.email)} · ${Utils.escapeHtml(u.code)}</div>
+          </div>
+          <span class="badge badge--info">${u.visitCount}v</span>
+        </label>
+      `).join('')
+    : '<div class="empty"><i class="fa-solid fa-user-slash"></i><h3>Sin candidatos</h3><p>Todos los usuarios con email ya están invitados o inscritos.</p></div>';
+
+  const body = `
+    <form class="form">
+      <div class="form-hint">
+        Selecciona los usuarios a invitar a <strong>${Utils.escapeHtml(activity.name)}</strong>.<br>
+        Se enviará un email con botones Sí/No. Quien confirme reservará una plaza automáticamente.
+      </div>
+      <div class="form-group">
+        <div class="search-input">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="invite-search" placeholder="Filtrar por nombre o email…" />
+        </div>
+      </div>
+      <div class="invite-list" id="invite-list" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:4px">
+        ${listHtml}
+      </div>
+      <div class="form-hint" id="invite-count">0 seleccionados</div>
+      <div class="form-actions">
+        <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn--accent" id="invite-submit" disabled>
+          <i class="fa-solid fa-envelope"></i> Enviar invitaciones
+        </button>
+      </div>
+    </form>`;
+  Modal.open(`Invitar a "${activity.name}"`, body, async form => {
+    const userIds = Array.from(form.querySelectorAll('input[name="userId"]:checked')).map(i => i.value);
+    if (userIds.length === 0) return;
+    const submitBtn = document.getElementById('invite-submit');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando…';
+    try {
+      const result = await API.activities.invite(activityId, userIds);
+      Modal.close();
+      Toast.success(`${result.summary.emailsSent} invitación(es) enviada(s)`);
+      if (result.summary.emailsSkipped > 0) {
+        Toast.warning(`${result.summary.emailsSkipped} sin email (saltadas)`);
+      }
+      // Refresh detalle
+      handleActivityDetail(activityId);
+    } catch (e) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa-solid fa-envelope"></i> Enviar invitaciones';
+      Toast.error(explainError(e));
+    }
+  });
+
+  // Wire up: filter + count
+  const list = document.getElementById('invite-list');
+  const search = document.getElementById('invite-search');
+  const count = document.getElementById('invite-count');
+  const submit = document.getElementById('invite-submit');
+  const updateCount = () => {
+    const n = list.querySelectorAll('input[name="userId"]:checked').length;
+    count.textContent = `${n} seleccionado(s)`;
+    submit.disabled = n === 0;
+  };
+  list?.addEventListener('change', updateCount);
+  search?.addEventListener('input', () => {
+    const q = search.value.toLowerCase().trim();
+    list.querySelectorAll('.invite-row').forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(q) ? 'flex' : 'none';
+    });
+  });
 }
 
 function renderActivitySummary(payload) {
@@ -2666,6 +2838,7 @@ function bindGlobalEvents() {
       case 'activity-edit': handleActivityEdit(id); break;
       case 'activity-delete': handleActivityDelete(id); break;
       case 'activity-detail': handleActivityDetail(id); break;
+      case 'activity-invite': handleActivityInvite(id); break;
       case 'activities-export': handleExport('activities'); break;
       case 'activity-attendees-export':
         exportActivityAttendees(target.dataset.id); break;

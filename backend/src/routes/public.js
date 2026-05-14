@@ -5,6 +5,10 @@ import {
   normalizeUserData,
 } from '../domain/schemas.js';
 import { sendCredentialEmail } from '../services/email.js';
+import { initRepositories, createTenantRepos } from '../db/repositories.js';
+import { PostgresInvitationRepository } from '../db/postgres/PostgresInvitationRepository.js';
+import { OrganizationRepository } from '../db/postgres/platform/OrganizationRepository.js';
+import { config } from '../config.js';
 
 function publicUser(u) {
   return { code: u.code, firstName: u.firstName, lastName: u.lastName, visitCount: u.visitCount };
@@ -78,6 +82,17 @@ export function createPublicRouter() {
           activityId,
         });
         if (existing) {
+          if (!existing.checkedInAt) {
+            // RSVP previamente confirmado, ahora hace check-in real (sin duplicar cupo)
+            await req.repos.attendance.markCheckedIn(existing.id);
+            user = await req.repos.users.incrementVisit(user.code);
+            return res.status(200).json({
+              user: { code: user.code, firstName: user.firstName, lastName: user.lastName, visitCount: user.visitCount },
+              activity: { id: activity.id, name: activity.name, date: activity.date, location: activity.location, type: activity.type },
+              isNewUser: false,
+              upgradedFromRsvp: true,
+            });
+          }
           throw new HttpError(409, 'Ya estás registrado en esta actividad');
         }
 
@@ -166,5 +181,148 @@ export function createPublicRouter() {
     }
   });
 
+  // =========================================================================
+  // RSVP: invitado responde via link único del email
+  // Usa req.repos (tenant scoped por subdomain del link).
+  // Valida que el token pertenezca a la org actual (anti cross-tenant).
+  // =========================================================================
+  router.get('/rsvp/:token', async (req, res, next) => {
+    try {
+      const inst = await initRepositories();
+      const inv = await PostgresInvitationRepository.findByToken(inst.pool, req.params.token);
+      if (!inv) throw new HttpError(404, 'Invitación no encontrada');
+      // Validar que la invitación es de este tenant
+      const invOrgId = await getOrgIdFromInv(inst.pool, inv.id);
+      if (req.organizationId && invOrgId !== req.organizationId) {
+        throw new HttpError(404, 'Invitación no pertenece a esta organización');
+      }
+
+      const activity = await req.repos.activities.findById(inv.activityId);
+      const user = await req.repos.users.findById(inv.userId);
+
+      const expired = new Date(inv.expiresAt).getTime() < Date.now();
+
+      res.json({
+        invitation: {
+          token: inv.token,
+          status: expired && inv.status === 'pending' ? 'expired' : inv.status,
+          expiresAt: inv.expiresAt,
+          respondedAt: inv.respondedAt,
+        },
+        activity: activity
+          ? {
+              name: activity.name,
+              type: activity.type,
+              location: activity.location,
+              date: activity.date,
+              description: activity.description,
+              imageUrl: activity.imageUrl,
+              status: activity.status,
+              capacity: activity.capacity,
+              enrolledCount: activity.enrolledCount,
+            }
+          : null,
+        user: user
+          ? { firstName: user.firstName, lastName: user.lastName, code: user.code }
+          : null,
+        organization: req.organization
+          ? {
+              name: req.organization.name,
+              slug: req.organization.slug,
+              primaryColor: req.organization.primaryColor,
+              logoUrl: req.organization.logoUrl,
+            }
+          : null,
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.post('/rsvp/:token', async (req, res, next) => {
+    try {
+      const action = req.body?.action;
+      if (!['yes', 'no'].includes(action)) {
+        throw new HttpError(400, 'action debe ser yes o no');
+      }
+      const inst = await initRepositories();
+      const inv = await PostgresInvitationRepository.findByToken(inst.pool, req.params.token);
+      if (!inv) throw new HttpError(404, 'Invitación no encontrada');
+
+      const invOrgId = await getOrgIdFromInv(inst.pool, inv.id);
+      if (req.organizationId && invOrgId !== req.organizationId) {
+        throw new HttpError(404, 'Invitación no pertenece a esta organización');
+      }
+
+      const expired = new Date(inv.expiresAt).getTime() < Date.now();
+      if (expired) throw new HttpError(410, 'Invitación expirada');
+
+      if (inv.status !== 'pending') {
+        return res.json({
+          ok: true,
+          alreadyResponded: true,
+          status: inv.status,
+          respondedAt: inv.respondedAt,
+        });
+      }
+
+      const activity = await req.repos.activities.findById(inv.activityId);
+      const user = await req.repos.users.findById(inv.userId);
+      if (!activity || !user) throw new HttpError(404, 'Recurso asociado no encontrado');
+
+      if (action === 'no') {
+        const updated = await req.repos.invitations.respond(inv.id, 'declined');
+        return res.json({ ok: true, status: 'declined', respondedAt: updated.respondedAt });
+      }
+
+      // action === 'yes' → confirmar y reservar cupo
+      if (activity.status !== 'activa') {
+        throw new HttpError(409, 'La actividad ya no está activa');
+      }
+      const existingAtt = await req.repos.attendance.findOne({
+        userId: user.id,
+        activityId: activity.id,
+      });
+      if (existingAtt) {
+        const updated = await req.repos.invitations.respond(inv.id, 'confirmed');
+        return res.json({
+          ok: true,
+          status: 'confirmed',
+          alreadyEnrolled: true,
+          respondedAt: updated.respondedAt,
+        });
+      }
+      const reservation = await req.repos.activities.incrementEnrolledIfRoom(activity.id);
+      if (!reservation.ok) {
+        if (reservation.reason === 'full') throw new HttpError(409, 'Cupo agotado');
+        throw new HttpError(409, 'No se puede reservar plaza');
+      }
+      try {
+        await req.repos.attendance.create({
+          userId: user.id,
+          userCode: user.code,
+          activityId: activity.id,
+          activityName: activity.name,
+          checkedIn: false, // reserva cupo via RSVP pero no marca check-in real todavía
+        });
+        const updated = await req.repos.invitations.respond(inv.id, 'confirmed');
+        res.json({ ok: true, status: 'confirmed', respondedAt: updated.respondedAt });
+      } catch (e) {
+        await req.repos.activities.decrementEnrolled(activity.id);
+        throw e;
+      }
+    } catch (e) {
+      next(e);
+    }
+  });
+
   return router;
+}
+
+async function getOrgIdFromInv(pool, invId) {
+  const { rows } = await pool.query(
+    'SELECT organization_id FROM invitations WHERE id = $1',
+    [invId],
+  );
+  return rows[0]?.organization_id;
 }

@@ -100,6 +100,11 @@ app.get(/^\/scanner(?:\/.*)?$/, (req, res) => {
   res.sendFile(path.join(frontendPath, 'scanner.html'));
 });
 
+app.get(/^\/rsvp(?:\/.*)?$/, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(frontendPath, 'rsvp.html'));
+});
+
 app.use(express.static(frontendPath, {
   setHeaders: (res, filePath) => {
     if (/\.(html|js|css)$/i.test(filePath)) {
@@ -115,6 +120,9 @@ app.use((req, res, next) => {
   }
   if (req.path === '/scanner' || req.path.startsWith('/scanner/')) {
     return res.sendFile(path.join(frontendPath, 'scanner.html'));
+  }
+  if (req.path === '/rsvp' || req.path.startsWith('/rsvp/')) {
+    return res.sendFile(path.join(frontendPath, 'rsvp.html'));
   }
   res.sendFile(path.join(frontendPath, 'index.html'));
 });

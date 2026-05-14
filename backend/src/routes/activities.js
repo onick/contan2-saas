@@ -7,6 +7,7 @@ import {
 } from '../domain/schemas.js';
 import { deleteUploadFile } from './uploads.js';
 import { notifyActivityCancelled } from '../services/activityCancellation.js';
+import { inviteUsersToActivity } from '../services/invitations.js';
 
 export function createActivitiesRouter() {
   const router = Router();
@@ -127,6 +128,86 @@ export function createActivitiesRouter() {
       const imageToDelete = activity.imageUrl;
       await req.repos.activities.delete(req.params.id);
       if (imageToDelete) deleteUploadFile(imageToDelete);
+      res.status(204).end();
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // =========================================================================
+  // Invitaciones (RSVP)
+  // =========================================================================
+  router.get('/:id/invitations', async (req, res, next) => {
+    try {
+      const activity = await req.repos.activities.findById(req.params.id);
+      if (!activity) throw new HttpError(404, 'Actividad no encontrada');
+      const invitations = await req.repos.invitations.findByActivity(req.params.id);
+      // Enriquecer con datos del usuario (nombre + email)
+      const enriched = await Promise.all(
+        invitations.map(async inv => {
+          const user = await req.repos.users.findById(inv.userId);
+          return {
+            ...inv,
+            user: user
+              ? {
+                  code: user.code,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  email: user.email,
+                }
+              : null,
+          };
+        }),
+      );
+      const counts = {
+        pending: enriched.filter(i => i.status === 'pending').length,
+        confirmed: enriched.filter(i => i.status === 'confirmed').length,
+        declined: enriched.filter(i => i.status === 'declined').length,
+        canceled: enriched.filter(i => i.status === 'canceled').length,
+      };
+      res.json({ invitations: enriched, total: enriched.length, counts });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.post('/:id/invitations', async (req, res, next) => {
+    try {
+      const activity = await req.repos.activities.findById(req.params.id);
+      if (!activity) throw new HttpError(404, 'Actividad no encontrada');
+      if (activity.status !== 'activa') {
+        throw new HttpError(409, 'Solo se puede invitar a actividades activas');
+      }
+      const userIds = Array.isArray(req.body?.userIds) ? req.body.userIds : null;
+      if (!userIds || userIds.length === 0) {
+        throw new HttpError(400, 'Se requiere lista userIds');
+      }
+      if (userIds.length > 500) {
+        throw new HttpError(400, 'Máximo 500 invitaciones por lote');
+      }
+      const result = await inviteUsersToActivity({
+        repos: req.repos,
+        organization: req.organization,
+        activity,
+        userIds,
+      });
+      res.status(201).json(result);
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.delete('/:id/invitations/:invId', async (req, res, next) => {
+    try {
+      const inv = await req.repos.invitations.findById(req.params.invId);
+      if (!inv) throw new HttpError(404, 'Invitación no encontrada');
+      if (inv.activityId !== req.params.id) {
+        throw new HttpError(404, 'Invitación no pertenece a esta actividad');
+      }
+      if (inv.status !== 'pending') {
+        throw new HttpError(409, `No se puede cancelar (status: ${inv.status})`);
+      }
+      await req.repos.invitations.cancel(inv.id);
       res.status(204).end();
     } catch (e) {
       next(e);

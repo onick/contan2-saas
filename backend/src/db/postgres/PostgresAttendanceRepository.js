@@ -9,6 +9,7 @@ function rowToAttendance(r) {
     activityId: r.activity_id,
     activityName: r.activity_name,
     registeredAt: r.registered_at instanceof Date ? r.registered_at.toISOString() : r.registered_at,
+    checkedInAt: r.checked_in_at instanceof Date ? r.checked_in_at.toISOString() : r.checked_in_at,
   };
 }
 
@@ -21,14 +22,35 @@ export class PostgresAttendanceRepository {
     this.orgId = organizationId;
   }
 
+  /**
+   * Crea un registro de attendance.
+   * @param data.checkedIn - default true. Si false, attendance se crea pero sin
+   *   checked_in_at (caso típico: RSVP confirmado que aún no llegó al evento).
+   */
   async create(data) {
     const id = randomUUID();
+    const checkedIn = data.checkedIn !== false;
     const { rows } = await this.pool.query(
       `INSERT INTO attendance
-        (id, organization_id, user_id, user_code, activity_id, activity_name)
-       VALUES ($1, $2, $3, $4, $5, $6)
+        (id, organization_id, user_id, user_code, activity_id, activity_name, checked_in_at)
+       VALUES ($1, $2, $3, $4, $5, $6, ${checkedIn ? 'NOW()' : 'NULL'})
        RETURNING *`,
       [id, this.orgId, data.userId, data.userCode, data.activityId, data.activityName],
+    );
+    return rowToAttendance(rows[0]);
+  }
+
+  /**
+   * Marca un attendance existente como check-in real (vino al evento).
+   * Idempotente: si ya tiene checked_in_at, no hace nada.
+   */
+  async markCheckedIn(id) {
+    const { rows } = await this.pool.query(
+      `UPDATE attendance
+       SET checked_in_at = COALESCE(checked_in_at, NOW())
+       WHERE organization_id = $1 AND id = $2
+       RETURNING *`,
+      [this.orgId, id],
     );
     return rowToAttendance(rows[0]);
   }
