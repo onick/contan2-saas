@@ -471,6 +471,76 @@ input {
   font-weight: 700;
 }
 
+/* Type-ahead match: card grande de confirmación de identidad */
+.k-suggestion-match {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  background: linear-gradient(135deg, rgba(26, 35, 126, 0.06), rgba(255, 111, 0, 0.04));
+  border: 2px solid var(--k-primary);
+  padding: 18px 22px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 180ms ease;
+  font-family: inherit;
+  color: var(--k-text);
+}
+
+.k-suggestion-match:hover {
+  background: linear-gradient(135deg, rgba(26, 35, 126, 0.1), rgba(255, 111, 0, 0.08));
+  transform: translateX(2px);
+}
+
+.k-suggestion-match:active {
+  transform: scale(0.99);
+}
+
+.k-suggestion-match-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--k-primary), var(--k-primary-light));
+  color: white;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.k-suggestion-match-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.k-suggestion-match-greeting {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--k-accent);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.k-suggestion-match-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--k-text);
+  line-height: 1.2;
+}
+
+.k-suggestion-match-meta {
+  font-size: 13px;
+  color: var(--k-text-muted);
+  margin-top: 4px;
+}
+
+.k-suggestion-match-arrow {
+  color: var(--k-primary);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
 .k-input-hint {
   font-size: 15px;
   font-weight: 600;

@@ -58,6 +58,17 @@ export class MemoryUserRepository {
     return id ? { ...this.users.get(id) } : null;
   }
 
+  async findByEmailPrefix(prefix) {
+    if (!prefix || prefix.length < 3) return null;
+    const p = prefix.toLowerCase();
+    for (const u of this.users.values()) {
+      if (u.email && u.email.toLowerCase().startsWith(p)) {
+        return { ...u };
+      }
+    }
+    return null;
+  }
+
   async update(code, partial) {
     const id = this.byCode.get(code);
     if (!id) return null;

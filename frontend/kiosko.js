@@ -402,24 +402,81 @@ function renderCodeInput(root) {
   };
 
   const suggestionsEl = $('#k-suggestions');
-  let activeSuggestion = -1; // índice del item seleccionado por teclado
+  let activeSuggestion = -1;
+  let suggestDebounce = null;
+  let lastSuggestQ = '';
+  let suggestController = null; // AbortController para cancelar fetches obsoletos
 
-  const renderSuggestions = () => {
-    const items = emailSuggestions(input.value);
-    if (items.length === 0) {
+  // Renderiza match real de DB (type-ahead)
+  const renderUserMatch = match => {
+    if (!match) {
       suggestionsEl.classList.add('hidden');
       suggestionsEl.innerHTML = '';
       activeSuggestion = -1;
       return;
     }
-    activeSuggestion = 0;
-    suggestionsEl.innerHTML = items
-      .map((it, i) => `
-        <button type="button" class="k-suggestion ${i === 0 ? 'is-active' : ''}" data-full="${escapeHtml(it.full)}" data-index="${i}">
-          <span class="k-suggestion-local">${escapeHtml(it.full.split('@')[0])}@</span><span class="k-suggestion-domain">${escapeHtml(it.domain)}</span>
-        </button>`)
-      .join('');
+    const fullName = `${match.firstName} ${match.lastName}`.trim();
+    suggestionsEl.innerHTML = `
+      <button type="button" class="k-suggestion-match" data-match-code="${escapeHtml(match.code)}">
+        <div class="k-suggestion-match-avatar"><i class="fa-solid fa-user-check"></i></div>
+        <div class="k-suggestion-match-info">
+          <div class="k-suggestion-match-greeting">¿Eres tú?</div>
+          <div class="k-suggestion-match-name">${escapeHtml(fullName)}</div>
+          <div class="k-suggestion-match-meta">${match.visitCount} visita(s) registrada(s)</div>
+        </div>
+        <i class="fa-solid fa-arrow-right k-suggestion-match-arrow"></i>
+      </button>`;
     suggestionsEl.classList.remove('hidden');
+    activeSuggestion = -1;
+  };
+
+  // Llamada debounced al backend para buscar match por prefix
+  const triggerSuggest = q => {
+    if (suggestController) suggestController.abort();
+    if (!q || q.length < 3 || q === lastSuggestQ) return;
+    lastSuggestQ = q;
+    suggestController = new AbortController();
+    api(`/users/suggest?q=${encodeURIComponent(q)}`, { signal: suggestController.signal })
+      .then(match => {
+        // Solo aplicar si el input no cambió desde que se disparó la búsqueda
+        if (lastSuggestQ === q && detect(input.value).mode !== 'email-complete') {
+          renderUserMatch(match);
+        }
+      })
+      .catch(e => {
+        if (e.name === 'AbortError') return;
+        // Silenciosamente ignorar errores del suggest (404, 429, etc.)
+      });
+  };
+
+  const renderSuggestions = () => {
+    // Si el input tiene @, mostrar autocomplete de dominio (lo existente)
+    const items = emailSuggestions(input.value);
+    if (items.length > 0) {
+      activeSuggestion = 0;
+      suggestionsEl.innerHTML = items
+        .map((it, i) => `
+          <button type="button" class="k-suggestion ${i === 0 ? 'is-active' : ''}" data-full="${escapeHtml(it.full)}" data-index="${i}">
+            <span class="k-suggestion-local">${escapeHtml(it.full.split('@')[0])}@</span><span class="k-suggestion-domain">${escapeHtml(it.domain)}</span>
+          </button>`)
+        .join('');
+      suggestionsEl.classList.remove('hidden');
+      // Cancelar suggest pendiente (porque ya escribió @)
+      if (suggestController) suggestController.abort();
+      return;
+    }
+
+    // Sin @: type-ahead contra DB con debounce
+    const v = input.value.trim();
+    clearTimeout(suggestDebounce);
+    if (v.length < 3 || !/^[a-zA-Z0-9._+-]+$/.test(v)) {
+      // Limpiar sugerencia anterior si lo escrito ya no califica
+      suggestionsEl.classList.add('hidden');
+      suggestionsEl.innerHTML = '';
+      lastSuggestQ = '';
+      return;
+    }
+    suggestDebounce = setTimeout(() => triggerSuggest(v), 350);
   };
 
   const applySuggestion = index => {
@@ -444,6 +501,18 @@ function renderCodeInput(root) {
   };
 
   suggestionsEl.addEventListener('click', e => {
+    // Click en match de usuario (type-ahead): identifica directo
+    const matchBtn = e.target.closest('[data-match-code]');
+    if (matchBtn) {
+      const code = matchBtn.dataset.matchCode;
+      suggestionsEl.classList.add('hidden');
+      // Fetch user completo y mostrar banner
+      api(`/users/${encodeURIComponent(code)}`)
+        .then(user => showUserBanner(user))
+        .catch(() => showError('No pudimos obtener tus datos. Intenta de nuevo.'));
+      return;
+    }
+    // Click en sugerencia de dominio
     const btn = e.target.closest('[data-full]');
     if (btn) applySuggestion(Number(btn.dataset.index));
   });

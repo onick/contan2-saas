@@ -72,6 +72,34 @@ export function createPublicRouter() {
     }
   });
 
+  // Type-ahead suggest: dado un prefix mínimo de 3 chars, devuelve UN match
+  // (el más reciente). Privacidad: solo nombre, no email completo.
+  // Rate-limited para prevenir scraping/enumeración.
+  router.get('/users/suggest', publicLookupRateLimit, async (req, res, next) => {
+    try {
+      const q = String(req.query.q || '').trim();
+      if (q.length < 3) {
+        return res.status(204).end(); // No Content
+      }
+      // Solo aceptar prefix válido (chars típicos de email local-part)
+      if (!/^[a-zA-Z0-9._+-]+$/.test(q)) {
+        return res.status(204).end();
+      }
+      const user = await req.repos.users.findByEmailPrefix(q);
+      if (!user) return res.status(204).end();
+      // Devolver solo lo mínimo para que el usuario confirme: nombre + código.
+      // NO devolver email completo para evitar revelar info sensible si fuera otra persona.
+      res.json({
+        code: user.code,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        visitCount: user.visitCount,
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
   // Lookup flexible: acepta código o email. Para el kiosko, cuando el usuario
   // no recuerda su código. Rate-limited para prevenir enumeración de emails.
   // IMPORTANTE: debe declararse ANTES de /users/:code (Express match order).

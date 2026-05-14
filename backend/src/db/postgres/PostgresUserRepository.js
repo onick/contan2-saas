@@ -87,6 +87,24 @@ export class PostgresUserRepository {
     return rowToUser(rows[0]);
   }
 
+  /**
+   * Busca un usuario cuyo email empieza con el prefix dado (case-insensitive).
+   * Devuelve solo el primer match. Diseñado para type-ahead suggest del kiosko.
+   */
+  async findByEmailPrefix(prefix) {
+    if (!prefix || prefix.length < 3) return null;
+    const { rows } = await this.pool.query(
+      `SELECT * FROM users
+       WHERE organization_id = $1
+         AND email IS NOT NULL
+         AND LOWER(email) LIKE LOWER($2)
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [this.orgId, prefix + '%'],
+    );
+    return rowToUser(rows[0]);
+  }
+
   async update(code, partial) {
     const fields = [];
     const values = [this.orgId, code];
