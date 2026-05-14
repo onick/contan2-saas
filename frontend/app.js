@@ -22,6 +22,7 @@ const ROUTES = {
   activities: { title: 'Actividades', subtitle: 'Eventos culturales del centro', render: renderActivities },
   attendance: { title: 'Registros', subtitle: 'Asistencias de usuarios a actividades', render: renderAttendance },
   segments: { title: 'Segmentos', subtitle: 'Audiencias para campañas e invitaciones', render: renderSegments },
+  branding: { title: 'Identidad de marca', subtitle: 'Colores, logo y estilo del panel administrativo', render: () => window.renderBranding && window.renderBranding() },
 };
 
 const State = {
