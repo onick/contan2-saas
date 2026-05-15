@@ -98,25 +98,34 @@
     if (primary) {
       const palette = generatePalette(primary);
       if (palette) {
-        // Admin (--color-*) y Kiosko (--k-*) comparten paleta.
+        // Admin (--color-*), Kiosko (--k-*) y Scanner (--s-*) comparten paleta.
         for (const [stop, hex] of Object.entries(palette)) {
           r.style.setProperty(`--color-primary-${stop}`, hex);
           r.style.setProperty(`--k-primary-${stop}`, hex);
+          r.style.setProperty(`--s-primary-${stop}`, hex);
         }
         const onPrimary = pickOn(palette['700']);
         r.style.setProperty('--color-on-primary', onPrimary);
         r.style.setProperty('--k-on-primary', onPrimary);
+        r.style.setProperty('--s-on-primary', onPrimary);
+        // Scanner legacy: bg y dark referencian el tono profundo de marca.
+        r.style.setProperty('--s-primary-dark', palette['900']);
+        r.style.setProperty('--s-bg', palette['900']);
       }
-      // Legacy aliases (por si algún CSS aún los referencia directo).
+      // Legacy aliases.
       r.style.setProperty('--color-primary', primary);
       r.style.setProperty('--k-primary', primary);
+      r.style.setProperty('--s-primary', primary);
     }
 
     if (accent) {
       r.style.setProperty('--color-accent', accent);
       r.style.setProperty('--k-accent', accent);
-      r.style.setProperty('--color-on-accent', pickOn(accent));
-      r.style.setProperty('--k-on-accent', pickOn(accent));
+      r.style.setProperty('--s-accent', accent);
+      const onAcc = pickOn(accent);
+      r.style.setProperty('--color-on-accent', onAcc);
+      r.style.setProperty('--k-on-accent', onAcc);
+      r.style.setProperty('--s-on-accent', onAcc);
     }
 
     applySidebarStyle(r, sidebarStyle);

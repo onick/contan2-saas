@@ -121,12 +121,15 @@ export function buildBrandingStyle(org) {
   for (const [stop, hex] of Object.entries(palette)) {
     decls.push(`--color-primary-${stop}:${hex}`);
     decls.push(`--k-primary-${stop}:${hex}`);
+    decls.push(`--s-primary-${stop}:${hex}`);
   }
-  decls.push(`--color-primary:${org.primaryColor}`, `--k-primary:${org.primaryColor}`);
-  decls.push(`--color-on-primary:${onPrimary}`, `--k-on-primary:${onPrimary}`);
+  decls.push(`--color-primary:${org.primaryColor}`, `--k-primary:${org.primaryColor}`, `--s-primary:${org.primaryColor}`);
+  decls.push(`--color-on-primary:${onPrimary}`, `--k-on-primary:${onPrimary}`, `--s-on-primary:${onPrimary}`);
+  // Scanner legacy: --s-primary-dark y --s-bg referencian el tono profundo de marca.
+  decls.push(`--s-primary-dark:${palette['900']}`, `--s-bg:${palette['900']}`);
   if (accent) {
-    decls.push(`--color-accent:${accent}`, `--k-accent:${accent}`);
-    decls.push(`--color-on-accent:${onAccent}`, `--k-on-accent:${onAccent}`);
+    decls.push(`--color-accent:${accent}`, `--k-accent:${accent}`, `--s-accent:${accent}`);
+    decls.push(`--color-on-accent:${onAccent}`, `--k-on-accent:${onAccent}`, `--s-on-accent:${onAccent}`);
   }
   decls.push(...sidebarVars(sidebarStyle));
 

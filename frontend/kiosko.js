@@ -736,7 +736,7 @@ function renderNewUserForm(root) {
           <input type="text" name="lastName" class="k-input k-input--regular" required minlength="2" maxlength="50" autocomplete="family-name" />
         </div>
         <div class="k-field">
-          <label class="k-field-label">Email <span style="font-weight:400;color:var(--k-text-muted)">(opcional)</span></label>
+          <label class="k-field-label">Email <span style="font-weight:600;color:var(--k-accent)">(recomendado)</span></label>
           <input type="email" name="email" class="k-input k-input--regular" inputmode="email" autocomplete="email" placeholder="tu@email.com" />
         </div>
         <div class="k-field">
