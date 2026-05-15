@@ -273,11 +273,11 @@ function computeSegmentCounts(affs) {
 
   ACTIVITY_TYPES.forEach(t => {
     if (t === 'otro') return;
-    const minVisits = t === 'taller' ? 2 : 3;
+    const minVisits = t === 'taller' || t === 'cine' ? 2 : 3;
     segments.push({
       id: `fans-${t}`,
       label: `Fans de ${capitalize(typeLabel(t))}`,
-      description: `${minVisits} o más asistencias a ${typeLabel(t).toLowerCase()}s`,
+      description: `${minVisits} o más asistencias de ${typeLabel(t).toLowerCase()}`,
       icon: typeIcon(t),
       color: 'blue',
       match: a => (a.byType[t] || 0) >= minVisits,
@@ -302,7 +302,7 @@ function filterBySegment(all, id) {
   for (const t of ACTIVITY_TYPES) {
     if (t === 'otro') continue;
     if (id === `fans-${t}`) {
-      const min = t === 'taller' ? 2 : 3;
+      const min = t === 'taller' || t === 'cine' ? 2 : 3;
       return all.filter(x => (x.affinity.byType[t] || 0) >= min);
     }
   }
@@ -312,6 +312,7 @@ function filterBySegment(all, id) {
 function typeLabel(t) {
   return ({
     concierto: 'Concierto',
+    cine: 'Cine',
     taller: 'Taller',
     exposicion: 'Exposición',
     teatro: 'Teatro',
@@ -322,6 +323,7 @@ function typeLabel(t) {
 function typeIcon(t) {
   return ({
     concierto: 'fa-music',
+    cine: 'fa-film',
     taller: 'fa-screwdriver-wrench',
     exposicion: 'fa-image',
     teatro: 'fa-masks-theater',
