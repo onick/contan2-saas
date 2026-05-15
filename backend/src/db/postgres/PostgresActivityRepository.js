@@ -69,6 +69,29 @@ export class PostgresActivityRepository {
     return rowToActivity(rows[0]);
   }
 
+  /**
+   * Devuelve actividades cuya fecha cae en [from, to). Opcional filtrar por
+   * tipos (lista) y/o status.
+   */
+  async findByDateRange(from, to, { types, status } = {}) {
+    const where = ['organization_id = $1', 'date >= $2', 'date < $3'];
+    const params = [this.orgId, from, to];
+    let idx = 4;
+    if (Array.isArray(types) && types.length) {
+      where.push(`type = ANY($${idx++}::text[])`);
+      params.push(types);
+    }
+    if (status) {
+      where.push(`status = $${idx++}`);
+      params.push(status);
+    }
+    const { rows } = await this.pool.query(
+      `SELECT * FROM activities WHERE ${where.join(' AND ')} ORDER BY date ASC`,
+      params,
+    );
+    return rows.map(rowToActivity);
+  }
+
   async update(id, partial) {
     const fields = [];
     const values = [this.orgId, id];

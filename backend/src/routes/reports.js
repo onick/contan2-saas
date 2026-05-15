@@ -3,6 +3,32 @@ import { HttpError } from '../middleware/errorHandler.js';
 import { buildActivityExcelReport, reportFilename } from '../services/reports/activityExcelReport.js';
 import { buildActivityPdfHtml, pdfHeaderFooter, pdfFilename } from '../services/reports/activityPdfTemplate.js';
 import { renderHtmlToPdf } from '../services/reports/pdfRenderer.js';
+import { buildPeriodSummary } from '../services/reports/periodAggregator.js';
+import { buildPeriodExcelReport, periodFilename } from '../services/reports/periodExcelReport.js';
+import { buildPeriodPdfHtml, periodPdfHeaderFooter, periodPdfFilename } from '../services/reports/periodPdfTemplate.js';
+
+const VALID_TYPES = new Set(['exposicion', 'concierto', 'cine', 'taller', 'teatro', 'conferencia', 'otro']);
+
+function parsePeriodQuery(req) {
+  const fromRaw = String(req.query.from || '').trim();
+  const toRaw = String(req.query.to || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromRaw)) throw new HttpError(400, 'from inválido (YYYY-MM-DD)');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(toRaw)) throw new HttpError(400, 'to inválido (YYYY-MM-DD)');
+  const from = new Date(fromRaw + 'T00:00:00Z').toISOString();
+  // to es exclusivo: incluimos el día completo añadiendo 1 día.
+  const toDate = new Date(toRaw + 'T00:00:00Z');
+  toDate.setUTCDate(toDate.getUTCDate() + 1);
+  const to = toDate.toISOString();
+  if (new Date(from) > new Date(to)) throw new HttpError(400, 'from debe ser <= to');
+
+  let types = null;
+  if (req.query.types) {
+    types = String(req.query.types).split(',').map(s => s.trim()).filter(Boolean);
+    const bad = types.find(t => !VALID_TYPES.has(t));
+    if (bad) throw new HttpError(400, `Tipo inválido: ${bad}`);
+  }
+  return { from, to, types };
+}
 
 async function loadActivityReportData(req) {
   if (!req.organization) throw new HttpError(404, 'Sin organización');
@@ -40,6 +66,66 @@ export function createReportsRouter() {
       res.setHeader('Cache-Control', 'no-store');
       await wb.xlsx.write(res);
       res.end();
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // GET /api/reports/period/preview — JSON con summary/topActivities/byType
+  // para mostrar vista previa en la UI sin generar el documento completo.
+  router.get('/period/preview', async (req, res, next) => {
+    try {
+      if (!req.organization) throw new HttpError(404, 'Sin organización');
+      const { from, to, types } = parsePeriodQuery(req);
+      const period = await buildPeriodSummary({ repos: req.repos, from, to, types });
+      // Limitamos lo que devolvemos para mantener la respuesta liviana.
+      res.json({
+        range: period.range,
+        summary: period.summary,
+        topActivities: period.topActivities,
+        byType: period.byType,
+        byMonth: period.byMonth,
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // GET /api/reports/period.xlsx?from=YYYY-MM-DD&to=YYYY-MM-DD&types=cine,taller
+  router.get('/period.xlsx', async (req, res, next) => {
+    try {
+      if (!req.organization) throw new HttpError(404, 'Sin organización');
+      const { from, to, types } = parsePeriodQuery(req);
+      const period = await buildPeriodSummary({ repos: req.repos, from, to, types });
+      const wb = await buildPeriodExcelReport({ organization: req.organization, period });
+
+      const filename = periodFilename(from, to);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      await wb.xlsx.write(res);
+      res.end();
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // GET /api/reports/period.pdf — mismo rango y tipos que el Excel.
+  router.get('/period.pdf', async (req, res, next) => {
+    try {
+      if (!req.organization) throw new HttpError(404, 'Sin organización');
+      const { from, to, types } = parsePeriodQuery(req);
+      const period = await buildPeriodSummary({ repos: req.repos, from, to, types });
+      const html = await buildPeriodPdfHtml({ organization: req.organization, period });
+      const hf = periodPdfHeaderFooter({ organization: req.organization, period });
+      const pdfBuf = await renderHtmlToPdf(html, hf);
+
+      const filename = periodPdfFilename(from, to);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Content-Length', pdfBuf.length);
+      res.end(pdfBuf);
     } catch (e) {
       next(e);
     }
