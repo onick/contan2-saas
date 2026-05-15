@@ -63,10 +63,14 @@ const corsOriginCheck = (origin, cb) => {
     const host = u.hostname;
     const root = config.ROOT_DOMAIN.toLowerCase();
     if (host === root || host.endsWith('.' + root)) return cb(null, true);
-    return cb(new Error(`Origin no permitido: ${origin}`));
-  } catch {
-    return cb(new Error('Origin inválido'));
-  }
+  } catch { /* origin inválida → cae al return false abajo */ }
+  // Origen NO permitido: cb(null, false) hace que el cors middleware NO
+  // setee los headers Access-Control-Allow-*. El browser bloquea la
+  // request del lado del cliente; el server devuelve 200 (porque la
+  // respuesta misma no falla, solo no tiene los headers que el browser
+  // necesita para confiar en ella). Esto evita tirar 500 en cada
+  // preflight desde origen ajeno.
+  return cb(null, false);
 };
 app.use(cors({
   origin: corsOriginCheck,
