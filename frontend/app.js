@@ -268,6 +268,7 @@ const API = {
   },
   dashboard: {
     stats: (period = '30d') => API.request(`/dashboard/stats?period=${encodeURIComponent(period)}`),
+    checkinContext: () => API.request('/dashboard/checkin-context'),
   },
   insights: {
     userAffinity: code => API.request(`/insights/user-affinity/${encodeURIComponent(code)}`),
@@ -3116,165 +3117,388 @@ function exportSegment(id) {
 // ============================================================
 // View: Check-in
 // ============================================================
+// ============================================================
+// View: Check-in (premium command center)
+// ============================================================
+const _ckState = { ctx: null, autoRefreshTimer: null, lastQuery: '' };
+
 async function renderCheckin() {
-  const [usersResp, actsResp] = await Promise.all([
-    API.users.list(),
-    API.activities.list(),
-  ]);
-  State.users = usersResp.users;
-  State.activities = actsResp.activities;
-  State.checkin = State.checkin || { selectedUser: null };
+  if (_ckState.autoRefreshTimer) clearInterval(_ckState.autoRefreshTimer);
+  const root = document.getElementById('content');
+  root.innerHTML = checkinSkeletonHtml();
+  try {
+    const [usersResp, ctx] = await Promise.all([
+      API.users.list(),
+      API.dashboard.checkinContext(),
+    ]);
+    State.users = usersResp.users;
+    _ckState.ctx = ctx;
+    State.activities = ctx.activeActivities;
+    State.checkin = State.checkin || { selectedUser: null };
+    paintCheckin();
+  } catch (e) {
+    root.innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i><h3>No se pudo cargar Check-in</h3><p>${Utils.escapeHtml(explainError(e))}</p></div>`;
+    return;
+  }
+  // Auto-refresh del context cada 30s (counters, recent feed)
+  _ckState.autoRefreshTimer = setInterval(refreshCheckinContext, 30_000);
+}
 
-  const activeCount = State.activities.filter(a => a.status === 'activa').length;
-
-  document.getElementById('content').innerHTML = `
-    <div class="checkin-grid">
-      <div class="panel checkin-search-panel">
-        <div class="panel-header">
-          <div>
-            <h2>1. Buscar visitante</h2>
-            <p>Teclea código, nombre, email o teléfono</p>
-          </div>
-        </div>
-        <div class="panel-body">
-          <div class="search-input search-input--lg">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="checkin-search" placeholder="${(window.__tenant__?.codePrefix || 'CCB').toUpperCase()}-XXXXXX, nombre o email…" autocomplete="off" />
-          </div>
-          <div id="checkin-suggestions" class="checkin-suggestions"></div>
-          <div id="checkin-selected"></div>
-        </div>
+function checkinSkeletonHtml() {
+  return `
+    <div class="ck">
+      <div class="ck-statsbar skeleton-block" style="height:88px"></div>
+      <div class="ck-grid">
+        <div class="panel skeleton-block" style="height:520px"></div>
+        <div class="panel skeleton-block" style="height:520px"></div>
       </div>
-      <div class="panel checkin-activities-panel">
-        <div class="panel-header">
-          <div>
-            <h2>2. Elegir actividad</h2>
-            <p>${activeCount} actividad(es) activa(s)</p>
+    </div>`;
+}
+
+async function refreshCheckinContext() {
+  if (window.location.hash.replace(/^#\/?/, '').split('/')[0] !== 'checkin') {
+    if (_ckState.autoRefreshTimer) clearInterval(_ckState.autoRefreshTimer);
+    return;
+  }
+  try {
+    const ctx = await API.dashboard.checkinContext();
+    _ckState.ctx = ctx;
+    State.activities = ctx.activeActivities;
+    paintCheckinStatsbar();
+    paintCheckinActivities();
+    paintCheckinRecentFeed();
+    paintCheckinRecentChips();
+  } catch {}
+}
+
+function paintCheckin() {
+  const root = document.getElementById('content');
+  root.innerHTML = `
+    <div class="ck">
+      <div id="ck-statsbar"></div>
+      <div id="ck-today-hero"></div>
+      <div class="ck-grid">
+        <section class="panel ck-left">
+          <div class="panel-header">
+            <div>
+              <h2><span class="ck-step">1</span> Encuentra al visitante</h2>
+              <p>Por nombre, código, email o teléfono</p>
+            </div>
           </div>
-        </div>
-        <div class="panel-body">
-          <div id="checkin-activities" class="checkin-activities"></div>
-        </div>
+          <div class="panel-body ck-left-body">
+            <div class="search-input search-input--lg">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="ck-search" placeholder="${(window.__tenant__?.codePrefix || 'CCB').toUpperCase()}-XXXXXX, nombre o email…" autocomplete="off" />
+              <kbd class="ck-kbd">/</kbd>
+            </div>
+            <div id="ck-recent-chips" class="ck-recent-chips"></div>
+            <div id="ck-suggestions" class="ck-suggestions"></div>
+            <div id="ck-selected"></div>
+          </div>
+        </section>
+
+        <section class="panel ck-right">
+          <div class="panel-header">
+            <div>
+              <h2><span class="ck-step">2</span> Registra asistencia</h2>
+              <p id="ck-activities-meta"></p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div id="ck-activities" class="ck-activities"></div>
+          </div>
+          <div class="panel-footer ck-feed-wrap">
+            <h3 class="ck-feed-title"><i class="fa-solid fa-tower-broadcast"></i> Movimiento en vivo</h3>
+            <div id="ck-feed" class="ck-feed"></div>
+          </div>
+        </section>
       </div>
     </div>`;
 
+  paintCheckinStatsbar();
+  paintCheckinTodayHero();
   paintCheckinActivities();
   paintCheckinSelected();
-  const inputEl = document.getElementById('checkin-search');
-  inputEl.focus();
-  inputEl.addEventListener('input', e => paintCheckinSuggestions(e.target.value));
-  inputEl.addEventListener('keydown', e => {
+  paintCheckinRecentChips();
+  paintCheckinRecentFeed();
+
+  const input = document.getElementById('ck-search');
+  input.focus();
+  input.addEventListener('input', e => paintCheckinSuggestions(e.target.value));
+  input.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
-      const first = document.querySelector('#checkin-suggestions .checkin-suggestion');
+      const first = document.querySelector('#ck-suggestions .ck-suggestion');
       if (first) first.click();
     } else if (e.key === 'Escape') {
-      inputEl.value = '';
+      input.value = '';
+      _ckState.lastQuery = '';
       paintCheckinSuggestions('');
     }
   });
+
+  // Atajo global: '/' enfoca la búsqueda si no se está escribiendo en otro input
+  document.addEventListener('keydown', ckShortcutHandler);
+}
+
+function ckShortcutHandler(e) {
+  if (window.location.hash.replace(/^#\/?/, '').split('/')[0] !== 'checkin') {
+    document.removeEventListener('keydown', ckShortcutHandler);
+    return;
+  }
+  const target = e.target;
+  const editable = ['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable;
+  if (e.key === '/' && !editable) {
+    e.preventDefault();
+    document.getElementById('ck-search')?.focus();
+  }
+}
+
+function paintCheckinStatsbar() {
+  const el = document.getElementById('ck-statsbar');
+  if (!el || !_ckState.ctx) return;
+  const s = _ckState.ctx.stats;
+  el.innerHTML = `
+    <div class="ck-statsbar">
+      <div class="ck-stat">
+        <div class="ck-stat-icon ck-stat-icon--accent"><i class="fa-solid fa-clipboard-check"></i></div>
+        <div>
+          <div class="ck-stat-label">Check-ins hoy</div>
+          <div class="ck-stat-value">${s.checkinsToday}</div>
+        </div>
+      </div>
+      <div class="ck-stat">
+        <div class="ck-stat-icon"><i class="fa-solid fa-users"></i></div>
+        <div>
+          <div class="ck-stat-label">Visitantes únicos hoy</div>
+          <div class="ck-stat-value">${s.uniqueAttendeesToday}</div>
+        </div>
+      </div>
+      <div class="ck-stat">
+        <div class="ck-stat-icon"><i class="fa-solid fa-bolt"></i></div>
+        <div>
+          <div class="ck-stat-label">Actividades activas</div>
+          <div class="ck-stat-value">${s.activeActivities}</div>
+        </div>
+      </div>
+      <div class="ck-stat-actions">
+        <button type="button" class="btn btn--ghost btn--sm" data-action="user-new">
+          <i class="fa-solid fa-user-plus"></i> Nuevo visitante
+        </button>
+        <button type="button" class="btn btn--ghost btn--sm" data-action="ck-refresh" title="Refrescar">
+          <i class="fa-solid fa-arrows-rotate"></i>
+        </button>
+      </div>
+    </div>`;
+}
+
+function paintCheckinTodayHero() {
+  const el = document.getElementById('ck-today-hero');
+  if (!el || !_ckState.ctx) return;
+  const today = _ckState.ctx.todayActivity;
+  if (!today) { el.innerHTML = ''; return; }
+  const occ = today.capacity ? Math.round((today.enrolledCount / today.capacity) * 100) : 0;
+  const hour = new Date(today.date).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+  el.innerHTML = `
+    <div class="ck-today-hero">
+      <div class="ck-today-eyebrow"><i class="fa-solid fa-circle"></i> EVENTO DE HOY</div>
+      <div class="ck-today-row">
+        ${today.imageUrl
+          ? `<div class="ck-today-thumb"><img src="${Utils.escapeHtml(today.imageUrl)}" alt="" /></div>`
+          : `<div class="ck-today-thumb ck-today-thumb--placeholder"><i class="fa-solid ${dashTypeIcon(today.type)}"></i></div>`}
+        <div class="ck-today-info">
+          <h3 class="ck-today-name">${Utils.escapeHtml(today.name)}</h3>
+          <div class="ck-today-meta">
+            <span><i class="fa-solid fa-clock"></i> ${Utils.escapeHtml(hour)}</span>
+            <span><i class="fa-solid fa-location-dot"></i> ${Utils.escapeHtml(today.location)}</span>
+            <span class="badge badge--type-${Utils.escapeHtml(today.type)}">${Utils.escapeHtml(Utils.activityTypeLabel(today.type))}</span>
+          </div>
+        </div>
+        <div class="ck-today-progress">
+          <div class="ck-today-progress-num">${today.enrolledCount}<span>/${today.capacity}</span></div>
+          <div class="progress-track"><div class="progress-bar ${occ >= 80 ? 'progress-bar--hot' : ''}" style="width:${occ}%"></div></div>
+          <div class="progress-meta"><span>${occ}% de capacidad</span></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function paintCheckinRecentChips() {
+  const el = document.getElementById('ck-recent-chips');
+  if (!el || !_ckState.ctx) return;
+  const recents = _ckState.ctx.recentUsersToday;
+  if (!recents || !recents.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="ck-recent-chips-label">Recientes de hoy</div>
+    <div class="ck-recent-chips-list">
+      ${recents.map(u => {
+        const initials = ((u.firstName?.[0] || '') + (u.lastName?.[0] || '')).toUpperCase();
+        return `
+          <button type="button" class="ck-recent-chip" data-action="checkin-select" data-code="${Utils.escapeHtml(u.code)}" title="${Utils.escapeHtml(u.firstName + ' ' + u.lastName)} · ${u.visitCount} visita(s)">
+            <span class="ck-recent-chip-avatar">${Utils.escapeHtml(initials)}</span>
+            <span class="ck-recent-chip-name">${Utils.escapeHtml(u.firstName)}</span>
+          </button>`;
+      }).join('')}
+    </div>`;
 }
 
 function paintCheckinSuggestions(q) {
-  const el = document.getElementById('checkin-suggestions');
+  const el = document.getElementById('ck-suggestions');
   if (!el) return;
   const query = q.trim().toLowerCase();
+  _ckState.lastQuery = query;
   if (!query) { el.innerHTML = ''; return; }
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const nq = norm(query);
   const matches = State.users
     .filter(u =>
-      u.code.toLowerCase().includes(query) ||
-      u.firstName.toLowerCase().includes(query) ||
-      u.lastName.toLowerCase().includes(query) ||
-      (u.email && u.email.toLowerCase().includes(query)) ||
+      norm(u.code).includes(nq) ||
+      norm(u.firstName).includes(nq) ||
+      norm(u.lastName).includes(nq) ||
+      (u.email && norm(u.email).includes(nq)) ||
       (u.phone && u.phone.toLowerCase().includes(query)),
     )
     .slice(0, 8);
   if (!matches.length) {
     el.innerHTML = `
-      <div class="checkin-no-results">
+      <div class="ck-no-results">
         <i class="fa-solid fa-user-slash"></i>
-        <span>Sin coincidencias para "${Utils.escapeHtml(q)}"</span>
-        <button type="button" class="btn btn--ghost btn--sm" data-action="user-new">
-          <i class="fa-solid fa-plus"></i> Crear usuario
+        <div>
+          <div><strong>Sin coincidencias</strong></div>
+          <div class="cell-muted">No encontramos a nadie con "${Utils.escapeHtml(q)}"</div>
+        </div>
+        <button type="button" class="btn btn--accent btn--sm" data-action="user-new">
+          <i class="fa-solid fa-user-plus"></i> Crear visitante
         </button>
       </div>`;
     return;
   }
-  el.innerHTML = matches
-    .map(
-      u => `
-    <button type="button" class="checkin-suggestion" data-action="checkin-select" data-code="${Utils.escapeHtml(u.code)}">
-      <span class="user-code">${Utils.escapeHtml(u.code)}</span>
-      <div class="checkin-suggestion-info">
-        <div class="cell-strong">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</div>
-        <div class="cell-muted">${Utils.escapeHtml(u.email || u.phone || '—')}</div>
-      </div>
-      <span class="badge badge--info">${u.visitCount}v</span>
-    </button>`,
-    )
-    .join('');
+  el.innerHTML = matches.map(u => {
+    const initials = ((u.firstName?.[0] || '') + (u.lastName?.[0] || '')).toUpperCase() || '?';
+    const isNew = (u.visitCount || 0) <= 1;
+    const isVip = (u.visitCount || 0) >= 10;
+    const tag = isVip
+      ? `<span class="ck-suggestion-tag ck-suggestion-tag--vip">VIP</span>`
+      : isNew
+        ? `<span class="ck-suggestion-tag ck-suggestion-tag--new">1ª vez</span>`
+        : `<span class="ck-suggestion-tag ck-suggestion-tag--reg">${u.visitCount}v</span>`;
+    return `
+      <button type="button" class="ck-suggestion" data-action="checkin-select" data-code="${Utils.escapeHtml(u.code)}">
+        <span class="ck-suggestion-avatar">${Utils.escapeHtml(initials)}</span>
+        <span class="ck-suggestion-info">
+          <span class="ck-suggestion-name">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</span>
+          <span class="ck-suggestion-meta">
+            <span class="user-code">${Utils.escapeHtml(u.code)}</span>
+            ${u.email ? `· ${Utils.escapeHtml(u.email)}` : ''}
+          </span>
+        </span>
+        ${tag}
+      </button>`;
+  }).join('');
 }
 
 function paintCheckinSelected() {
   const u = State.checkin?.selectedUser;
-  const el = document.getElementById('checkin-selected');
+  const el = document.getElementById('ck-selected');
   if (!el) return;
   if (!u) {
     el.innerHTML = `
-      <div class="checkin-empty-selection">
+      <div class="ck-empty">
         <i class="fa-solid fa-arrow-up"></i>
-        <p>Busca y selecciona un visitante para continuar</p>
+        <span>Selecciona un visitante para continuar</span>
       </div>`;
     return;
   }
+  const initials = ((u.firstName?.[0] || '') + (u.lastName?.[0] || '')).toUpperCase() || '?';
+  const isNew = (u.visitCount || 0) <= 1;
+  const isVip = (u.visitCount || 0) >= 10;
+  const tag = isVip
+    ? `<span class="ck-selected-tag ck-selected-tag--vip"><i class="fa-solid fa-crown"></i> VIP · ${u.visitCount} visitas</span>`
+    : isNew
+      ? `<span class="ck-selected-tag ck-selected-tag--new"><i class="fa-solid fa-seedling"></i> Primera vez</span>`
+      : `<span class="ck-selected-tag ck-selected-tag--reg"><i class="fa-solid fa-repeat"></i> ${u.visitCount} visitas</span>`;
   el.innerHTML = `
-    <div class="checkin-selected-card">
-      <img src="${qrUrl(u.code, 80)}" alt="QR" class="checkin-qr" />
-      <div class="checkin-selected-info">
-        <div class="user-code">${Utils.escapeHtml(u.code)}</div>
+    <div class="ck-selected">
+      <div class="ck-selected-avatar">${Utils.escapeHtml(initials)}</div>
+      <div class="ck-selected-info">
         <h3>${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</h3>
-        <div class="cell-muted">${Utils.escapeHtml(u.email || u.phone || 'Sin contacto')}</div>
-        <div class="checkin-selected-stats">
-          <span class="badge badge--info"><i class="fa-solid fa-repeat"></i> ${u.visitCount} visita(s)</span>
+        <div class="ck-selected-meta">
+          <span class="user-code">${Utils.escapeHtml(u.code)}</span>
+          ${u.email ? `<span class="cell-muted">· ${Utils.escapeHtml(u.email)}</span>` : ''}
         </div>
+        ${tag}
       </div>
-      <button class="icon-btn" data-action="checkin-clear" title="Limpiar selección">
+      <button class="icon-btn" data-action="checkin-clear" title="Limpiar (Esc)">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>`;
 }
 
 function paintCheckinActivities() {
-  const active = State.activities.filter(a => a.status === 'activa');
-  const el = document.getElementById('checkin-activities');
+  const meta = document.getElementById('ck-activities-meta');
+  const el = document.getElementById('ck-activities');
   if (!el) return;
+  const active = State.activities;
+  if (meta) meta.textContent = `${active.length} actividad(es) activa(s)`;
   if (!active.length) {
-    el.innerHTML = `<div class="empty"><i class="fa-solid fa-calendar-xmark"></i><h3>Sin actividades activas</h3><p>Crea una actividad para empezar a recibir asistencias.</p></div>`;
+    el.innerHTML = `<div class="empty"><i class="fa-solid fa-calendar-xmark"></i><h3>Sin actividades activas</h3><p>Crea una para empezar a recibir asistencias.</p></div>`;
     return;
   }
   const u = State.checkin?.selectedUser;
-  el.innerHTML = active
-    .map(a => {
-      const pct = a.capacity ? Math.round((a.enrolledCount / a.capacity) * 100) : 0;
-      const isFull = a.enrolledCount >= a.capacity;
-      const nearFull = pct >= 80;
-      return `
-      <div class="checkin-activity-card ${isFull ? 'is-full' : ''} ${nearFull && !isFull ? 'is-hot' : ''}" data-activity-id="${Utils.escapeHtml(a.id)}">
-        <div class="checkin-activity-header">
+  const todayMs = new Date(); todayMs.setHours(0, 0, 0, 0);
+  const tomorrowMs = todayMs.getTime() + 86400000;
+  el.innerHTML = active.map(a => {
+    const pct = a.capacity ? Math.round((a.enrolledCount / a.capacity) * 100) : 0;
+    const isFull = a.enrolledCount >= a.capacity;
+    const nearFull = pct >= 80;
+    const t = new Date(a.date).getTime();
+    const isToday = t >= todayMs.getTime() && t < tomorrowMs;
+    return `
+      <div class="ck-activity ${isFull ? 'is-full' : ''} ${nearFull && !isFull ? 'is-hot' : ''} ${isToday ? 'is-today' : ''}" data-activity-id="${Utils.escapeHtml(a.id)}">
+        <div class="ck-activity-head">
           <span class="badge badge--type-${a.type}">${Utils.escapeHtml(Utils.activityTypeLabel(a.type))}</span>
-          <span class="cell-muted" style="font-size:11px">${Utils.formatDate(a.date)}</span>
+          ${isToday ? '<span class="ck-activity-today-pill"><i class="fa-solid fa-circle"></i> HOY</span>' : ''}
+          <span class="cell-muted" style="font-size:11px;margin-left:auto">${Utils.escapeHtml(Utils.formatDate(a.date))}</span>
         </div>
-        <h3>${Utils.escapeHtml(a.name)}</h3>
-        <div class="cell-muted" style="margin-bottom:8px"><i class="fa-solid fa-location-dot"></i> ${Utils.escapeHtml(a.location)}</div>
-        <div class="progress" style="margin-bottom:12px">
+        <h4>${Utils.escapeHtml(a.name)}</h4>
+        <div class="cell-muted ck-activity-loc"><i class="fa-solid fa-location-dot"></i> ${Utils.escapeHtml(a.location)}</div>
+        <div class="ck-activity-progress">
           <div class="progress-track"><div class="progress-bar ${nearFull ? 'progress-bar--hot' : ''}" style="width:${pct}%"></div></div>
           <div class="progress-meta"><span>${a.enrolledCount}/${a.capacity}</span><span>${pct}%</span></div>
         </div>
-        <button class="btn ${u && !isFull ? 'btn--accent' : 'btn--ghost'}" data-action="${u ? 'checkin-register' : 'checkin-focus-search'}" data-user-code="${Utils.escapeHtml(u?.code || '')}" data-activity-id="${Utils.escapeHtml(a.id)}" ${isFull ? 'disabled' : ''} style="width:100%;justify-content:center">
-          ${isFull ? '<i class="fa-solid fa-ban"></i> Cupo lleno' : u ? '<i class="fa-solid fa-check"></i> Registrar asistencia' : '<i class="fa-solid fa-user"></i> Selecciona un usuario'}
+        <button class="btn ${u && !isFull ? 'btn--accent' : 'btn--ghost'} btn--block" data-action="${u ? 'checkin-register' : 'checkin-focus-search'}" data-user-code="${Utils.escapeHtml(u?.code || '')}" data-activity-id="${Utils.escapeHtml(a.id)}" ${isFull ? 'disabled' : ''}>
+          ${isFull ? '<i class="fa-solid fa-ban"></i> Cupo lleno' : u ? '<i class="fa-solid fa-check"></i> Registrar asistencia' : '<i class="fa-solid fa-user"></i> Selecciona un visitante'}
         </button>
       </div>`;
-    })
-    .join('');
+  }).join('');
+}
+
+function paintCheckinRecentFeed() {
+  const el = document.getElementById('ck-feed');
+  if (!el || !_ckState.ctx) return;
+  const feed = _ckState.ctx.recentFeed;
+  if (!feed || feed.length === 0) {
+    el.innerHTML = `<div class="ck-feed-empty"><i class="fa-regular fa-clock"></i> Aún no hay check-ins hoy</div>`;
+    return;
+  }
+  const now = Date.now();
+  el.innerHTML = feed.map(f => {
+    const initials = ((f.userName?.[0] || '') + (f.userName?.split(' ')[1]?.[0] || '')).toUpperCase() || '?';
+    const secs = Math.max(0, Math.floor((now - new Date(f.registeredAt).getTime()) / 1000));
+    const ago = secs < 60 ? `hace ${secs}s`
+      : secs < 3600 ? `hace ${Math.floor(secs / 60)} min`
+      : `hace ${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
+    return `
+      <div class="ck-feed-item">
+        <div class="ck-feed-avatar">${Utils.escapeHtml(initials)}</div>
+        <div class="ck-feed-info">
+          <div class="ck-feed-name">${Utils.escapeHtml(f.userName)}</div>
+          <div class="ck-feed-meta">
+            ${f.activityName ? `<i class="fa-solid ${dashTypeIcon(f.activityType)}"></i> ${Utils.escapeHtml(f.activityName)}` : ''}
+          </div>
+        </div>
+        <div class="ck-feed-time">${Utils.escapeHtml(ago)}</div>
+      </div>`;
+  }).join('');
 }
 
 async function handleCheckinSelect(code) {
@@ -3282,7 +3506,7 @@ async function handleCheckinSelect(code) {
     const user = await API.users.get(code);
     State.checkin = State.checkin || {};
     State.checkin.selectedUser = user;
-    const input = document.getElementById('checkin-search');
+    const input = document.getElementById('ck-search');
     if (input) input.value = '';
     paintCheckinSuggestions('');
     paintCheckinSelected();
@@ -3296,11 +3520,11 @@ function handleCheckinClear() {
   if (State.checkin) State.checkin.selectedUser = null;
   paintCheckinSelected();
   paintCheckinActivities();
-  document.getElementById('checkin-search')?.focus();
+  document.getElementById('ck-search')?.focus();
 }
 
 function handleCheckinFocusSearch() {
-  const input = document.getElementById('checkin-search');
+  const input = document.getElementById('ck-search');
   if (!input) return;
   input.focus();
   // Scroll a la columna izquierda con un pulse visual para que sea obvio.
@@ -3315,18 +3539,24 @@ async function handleCheckinRegister(userCode, activityId) {
   try {
     await API.attendance.create({ userCode, activityId });
     Toast.success('¡Asistencia registrada!');
-    const [actsResp, user] = await Promise.all([
-      API.activities.list(),
+    // Refresca el contexto vivo: stats, recent feed, activities, recent chips
+    const [ctx, user] = await Promise.all([
+      API.dashboard.checkinContext(),
       API.users.get(userCode),
     ]);
-    State.activities = actsResp.activities;
+    _ckState.ctx = ctx;
+    State.activities = ctx.activeActivities;
     State.checkin.selectedUser = user;
+    paintCheckinStatsbar();
     paintCheckinActivities();
     paintCheckinSelected();
-    const card = document.querySelector(`.checkin-activity-card[data-activity-id="${activityId}"]`);
+    paintCheckinRecentChips();
+    paintCheckinRecentFeed();
+    // Pulse en la card de la actividad recién registrada
+    const card = document.querySelector(`.ck-activity[data-activity-id="${activityId}"]`);
     if (card) {
       card.classList.add('pulse-success');
-      setTimeout(() => card.classList.remove('pulse-success'), 900);
+      setTimeout(() => card.classList.remove('pulse-success'), 1200);
     }
   } catch (e) {
     Toast.error(explainError(e));
@@ -3406,6 +3636,8 @@ function bindGlobalEvents() {
         handleCheckinRegister(target.dataset.userCode, target.dataset.activityId); break;
       case 'checkin-focus-search':
         handleCheckinFocusSearch(); break;
+      case 'ck-refresh':
+        refreshCheckinContext(); break;
       case 'checkin-select':
         handleCheckinSelect(target.dataset.code); break;
       case 'checkin-clear':

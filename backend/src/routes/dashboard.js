@@ -237,5 +237,108 @@ export function createDashboardRouter() {
     }
   });
 
+  // ==============================================================
+  // GET /api/dashboard/checkin-context — datos vivos para la pantalla
+  // de Check-in del staff. Stats del día + feed de últimos check-ins.
+  // ==============================================================
+  router.get('/checkin-context', async (req, res, next) => {
+    try {
+      const now = new Date();
+      const today = startOfDay(now);
+      const todayStr = ymd(today);
+      const tomorrow = new Date(today.getTime() + 86400000);
+
+      const [allAttendance, allActivities, allUsers] = await Promise.all([
+        req.repos.attendance.findAll(),
+        req.repos.activities.findAll(),
+        req.repos.users.findAll(),
+      ]);
+
+      const todayMs = today.getTime();
+      const tomorrowMs = tomorrow.getTime();
+
+      // Check-ins de HOY (creados o registrados hoy)
+      const todayCheckins = allAttendance
+        .filter(a => {
+          const t = new Date(a.registeredAt).getTime();
+          return t >= todayMs && t < tomorrowMs;
+        })
+        .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
+
+      const activitiesById = new Map(allActivities.map(a => [a.id, a]));
+      const usersById = new Map(allUsers.map(u => [u.id, u]));
+
+      // Feed de últimos 12 check-ins: enriquecer con user + activity
+      const recentFeed = todayCheckins.slice(0, 12).map(a => {
+        const user = usersById.get(a.userId);
+        const activity = activitiesById.get(a.activityId);
+        return {
+          attendanceId: a.id,
+          userCode: user?.code || a.userCode,
+          userName: user ? `${user.firstName} ${user.lastName}`.trim() : '—',
+          userEmail: user?.email || null,
+          userVisitCount: user?.visitCount || 1,
+          activityId: a.activityId,
+          activityName: activity?.name || a.activityName,
+          activityType: activity?.type || null,
+          registeredAt: a.registeredAt,
+        };
+      });
+
+      // Actividades activas con datos enriquecidos
+      const activeActivities = allActivities
+        .filter(a => a.status === 'activa')
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // Actividad de HOY (la primera activa cuya fecha cae en este día)
+      const todayActivity = activeActivities.find(a => {
+        const d = new Date(a.date).getTime();
+        return d >= todayMs && d < tomorrowMs;
+      }) || null;
+
+      // Próxima (después de hoy)
+      const nextActivity = activeActivities.find(a => {
+        const d = new Date(a.date).getTime();
+        return d >= tomorrowMs;
+      }) || null;
+
+      // Lista de usuarios "recientes para check-in": últimos 8 que vinieron HOY
+      // (única vez por usuario, ordenado por más reciente).
+      const seen = new Set();
+      const recentUsersToday = [];
+      for (const a of todayCheckins) {
+        if (seen.has(a.userId)) continue;
+        seen.add(a.userId);
+        const u = usersById.get(a.userId);
+        if (!u) continue;
+        recentUsersToday.push({
+          code: u.code,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          email: u.email,
+          visitCount: u.visitCount,
+          lastActivityName: activitiesById.get(a.activityId)?.name || null,
+          lastCheckinAt: a.registeredAt,
+        });
+        if (recentUsersToday.length >= 8) break;
+      }
+
+      res.json({
+        stats: {
+          checkinsToday: todayCheckins.length,
+          activeActivities: activeActivities.length,
+          uniqueAttendeesToday: new Set(todayCheckins.map(c => c.userId)).size,
+        },
+        todayActivity,
+        nextActivity,
+        activeActivities,
+        recentFeed,
+        recentUsersToday,
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
   return router;
 }
