@@ -16,6 +16,7 @@ const UPLOADS_DIR = path.join(__dirname, '..', '..', '..', 'data', 'uploads');
 const TYPE_LABELS = {
   exposicion: 'Exposición',
   concierto: 'Concierto',
+  cine: 'Cine',
   taller: 'Taller',
   teatro: 'Teatro',
   conferencia: 'Conferencia',

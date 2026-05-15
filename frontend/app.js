@@ -4,6 +4,7 @@ const API_BASE = '/api';
 const ACTIVITY_TYPES = [
   { value: 'exposicion', label: 'Exposición' },
   { value: 'concierto', label: 'Concierto' },
+  { value: 'cine', label: 'Cine' },
   { value: 'taller', label: 'Taller' },
   { value: 'teatro', label: 'Teatro' },
   { value: 'conferencia', label: 'Conferencia' },
@@ -853,6 +854,7 @@ function renderAffinitySection(aff) {
   const TYPE_ICONS = {
     exposicion: 'fa-image',
     concierto: 'fa-music',
+    cine: 'fa-film',
     taller: 'fa-screwdriver-wrench',
     teatro: 'fa-masks-theater',
     conferencia: 'fa-microphone',
@@ -1455,7 +1457,7 @@ function paintActivitiesTable() {
                 <div class="cell-with-thumb">
                   ${a.imageUrl
                     ? `<img class="activity-thumb" src="${Utils.escapeHtml(a.imageUrl)}" alt="" />`
-                    : `<div class="activity-thumb activity-thumb--placeholder"><i class="fa-solid ${{exposicion:'fa-image',concierto:'fa-music',taller:'fa-screwdriver-wrench',teatro:'fa-masks-theater',conferencia:'fa-microphone'}[a.type] || 'fa-calendar-day'}"></i></div>`}
+                    : `<div class="activity-thumb activity-thumb--placeholder"><i class="fa-solid ${{exposicion:'fa-image',concierto:'fa-music',cine:'fa-film',taller:'fa-screwdriver-wrench',teatro:'fa-masks-theater',conferencia:'fa-microphone'}[a.type] || 'fa-calendar-day'}"></i></div>`}
                   <span>${Utils.escapeHtml(a.name)}${nearFull ? ' <i class="fa-solid fa-fire" title="Casi lleno" style="color:var(--color-accent);margin-left:6px"></i>' : ''}</span>
                 </div>
               </td>

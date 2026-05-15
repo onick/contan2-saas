@@ -646,6 +646,7 @@ textarea {
 
 .badge--type-exposicion { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
 .badge--type-concierto { background: rgba(255, 111, 0, 0.14); color: #c2410c; }
+.badge--type-cine { background: rgba(15, 23, 42, 0.12); color: #1f2937; }
 .badge--type-taller { background: rgba(16, 185, 129, 0.12); color: #047857; }
 .badge--type-teatro { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
 .badge--type-conferencia { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; }

@@ -13,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', '..', '..', 'data', 'uploads');
 
 const TYPE_LABELS = {
-  exposicion: 'Exposición', concierto: 'Concierto', taller: 'Taller',
+  exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
   teatro: 'Teatro', conferencia: 'Conferencia', otro: 'Otro',
 };
 const STATUS_LABELS = {

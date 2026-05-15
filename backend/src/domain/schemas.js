@@ -5,6 +5,7 @@ const CODE_RE = /^CCB-[A-Z0-9]{6}$/;
 export const ACTIVITY_TYPES = [
   'exposicion',
   'concierto',
+  'cine',
   'taller',
   'teatro',
   'conferencia',

@@ -233,7 +233,7 @@ export function createInsightsRouter() {
   return router;
 }
 
-const ACTIVITY_TYPES = ['concierto', 'taller', 'exposicion', 'teatro', 'conferencia', 'otro'];
+const ACTIVITY_TYPES = ['concierto', 'cine', 'taller', 'exposicion', 'teatro', 'conferencia', 'otro'];
 
 function computeSegmentCounts(affs) {
   const segments = [

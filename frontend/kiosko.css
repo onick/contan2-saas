@@ -340,6 +340,7 @@ input {
 
 .k-card-band--exposicion { background: linear-gradient(90deg, #7c3aed, #a855f7); }
 .k-card-band--concierto { background: linear-gradient(90deg, var(--k-accent), var(--k-accent-light)); }
+.k-card-band--cine { background: linear-gradient(90deg, #1f2937, #4b5563); }
 .k-card-band--taller { background: linear-gradient(90deg, #059669, #10b981); }
 .k-card-band--teatro { background: linear-gradient(90deg, #b91c1c, #ef4444); }
 .k-card-band--conferencia { background: linear-gradient(90deg, #1d4ed8, #3b82f6); }

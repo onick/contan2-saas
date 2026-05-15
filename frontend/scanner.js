@@ -125,7 +125,7 @@ function renderActivitySelect() {
     ? State.activities.map(a => {
         const remaining = a.capacity - a.enrolledCount;
         const icon = ({
-          exposicion: 'fa-image', concierto: 'fa-music', taller: 'fa-screwdriver-wrench',
+          exposicion: 'fa-image', concierto: 'fa-music', cine: 'fa-film', taller: 'fa-screwdriver-wrench',
           teatro: 'fa-masks-theater', conferencia: 'fa-microphone',
         })[a.type] || 'fa-calendar-day';
         const date = new Date(a.date).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });

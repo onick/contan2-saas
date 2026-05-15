@@ -9,6 +9,7 @@ const WATCHDOG_MS = 2_000;
 const TYPE_ICONS = {
   exposicion: 'fa-image',
   concierto: 'fa-music',
+  cine: 'fa-film',
   taller: 'fa-screwdriver-wrench',
   teatro: 'fa-masks-theater',
   conferencia: 'fa-microphone',
@@ -17,6 +18,7 @@ const TYPE_ICONS = {
 const TYPE_LABELS = {
   exposicion: 'Exposición',
   concierto: 'Concierto',
+  cine: 'Cine',
   taller: 'Taller',
   teatro: 'Teatro',
   conferencia: 'Conferencia',
