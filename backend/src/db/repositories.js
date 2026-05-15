@@ -57,10 +57,11 @@ export async function initRepositories() {
  * Para postgres: instancias bindeadas al organization_id.
  * Para memory: las mismas instancias singleton (single-tenant legacy).
  */
-export async function createTenantRepos(organizationId) {
+export async function createTenantRepos(organizationId, opts = {}) {
+  const codePrefix = (opts.codePrefix || 'CCB').toUpperCase();
   if (config.DB_DRIVER === 'memory') {
     const inst = await initRepositories();
-    // Stub de invitations para modo memory (single-tenant legacy, sin RSVP real)
+    inst.users.codePrefix = codePrefix;
     const invitationsStub = {
       async findByActivity() { return []; },
       async findByActivityAndUser() { return null; },
@@ -75,6 +76,7 @@ export async function createTenantRepos(organizationId) {
       ...inst,
       invitations: invitationsStub,
       organizationId: organizationId || CCB_ORG_ID,
+      codePrefix,
     };
   }
   if (config.DB_DRIVER === 'postgres') {
@@ -84,13 +86,14 @@ export async function createTenantRepos(organizationId) {
     const { PostgresAttendanceRepository } = await import('./postgres/PostgresAttendanceRepository.js');
     const { PostgresInvitationRepository } = await import('./postgres/PostgresInvitationRepository.js');
     return {
-      users: new PostgresUserRepository(inst.pool, organizationId),
+      users: new PostgresUserRepository(inst.pool, organizationId, { codePrefix }),
       activities: new PostgresActivityRepository(inst.pool, organizationId),
       attendance: new PostgresAttendanceRepository(inst.pool, organizationId),
       invitations: new PostgresInvitationRepository(inst.pool, organizationId),
       pool: inst.pool,
       driver: 'postgres',
       organizationId,
+      codePrefix,
       persist: () => {},
       persistNow: async () => {},
     };

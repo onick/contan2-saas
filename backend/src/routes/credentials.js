@@ -2,6 +2,14 @@ import { Router } from 'express';
 import { HttpError } from '../middleware/errorHandler.js';
 import { generateCredentialPng } from '../services/credential.js';
 import { sendCredentialEmail } from '../services/email.js';
+import { rateLimit } from '../utils/rateLimit.js';
+
+// 3 envíos de credencial por minuto por IP — previene spam de emails.
+const credentialSendLimit = rateLimit({
+  windowMs: 60_000,
+  max: 3,
+  message: 'Demasiados envíos de credencial. Espera un minuto.',
+});
 
 export function createCredentialsRouter() {
   const router = Router();
@@ -9,7 +17,7 @@ export function createCredentialsRouter() {
   router.get('/:code.png', async (req, res, next) => {
     try {
       const code = String(req.params.code || '').toUpperCase();
-      if (!/^CCB-[A-Z0-9]{6}$/.test(code)) {
+      if (!/^[A-Z]{2,6}-[A-Z0-9]{6}$/.test(code)) {
         throw new HttpError(400, 'Formato de código inválido');
       }
       const user = await req.repos.users.findByCode(code);
@@ -24,10 +32,10 @@ export function createCredentialsRouter() {
     }
   });
 
-  router.post('/:code/send', async (req, res, next) => {
+  router.post('/:code/send', credentialSendLimit, async (req, res, next) => {
     try {
       const code = String(req.params.code || '').toUpperCase();
-      if (!/^CCB-[A-Z0-9]{6}$/.test(code)) {
+      if (!/^[A-Z]{2,6}-[A-Z0-9]{6}$/.test(code)) {
         throw new HttpError(400, 'Formato de código inválido');
       }
       const user = await req.repos.users.findByCode(code);

@@ -13,7 +13,8 @@ const State = {
 
 const PIN_LENGTH = 4;
 const SCAN_COOLDOWN_MS = 2200;
-const CODE_REGEX = /^CCB-[A-Z0-9]{6}$/;
+// Acepta códigos de cualquier tenant: <PREFIX>-XXXXXX (PREFIX = 2-6 letras)
+const CODE_REGEX = /^[A-Z]{2,6}-[A-Z0-9]{6}$/;
 
 function $(s) { return document.querySelector(s); }
 function escapeHtml(s) {

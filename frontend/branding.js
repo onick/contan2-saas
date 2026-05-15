@@ -134,10 +134,26 @@
       document.querySelectorAll('[data-org-name]').forEach(el => {
         el.textContent = t.name;
       });
-    }
-    if (t.logoUrl) {
+      // Logo: si hay logoUrl del tenant, lo usamos. Si no, escondemos el <img>
+      // y mostramos el nombre como texto en su lugar (mejor que dejar el logo
+      // anterior del CCB para cualquier otro tenant).
       document.querySelectorAll('[data-org-logo]').forEach(el => {
-        el.src = t.logoUrl;
+        el.alt = t.name;
+        if (t.logoUrl) {
+          el.src = t.logoUrl;
+          el.hidden = false;
+        } else {
+          el.hidden = true;
+        }
+      });
+      // Fallback: span con el nombre cuando el logo no está disponible.
+      document.querySelectorAll('[data-org-logo-fallback]').forEach(el => {
+        if (t.logoUrl) {
+          el.hidden = true;
+        } else {
+          el.textContent = t.name;
+          el.hidden = false;
+        }
       });
     }
 

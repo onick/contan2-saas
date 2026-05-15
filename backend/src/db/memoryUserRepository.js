@@ -6,6 +6,7 @@ export class MemoryUserRepository {
     this.users = new Map();
     this.byEmail = new Map();
     this.byCode = new Map();
+    this.codePrefix = 'CCB';
   }
 
   async create(data) {
@@ -13,7 +14,7 @@ export class MemoryUserRepository {
     let code;
     let attempts = 0;
     do {
-      code = generateUserCode();
+      code = generateUserCode(this.codePrefix);
       attempts++;
     } while (this.byCode.has(code) && attempts < 5);
     if (this.byCode.has(code)) {

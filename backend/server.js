@@ -4,7 +4,7 @@ import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { config } from './src/config.js';
+import { config, validateConfig } from './src/config.js';
 import { initRepositories, createTenantRepos, CCB_ORG_ID } from './src/db/repositories.js';
 import { runBootstrap } from './src/bootstrap.js';
 import { seedDatabase } from './src/utils/seed.js';
@@ -31,6 +31,9 @@ const __dirname = path.dirname(__filename);
 const frontendPath = path.join(__dirname, '..', 'frontend');
 
 const app = express();
+app.disable('x-powered-by');
+
+validateConfig();
 
 // Init backend (DB pool + migrations en Postgres; load snapshot en memory)
 await initRepositories();
@@ -49,10 +52,37 @@ if (finalized.length) {
 }
 startAutoFinalize(ccbRepos);
 
-app.use(cors());
+// CORS: en dev (ROOT_DOMAIN=localhost) aceptamos cualquier origen para ergonomía
+// de tooling. En producción, solo el ROOT_DOMAIN y sus subdomains.
+const corsOriginCheck = (origin, cb) => {
+  // Same-origin requests del navegador no envían Origin → permitidos.
+  if (!origin) return cb(null, true);
+  if (config.ROOT_DOMAIN === 'localhost') return cb(null, true);
+  try {
+    const u = new URL(origin);
+    const host = u.hostname;
+    const root = config.ROOT_DOMAIN.toLowerCase();
+    if (host === root || host.endsWith('.' + root)) return cb(null, true);
+    return cb(new Error(`Origin no permitido: ${origin}`));
+  } catch {
+    return cb(new Error('Origin inválido'));
+  }
+};
+app.use(cors({
+  origin: corsOriginCheck,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+}));
 app.use(cookieParser());
 app.use(express.json({ limit: '5mb' }));
+
+// Healthcheck liviano: NO toca DB, NO requiere tenant. Para liveness probes.
+app.get('/healthz', (_req, res) => {
+  res.json({ ok: true, ts: new Date().toISOString() });
+});
+
 app.use((req, _res, next) => {
+  if (req.path === '/healthz') return next(); // no spamear logs con healthchecks
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });

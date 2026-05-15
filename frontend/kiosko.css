@@ -131,6 +131,13 @@ input {
   letter-spacing: 0.5px;
 }
 
+.k-header-org-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--k-on-primary, #ffffff);
+  letter-spacing: 0.3px;
+}
+
 .k-header-time {
   font-size: 22px;
   font-weight: 600;

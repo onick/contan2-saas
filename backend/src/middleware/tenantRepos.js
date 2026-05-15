@@ -10,7 +10,9 @@ export async function buildTenantRepos(req, res, next) {
     if (!req.organizationId) {
       return next(new HttpError(404, 'Recurso no disponible en este host'));
     }
-    req.repos = await createTenantRepos(req.organizationId);
+    req.repos = await createTenantRepos(req.organizationId, {
+      codePrefix: req.organization?.codePrefix,
+    });
     next();
   } catch (e) {
     next(e);

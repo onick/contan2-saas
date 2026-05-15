@@ -9,6 +9,15 @@ import { initRepositories, createTenantRepos } from '../db/repositories.js';
 import { PostgresInvitationRepository } from '../db/postgres/PostgresInvitationRepository.js';
 import { OrganizationRepository } from '../db/postgres/platform/OrganizationRepository.js';
 import { config } from '../config.js';
+import { rateLimit } from '../utils/rateLimit.js';
+
+// 30 check-ins por IP/minuto: suficiente para staff que registra a mano,
+// bloquea scripts que intenten flood.
+const checkinRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  message: 'Demasiados check-ins desde esta IP. Intenta de nuevo en un momento.',
+});
 
 function publicUser(u) {
   return { code: u.code, firstName: u.firstName, lastName: u.lastName, visitCount: u.visitCount };
@@ -116,11 +125,13 @@ export function createPublicRouter() {
       if (q.includes('@')) {
         user = await req.repos.users.findByEmail(q);
       } else {
+        const orgPrefix = (req.organization?.codePrefix || 'CCB').toUpperCase();
         let code = q.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-        if (!code.startsWith('CCB-') && /^[A-Z0-9]{6}$/.test(code)) {
-          code = (req.organization?.codePrefix || 'CCB') + '-' + code;
+        // Si el usuario escribió solo los 6 chars (sin prefijo), prependemos el del tenant.
+        if (!code.includes('-') && /^[A-Z0-9]{6}$/.test(code)) {
+          code = `${orgPrefix}-${code}`;
         }
-        if (!/^[A-Z]{2,8}-[A-Z0-9]{6}$/.test(code)) {
+        if (!/^[A-Z]{2,6}-[A-Z0-9]{6}$/.test(code)) {
           throw new HttpError(400, 'Formato inválido (código o email)');
         }
         user = await req.repos.users.findByCode(code);
@@ -137,7 +148,7 @@ export function createPublicRouter() {
   router.get('/users/:code', async (req, res, next) => {
     try {
       const code = String(req.params.code || '').trim().toUpperCase();
-      if (!/^CCB-[A-Z0-9]{6}$/.test(code)) {
+      if (!/^[A-Z]{2,6}-[A-Z0-9]{6}$/.test(code)) {
         throw new HttpError(400, 'Formato de código inválido');
       }
       const user = await req.repos.users.findByCode(code);
@@ -148,7 +159,7 @@ export function createPublicRouter() {
     }
   });
 
-  router.post('/checkin', async (req, res, next) => {
+  router.post('/checkin', checkinRateLimit, async (req, res, next) => {
     try {
       const errors = validatePublicCheckin(req.body);
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);

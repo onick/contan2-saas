@@ -347,10 +347,12 @@ function emailSuggestions(rawInput) {
 }
 
 // ============ Screen: codeInput ============
-// Acepta código CCB-XXXXXX O email. El sistema autodetecta.
+// Acepta código <PREFIX>-XXXXXX O email. El sistema autodetecta.
 function renderCodeInput(root) {
   const prefilled = State.prefilledCode || '';
   State.prefilledCode = null;
+  const orgPrefix = (window.__tenant__?.codePrefix || 'CCB').toUpperCase();
+  const CODE_RE = /^[A-Z]{2,6}-[A-Z0-9]{6}$/;
   root.innerHTML = `
     <div class="k-screen k-center">
       <div class="k-activity-pill">
@@ -358,13 +360,13 @@ function renderCodeInput(root) {
         ${escapeHtml(State.activity.name)}
       </div>
       <h1 class="k-h1">Identifícate</h1>
-      <p class="k-lead">Escribe tu <strong>código CCB-XXXXXX</strong> o tu <strong>correo electrónico</strong></p>
+      <p class="k-lead">Escribe tu <strong>código ${escapeHtml(orgPrefix)}-XXXXXX</strong> o tu <strong>correo electrónico</strong></p>
 
       <div id="k-code-stage">
         <div class="k-form" style="max-width:560px">
           <div class="k-input-wrap">
             <input type="text" class="k-input k-input--identifier" id="k-code-input"
-                   placeholder="CCB-XXXXXX  o  tu@correo.com" maxlength="80" autocomplete="off"
+                   placeholder="${escapeHtml(orgPrefix)}-XXXXXX  o  tu@correo.com" maxlength="80" autocomplete="off"
                    inputmode="text" value="${escapeHtml(prefilled)}" />
             <div class="k-suggestions hidden" id="k-suggestions"></div>
           </div>
@@ -399,17 +401,23 @@ function renderCodeInput(root) {
   };
   const normalizeForQuery = ({ mode, value }) => {
     if (mode === 'email') return value;
-    // Code: uppercase, strip junk, prepend CCB- si falta
+    // Code: uppercase, strip junk, prepend <PREFIX>- si falta.
     let s = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (!s.startsWith('CCB')) s = 'CCB' + s.replace(/^CCB/, '');
-    if (s.length > 3) s = 'CCB-' + s.slice(3, 9);
-    return s;
+    // Si el usuario escribió el prefijo correcto al inicio, lo respetamos;
+    // si no, asumimos el prefijo del tenant.
+    const prefixMatch = s.match(/^([A-Z]{2,6})(.*)$/);
+    if (prefixMatch && prefixMatch[2].length === 6 && /^[A-Z0-9]{6}$/.test(prefixMatch[2])) {
+      return `${prefixMatch[1]}-${prefixMatch[2]}`;
+    }
+    // Default: usar el prefijo de la org y los primeros 6 chars alfanuméricos.
+    if (s.length >= 6) return `${orgPrefix}-${s.slice(-6)}`;
+    return `${orgPrefix}-${s}`;
   };
   const validate = det => {
     if (!det.value) return false;
     if (det.mode === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(det.value);
     const normalized = normalizeForQuery(det);
-    return /^CCB-[A-Z0-9]{6}$/.test(normalized);
+    return CODE_RE.test(normalized);
   };
   const updateHint = mode => {
     if (mode === 'email') {

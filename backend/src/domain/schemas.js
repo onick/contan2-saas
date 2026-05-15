@@ -1,6 +1,8 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[\d\s+\-()]{7,20}$/;
-const CODE_RE = /^CCB-[A-Z0-9]{6}$/;
+// Código tenant-aware: <PREFIX>-XXXXXX donde PREFIX es 2-6 letras A-Z y XXXXXX
+// alfanumérico mayúscula. Acepta cualquier org (CCB-, MOMA-, etc.).
+const CODE_RE = /^[A-Z]{2,6}-[A-Z0-9]{6}$/;
 
 export const ACTIVITY_TYPES = [
   'exposicion',

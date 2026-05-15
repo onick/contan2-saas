@@ -7,6 +7,7 @@ import {
   resolveFromAddress,
   resolveReplyTo,
 } from './emailBranding.js';
+import { maskEmail } from '../utils/log.js';
 
 let _resend = null;
 function client() {
@@ -234,7 +235,7 @@ export async function sendCredentialEmail(user, organization = null) {
 
   const c = client();
   if (!c) {
-    console.log(`[email-dev] credencial para ${user.email} (${user.code}) lista, ${pngBuffer.length} bytes — falta RESEND_API_KEY`);
+    console.log(`[email-dev] credencial para ${maskEmail(user.email)} (${user.code}) lista, ${pngBuffer.length} bytes — falta RESEND_API_KEY`);
     return { skipped: true, reason: 'sin RESEND_API_KEY' };
   }
 
@@ -248,13 +249,13 @@ export async function sendCredentialEmail(user, organization = null) {
       attachments: [{ filename, content: pngBuffer }],
     });
     if (result.error) {
-      console.error(`[email] error enviando a ${user.email}:`, result.error.message || result.error);
+      console.error(`[email] error enviando a ${maskEmail(user.email)}:`, result.error.message || result.error);
       return { sent: false, error: result.error.message || String(result.error) };
     }
-    console.log(`[email] credencial enviada a ${user.email} (id=${result.data?.id || '?'})`);
+    console.log(`[email] credencial enviada a ${maskEmail(user.email)} (id=${result.data?.id || '?'})`);
     return { sent: true, id: result.data?.id };
   } catch (e) {
-    console.error(`[email] excepción enviando a ${user.email}:`, e.message);
+    console.error(`[email] excepción enviando a ${maskEmail(user.email)}:`, e.message);
     return { sent: false, error: e.message };
   }
 }
@@ -267,7 +268,7 @@ export async function sendActivityCancellationEmail({ user, activity, organizati
 
   const c = client();
   if (!c) {
-    console.log(`[email-dev] cancelación a ${user.email} (actividad: ${activity.name})`);
+    console.log(`[email-dev] cancelación a ${maskEmail(user.email)} (actividad: ${activity.name})`);
     return { skipped: true, reason: 'sin RESEND_API_KEY' };
   }
   try {
@@ -279,13 +280,13 @@ export async function sendActivityCancellationEmail({ user, activity, organizati
       html,
     });
     if (result.error) {
-      console.error(`[cancel-email] error a ${user.email}:`, result.error.message);
+      console.error(`[cancel-email] error a ${maskEmail(user.email)}:`, result.error.message);
       return { sent: false, error: result.error.message };
     }
-    console.log(`[cancel-email] enviado a ${user.email} (id=${result.data?.id})`);
+    console.log(`[cancel-email] enviado a ${maskEmail(user.email)} (id=${result.data?.id})`);
     return { sent: true, id: result.data?.id };
   } catch (e) {
-    console.error(`[cancel-email] excepción a ${user.email}:`, e.message);
+    console.error(`[cancel-email] excepción a ${maskEmail(user.email)}:`, e.message);
     return { sent: false, error: e.message };
   }
 }
@@ -298,7 +299,8 @@ export async function sendInvitationEmail({ user, activity, organization, rsvpUr
 
   const c = client();
   if (!c) {
-    console.log(`[email-dev] invitación a ${user.email} (actividad: ${activity.name}) url=${rsvpUrl}`);
+    // Nunca loguear el rsvpUrl completo: contiene el token de invitación.
+    console.log(`[email-dev] invitación a ${maskEmail(user.email)} (actividad: ${activity.name})`);
     return { skipped: true, reason: 'sin RESEND_API_KEY' };
   }
   try {
@@ -310,13 +312,13 @@ export async function sendInvitationEmail({ user, activity, organization, rsvpUr
       html,
     });
     if (result.error) {
-      console.error(`[invite-email] error a ${user.email}:`, result.error.message);
+      console.error(`[invite-email] error a ${maskEmail(user.email)}:`, result.error.message);
       return { sent: false, error: result.error.message };
     }
-    console.log(`[invite-email] enviado a ${user.email} (id=${result.data?.id})`);
+    console.log(`[invite-email] enviado a ${maskEmail(user.email)} (id=${result.data?.id})`);
     return { sent: true, id: result.data?.id };
   } catch (e) {
-    console.error(`[invite-email] excepción a ${user.email}:`, e.message);
+    console.error(`[invite-email] excepción a ${maskEmail(user.email)}:`, e.message);
     return { sent: false, error: e.message };
   }
 }

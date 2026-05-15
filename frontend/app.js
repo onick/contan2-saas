@@ -2841,7 +2841,7 @@ async function renderCheckin() {
         <div class="panel-body">
           <div class="search-input search-input--lg">
             <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="checkin-search" placeholder="CCB-XXXXXX, nombre o email…" autocomplete="off" />
+            <input type="text" id="checkin-search" placeholder="${(window.__tenant__?.codePrefix || 'CCB').toUpperCase()}-XXXXXX, nombre o email…" autocomplete="off" />
           </div>
           <div id="checkin-suggestions" class="checkin-suggestions"></div>
           <div id="checkin-selected"></div>

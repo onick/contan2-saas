@@ -1,12 +1,16 @@
 {
-  "name": "ccb-admin-backend",
+  "name": "contan2-saas-backend",
   "version": "1.0.0",
-  "description": "API REST para el panel administrativo del Centro Cultural Banreservas",
+  "description": "SaaS multi-tenant para gestión de centros culturales: registro de visitantes, asistencia, credenciales QR, segmentación y reportes branded por organización.",
   "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/onick/contan2-saas.git"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

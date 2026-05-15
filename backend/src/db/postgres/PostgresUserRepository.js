@@ -17,12 +17,13 @@ function rowToUser(r) {
 }
 
 export class PostgresUserRepository {
-  constructor(pool, organizationId) {
+  constructor(pool, organizationId, opts = {}) {
     if (!organizationId) {
       throw new Error('PostgresUserRepository requiere organizationId');
     }
     this.pool = pool;
     this.orgId = organizationId;
+    this.codePrefix = (opts.codePrefix || 'CCB').toUpperCase();
   }
 
   async create(data) {
@@ -30,7 +31,7 @@ export class PostgresUserRepository {
     let code;
     let attempts = 0;
     while (attempts < 5) {
-      code = generateUserCode();
+      code = generateUserCode(this.codePrefix);
       attempts += 1;
       try {
         const result = await this.pool.query(
