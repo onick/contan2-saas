@@ -3601,3 +3601,244 @@ tr.hidden { display: none; }
   .ck-statsbar { grid-template-columns: 1fr 1fr; }
   .ck-statsbar > :nth-child(3) { grid-column: 1 / -1; }
 }
+
+/* =============================================================================
+ * RESPONSIVE HARDENING GLOBAL
+ * Reglas que aplican a TODAS las vistas para que cualquier pantalla (nueva o
+ * vieja) se comporte bien en mobile / tablet sin tocar cada componente.
+ * ============================================================================= */
+
+/* --- Headings con clamp para evitar overflow en mobile --- */
+h1 { font-size: clamp(18px, 2.4vw, 22px); }
+h2 { font-size: clamp(15px, 2vw, 18px); }
+h3 { font-size: clamp(14px, 1.8vw, 16px); }
+
+/* --- Container del content: padding adaptativo --- */
+@media (max-width: 900px) {
+  .content { padding: 20px 16px; }
+  .topbar { padding: 0 16px; }
+  .topbar-title h1 { font-size: 16px; }
+  .topbar-title p { font-size: 11px; }
+}
+@media (max-width: 600px) {
+  .content { padding: 16px 12px; }
+  .topbar { padding: 0 12px; gap: 8px; }
+}
+
+/* --- Topbar: botones de acción colapsan a icon-only en mobile --- */
+@media (max-width: 600px) {
+  .topbar-actions .btn span { display: none; }
+  .topbar-actions .btn {
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+  }
+  .topbar-actions .btn i { margin: 0; }
+}
+
+/* --- Tablas: asegurar scroll horizontal + touch-friendly --- */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Indica visualmente que hay más contenido fuera del viewport */
+  background:
+    linear-gradient(to right, var(--color-surface) 30%, rgba(255,255,255,0)),
+    linear-gradient(to right, rgba(255,255,255,0), var(--color-surface) 70%) 100% 0,
+    radial-gradient(farthest-side at 0 50%, rgba(15,23,42,0.06), transparent),
+    radial-gradient(farthest-side at 100% 50%, rgba(15,23,42,0.06), transparent) 100% 0;
+  background-repeat: no-repeat;
+  background-size: 32px 100%, 32px 100%, 16px 100%, 16px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+.table { min-width: 560px; }
+
+@media (max-width: 600px) {
+  .table th, .table td {
+    padding: 10px 14px;
+    font-size: 12px;
+  }
+  /* Permitir que las primeras columnas (típicamente código/nombre) queden
+     "stuck" mientras se scrollea horizontalmente — UX clásica de tablas
+     en mobile. Activar agregando .table--sticky-first al <table>. */
+  .table--sticky-first th:first-child,
+  .table--sticky-first td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--color-surface);
+    z-index: 1;
+    box-shadow: 2px 0 4px -2px rgba(15, 23, 42, 0.08);
+  }
+}
+
+/* --- Modal full-screen en mobile con header sticky --- */
+@media (max-width: 600px) {
+  .modal {
+    padding: 0;
+    align-items: stretch;
+  }
+  .modal-card {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+    height: 100vh;
+  }
+  .modal-header {
+    position: sticky;
+    top: 0;
+    background: var(--color-surface);
+    z-index: 2;
+    padding: 14px 16px;
+  }
+  .modal-body { padding: 16px; }
+}
+
+/* --- Form rows: stackeo automático en mobile --- */
+@media (max-width: 600px) {
+  .form-row {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+  .form-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .form-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* --- Toolbars y filters: wrap y stack en mobile --- */
+.toolbar,
+.filters,
+.filter-row,
+.page-actions,
+.search-row {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+@media (max-width: 600px) {
+  .toolbar,
+  .filters,
+  .filter-row,
+  .page-actions,
+  .search-row {
+    gap: 8px;
+  }
+  .toolbar > *,
+  .filters > *,
+  .filter-row > *,
+  .page-actions > * {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .search-input { width: 100%; min-width: 0; max-width: none; }
+  /* Select/input con min-width: en lugar de 220px, ocupan ancho disponible */
+  select,
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="date"],
+  input[type="datetime-local"] {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* --- Stat cards: stack en mobile --- */
+@media (max-width: 600px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* --- Cards grid genérico: stack en mobile --- */
+@media (max-width: 600px) {
+  .card-grid,
+  .activity-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Botones: touch target mínimo en mobile (Apple HIG / Material) --- */
+@media (max-width: 900px) and (pointer: coarse) {
+  .btn { min-height: 44px; }
+  .btn--sm { min-height: 38px; }
+  .icon-btn { min-width: 40px; min-height: 40px; }
+  /* Inputs touch-friendly */
+  input, select, textarea { min-height: 40px; }
+}
+
+/* --- Empty states más compactos en mobile --- */
+@media (max-width: 600px) {
+  .empty {
+    padding: 32px 16px;
+  }
+  .empty h3 { font-size: 15px; }
+  .empty p { font-size: 13px; }
+  .empty i { font-size: 36px; }
+}
+
+/* --- Panel header en mobile: stack actions abajo --- */
+@media (max-width: 600px) {
+  .panel-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .panel-header h2 { font-size: 15px; }
+  .panel-header p { font-size: 12px; }
+}
+
+/* --- Toast: ancho razonable en mobile --- */
+@media (max-width: 600px) {
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+  }
+  .toast {
+    max-width: none;
+    width: 100%;
+  }
+}
+
+/* --- Mejoras de overflow defensivo --- */
+.cell-muted,
+.cell-strong,
+.user-code {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+img { max-width: 100%; height: auto; }
+
+/* --- Body: prevenir scroll horizontal accidental --- */
+body { overflow-x: hidden; }
+
+/* --- Skip-to-content para accesibilidad (también ayuda en mobile) --- */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  padding: 8px 12px;
+  z-index: 10000;
+  border-radius: 0 0 var(--radius-sm) 0;
+}
+.skip-link:focus { left: 0; }
+
+/* --- Reduce motion para usuarios sensibles --- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
