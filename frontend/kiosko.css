@@ -118,10 +118,7 @@ input {
 .k-header-logo-img {
   height: 44px;
   width: auto;
-  background: white;
-  border-radius: 8px;
-  padding: 4px 8px;
-  box-shadow: 0 4px 12px -3px rgba(0, 0, 0, 0.2);
+  /* Sin fondo ni padding: respetamos la transparencia del PNG del tenant. */
 }
 
 .k-header-subtitle {

@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { generateCredentialPng } from './credential.js';
 import {
   resolveBrandingTokens,
-  loadOrgLogoDataUri,
+  loadEmailLogoDataUri,
   resolveFromAddress,
   resolveReplyTo,
 } from './emailBranding.js';
@@ -218,7 +218,7 @@ function invitationHtml({ user, activity, tokens, logoData, rsvpUrl }) {
 async function brandingContext(organization) {
   return {
     tokens: resolveBrandingTokens(organization),
-    logoData: await loadOrgLogoDataUri(organization),
+    logoData: await loadEmailLogoDataUri(organization),
     from: resolveFromAddress(organization),
     replyTo: resolveReplyTo(organization),
   };

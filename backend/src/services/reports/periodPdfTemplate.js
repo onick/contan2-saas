@@ -148,8 +148,8 @@ export async function buildPeriodPdfHtml({ organization, period }) {
   }
   .cover-head { display: flex; align-items: center; gap: 18px; position: relative; z-index: 1; }
   .cover-logo {
-    width: 64px; height: 64px; background: #fff; border-radius: 10px;
-    display: flex; align-items: center; justify-content: center; padding: 6px; flex-shrink: 0;
+    width: 72px; height: 72px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   .cover-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
   .cover-org { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; opacity: 0.85; }

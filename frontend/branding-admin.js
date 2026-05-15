@@ -185,8 +185,13 @@
       accent: current.secondaryColor || '#ff6f00',
       sidebarStyle: current.sidebarStyle || 'brand',
       logoUrl: current.logoUrl || '',
+      emailLogoUrl: current.emailLogoUrl || '',
     };
-    const state = { ...initial, pendingLogoFile: null, pendingLogoPreview: null };
+    const state = {
+      ...initial,
+      pendingLogoFile: null, pendingLogoPreview: null,
+      pendingEmailLogoFile: null, pendingEmailLogoPreview: null,
+    };
 
     root.innerHTML = renderForm(state);
     bindForm(root, state);
@@ -241,11 +246,11 @@
 
         <section class="card branding-card">
           <header class="card-head">
-            <h2><i class="fa-solid fa-image"></i> Logo</h2>
-            <p>Aparece en el sidebar, kiosko, scanner y emails transaccionales.</p>
+            <h2><i class="fa-solid fa-image"></i> Logo principal</h2>
+            <p>Para sidebar, kiosko, scanner, credenciales y reportes PDF. Suele aplicarse sobre fondo de marca, así que un PNG con transparencia y elementos claros funciona mejor.</p>
           </header>
           <div class="branding-logo-picker">
-            <div class="branding-logo-preview" id="b-logo-preview">
+            <div class="branding-logo-preview branding-logo-preview--dark" id="b-logo-preview">
               ${(s.pendingLogoPreview || s.logoUrl)
                 ? `<img src="${s.pendingLogoPreview || s.logoUrl}" alt="" />`
                 : `<div class="branding-logo-empty"><i class="fa-solid fa-image"></i><span>Sin logo</span></div>`}
@@ -259,7 +264,32 @@
               ${(s.pendingLogoPreview || s.logoUrl)
                 ? `<button type="button" class="btn btn--ghost btn--sm" id="b-logo-remove"><i class="fa-solid fa-xmark"></i> Quitar</button>`
                 : ''}
-              <div class="form-hint">PNG o JPG, fondo transparente recomendado. Máx 5 MB.</div>
+              <div class="form-hint">PNG con fondo transparente recomendado. Máx 5 MB.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card branding-card">
+          <header class="card-head">
+            <h2><i class="fa-solid fa-envelope"></i> Logo para emails</h2>
+            <p>Aparece en credencial digital y notificaciones (cancelaciones, invitaciones). Los clientes de email usan fondos claros, así que conviene una versión del logo en colores oscuros. Si lo dejas vacío, se usa el logo principal.</p>
+          </header>
+          <div class="branding-logo-picker">
+            <div class="branding-logo-preview" id="b-email-logo-preview">
+              ${(s.pendingEmailLogoPreview || s.emailLogoUrl)
+                ? `<img src="${s.pendingEmailLogoPreview || s.emailLogoUrl}" alt="" />`
+                : `<div class="branding-logo-empty"><i class="fa-solid fa-image"></i><span>Sin logo de email</span></div>`}
+            </div>
+            <div class="branding-logo-actions">
+              <label class="btn btn--ghost btn--sm">
+                <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                <span>${(s.pendingEmailLogoPreview || s.emailLogoUrl) ? 'Cambiar logo de email' : 'Subir logo de email'}</span>
+                <input type="file" id="b-email-logo-input" accept="image/png,image/jpeg,image/webp" hidden />
+              </label>
+              ${(s.pendingEmailLogoPreview || s.emailLogoUrl)
+                ? `<button type="button" class="btn btn--ghost btn--sm" id="b-email-logo-remove"><i class="fa-solid fa-xmark"></i> Quitar</button>`
+                : ''}
+              <div class="form-hint">PNG o JPG. Versión legible sobre fondo blanco. Máx 5 MB.</div>
             </div>
           </div>
         </section>
@@ -399,9 +429,34 @@
       $('#b-mock-logo').innerHTML = `<div class="mock-logo-placeholder">LOGO</div>`;
     });
 
+    // Email logo upload (versión para clientes de correo)
+    const emailLogoInput = $('#b-email-logo-input');
+    emailLogoInput?.addEventListener('change', () => {
+      const file = emailLogoInput.files?.[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        window.Toast?.error?.('El logo de email excede 5 MB');
+        emailLogoInput.value = '';
+        return;
+      }
+      state.pendingEmailLogoFile = file;
+      state.pendingEmailLogoPreview = URL.createObjectURL(file);
+      $('#b-email-logo-preview').innerHTML = `<img src="${state.pendingEmailLogoPreview}" alt="" />`;
+    });
+
+    $('#b-email-logo-remove')?.addEventListener('click', () => {
+      state.pendingEmailLogoFile = null;
+      state.pendingEmailLogoPreview = null;
+      state.emailLogoUrl = '';
+      $('#b-email-logo-preview').innerHTML = `<div class="branding-logo-empty"><i class="fa-solid fa-image"></i><span>Sin logo de email</span></div>`;
+    });
+
     // Reset
     $('#b-reset').addEventListener('click', () => {
-      Object.assign(state, initialSnapshot, { pendingLogoFile: null, pendingLogoPreview: null });
+      Object.assign(state, initialSnapshot, {
+        pendingLogoFile: null, pendingLogoPreview: null,
+        pendingEmailLogoFile: null, pendingEmailLogoPreview: null,
+      });
       // Limpia overrides para que branding.js / SSR vuelvan a aplicar lo guardado.
       const r = document.documentElement;
       ['--color-primary', '--k-primary', '--color-accent', '--k-accent',
@@ -429,14 +484,18 @@
         if (state.pendingLogoFile) {
           logoUrl = await uploadLogo(state.pendingLogoFile);
         }
+        let emailLogoUrl = state.emailLogoUrl || null;
+        if (state.pendingEmailLogoFile) {
+          emailLogoUrl = await uploadLogo(state.pendingEmailLogoFile);
+        }
         const payload = {
           primaryColor: state.primary,
           secondaryColor: state.accent,
           sidebarStyle: state.sidebarStyle,
+          // Enviar siempre (null borra, string actualiza).
+          logoUrl,
+          emailLogoUrl,
         };
-        // logoUrl: enviar siempre (null borra, string actualiza). Si no hubo
-        // cambios en el logo enviamos lo que ya estaba.
-        payload.logoUrl = logoUrl;
 
         await saveBranding(payload);
         try { sessionStorage.removeItem('_c2_tenant_v2'); } catch {}

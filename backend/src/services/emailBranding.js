@@ -34,12 +34,7 @@ export function resolveBrandingTokens(organization) {
   };
 }
 
-/**
- * Lee el logo del tenant del volumen de uploads y devuelve un data-URI base64.
- * Devuelve null si la org no tiene logoUrl o el archivo no existe.
- */
-export async function loadOrgLogoDataUri(organization) {
-  const url = organization?.logoUrl;
+async function readUploadAsDataUri(url) {
   if (!url || !url.startsWith('/uploads/')) return null;
   const filename = path.basename(url);
   const filePath = path.join(UPLOADS_DIR, filename);
@@ -54,6 +49,25 @@ export async function loadOrgLogoDataUri(organization) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Lee el logo del tenant para uso web (sidebar, kiosko, credencial, PDF).
+ * Usa organization.logoUrl. Null si no existe o el archivo falta.
+ */
+export async function loadOrgLogoDataUri(organization) {
+  return readUploadAsDataUri(organization?.logoUrl);
+}
+
+/**
+ * Lee el logo del tenant optimizado para emails. Muchos logos web son
+ * blanco-sobre-transparente y desaparecen en clientes de correo (que
+ * suelen tener fondo claro). Si la org subió email_logo_url, lo
+ * preferimos; si no, caemos a logo_url normal.
+ */
+export async function loadEmailLogoDataUri(organization) {
+  return (await readUploadAsDataUri(organization?.emailLogoUrl))
+    ?? (await readUploadAsDataUri(organization?.logoUrl));
 }
 
 /**

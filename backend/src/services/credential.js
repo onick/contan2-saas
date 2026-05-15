@@ -54,8 +54,7 @@ export async function generateCredentialPng(user, organization = null) {
 
   ${logoData ? `
   <g transform="translate(50,40)">
-    <rect x="0" y="0" width="160" height="100" rx="14" fill="#ffffff"/>
-    <image x="14" y="10" width="132" height="80" href="${logoData}" preserveAspectRatio="xMidYMid meet"/>
+    <image x="0" y="0" width="180" height="100" href="${logoData}" preserveAspectRatio="xMidYMid meet"/>
   </g>` : `
   <text x="50" y="80" font-family="Inter, Helvetica, Arial, sans-serif" font-size="20" font-weight="800" fill="${tokens.onPrimary}" letter-spacing="1">${escapeXml(tokens.orgName)}</text>`}
 

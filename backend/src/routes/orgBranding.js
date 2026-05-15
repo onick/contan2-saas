@@ -17,6 +17,7 @@ export function createOrgBrandingRouter() {
     res.json({
       name: o.name,
       logoUrl: o.logoUrl,
+      emailLogoUrl: o.emailLogoUrl,
       primaryColor: o.primaryColor,
       secondaryColor: o.secondaryColor,
       sidebarStyle: o.sidebarStyle || 'brand',
@@ -54,6 +55,16 @@ export function createOrgBrandingRouter() {
           errors.push({ field: 'logoUrl', message: 'logoUrl inválida' });
         }
       }
+      if ('emailLogoUrl' in req.body) {
+        const v = req.body.emailLogoUrl;
+        if (v === null || v === '') {
+          partial.emailLogoUrl = null;
+        } else if (typeof v === 'string' && v.length <= 500) {
+          partial.emailLogoUrl = v.trim();
+        } else {
+          errors.push({ field: 'emailLogoUrl', message: 'emailLogoUrl inválida' });
+        }
+      }
 
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
       if (Object.keys(partial).length === 0) {
@@ -77,6 +88,7 @@ export function createOrgBrandingRouter() {
         organization: {
           name: updated.name,
           logoUrl: updated.logoUrl,
+          emailLogoUrl: updated.emailLogoUrl,
           primaryColor: updated.primaryColor,
           secondaryColor: updated.secondaryColor,
           sidebarStyle: updated.sidebarStyle || 'brand',

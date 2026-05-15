@@ -175,11 +175,8 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
     position: relative; z-index: 1;
   }
   .cover-logo {
-    width: 64px; height: 64px;
-    background: #fff;
-    border-radius: 10px;
+    width: 72px; height: 72px;
     display: flex; align-items: center; justify-content: center;
-    padding: 6px;
     flex-shrink: 0;
   }
   .cover-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
