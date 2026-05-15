@@ -82,23 +82,39 @@ async function optimizeImage(file) {
 
   if (isGif) return original;
 
+  // Detectar si la imagen tiene canal alpha (transparencia). Si lo tiene,
+  // mantenemos PNG para preservar la transparencia (típico caso: logos).
+  // Si no, JPEG q82 que es ~5-10x más liviano que PNG para fotos.
+  let hasAlpha = false;
+  try {
+    const meta = await sharp(file.path).metadata();
+    hasAlpha = meta.hasAlpha === true;
+  } catch (e) {
+    console.error('[uploads] sharp metadata falló, dejando original:', e.message);
+    return original;
+  }
+
   const base = path.basename(file.filename, path.extname(file.filename));
-  const outFilename = `${base}.jpg`;
+  const outExt = hasAlpha ? '.png' : '.jpg';
+  const outFilename = `${base}${outExt}`;
   const outPath = path.join(UPLOADS_DIR, outFilename);
 
   try {
-    await sharp(file.path)
+    const pipeline = sharp(file.path)
       .rotate() // auto-orient por EXIF
-      .resize({ width: 1080, height: 1080, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 82, progressive: true, mozjpeg: true })
-      .toFile(outPath);
+      .resize({ width: 1080, height: 1080, fit: 'inside', withoutEnlargement: true });
+    if (hasAlpha) {
+      // PNG comprimido al máximo, preservando transparencia.
+      await pipeline.png({ compressionLevel: 9, palette: true }).toFile(outPath);
+    } else {
+      await pipeline.jpeg({ quality: 82, progressive: true, mozjpeg: true }).toFile(outPath);
+    }
   } catch (e) {
     console.error('[uploads] sharp falló, dejando original:', e.message);
     return original;
   }
 
   const stat = await fs.stat(outPath);
-  // Borrar el original solo si el output es un archivo distinto.
   if (outPath !== file.path) {
     await fs.unlink(file.path).catch(() => {});
   }
@@ -106,7 +122,7 @@ async function optimizeImage(file) {
     filename: outFilename,
     path: outPath,
     size: stat.size,
-    mimetype: 'image/jpeg',
+    mimetype: hasAlpha ? 'image/png' : 'image/jpeg',
   };
 }
 
