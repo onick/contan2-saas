@@ -6,6 +6,7 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
+import sharp from 'sharp';
 import { config } from '../config.js';
 import { generatePalette, pickOn } from '../utils/palette.js';
 
@@ -44,10 +45,38 @@ async function readUploadAsDataUri(url) {
     const mime = ext === 'png' ? 'image/png'
       : ext === 'webp' ? 'image/webp'
       : ext === 'gif' ? 'image/gif'
+      : ext === 'svg' ? 'image/svg+xml'
       : 'image/jpeg';
     return `data:${mime};base64,${buf.toString('base64')}`;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Como readUploadAsDataUri pero si el archivo es SVG lo rasteriza a PNG.
+ * Necesario para emails (Gmail bloquea SVG por seguridad).
+ * width define la resolución del raster (default 480px, suficiente para
+ * @2x en un header de 240px).
+ */
+async function readUploadAsRasterPngDataUri(url, width = 480) {
+  if (!url || !url.startsWith('/uploads/')) return null;
+  const filename = path.basename(url);
+  const filePath = path.join(UPLOADS_DIR, filename);
+  const ext = path.extname(filename).toLowerCase().replace('.', '');
+  try {
+    if (ext === 'svg') {
+      const pngBuf = await sharp(filePath, { density: 288 })
+        .resize({ width, withoutEnlargement: false })
+        .png()
+        .toBuffer();
+      return `data:image/png;base64,${pngBuf.toString('base64')}`;
+    }
+    // Otros formatos: devolvemos tal cual.
+    return readUploadAsDataUri(url);
+  } catch (e) {
+    console.error('[emailBranding] raster PNG falló:', e.message);
+    return readUploadAsDataUri(url);
   }
 }
 
@@ -64,10 +93,13 @@ export async function loadOrgLogoDataUri(organization) {
  * blanco-sobre-transparente y desaparecen en clientes de correo (que
  * suelen tener fondo claro). Si la org subió email_logo_url, lo
  * preferimos; si no, caemos a logo_url normal.
+ *
+ * IMPORTANTE: si el logo es SVG lo rasterizamos a PNG porque Gmail y
+ * varios clientes de correo bloquean SVG por seguridad.
  */
 export async function loadEmailLogoDataUri(organization) {
-  return (await readUploadAsDataUri(organization?.emailLogoUrl))
-    ?? (await readUploadAsDataUri(organization?.logoUrl));
+  return (await readUploadAsRasterPngDataUri(organization?.emailLogoUrl, 480))
+    ?? (await readUploadAsRasterPngDataUri(organization?.logoUrl, 480));
 }
 
 /**

@@ -41,8 +41,8 @@ function headerHtml({ tokens, logoData, eyebrow, title, gradientFrom, gradientTo
     <tr>
       <td style="background:linear-gradient(135deg, ${from} 0%, ${to} 100%);padding:32px;text-align:center;">
         ${logoData ? `
-          <img src="${logoData}" alt="${escapeHtml(tokens.orgName)}" style="display:block;margin:0 auto 14px;max-height:72px;max-width:240px;height:auto;" />` : ''}
-        ${eyebrow
+          <img src="${logoData}" alt="" style="display:block;margin:0 auto 16px;max-height:80px;max-width:260px;height:auto;" />` : ''}
+        ${(!logoData && eyebrow)
           ? `<div style="font-size:11px;letter-spacing:2px;color:${tokens.onPrimary};opacity:0.8;font-weight:600;margin-bottom:6px;">${escapeHtml(eyebrow)}</div>`
           : ''}
         <div style="color:${tokens.onPrimary};font-size:22px;font-weight:700;">${escapeHtml(title)}</div>
@@ -79,7 +79,7 @@ function shell({ tokens, header, content }) {
 // ============================================================================
 // Templates
 // ============================================================================
-function credentialHtml({ user, tokens, logoData }) {
+function credentialHtml({ user, tokens, logoData, credentialDataUri }) {
   const greeting = user.firstName ? `Hola ${user.firstName}` : 'Hola';
   const header = headerHtml({
     tokens, logoData,
@@ -96,9 +96,10 @@ function credentialHtml({ user, tokens, logoData }) {
     <tr><td style="padding:8px 36px;text-align:center;">
       <div style="display:inline-block;background:${tokens.primary};color:${tokens.onPrimary};padding:8px 18px;border-radius:8px;font-family:Menlo,monospace;font-size:18px;font-weight:700;letter-spacing:2px;">${escapeHtml(user.code)}</div>
     </td></tr>
+    ${credentialDataUri ? `
     <tr><td style="padding:16px 36px 0;text-align:center;">
-      <img src="cid:credencial" alt="Credencial" style="max-width:100%;height:auto;border-radius:14px;display:block;margin:0 auto;" />
-    </td></tr>
+      <img src="${credentialDataUri}" alt="" style="max-width:100%;height:auto;border-radius:14px;display:block;margin:0 auto;" />
+    </td></tr>` : ''}
     <tr><td style="padding:24px 36px 8px;">
       <p style="font-size:14px;color:#4b5563;line-height:1.6;margin:0 0 8px;"><strong>Cómo usarla:</strong></p>
       <ol style="font-size:14px;color:#4b5563;line-height:1.7;padding-left:20px;margin:0 0 8px;">
@@ -227,7 +228,10 @@ export async function sendCredentialEmail(user, organization = null) {
 
   const { tokens, logoData, from, replyTo } = await brandingContext(organization);
   const pngBuffer = await generateCredentialPng(user, organization);
-  const html = credentialHtml({ user, tokens, logoData });
+  // Embedemos la credencial como data-URI directo en el HTML. Más compatible
+  // que cid: (que Resend no soporta inline; en Gmail aparecía como imagen rota).
+  const credentialDataUri = `data:image/png;base64,${pngBuffer.toString('base64')}`;
+  const html = credentialHtml({ user, tokens, logoData, credentialDataUri });
   const subject = `Tu credencial · ${user.code}`;
   const filename = `credencial-${user.code}.png`;
 
