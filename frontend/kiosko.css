@@ -46,7 +46,7 @@
   --k-btn-height: 72px;
   --k-btn-height-xl: 96px;
 
-  --k-header-h: 88px;
+  --k-header-h: 104px;
 }
 
 * {
@@ -116,9 +116,11 @@ input {
 }
 
 .k-header-logo-img {
-  height: 44px;
+  height: 72px;
   width: auto;
-  /* Sin fondo ni padding: respetamos la transparencia del PNG del tenant. */
+  max-width: 260px;
+  object-fit: contain;
+  /* Sin fondo ni padding: respetamos la transparencia del PNG/SVG del tenant. */
 }
 
 .k-header-subtitle {
