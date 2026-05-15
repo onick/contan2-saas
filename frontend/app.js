@@ -1472,6 +1472,7 @@ function paintActivitiesTable() {
               <td>
                 <div class="table-actions" data-stop-row>
                   <button class="icon-btn" data-action="activity-detail" data-id="${Utils.escapeHtml(a.id)}" title="Ver asistentes"><i class="fa-solid fa-eye"></i></button>
+                  <button class="icon-btn" data-action="activity-report-pdf" data-id="${Utils.escapeHtml(a.id)}" title="Descargar informe PDF"><i class="fa-solid fa-file-pdf"></i></button>
                   <button class="icon-btn" data-action="activity-report-xlsx" data-id="${Utils.escapeHtml(a.id)}" title="Descargar informe Excel"><i class="fa-solid fa-file-excel"></i></button>
                   <button class="icon-btn" data-action="activity-edit" data-id="${Utils.escapeHtml(a.id)}" title="Editar"><i class="fa-solid fa-pen"></i></button>
                   <button class="icon-btn icon-btn--danger" data-action="activity-delete" data-id="${Utils.escapeHtml(a.id)}" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
@@ -2272,14 +2273,15 @@ async function handleActivityDelete(id) {
   }
 }
 
-async function handleActivityReportXlsx(id, btn) {
+async function handleActivityReport(id, btn, format) {
   const originalHtml = btn?.innerHTML;
+  const ext = format === 'pdf' ? 'pdf' : 'xlsx';
   try {
     if (btn) {
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
     }
-    const res = await fetch(`/api/reports/activity/${encodeURIComponent(id)}.xlsx`, {
+    const res = await fetch(`/api/reports/activity/${encodeURIComponent(id)}.${ext}`, {
       credentials: 'same-origin',
     });
     if (!res.ok) {
@@ -2288,10 +2290,9 @@ async function handleActivityReportXlsx(id, btn) {
       throw new Error(msg);
     }
     const blob = await res.blob();
-    // Filename: del Content-Disposition si vino, si no fallback razonable.
     const cd = res.headers.get('Content-Disposition') || '';
     const match = /filename="?([^"]+)"?/i.exec(cd);
-    const filename = match ? match[1] : `Informe_actividad_${id}.xlsx`;
+    const filename = match ? match[1] : `Informe_actividad_${id}.${ext}`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -2300,7 +2301,7 @@ async function handleActivityReportXlsx(id, btn) {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    Toast.success('Informe generado');
+    Toast.success(`Informe ${ext.toUpperCase()} generado`);
   } catch (e) {
     Toast.error(e.message || 'No se pudo generar el informe');
   } finally {
@@ -2880,7 +2881,8 @@ function bindGlobalEvents() {
       case 'activity-edit': handleActivityEdit(id); break;
       case 'activity-delete': handleActivityDelete(id); break;
       case 'activity-detail': handleActivityDetail(id); break;
-      case 'activity-report-xlsx': handleActivityReportXlsx(id, target); break;
+      case 'activity-report-xlsx': handleActivityReport(id, target, 'xlsx'); break;
+      case 'activity-report-pdf': handleActivityReport(id, target, 'pdf'); break;
       case 'activity-invite': handleActivityInvite(id); break;
       case 'activities-export': handleExport('activities'); break;
       case 'activity-attendees-export':

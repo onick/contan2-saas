@@ -1,10 +1,15 @@
 FROM node:20-bookworm-slim AS base
 
+# Chromium + deps mínimos para PDF rendering vía puppeteer-core.
+# Debian gestiona los dependentes del paquete chromium automáticamente.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fontconfig \
     fonts-inter \
+    fonts-liberation \
+    fonts-noto-color-emoji \
     libvips \
     ca-certificates \
+    chromium \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -12,6 +17,9 @@ WORKDIR /app
 COPY backend/package*.json ./backend/
 
 WORKDIR /app/backend
+# Evita que puppeteer-core intente descargar su Chromium bundleado;
+# usamos el del sistema instalado por apt arriba.
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 RUN npm ci --omit=dev
 
 WORKDIR /app
@@ -22,6 +30,7 @@ RUN mkdir -p /app/backend/data/uploads
 
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 EXPOSE 3000
 
