@@ -445,6 +445,7 @@ async function navigate() {
   }
   // close sidebar on mobile after nav
   document.querySelector('.sidebar')?.classList.remove('open');
+  document.getElementById('sidebar-backdrop')?.classList.remove('is-visible');
 }
 
 // ============================================================
@@ -2884,9 +2885,48 @@ function bindGlobalEvents() {
     }
   });
 
-  document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
-    document.querySelector('.sidebar')?.classList.toggle('open');
+  setupSidebarToggle();
+}
+
+function setupSidebarToggle() {
+  const sidebar = document.querySelector('.sidebar');
+  const toggle = document.getElementById('sidebar-toggle');
+  if (!sidebar) return;
+
+  let backdrop = document.getElementById('sidebar-backdrop');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.id = 'sidebar-backdrop';
+    backdrop.className = 'sidebar-backdrop';
+    document.body.appendChild(backdrop);
+  }
+
+  const open = () => {
+    sidebar.classList.add('open');
+    backdrop.classList.add('is-visible');
+  };
+  const close = () => {
+    sidebar.classList.remove('open');
+    backdrop.classList.remove('is-visible');
+  };
+  const isOpen = () => sidebar.classList.contains('open');
+
+  toggle?.addEventListener('click', () => (isOpen() ? close() : open()));
+  backdrop.addEventListener('click', close);
+
+  // Esc cierra el sidebar abierto.
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isOpen()) close();
   });
+
+  // Al cambiar de hash (navegación) cerrar para evitar quedar atrapado.
+  window.addEventListener('hashchange', close);
+
+  // Si el viewport pasa a desktop con el sidebar abierto, limpiar el backdrop.
+  const mq = window.matchMedia('(min-width: 901px)');
+  const onChange = () => { if (mq.matches) backdrop.classList.remove('is-visible'); };
+  if (mq.addEventListener) mq.addEventListener('change', onChange);
+  else mq.addListener(onChange); // Safari < 14
 }
 
 // ============================================================
