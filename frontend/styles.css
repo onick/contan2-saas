@@ -138,6 +138,15 @@ textarea {
   /* Sin fondo ni padding: respetamos la transparencia del PNG del tenant. */
 }
 
+.brand-logo-fallback {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-sidebar-text);
+  text-align: center;
+  letter-spacing: 0.3px;
+  padding: 12px 8px;
+}
+
 .brand-subtitle {
   font-size: 11px;
   color: var(--color-sidebar-text-muted);
