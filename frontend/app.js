@@ -1864,14 +1864,23 @@ function renderActivityDetailModal() {
     return '';
   })();
 
+  const attendeeSearchKey = a => `${a.code} ${a.firstName} ${a.lastName} ${a.email || ''} ${a.phone || ''}`
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
   const attendeesTable = !attendees.length
     ? `<div class="empty">
          <i class="fa-solid fa-user-slash"></i>
          <h3>Aún no hay asistentes</h3>
          <p>Cuando se registren visitantes, aparecerán aquí.</p>
        </div>`
-    : `<div class="table-wrapper" style="max-height:340px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-md)">
-        <table class="table">
+    : `<div class="attendees-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="attendees-search-input" placeholder="Buscar por nombre, código, email o teléfono…" autocomplete="off" />
+        <span class="attendees-search-count" id="attendees-search-count">${attendees.length} de ${attendees.length}</span>
+      </div>
+      <div class="table-wrapper" style="max-height:340px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-md)">
+        <table class="table" id="attendees-table">
           <thead>
             <tr>
               <th>Código</th>
@@ -1883,7 +1892,7 @@ function renderActivityDetailModal() {
           </thead>
           <tbody>
             ${attendees.map(a => `
-              <tr>
+              <tr data-attendee-search="${Utils.escapeHtml(attendeeSearchKey(a))}">
                 <td><span class="user-code">${Utils.escapeHtml(a.code)}</span></td>
                 <td class="cell-strong">${Utils.escapeHtml(a.firstName + ' ' + a.lastName)}</td>
                 <td class="cell-muted">${Utils.escapeHtml(a.email || a.phone || '—')}</td>
@@ -1892,6 +1901,9 @@ function renderActivityDetailModal() {
                   <button class="icon-btn icon-btn--danger" data-action="activity-attendance-remove" data-attendance-id="${Utils.escapeHtml(a.attendanceId)}" data-activity-id="${Utils.escapeHtml(activity.id)}" title="Eliminar registro"><i class="fa-solid fa-trash"></i></button>
                 </td>
               </tr>`).join('')}
+            <tr class="attendees-empty-state hidden" id="attendees-empty-row">
+              <td colspan="5" class="empty-inline"><i class="fa-solid fa-magnifying-glass"></i> Sin resultados para tu búsqueda</td>
+            </tr>
           </tbody>
         </table>
       </div>`;
@@ -1967,6 +1979,7 @@ function renderActivityDetailModal() {
     Modal.close();
     handleActivityEdit(activity.id);
   };
+  bindAttendeesSearch(attendees.length);
 }
 
 function renderInvitationsSection(activity, invitations) {
@@ -2274,6 +2287,28 @@ async function handleActivityDelete(id) {
   } catch (e) {
     Toast.error(explainError(e));
   }
+}
+
+function bindAttendeesSearch(total) {
+  const input = document.getElementById('attendees-search-input');
+  if (!input) return;
+  const countEl = document.getElementById('attendees-search-count');
+  const emptyRow = document.getElementById('attendees-empty-row');
+  const rows = [...document.querySelectorAll('#attendees-table tbody tr[data-attendee-search]')];
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const filter = () => {
+    const q = norm(input.value.trim());
+    let visible = 0;
+    for (const r of rows) {
+      const match = !q || r.dataset.attendeeSearch.includes(q);
+      r.classList.toggle('hidden', !match);
+      if (match) visible += 1;
+    }
+    countEl.textContent = q ? `${visible} de ${total}` : `${total} de ${total}`;
+    emptyRow.classList.toggle('hidden', visible !== 0);
+  };
+  input.addEventListener('input', filter);
+  input.focus();
 }
 
 async function handleActivityReport(id, btn, format) {
