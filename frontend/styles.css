@@ -117,7 +117,7 @@ textarea {
   color: var(--color-sidebar-text);
   display: flex;
   flex-direction: column;
-  padding: 8px 0 0;
+  padding: 0;
   z-index: 50;
   transition: transform 220ms ease;
 }
