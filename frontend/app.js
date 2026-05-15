@@ -2880,7 +2880,7 @@ function bindGlobalEvents() {
       case 'activity-edit': handleActivityEdit(id); break;
       case 'activity-delete': handleActivityDelete(id); break;
       case 'activity-detail': handleActivityDetail(id); break;
-      case 'activity-report-xlsx': handleActivityReportXlsx(id, btn); break;
+      case 'activity-report-xlsx': handleActivityReportXlsx(id, target); break;
       case 'activity-invite': handleActivityInvite(id); break;
       case 'activities-export': handleExport('activities'); break;
       case 'activity-attendees-export':
