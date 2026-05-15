@@ -24,6 +24,7 @@ import { createInsightsRouter } from './src/routes/insights.js';
 import { createStaffRouter } from './src/routes/staff.js';
 import { createCredentialsRouter } from './src/routes/credentials.js';
 import { createOrgBrandingRouter } from './src/routes/orgBranding.js';
+import { createReportsRouter } from './src/routes/reports.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -90,6 +91,7 @@ app.use('/api/insights', createInsightsRouter());
 app.use('/api/staff', createStaffRouter());
 app.use('/api/credentials', createCredentialsRouter());
 app.use('/api/org/branding', createOrgBrandingRouter());
+app.use('/api/reports', createReportsRouter());
 
 app.use('/api', notFoundHandler);
 
