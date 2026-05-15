@@ -42,7 +42,7 @@ function headerHtml({ tokens, logoData, eyebrow, title, gradientFrom, gradientTo
       <td style="background:linear-gradient(135deg, ${from} 0%, ${to} 100%);padding:32px;text-align:center;">
         ${logoData ? `
           <img src="${logoData}" alt="" style="display:block;margin:0 auto 16px;max-height:80px;max-width:260px;height:auto;" />` : ''}
-        ${(!logoData && eyebrow)
+        ${eyebrow
           ? `<div style="font-size:11px;letter-spacing:2px;color:${tokens.onPrimary};opacity:0.8;font-weight:600;margin-bottom:6px;">${escapeHtml(eyebrow)}</div>`
           : ''}
         <div style="color:${tokens.onPrimary};font-size:22px;font-weight:700;">${escapeHtml(title)}</div>
