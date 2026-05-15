@@ -133,11 +133,12 @@ textarea {
 
 .brand-logo-img {
   width: 100%;
-  max-width: 200px;
-  max-height: 120px;
+  max-width: 100%;
+  max-height: 160px;
   height: auto;
   object-fit: contain;
-  /* Sin fondo ni padding: respetamos la transparencia del PNG del tenant. */
+  /* Sin fondo ni padding: respetamos la transparencia del PNG/SVG del tenant.
+     max-height domina para evitar que un logo muy alto invada la nav. */
 }
 
 .brand-logo-fallback {

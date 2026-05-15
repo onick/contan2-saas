@@ -259,7 +259,7 @@
               <label class="btn btn--ghost btn--sm">
                 <i class="fa-solid fa-arrow-up-from-bracket"></i>
                 <span>${(s.pendingLogoPreview || s.logoUrl) ? 'Cambiar logo' : 'Subir logo'}</span>
-                <input type="file" id="b-logo-input" accept="image/png,image/jpeg,image/webp" hidden />
+                <input type="file" id="b-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
               </label>
               ${(s.pendingLogoPreview || s.logoUrl)
                 ? `<button type="button" class="btn btn--ghost btn--sm" id="b-logo-remove"><i class="fa-solid fa-xmark"></i> Quitar</button>`
@@ -284,7 +284,7 @@
               <label class="btn btn--ghost btn--sm">
                 <i class="fa-solid fa-arrow-up-from-bracket"></i>
                 <span>${(s.pendingEmailLogoPreview || s.emailLogoUrl) ? 'Cambiar logo de email' : 'Subir logo de email'}</span>
-                <input type="file" id="b-email-logo-input" accept="image/png,image/jpeg,image/webp" hidden />
+                <input type="file" id="b-email-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
               </label>
               ${(s.pendingEmailLogoPreview || s.emailLogoUrl)
                 ? `<button type="button" class="btn btn--ghost btn--sm" id="b-email-logo-remove"><i class="fa-solid fa-xmark"></i> Quitar</button>`

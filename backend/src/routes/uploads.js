@@ -12,14 +12,16 @@ export const UPLOADS_DIR = path.join(__dirname, '..', '..', 'data', 'uploads');
 
 await fs.mkdir(UPLOADS_DIR, { recursive: true });
 
-const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const ALLOWED_MIME = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml',
+]);
 const MAX_SIZE = 5 * 1024 * 1024;
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
     const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
-    const safe = ext.match(/^\.(jpe?g|png|webp|gif)$/) ? ext : '.jpg';
+    const safe = ext.match(/^\.(jpe?g|png|webp|gif|svg)$/) ? ext : '.jpg';
     const name = `${Date.now()}-${randomBytes(6).toString('hex')}${safe}`;
     cb(null, name);
   },
@@ -30,11 +32,27 @@ const upload = multer({
   limits: { fileSize: MAX_SIZE },
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_MIME.has(file.mimetype)) {
-      return cb(new HttpError(400, 'Tipo de archivo no permitido. Usa JPG, PNG, WebP o GIF.'));
+      return cb(new HttpError(400, 'Tipo de archivo no permitido. Usa JPG, PNG, WebP, GIF o SVG.'));
     }
     cb(null, true);
   },
 });
+
+/**
+ * Sanitización mínima de SVG: bloquea scripts y handlers de eventos.
+ * No es un sanitizer industrial (eso requeriría una librería como DOMPurify),
+ * pero cubre los vectores comunes de XSS en SVG subido por admin.
+ */
+function sanitizeSvg(content) {
+  let s = String(content);
+  // Eliminar bloques <script>...</script>
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, '');
+  // Eliminar handlers on* (onclick, onload, onmouseover, etc.)
+  s = s.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  // Eliminar URIs javascript: y data: (excepto image/*)
+  s = s.replace(/(href|xlink:href)\s*=\s*(["'])javascript:[^"']*\2/gi, '');
+  return s;
+}
 
 export function createUploadsRouter() {
   const router = Router();
@@ -73,6 +91,7 @@ export function createUploadsRouter() {
 // Reduce 640KB → ~60-90KB típicamente y acelera mucho la carga en tablets por WiFi.
 async function optimizeImage(file) {
   const isGif = file.mimetype === 'image/gif';
+  const isSvg = file.mimetype === 'image/svg+xml';
   const original = {
     filename: file.filename,
     path: file.path,
@@ -81,6 +100,23 @@ async function optimizeImage(file) {
   };
 
   if (isGif) return original;
+
+  // SVG: vectorial, no se resizea ni reencoda. Sanitizamos el contenido
+  // para bloquear scripts/handlers maliciosos y reescribimos el archivo.
+  if (isSvg) {
+    try {
+      const raw = await fs.readFile(file.path, 'utf8');
+      const sanitized = sanitizeSvg(raw);
+      if (sanitized !== raw) {
+        await fs.writeFile(file.path, sanitized, 'utf8');
+      }
+      const stat = await fs.stat(file.path);
+      return { ...original, size: stat.size };
+    } catch (e) {
+      console.error('[uploads] sanitización SVG falló:', e.message);
+      return original;
+    }
+  }
 
   // Detectar si la imagen tiene canal alpha (transparencia). Si lo tiene,
   // mantenemos PNG para preservar la transparencia (típico caso: logos).
