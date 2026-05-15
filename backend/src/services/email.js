@@ -41,9 +41,7 @@ function headerHtml({ tokens, logoData, eyebrow, title, gradientFrom, gradientTo
     <tr>
       <td style="background:linear-gradient(135deg, ${from} 0%, ${to} 100%);padding:32px;text-align:center;">
         ${logoData ? `
-          <div style="display:inline-block;background:#ffffff;padding:8px 14px;border-radius:10px;margin-bottom:14px;">
-            <img src="${logoData}" alt="${escapeHtml(tokens.orgName)}" style="display:block;max-height:48px;max-width:180px;height:auto;" />
-          </div>` : ''}
+          <img src="${logoData}" alt="${escapeHtml(tokens.orgName)}" style="display:block;margin:0 auto 14px;max-height:72px;max-width:240px;height:auto;" />` : ''}
         ${eyebrow
           ? `<div style="font-size:11px;letter-spacing:2px;color:${tokens.onPrimary};opacity:0.8;font-weight:600;margin-bottom:6px;">${escapeHtml(eyebrow)}</div>`
           : ''}
