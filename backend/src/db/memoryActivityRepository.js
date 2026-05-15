@@ -85,6 +85,20 @@ export class MemoryActivityRepository {
     return { ok: true, activity: { ...a } };
   }
 
+  /**
+   * Incremento "forzado": bypassa los checks de status='activa' y capacity.
+   * Para registrar asistencia retroactiva. Solo bloquea si la actividad
+   * está cancelada o no existe.
+   */
+  async incrementEnrolledForce(id) {
+    const a = this.activities.get(id);
+    if (!a) return { ok: false, reason: 'not_found' };
+    if (a.status === 'cancelada') return { ok: false, reason: 'cancelled' };
+    a.enrolledCount += 1;
+    a.updatedAt = new Date().toISOString();
+    return { ok: true, activity: { ...a } };
+  }
+
   async decrementEnrolled(id) {
     const a = this.activities.get(id);
     if (!a) return null;

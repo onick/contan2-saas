@@ -10,6 +10,7 @@ export function createAttendanceRouter() {
       const errors = validateAttendanceCreate(req.body);
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
       const { userCode, activityId } = req.body;
+      const retroactive = req.body.retroactive === true;
 
       const user = await req.repos.users.findByCode(userCode);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
@@ -31,11 +32,21 @@ export function createAttendanceRouter() {
         throw new HttpError(409, 'El usuario ya está registrado en esta actividad');
       }
 
-      const result = await req.repos.activities.incrementEnrolledIfRoom(activityId);
+      // Path retroactivo: para corregir asistencia a una actividad ya
+      // finalizada. Bypassa el check de status='activa' y capacidad
+      // (asume que la actividad ya pasó y estamos completando datos).
+      // Nunca permite si está cancelada.
+      const result = retroactive
+        ? await req.repos.activities.incrementEnrolledForce(activityId)
+        : await req.repos.activities.incrementEnrolledIfRoom(activityId);
+
       if (!result.ok) {
         if (result.reason === 'full') throw new HttpError(409, 'Cupo agotado');
         if (result.reason === 'not_active') {
           throw new HttpError(409, 'La actividad no está activa');
+        }
+        if (result.reason === 'cancelled') {
+          throw new HttpError(409, 'La actividad está cancelada');
         }
         throw new HttpError(404, 'Actividad no encontrada');
       }
@@ -49,7 +60,7 @@ export function createAttendanceRouter() {
 
       await req.repos.users.incrementVisit(user.code);
 
-      res.status(201).json(attendance);
+      res.status(201).json({ ...attendance, retroactive });
     } catch (e) {
       next(e);
     }

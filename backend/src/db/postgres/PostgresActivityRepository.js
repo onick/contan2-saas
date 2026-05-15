@@ -146,6 +146,30 @@ export class PostgresActivityRepository {
     return { ok: false, reason: 'full' };
   }
 
+  /**
+   * Incremento "forzado": bypassa el check de status='activa' y capacity.
+   * Uso reservado a operaciones administrativas (e.g. registrar
+   * asistencia retroactiva a una actividad ya finalizada). Devuelve
+   * { ok, activity } o { ok:false, reason: 'not_found' | 'cancelled' }.
+   */
+  async incrementEnrolledForce(id) {
+    const check = await this.pool.query(
+      'SELECT status FROM activities WHERE organization_id = $1 AND id = $2',
+      [this.orgId, id],
+    );
+    if (check.rows.length === 0) return { ok: false, reason: 'not_found' };
+    if (check.rows[0].status === 'cancelada') return { ok: false, reason: 'cancelled' };
+
+    const { rows } = await this.pool.query(
+      `UPDATE activities
+       SET enrolled_count = enrolled_count + 1, updated_at = NOW()
+       WHERE organization_id = $1 AND id = $2
+       RETURNING *`,
+      [this.orgId, id],
+    );
+    return { ok: true, activity: rowToActivity(rows[0]) };
+  }
+
   async decrementEnrolled(id) {
     const { rows } = await this.pool.query(
       `UPDATE activities

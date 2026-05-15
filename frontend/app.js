@@ -1949,16 +1949,21 @@ function renderActivityDetailModal() {
       <div class="activity-detail-section">
         <div class="activity-detail-section-header">
           <h4>Asistentes <span class="muted-count">(${total})</span></h4>
-          ${total > 0 ? `
-            <div class="activity-detail-section-actions">
+          <div class="activity-detail-section-actions">
+            ${activity.status !== 'cancelada' ? `
+              <button class="btn btn--accent btn--sm" data-action="activity-attendee-add" data-id="${Utils.escapeHtml(activity.id)}">
+                <i class="fa-solid fa-user-plus"></i> Agregar asistente
+              </button>` : ''}
+            ${total > 0 ? `
               <button class="btn btn--ghost btn--sm" data-action="activity-attendees-export" data-id="${Utils.escapeHtml(activity.id)}">
                 <i class="fa-solid fa-file-export"></i> Exportar
               </button>
               <button class="btn btn--ghost btn--sm" data-action="activity-attendees-print" data-id="${Utils.escapeHtml(activity.id)}">
                 <i class="fa-solid fa-print"></i> Imprimir
-              </button>
-            </div>` : ''}
+              </button>` : ''}
+          </div>
         </div>
+        <div id="attendee-picker-panel" class="attendee-picker hidden"></div>
         ${attendeesTable}
       </div>
 
@@ -2286,6 +2291,144 @@ async function handleActivityDelete(id) {
     renderActivities();
   } catch (e) {
     Toast.error(explainError(e));
+  }
+}
+
+// ============================================================
+// Picker para registrar asistencia retroactiva
+// ============================================================
+const _attendeePicker = { activityId: null, users: null, query: '' };
+
+async function openAttendeePicker(activityId) {
+  const panel = document.getElementById('attendee-picker-panel');
+  if (!panel) return;
+  _attendeePicker.activityId = activityId;
+  _attendeePicker.query = '';
+  panel.classList.remove('hidden');
+  panel.innerHTML = `
+    <div class="attendee-picker-head">
+      <i class="fa-solid fa-user-plus"></i>
+      <strong>Agregar asistente</strong>
+      <span class="muted-count">— escribe para buscar entre usuarios registrados</span>
+      <button class="icon-btn" data-action="attendee-picker-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="attendees-search attendee-picker-search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="text" id="attendee-picker-input" placeholder="Nombre, código o email…" autocomplete="off" />
+    </div>
+    <div class="attendee-picker-list" id="attendee-picker-list">
+      <div class="loader-small"><div class="spinner"></div></div>
+    </div>
+  `;
+  // Lazy fetch lista de usuarios si no la tenemos.
+  try {
+    if (!_attendeePicker.users) {
+      const { users } = await API.users.list();
+      _attendeePicker.users = users;
+    }
+    renderAttendeePickerList();
+  } catch (e) {
+    document.getElementById('attendee-picker-list').innerHTML = `
+      <div class="empty"><i class="fa-solid fa-triangle-exclamation"></i><h3>No pudimos cargar la lista de usuarios</h3></div>`;
+  }
+  const input = document.getElementById('attendee-picker-input');
+  if (input) {
+    input.focus();
+    input.addEventListener('input', e => {
+      _attendeePicker.query = e.target.value;
+      renderAttendeePickerList();
+    });
+  }
+}
+
+function closeAttendeePicker() {
+  const panel = document.getElementById('attendee-picker-panel');
+  if (panel) {
+    panel.classList.add('hidden');
+    panel.innerHTML = '';
+  }
+}
+
+function renderAttendeePickerList() {
+  const list = document.getElementById('attendee-picker-list');
+  if (!list) return;
+  const cached = _activityDetailCache.data;
+  const attendedCodes = new Set((cached?.attendees || []).map(a => a.code));
+  const allUsers = _attendeePicker.users || [];
+  const candidates = allUsers.filter(u => !attendedCodes.has(u.code));
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const q = norm(_attendeePicker.query.trim());
+  const filtered = q
+    ? candidates.filter(u => norm(`${u.code} ${u.firstName} ${u.lastName} ${u.email || ''} ${u.phone || ''}`).includes(q))
+    : candidates;
+  // Orden: más recientemente creados primero (típicamente quien staff busca)
+  filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const showing = filtered.slice(0, 20);
+
+  if (filtered.length === 0) {
+    list.innerHTML = `
+      <div class="empty-inline">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        ${q ? 'Sin coincidencias para tu búsqueda.' : 'Todos los usuarios ya están en esta actividad.'}
+      </div>`;
+    return;
+  }
+  list.innerHTML = `
+    <div class="attendee-picker-meta">
+      Mostrando ${showing.length} de ${filtered.length} candidatos
+    </div>
+    ${showing.map(u => {
+      const isFirstTime = (u.visitCount || 0) <= 1;
+      const tag = isFirstTime
+        ? `<span class="tag tag--new">Primera vez</span>`
+        : `<span class="tag tag--reg">${u.visitCount} visitas</span>`;
+      return `
+        <div class="attendee-picker-row">
+          <div class="attendee-picker-row-avatar"><i class="fa-solid fa-user"></i></div>
+          <div class="attendee-picker-row-info">
+            <div class="attendee-picker-row-name">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</div>
+            <div class="attendee-picker-row-meta">
+              <span class="user-code">${Utils.escapeHtml(u.code)}</span>
+              ${u.email ? `· ${Utils.escapeHtml(u.email)}` : ''}
+              ${tag}
+            </div>
+          </div>
+          <button class="btn btn--primary btn--sm" data-action="attendee-picker-assign"
+                  data-code="${Utils.escapeHtml(u.code)}" data-id="${Utils.escapeHtml(_attendeePicker.activityId)}">
+            <i class="fa-solid fa-plus"></i> Agregar
+          </button>
+        </div>`;
+    }).join('')}
+  `;
+}
+
+async function assignAttendeeToActivity(userCode, activityId, btn) {
+  if (!userCode || !activityId) return;
+  const orig = btn?.innerHTML;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Agregando…';
+  }
+  const activity = _activityDetailCache.data?.activity;
+  const isRetro = activity && activity.status !== 'activa';
+  try {
+    await API.request('/attendance', {
+      method: 'POST',
+      body: JSON.stringify({ userCode, activityId, retroactive: isRetro || undefined }),
+    });
+    Toast.success(isRetro
+      ? `${userCode} agregado (asistencia retroactiva)`
+      : `${userCode} agregado a la actividad`);
+    // Refresca el modal completo: nueva attendance + sumario + contador.
+    closeAttendeePicker();
+    _attendeePicker.users = null; // invalidar caché de usuarios (visitCount cambió)
+    await handleActivityDetail(activityId);
+  } catch (e) {
+    Toast.error(explainError(e));
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = orig;
+    }
   }
 }
 
@@ -2927,6 +3070,12 @@ function bindGlobalEvents() {
         exportActivityAttendees(target.dataset.id); break;
       case 'activity-attendees-print':
         printActivityAttendees(target.dataset.id); break;
+      case 'activity-attendee-add':
+        openAttendeePicker(target.dataset.id); break;
+      case 'attendee-picker-close':
+        closeAttendeePicker(); break;
+      case 'attendee-picker-assign':
+        assignAttendeeToActivity(target.dataset.code, target.dataset.id, target); break;
       case 'activity-attendance-remove':
         removeAttendanceFromActivity(target.dataset.attendanceId, target.dataset.activityId); break;
       case 'attendance-new': handleAttendanceNew(); break;
