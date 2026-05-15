@@ -69,7 +69,7 @@ export async function inviteUsersToActivity({ repos, organization, activity, use
     const r = await sendInvitationEmail({
       user,
       activity,
-      orgName: organization.name,
+      organization,
       rsvpUrl,
     });
     if (r.sent) {

@@ -14,7 +14,7 @@ export function createCredentialsRouter() {
       }
       const user = await req.repos.users.findByCode(code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
-      const png = await generateCredentialPng(user);
+      const png = await generateCredentialPng(user, req.organization);
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=300');
       res.setHeader('Content-Disposition', `inline; filename="credencial-${code}.png"`);
@@ -35,7 +35,7 @@ export function createCredentialsRouter() {
       if (!user.email) {
         throw new HttpError(400, 'El usuario no tiene email registrado');
       }
-      const result = await sendCredentialEmail(user);
+      const result = await sendCredentialEmail(user, req.organization);
       if (result.skipped) {
         return res.status(202).json({
           ok: false,

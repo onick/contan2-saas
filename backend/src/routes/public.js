@@ -245,7 +245,7 @@ export function createPublicRouter() {
           throw e;
         }
         if (user.email) {
-          sendCredentialEmail(user).catch(err =>
+          sendCredentialEmail(user, req.organization).catch(err =>
             console.error('[public-checkin] envío credencial falló:', err.message),
           );
         }

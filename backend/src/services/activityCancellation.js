@@ -5,7 +5,6 @@ import { sendActivityCancellationEmail } from './email.js';
  * Se ejecuta de forma asíncrona (fire-and-forget) para no bloquear la respuesta HTTP.
  */
 export async function notifyActivityCancelled({ repos, activity, organization }) {
-  const orgName = organization?.name || 'Centro Cultural';
   const attendances = await repos.attendance.findByActivityId(activity.id);
   if (attendances.length === 0) {
     console.log(`[cancellation] ${activity.name} sin asistencias, 0 emails`);
@@ -17,7 +16,7 @@ export async function notifyActivityCancelled({ repos, activity, organization })
     const user = await repos.users.findById(att.userId);
     if (!user) { skipped += 1; continue; }
     if (!user.email) { skipped += 1; continue; }
-    const r = await sendActivityCancellationEmail({ user, activity, orgName });
+    const r = await sendActivityCancellationEmail({ user, activity, organization });
     if (r.sent) sent += 1;
     else if (r.skipped) skipped += 1;
     else failed += 1;
