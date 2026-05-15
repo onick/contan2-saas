@@ -1884,6 +1884,15 @@ tr.hidden { display: none; }
   font-size: 13px;
 }
 
+.pulse-attention {
+  animation: pulseAttention 1.2s ease;
+}
+@keyframes pulseAttention {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 111, 0, 0.5); }
+  40%  { box-shadow: 0 0 0 12px rgba(255, 111, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 111, 0, 0); }
+}
+
 @media (max-width: 600px) {
   .user-detail-header {
     flex-direction: column;

@@ -2971,7 +2971,7 @@ function paintCheckinActivities() {
           <div class="progress-track"><div class="progress-bar ${nearFull ? 'progress-bar--hot' : ''}" style="width:${pct}%"></div></div>
           <div class="progress-meta"><span>${a.enrolledCount}/${a.capacity}</span><span>${pct}%</span></div>
         </div>
-        <button class="btn ${u && !isFull ? 'btn--accent' : 'btn--ghost'}" data-action="checkin-register" data-user-code="${Utils.escapeHtml(u?.code || '')}" data-activity-id="${Utils.escapeHtml(a.id)}" ${!u || isFull ? 'disabled' : ''} style="width:100%;justify-content:center">
+        <button class="btn ${u && !isFull ? 'btn--accent' : 'btn--ghost'}" data-action="${u ? 'checkin-register' : 'checkin-focus-search'}" data-user-code="${Utils.escapeHtml(u?.code || '')}" data-activity-id="${Utils.escapeHtml(a.id)}" ${isFull ? 'disabled' : ''} style="width:100%;justify-content:center">
           ${isFull ? '<i class="fa-solid fa-ban"></i> Cupo lleno' : u ? '<i class="fa-solid fa-check"></i> Registrar asistencia' : '<i class="fa-solid fa-user"></i> Selecciona un usuario'}
         </button>
       </div>`;
@@ -2999,6 +2999,17 @@ function handleCheckinClear() {
   paintCheckinSelected();
   paintCheckinActivities();
   document.getElementById('checkin-search')?.focus();
+}
+
+function handleCheckinFocusSearch() {
+  const input = document.getElementById('checkin-search');
+  if (!input) return;
+  input.focus();
+  // Scroll a la columna izquierda con un pulse visual para que sea obvio.
+  const card = input.closest('.card') || input;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.add('pulse-attention');
+  setTimeout(() => card.classList.remove('pulse-attention'), 1200);
 }
 
 async function handleCheckinRegister(userCode, activityId) {
@@ -3095,6 +3106,8 @@ function bindGlobalEvents() {
         repaintTable(paginateKey); break;
       case 'checkin-register':
         handleCheckinRegister(target.dataset.userCode, target.dataset.activityId); break;
+      case 'checkin-focus-search':
+        handleCheckinFocusSearch(); break;
       case 'checkin-select':
         handleCheckinSelect(target.dataset.code); break;
       case 'checkin-clear':
