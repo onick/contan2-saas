@@ -17,7 +17,7 @@ const ACTIVITY_STATUSES = [
 ];
 
 const ROUTES = {
-  dashboard: { title: 'Dashboard', subtitle: 'Resumen general del centro cultural', render: renderDashboard },
+  dashboard: { title: 'Dashboard', subtitle: 'Resumen y operación del centro', render: renderDashboard },
   checkin: { title: 'Check-in', subtitle: 'Registra asistencias rápidamente', render: renderCheckin },
   users: { title: 'Usuarios', subtitle: 'Visitantes registrados con código CCB', render: renderUsers },
   activities: { title: 'Actividades', subtitle: 'Eventos culturales del centro', render: renderActivities },
@@ -267,7 +267,7 @@ const API = {
     remove: id => API.request(`/attendance/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
   dashboard: {
-    stats: () => API.request('/dashboard/stats'),
+    stats: (period = '30d') => API.request(`/dashboard/stats?period=${encodeURIComponent(period)}`),
   },
   insights: {
     userAffinity: code => API.request(`/insights/user-affinity/${encodeURIComponent(code)}`),
@@ -453,100 +453,398 @@ async function navigate() {
 // ============================================================
 // View: Dashboard
 // ============================================================
+// ============================================================
+// View: Dashboard (premium)
+// ============================================================
+const _dashboardState = { period: '30d', loading: false };
+
 async function renderDashboard() {
-  const stats = await API.dashboard.stats();
-  State.stats = stats;
+  const root = document.getElementById('content');
+  // Skeleton mientras carga
+  root.innerHTML = dashboardSkeletonHtml();
+  try {
+    const stats = await API.dashboard.stats(_dashboardState.period);
+    State.stats = stats;
+    paintDashboard(stats);
+  } catch (e) {
+    root.innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i><h3>No pudimos cargar el dashboard</h3><p>${Utils.escapeHtml(explainError(e))}</p></div>`;
+  }
+}
 
-  const cards = [
-    { label: 'Total usuarios', value: stats.totalUsers, icon: 'fa-users', color: 'blue' },
-    { label: 'Actividades hoy', value: stats.activitiesToday, icon: 'fa-calendar-day', color: 'orange' },
-    { label: 'Actividades activas', value: stats.activeActivities, icon: 'fa-bolt', color: 'green' },
-    { label: 'Asistencias', value: stats.totalAttendances, icon: 'fa-clipboard-check', color: 'purple' },
-  ];
-
-  const cardsHtml = cards
-    .map(
-      c => `
-    <div class="stat-card">
-      <div class="stat-icon stat-icon--${c.color}"><i class="fa-solid ${c.icon}"></i></div>
-      <div class="stat-info">
-        <span class="stat-label">${c.label}</span>
-        <span class="stat-value">${c.value}</span>
+function dashboardSkeletonHtml() {
+  return `
+    <div class="dash">
+      <div class="dash-greet skeleton-line" style="width:380px;height:24px"></div>
+      <div class="dash-period-row">
+        <div class="skeleton-line" style="width:280px;height:36px"></div>
       </div>
-    </div>`,
-    )
-    .join('');
-
-  const topHtml = stats.topActivities.length
-    ? stats.topActivities
-        .map(
-          (a, i) => `
-      <div class="top-item">
-        <div class="rank">${i + 1}</div>
-        <div class="top-info">
-          <div class="top-name">${Utils.escapeHtml(a.name)}</div>
-          <div class="top-meta">${Utils.escapeHtml(Utils.activityTypeLabel(a.type))} · ${Utils.escapeHtml(a.location)}</div>
-        </div>
-        <div class="progress" style="max-width:140px">
-          <div class="progress-track">
-            <div class="progress-bar" style="width:${a.capacity ? Math.round((a.enrolledCount / a.capacity) * 100) : 0}%"></div>
-          </div>
-          <div class="progress-meta"><span>${a.enrolledCount}/${a.capacity}</span><span>${a.capacity ? Math.round((a.enrolledCount / a.capacity) * 100) : 0}%</span></div>
-        </div>
-      </div>`,
-        )
-        .join('')
-    : `<div class="empty"><i class="fa-solid fa-calendar-xmark"></i><h3>Sin actividades</h3><p>Crea una actividad para empezar.</p></div>`;
-
-  const recentHtml = stats.recentUsers.length
-    ? `
-    <div class="table-wrapper">
-      <table class="table">
-        <thead>
-          <tr><th>Código</th><th>Nombre</th><th>Email</th><th>Visitas</th><th>Registro</th></tr>
-        </thead>
-        <tbody>
-          ${stats.recentUsers
-            .map(
-              u => `
-            <tr>
-              <td><span class="user-code">${Utils.escapeHtml(u.code)}</span></td>
-              <td class="cell-strong">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</td>
-              <td class="cell-muted">${Utils.escapeHtml(u.email)}</td>
-              <td><span class="badge badge--info">${u.visitCount}</span></td>
-              <td class="cell-muted">${Utils.formatDate(u.createdAt, false)}</td>
-            </tr>`,
-            )
-            .join('')}
-        </tbody>
-      </table>
-    </div>`
-    : `<div class="empty"><i class="fa-solid fa-user-slash"></i><h3>Sin usuarios</h3><p>Registra el primer visitante.</p></div>`;
-
-  document.getElementById('content').innerHTML = `
-    <div class="stats-grid">${cardsHtml}</div>
-    <div class="two-col">
-      <div class="panel">
-        <div class="panel-header">
-          <div>
-            <h2>Top actividades por inscripciones</h2>
-            <p>Las 5 actividades con más asistencias</p>
-          </div>
-        </div>
-        <div class="panel-body panel-body--flush">
-          <div class="top-list">${topHtml}</div>
+      <div class="dash-hero-grid">
+        <div class="dash-kpi-hero skeleton-block"></div>
+        <div class="dash-kpi-secondary-grid">
+          <div class="dash-kpi skeleton-block"></div>
+          <div class="dash-kpi skeleton-block"></div>
+          <div class="dash-kpi skeleton-block"></div>
         </div>
       </div>
-      <div class="panel">
-        <div class="panel-header">
-          <div>
-            <h2>Últimos usuarios</h2>
-            <p>Visitantes registrados recientemente</p>
-          </div>
-        </div>
-        <div class="panel-body panel-body--flush">${recentHtml}</div>
+      <div class="dash-next skeleton-block" style="height:160px"></div>
+      <div class="two-col">
+        <div class="panel skeleton-block" style="height:320px"></div>
+        <div class="panel skeleton-block" style="height:320px"></div>
       </div>
     </div>`;
+}
+
+function paintDashboard(stats) {
+  const root = document.getElementById('content');
+  const greeting = dashboardGreeting();
+  const periodHtml = renderPeriodPicker(stats.period.key);
+  const heroHtml = renderHeroKpi(stats.hero, stats.period);
+  const secondaryHtml = renderSecondaryKpis(stats.secondary);
+  const nextHtml = renderNextActivity(stats.nextActivity);
+  const insightsHtml = renderInsights(stats.insights || []);
+  const topHtml = renderTopActivities(stats.topActivities);
+  const recentHtml = renderRecentUsers(stats.recentUsers);
+
+  root.innerHTML = `
+    <div class="dash">
+      <header class="dash-greet">
+        <div>
+          <h2 class="dash-greet-title">${greeting.title}</h2>
+          <p class="dash-greet-sub">${greeting.subtitle}</p>
+        </div>
+        <div class="dash-quick-actions">
+          <a href="#/activities" class="btn btn--ghost btn--sm" data-action="dash-quick-new-activity">
+            <i class="fa-solid fa-plus"></i> Nueva actividad
+          </a>
+          <a href="#/checkin" class="btn btn--ghost btn--sm">
+            <i class="fa-solid fa-qrcode"></i> Check-in
+          </a>
+          <a href="#/reports" class="btn btn--primary btn--sm">
+            <i class="fa-solid fa-chart-line"></i> Generar reporte
+          </a>
+        </div>
+      </header>
+
+      <div class="dash-period-row">${periodHtml}</div>
+
+      ${insightsHtml}
+
+      <div class="dash-hero-grid">
+        ${heroHtml}
+        <div class="dash-kpi-secondary-grid">${secondaryHtml}</div>
+      </div>
+
+      ${nextHtml}
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Top actividades</h2>
+              <p>Las 5 con más asistencias registradas</p>
+            </div>
+          </div>
+          <div class="panel-body panel-body--flush"><div class="dash-top-list">${topHtml}</div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Últimos visitantes</h2>
+              <p>Registrados recientemente</p>
+            </div>
+          </div>
+          <div class="panel-body panel-body--flush">${recentHtml}</div>
+        </div>
+      </div>
+    </div>`;
+
+  // Bind period picker
+  root.querySelectorAll('[data-period]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _dashboardState.period = btn.dataset.period;
+      renderDashboard();
+    });
+  });
+
+  // Count-up de los KPI numbers (efecto premium)
+  countUpAllNumbers(root);
+}
+
+function dashboardGreeting() {
+  const now = new Date();
+  const h = now.getHours();
+  let salute = 'Buenas';
+  if (h < 12) salute = 'Buenos días';
+  else if (h < 19) salute = 'Buenas tardes';
+  else salute = 'Buenas noches';
+  const dateLabel = now.toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long' });
+  const orgName = window.__tenant__?.name || 'tu centro';
+  return {
+    title: `${salute} 👋`,
+    subtitle: `${dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1)} · ${orgName}`,
+  };
+}
+
+function renderPeriodPicker(active) {
+  const opts = [
+    { key: 'today', label: 'Hoy' },
+    { key: '7d', label: '7 días' },
+    { key: '30d', label: '30 días' },
+    { key: '90d', label: '90 días' },
+  ];
+  return `
+    <div class="period-picker">
+      <span class="period-picker-label">Período</span>
+      <div class="period-pills">
+        ${opts.map(o => `
+          <button type="button" class="period-pill ${o.key === active ? 'is-active' : ''}" data-period="${o.key}">
+            ${o.label}
+          </button>`).join('')}
+      </div>
+    </div>`;
+}
+
+function renderHeroKpi(hero, period) {
+  const delta = hero.deltaPct ?? 0;
+  const deltaCls = delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : 'is-flat';
+  const deltaIcon = delta > 0 ? 'fa-arrow-trend-up' : delta < 0 ? 'fa-arrow-trend-down' : 'fa-minus';
+  return `
+    <div class="dash-kpi-hero">
+      <div class="dash-kpi-head">
+        <div>
+          <div class="dash-kpi-label">${Utils.escapeHtml(hero.label)} · ${Utils.escapeHtml(period.label)}</div>
+          <div class="dash-kpi-value dash-kpi-value--hero" data-count-target="${hero.value}">0</div>
+        </div>
+        <div class="dash-kpi-delta ${deltaCls}">
+          <i class="fa-solid ${deltaIcon}"></i>
+          ${delta > 0 ? '+' : ''}${delta}%
+          <span class="dash-kpi-delta-vs">vs período anterior</span>
+        </div>
+      </div>
+      <div class="dash-spark">${renderSparkline(hero.sparkline)}</div>
+    </div>`;
+}
+
+function renderSparkline(points) {
+  if (!points || points.length === 0) return '';
+  const max = Math.max(1, ...points.map(p => p.value));
+  const w = 600, h = 60, pad = 4;
+  const stepX = (w - pad * 2) / Math.max(1, points.length - 1);
+  const coords = points.map((p, i) => {
+    const x = pad + i * stepX;
+    const y = h - pad - ((p.value / max) * (h - pad * 2));
+    return [x, y];
+  });
+  const line = coords.map(([x, y], i) => (i === 0 ? `M${x},${y}` : `L${x},${y}`)).join(' ');
+  const area = `${line} L${coords[coords.length - 1][0]},${h} L${coords[0][0]},${h} Z`;
+  return `
+    <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="dash-spark-svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="sparkGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--color-accent)" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="var(--color-accent)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="${area}" fill="url(#sparkGradient)" />
+      <path d="${line}" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>`;
+}
+
+function renderSecondaryKpis(secondary) {
+  return secondary.map(k => {
+    const delta = k.deltaPct ?? 0;
+    const deltaCls = delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : 'is-flat';
+    const deltaIcon = delta > 0 ? 'fa-arrow-up' : delta < 0 ? 'fa-arrow-down' : 'fa-minus';
+    const tooltipAttr = k.tooltip ? `data-tooltip="${Utils.escapeHtml(k.tooltip)}"` : '';
+    return `
+      <div class="dash-kpi" ${tooltipAttr}>
+        <div class="dash-kpi-label">
+          ${Utils.escapeHtml(k.label)}
+          ${k.tooltip ? '<i class="fa-regular fa-circle-question dash-kpi-info"></i>' : ''}
+        </div>
+        <div class="dash-kpi-value" data-count-target="${k.value}">0</div>
+        <div class="dash-kpi-row">
+          <span class="dash-kpi-unit">${k.unit || ''}</span>
+          <span class="dash-kpi-delta ${deltaCls}">
+            <i class="fa-solid ${deltaIcon}"></i>
+            ${delta > 0 ? '+' : ''}${delta}%
+          </span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderNextActivity(next) {
+  if (!next) {
+    return `
+      <div class="dash-next dash-next--empty">
+        <i class="fa-solid fa-calendar-plus"></i>
+        <div>
+          <h3>No hay próxima actividad programada</h3>
+          <p>Crea una para empezar a recibir inscripciones.</p>
+        </div>
+        <a href="#/activities" class="btn btn--accent btn--sm">
+          <i class="fa-solid fa-plus"></i> Nueva actividad
+        </a>
+      </div>`;
+  }
+  const ms = next.countdownMs;
+  const days = Math.floor(ms / 86400000);
+  const hours = Math.floor((ms % 86400000) / 3600000);
+  const minutes = Math.floor((ms % 3600000) / 60000);
+  const countdownLabel = days >= 1
+    ? `${days} día${days !== 1 ? 's' : ''}${hours > 0 ? ` ${hours}h` : ''}`
+    : hours >= 1
+      ? `${hours}h ${minutes}m`
+      : `${minutes} min`;
+  const occ = next.capacity > 0 ? Math.round((next.enrolledCount / next.capacity) * 100) : 0;
+  const nearFull = occ >= 80;
+  return `
+    <div class="dash-next">
+      <div class="dash-next-media">
+        ${next.imageUrl
+          ? `<img src="${Utils.escapeHtml(next.imageUrl)}" alt="" />`
+          : `<div class="dash-next-media-placeholder"><i class="fa-solid ${dashTypeIcon(next.type)}"></i></div>`}
+      </div>
+      <div class="dash-next-info">
+        <div class="dash-next-eyebrow">
+          <i class="fa-solid fa-hourglass-half"></i>
+          PRÓXIMA · empieza en ${countdownLabel}
+        </div>
+        <h3 class="dash-next-name">${Utils.escapeHtml(next.name)}</h3>
+        <div class="dash-next-meta">
+          <span><i class="fa-solid fa-calendar"></i> ${Utils.escapeHtml(Utils.formatDate(next.date))}</span>
+          <span><i class="fa-solid fa-location-dot"></i> ${Utils.escapeHtml(next.location)}</span>
+          <span class="badge badge--type-${Utils.escapeHtml(next.type)}">${Utils.escapeHtml(Utils.activityTypeLabel(next.type))}</span>
+        </div>
+        <div class="dash-next-progress">
+          <div class="progress-track"><div class="progress-bar ${nearFull ? 'progress-bar--hot' : ''}" style="width:${occ}%"></div></div>
+          <div class="progress-meta">
+            <span>${next.enrolledCount} / ${next.capacity} inscritos</span>
+            <span>${occ}%</span>
+          </div>
+        </div>
+      </div>
+      <div class="dash-next-actions">
+        <a href="#/activities" class="btn btn--primary btn--sm" data-action="activity-detail" data-id="${Utils.escapeHtml(next.id)}">
+          <i class="fa-solid fa-eye"></i> Ver detalle
+        </a>
+        <a href="#/activities" class="btn btn--ghost btn--sm" data-action="activity-invite" data-id="${Utils.escapeHtml(next.id)}">
+          <i class="fa-solid fa-envelope"></i> Invitar
+        </a>
+        <a href="/api/reports/activity/${Utils.escapeHtml(next.id)}.pdf" class="btn btn--ghost btn--sm" target="_blank">
+          <i class="fa-solid fa-file-pdf"></i> Reporte
+        </a>
+      </div>
+    </div>`;
+}
+
+function renderInsights(insights) {
+  if (!insights || insights.length === 0) return '';
+  return `
+    <div class="dash-insights">
+      ${insights.map(ins => `
+        <div class="dash-insight dash-insight--${Utils.escapeHtml(ins.severity || 'info')}">
+          <i class="fa-solid ${ins.severity === 'warning' ? 'fa-triangle-exclamation' : 'fa-lightbulb'}"></i>
+          <div class="dash-insight-body">
+            <strong>${Utils.escapeHtml(ins.title)}</strong>
+            <span>${Utils.escapeHtml(ins.message)}</span>
+          </div>
+          ${ins.action ? `<a href="${Utils.escapeHtml(ins.action.href)}" class="btn btn--ghost btn--sm">${Utils.escapeHtml(ins.action.label)} →</a>` : ''}
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderTopActivities(tops) {
+  if (!tops || tops.length === 0) {
+    return `<div class="empty"><i class="fa-solid fa-calendar-xmark"></i><h3>Sin actividades</h3><p>Crea una para empezar.</p></div>`;
+  }
+  return tops.map((a, i) => {
+    const occ = a.capacity ? Math.round((a.enrolledCount / a.capacity) * 100) : 0;
+    const statusCls = a.status === 'activa' ? 'is-active'
+      : a.status === 'finalizada' ? 'is-finalized'
+      : a.status === 'cancelada' ? 'is-cancelled' : '';
+    return `
+      <div class="dash-top-item ${statusCls}" data-action="activity-detail" data-id="${Utils.escapeHtml(a.id)}">
+        <div class="dash-top-rank">${i + 1}</div>
+        <div class="dash-top-thumb">
+          ${a.imageUrl
+            ? `<img src="${Utils.escapeHtml(a.imageUrl)}" alt="" />`
+            : `<i class="fa-solid ${dashTypeIcon(a.type)}"></i>`}
+        </div>
+        <div class="dash-top-info">
+          <div class="dash-top-name">${Utils.escapeHtml(a.name)}</div>
+          <div class="dash-top-meta">
+            <span class="badge badge--type-${Utils.escapeHtml(a.type)}">${Utils.escapeHtml(Utils.activityTypeLabel(a.type))}</span>
+            <span class="cell-muted">${Utils.escapeHtml(a.location)}</span>
+          </div>
+        </div>
+        <div class="dash-top-progress">
+          <div class="progress-track"><div class="progress-bar" style="width:${occ}%"></div></div>
+          <div class="progress-meta"><span>${a.enrolledCount}/${a.capacity}</span><span>${occ}%</span></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderRecentUsers(users) {
+  if (!users || users.length === 0) {
+    return `<div class="empty"><i class="fa-solid fa-user-slash"></i><h3>Sin usuarios</h3><p>Registra al primer visitante.</p></div>`;
+  }
+  return `
+    <div class="dash-recent-list">
+      ${users.map(u => {
+        const initials = ((u.firstName?.[0] || '') + (u.lastName?.[0] || '')).toUpperCase() || '?';
+        const isNew = (u.visitCount || 0) <= 1;
+        const isVip = (u.visitCount || 0) >= 10;
+        const tag = isVip
+          ? `<span class="dash-recent-tag dash-recent-tag--vip">VIP</span>`
+          : isNew
+            ? `<span class="dash-recent-tag dash-recent-tag--new">Primera vez</span>`
+            : `<span class="dash-recent-tag dash-recent-tag--reg">${u.visitCount} visitas</span>`;
+        return `
+          <div class="dash-recent-item" data-action="user-detail" data-code="${Utils.escapeHtml(u.code)}">
+            <div class="dash-recent-avatar">${Utils.escapeHtml(initials)}</div>
+            <div class="dash-recent-info">
+              <div class="dash-recent-name">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</div>
+              <div class="dash-recent-meta">
+                <span class="user-code">${Utils.escapeHtml(u.code)}</span>
+                ${u.email ? `<span class="cell-muted">${Utils.escapeHtml(u.email)}</span>` : ''}
+              </div>
+            </div>
+            ${tag}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function dashTypeIcon(t) {
+  return ({
+    concierto: 'fa-music',
+    cine: 'fa-film',
+    taller: 'fa-screwdriver-wrench',
+    exposicion: 'fa-image',
+    teatro: 'fa-masks-theater',
+    conferencia: 'fa-microphone',
+  })[t] || 'fa-calendar-day';
+}
+
+// Count-up animado de los números KPI (efecto premium)
+function countUpAllNumbers(root) {
+  root.querySelectorAll('[data-count-target]').forEach(el => {
+    const target = Number(el.dataset.countTarget) || 0;
+    const duration = 700;
+    const start = performance.now();
+    const from = 0;
+    const tick = now => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const v = Math.round(from + (target - from) * eased);
+      el.textContent = v.toLocaleString('es-DO');
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
 }
 
 // ============================================================
