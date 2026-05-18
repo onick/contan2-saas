@@ -949,7 +949,7 @@ textarea {
 }
 
 .search-input--lg input {
-  padding: 14px 14px 14px 44px;
+  padding: 14px 56px 14px 44px;
   font-size: 16px;
 }
 
@@ -3233,7 +3233,10 @@ tr.hidden { display: none; }
   margin-right: 6px;
 }
 .ck-kbd {
-  display: inline-block;
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
   border-bottom-width: 2px;
@@ -3243,7 +3246,13 @@ tr.hidden { display: none; }
   font-weight: 700;
   color: var(--color-text-muted);
   font-family: ui-monospace, Menlo, monospace;
-  margin-left: 6px;
+  pointer-events: none;
+}
+
+/* En dispositivos touch (tablet/mobile) el atajo "/" no aplica → ocultar */
+@media (pointer: coarse) {
+  .ck-kbd { display: none; }
+  .search-input--lg input { padding-right: 14px; }
 }
 
 /* === Recent users chips === */
