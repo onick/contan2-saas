@@ -10,17 +10,6 @@ import { PostgresInvitationRepository } from '../db/postgres/PostgresInvitationR
 import { OrganizationRepository } from '../db/postgres/platform/OrganizationRepository.js';
 import { config } from '../config.js';
 import { rateLimit } from '../utils/rateLimit.js';
-import { generateActivityQrPng } from '../services/activityQR.js';
-import { buildActivityPosterHtml, posterFilename, qrFilename } from '../services/posterPdfTemplate.js';
-import { renderHtmlToPdf } from '../services/reports/pdfRenderer.js';
-
-// Rate limit suave para QR/póster: son recursos cacheables que típicamente
-// se descargan una vez y se imprimen.
-const qrAssetLimit = rateLimit({
-  windowMs: 60_000,
-  max: 30,
-  message: 'Demasiadas solicitudes de QR/póster. Espera un momento.',
-});
 
 // 30 check-ins por IP/minuto: suficiente para staff que registra a mano,
 // bloquea scripts que intenten flood.
@@ -424,60 +413,6 @@ export function createPublicRouter() {
         await req.repos.activities.decrementEnrolled(activity.id);
         throw e;
       }
-    } catch (e) {
-      next(e);
-    }
-  });
-
-  // ==============================================================
-  // QR + póster por actividad (públicos: el QR físico se imprime y
-  // cualquiera lo escanea). Sin auth por diseño.
-  // ==============================================================
-
-  router.get('/activities/:id/qr.png', qrAssetLimit, async (req, res, next) => {
-    try {
-      const activity = await req.repos.activities.findById(req.params.id);
-      if (!activity) throw new HttpError(404, 'Actividad no encontrada');
-      if (activity.status === 'cancelada') {
-        throw new HttpError(410, 'Actividad cancelada');
-      }
-      const png = await generateActivityQrPng(activity, req.organization, { size: 800 });
-      res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-      res.setHeader('Content-Disposition', `inline; filename="${qrFilename(activity)}"`);
-      res.send(png);
-    } catch (e) {
-      next(e);
-    }
-  });
-
-  router.get('/activities/:id/poster.pdf', qrAssetLimit, async (req, res, next) => {
-    try {
-      const activity = await req.repos.activities.findById(req.params.id);
-      if (!activity) throw new HttpError(404, 'Actividad no encontrada');
-      if (activity.status === 'cancelada') {
-        throw new HttpError(410, 'Actividad cancelada');
-      }
-      // Generar QR como buffer y embeber en HTML como data URI
-      const qrBuf = await generateActivityQrPng(activity, req.organization, { size: 700 });
-      const qrDataUri = `data:image/png;base64,${qrBuf.toString('base64')}`;
-      const html = await buildActivityPosterHtml({
-        organization: req.organization,
-        activity,
-        qrDataUri,
-      });
-      const pdf = await renderHtmlToPdf(html, {
-        format: 'A4',
-        printBackground: true,
-        margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
-        // Sin header/footer del browser: el póster es page-fill.
-        displayHeaderFooter: false,
-      });
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-      res.setHeader('Content-Disposition', `attachment; filename="${posterFilename(activity)}"`);
-      res.setHeader('Content-Length', pdf.length);
-      res.end(pdf);
     } catch (e) {
       next(e);
     }
