@@ -981,11 +981,48 @@ function setupIdleListeners() {
 }
 
 // ============ Init ============
-function init() {
+// Lee ?activity=<id> del URL ANTES de que setupKioskLock reescriba con
+// pushState a '/kiosko' (que limpia query string). Devuelve el id o null.
+function readActivityFromUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('activity');
+  } catch {
+    return null;
+  }
+}
+
+// Intenta preseleccionar la actividad cuando el visitante llega desde un
+// QR (`/kiosko?activity=<id>`). Si la actividad existe y está activa,
+// salta directo a la pantalla de identificación. Si no existe o no está
+// activa, cae al welcome normal sin romper nada (fallback graceful).
+async function preselectActivityFromQr(activityId) {
+  if (!activityId) return false;
+  try {
+    const { activities } = await api('/activities');
+    const found = activities.find(a => a.id === activityId);
+    if (!found) return false;
+    State.activity = { id: found.id, name: found.name };
+    State.screen = 'identify';
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function init() {
+  // Leer el query ANTES del lock — setupKioskLock hace pushState que
+  // borra ?activity= de la URL.
+  const preselectedId = readActivityFromUrl();
+
   setupKioskLock();
   setupIdleListeners();
   updateClock();
   setInterval(updateClock, 1000);
+
+  if (preselectedId) {
+    await preselectActivityFromQr(preselectedId);
+  }
   render();
 }
 
