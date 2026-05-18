@@ -10,6 +10,7 @@ import { PostgresInvitationRepository } from '../db/postgres/PostgresInvitationR
 import { OrganizationRepository } from '../db/postgres/platform/OrganizationRepository.js';
 import { config } from '../config.js';
 import { rateLimit } from '../utils/rateLimit.js';
+import { findActiveActivityBySlug } from '../utils/slugify.js';
 
 // 30 check-ins por IP/minuto: suficiente para staff que registra a mano,
 // bloquea scripts que intenten flood.
@@ -17,6 +18,14 @@ const checkinRateLimit = rateLimit({
   windowMs: 60_000,
   max: 30,
   message: 'Demasiados check-ins desde esta IP. Intenta de nuevo en un momento.',
+});
+
+// 10 reservas publicas por IP/minuto: una persona reserva pocas veces;
+// bloquea abuso desde links compartidos.
+const reserveRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  message: 'Demasiadas reservas desde esta IP. Espera un minuto.',
 });
 
 function publicUser(u) {
@@ -277,6 +286,101 @@ export function createPublicRouter() {
           type: activity.type,
         },
         isNewUser,
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // =========================================================================
+  // Reserva publica desde pagina compartible /eventos/:slug
+  // - Crea o reusa user por email
+  // - Reserva cupo (incrementEnrolledIfRoom), attendance con checkedIn=false
+  // - Dispara credencial por email (best-effort, no bloquea respuesta)
+  // =========================================================================
+  router.post('/events/:slug/reserve', reserveRateLimit, async (req, res, next) => {
+    try {
+      const slug = String(req.params.slug || '').trim().toLowerCase();
+      if (!slug || !/^[a-z0-9-]{1,80}$/.test(slug)) {
+        throw new HttpError(400, 'Slug inválido');
+      }
+
+      const data = normalizeUserData(req.body || {});
+      const errors = [];
+      if (!data.firstName || data.firstName.length < 2 || data.firstName.length > 50) {
+        errors.push({ field: 'firstName', message: 'Nombre requerido (2-50 caracteres)' });
+      }
+      if (!data.lastName || data.lastName.length < 2 || data.lastName.length > 50) {
+        errors.push({ field: 'lastName', message: 'Apellido requerido (2-50 caracteres)' });
+      }
+      if (!data.email) {
+        errors.push({ field: 'email', message: 'Correo requerido' });
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+        errors.push({ field: 'email', message: 'Correo inválido' });
+      }
+      if (data.phone && !/^[\d\s+\-()]{7,20}$/.test(data.phone)) {
+        errors.push({ field: 'phone', message: 'Teléfono inválido' });
+      }
+      if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
+
+      const activity = await findActiveActivityBySlug(req.repos, slug);
+      if (!activity) throw new HttpError(404, 'Actividad no disponible');
+      if (activity.status !== 'activa') {
+        throw new HttpError(409, 'La actividad no está activa');
+      }
+
+      let user = await req.repos.users.findByEmail(data.email);
+      let isNewUser = false;
+
+      if (user) {
+        const existingAtt = await req.repos.attendance.findOne({
+          userId: user.id,
+          activityId: activity.id,
+        });
+        if (existingAtt) {
+          return res.status(200).json({
+            ok: true,
+            alreadyReserved: true,
+            user: { code: user.code, firstName: user.firstName, lastName: user.lastName },
+            activity: { id: activity.id, name: activity.name, date: activity.date, location: activity.location },
+          });
+        }
+      }
+
+      const reservation = await req.repos.activities.incrementEnrolledIfRoom(activity.id);
+      if (!reservation.ok) {
+        if (reservation.reason === 'full') throw new HttpError(409, 'Cupo agotado');
+        if (reservation.reason === 'not_active') throw new HttpError(409, 'La actividad no está activa');
+        throw new HttpError(404, 'Actividad no encontrada');
+      }
+
+      try {
+        if (!user) {
+          user = await req.repos.users.create(data);
+          isNewUser = true;
+        }
+        await req.repos.attendance.create({
+          userId: user.id,
+          userCode: user.code,
+          activityId: activity.id,
+          activityName: activity.name,
+          checkedIn: false,
+        });
+      } catch (e) {
+        await req.repos.activities.decrementEnrolled(activity.id);
+        throw e;
+      }
+
+      // Envio de credencial: best-effort, fire-and-forget.
+      sendCredentialEmail(user, req.organization).catch(err =>
+        console.error('[event-reserve] credencial email falló:', err.message),
+      );
+
+      res.status(201).json({
+        ok: true,
+        isNewUser,
+        user: { code: user.code, firstName: user.firstName, lastName: user.lastName },
+        activity: { id: activity.id, name: activity.name, date: activity.date, location: activity.location },
       });
     } catch (e) {
       next(e);

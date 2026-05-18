@@ -25,6 +25,7 @@ import { createStaffRouter } from './src/routes/staff.js';
 import { createCredentialsRouter } from './src/routes/credentials.js';
 import { createOrgBrandingRouter } from './src/routes/orgBranding.js';
 import { createReportsRouter } from './src/routes/reports.js';
+import { createEventosPublicRouter } from './src/routes/eventosPublic.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -139,6 +140,10 @@ const indexHtml = serveHtmlWithBranding(path.join(frontendPath, 'index.html'));
 app.get(/^\/kiosko(?:\/.*)?$/, resolveTenant, kioskoHtml);
 app.get(/^\/scanner(?:\/.*)?$/, resolveTenant, scannerHtml);
 app.get(/^\/rsvp(?:\/.*)?$/, resolveTenant, rsvpHtml);
+
+// Paginas publicas compartibles por actividad (Open Graph para WhatsApp/redes).
+// Requieren tenant + repos para resolver el slug -> actividad de la org actual.
+app.use('/eventos', resolveTenant, buildTenantRepos, createEventosPublicRouter());
 
 app.use(express.static(frontendPath, {
   setHeaders: (res, filePath) => {
