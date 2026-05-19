@@ -17,6 +17,7 @@ export class MemoryActivityRepository {
       capacity: data.capacity,
       description: data.description ?? '',
       imageUrl: data.imageUrl ?? null,
+      category: data.category ?? null,
       enrolledCount: 0,
       status: data.status ?? 'activa',
       createdAt: now,

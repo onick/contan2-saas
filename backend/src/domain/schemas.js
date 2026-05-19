@@ -128,6 +128,11 @@ export function validateActivityCreate(data) {
       errors.push({ field: 'imageUrl', message: 'imageUrl inválida' });
     }
   }
+  if (data.category != null && data.category !== '') {
+    if (!isString(data.category) || data.category.trim().length > 60) {
+      errors.push({ field: 'category', message: 'category string (máx 60 caracteres)' });
+    }
+  }
   return errors;
 }
 
@@ -163,6 +168,11 @@ export function validateActivityUpdate(data) {
       errors.push({ field: 'imageUrl', message: 'imageUrl inválida' });
     }
   }
+  if (data.category != null && data.category !== '') {
+    if (!isString(data.category) || data.category.trim().length > 60) {
+      errors.push({ field: 'category', message: 'category string (máx 60 caracteres)' });
+    }
+  }
   return errors;
 }
 
@@ -181,6 +191,16 @@ export function normalizeActivityData(data) {
     } else {
       const trimmed = String(data.imageUrl).trim();
       out.imageUrl = trimmed === '' ? null : trimmed;
+    }
+  }
+  if ('category' in data) {
+    if (data.category == null) {
+      out.category = null;
+    } else {
+      // Normaliza: trim + colapsa espacios + lowercase. Esto permite que
+      // "Cine Dominicano" y "cine  dominicano" sean la misma categoría.
+      const norm = String(data.category).trim().toLowerCase().replace(/\s+/g, ' ');
+      out.category = norm === '' ? null : norm;
     }
   }
   return out;

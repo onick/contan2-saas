@@ -66,6 +66,7 @@ function publicActivity(a) {
     id: a.id,
     name: a.name,
     type: a.type,
+    category: a.category ?? null,
     location: a.location,
     date: a.date,
     capacity: a.capacity,

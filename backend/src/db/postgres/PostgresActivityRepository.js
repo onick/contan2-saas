@@ -11,6 +11,7 @@ function rowToActivity(r) {
     capacity: r.capacity,
     description: r.description,
     imageUrl: r.image_url,
+    category: r.category ?? null,
     enrolledCount: r.enrolled_count,
     status: r.status,
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
@@ -32,12 +33,13 @@ export class PostgresActivityRepository {
     const { rows } = await this.pool.query(
       `INSERT INTO activities
         (id, organization_id, name, type, location, date, capacity,
-         description, image_url, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         description, image_url, category, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         id, this.orgId, data.name, data.type, data.location, data.date,
         data.capacity, data.description ?? '', data.imageUrl ?? null,
+        data.category ?? null,
         data.status ?? 'activa',
       ],
     );
@@ -103,6 +105,7 @@ export class PostgresActivityRepository {
     if (partial.capacity != null) { fields.push(`capacity = $${idx++}`); values.push(partial.capacity); }
     if (partial.description != null) { fields.push(`description = $${idx++}`); values.push(partial.description); }
     if ('imageUrl' in partial) { fields.push(`image_url = $${idx++}`); values.push(partial.imageUrl); }
+    if ('category' in partial) { fields.push(`category = $${idx++}`); values.push(partial.category); }
     if (partial.status != null) { fields.push(`status = $${idx++}`); values.push(partial.status); }
     if (fields.length === 0) return this.findById(id);
     fields.push('updated_at = NOW()');

@@ -35,6 +35,13 @@ function shortDescription(text, max = 180) {
   return clean.length <= max ? clean : clean.slice(0, max - 1) + '…';
 }
 
+function prettyCategory(category) {
+  return String(category || '')
+    .split(/\s+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 function absoluteUrl(baseUrl, path) {
   if (!path) return null;
   if (/^https?:\/\//i.test(path)) return path;
@@ -65,10 +72,12 @@ export function buildEventPageHtml({ organization, activity, baseUrl }) {
   const slug = activity.slug;
   const pageUrl = `${baseUrl.replace(/\/+$/, '')}/eventos/${slug}`;
 
-  const title = `${activity.name} · ${orgName}`;
+  const title = activity.category
+    ? `${activity.name} · ${prettyCategory(activity.category)} · ${orgName}`
+    : `${activity.name} · ${orgName}`;
   const description = shortDescription(
     activity.description ||
-    `${activity.name} — ${fmtDate(activity.date, organization?.locale, organization?.timezone)} en ${activity.location}.`,
+    `${activity.name}${activity.category ? ` — parte de ${prettyCategory(activity.category)}` : ''} — ${fmtDate(activity.date, organization?.locale, organization?.timezone)} en ${activity.location}.`,
   );
 
   const cupoDisponible = Math.max(0, (activity.capacity || 0) - (activity.enrolledCount || 0));
@@ -332,6 +341,7 @@ export function buildEventPageHtml({ organization, activity, baseUrl }) {
         ${activity.imageUrl ? `<img src="${escapeAttr(absoluteUrl(baseUrl, activity.imageUrl))}" alt="${escapeAttr(activity.name)}" />` : ''}
         <div class="overlay"></div>
         <div class="badge">${escapeHtml(activity.type || 'Actividad')}</div>
+        ${activity.category ? `<div class="badge category-badge" style="top:16px;right:16px;left:auto;background:rgba(255,255,255,0.92);color:var(--color-primary-800, ${primary})"><span style="font-size:11px;">📚</span> ${escapeHtml(activity.category)}</div>` : ''}
         <h1>${escapeHtml(activity.name)}</h1>
       </header>
 

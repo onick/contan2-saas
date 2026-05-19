@@ -14,6 +14,7 @@ async function buildAffinityForUser(repos, user) {
 
   const byType = {};
   const byLocation = {};
+  const byCategory = {};
   let lastAttendanceAt = null;
   let recentCount = 0;
   const now = Date.now();
@@ -24,6 +25,9 @@ async function buildAffinityForUser(repos, user) {
     if (!act) continue;
     byType[act.type] = (byType[act.type] || 0) + 1;
     byLocation[act.location] = (byLocation[act.location] || 0) + 1;
+    if (act.category) {
+      byCategory[act.category] = (byCategory[act.category] || 0) + 1;
+    }
     const t = new Date(att.registeredAt).getTime();
     if (!lastAttendanceAt || t > lastAttendanceAt) lastAttendanceAt = t;
     if (now - t < RECENT_WINDOW_MS) recentCount += 1;
@@ -49,6 +53,7 @@ async function buildAffinityForUser(repos, user) {
     totalAttendances,
     byType,
     byLocation,
+    byCategory,
     lastAttendanceAt: lastAttendanceAt ? new Date(lastAttendanceAt).toISOString() : null,
     daysSinceLastVisit,
     recentCount,
@@ -138,7 +143,8 @@ export function createInsightsRouter() {
       const affs = await Promise.all(
         users.map(u => buildAffinityForUser(req.repos,u)),
       );
-      const counts = computeSegmentCounts(affs);
+      const categories = await discoverCategories(req.repos);
+      const counts = computeSegmentCounts(affs, categories);
       res.json({ segments: counts });
     } catch (e) {
       next(e);
@@ -154,7 +160,8 @@ export function createInsightsRouter() {
           affinity: await buildAffinityForUser(req.repos,u),
         })),
       );
-      const matches = filterBySegment(all, req.params.id);
+      const categories = await discoverCategories(req.repos);
+      const matches = filterBySegment(all, req.params.id, categories);
       if (matches === null) throw new HttpError(404, 'Segmento no encontrado');
       matches.sort((a, b) => b.affinity.totalAttendances - a.affinity.totalAttendances);
       res.json({
@@ -238,7 +245,41 @@ export function createInsightsRouter() {
 
 const ACTIVITY_TYPES = ['concierto', 'cine', 'taller', 'exposicion', 'teatro', 'conferencia', 'otro'];
 
-function computeSegmentCounts(affs) {
+// Descubre categorías distintas activas en la org. Devuelve array
+// de strings (las categorías normalizadas guardadas en DB).
+async function discoverCategories(repos) {
+  const all = await repos.activities.findAll();
+  const set = new Set();
+  for (const a of all) {
+    if (a.category) set.add(a.category);
+  }
+  return [...set].sort();
+}
+
+// kebab-case slug para usar como id de segmento URL-safe.
+function slugifyCategory(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+function categorySegmentId(category) {
+  return `fans-cat-${slugifyCategory(category)}`;
+}
+
+// Capitaliza para el label visible.
+function prettyCategory(category) {
+  return String(category)
+    .split(/\s+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function computeSegmentCounts(affs, categories = []) {
   const segments = [
     {
       id: 'vip',
@@ -303,6 +344,21 @@ function computeSegmentCounts(affs) {
     });
   });
 
+  // Segmentos dinámicos por categoría/ciclo. Umbral más bajo (>=1)
+  // porque las categorías suelen ser temáticas más específicas
+  // (ej: "5to ciclo cine dominicano") y queremos detectar interés
+  // desde la primera visita al ciclo.
+  for (const cat of categories) {
+    segments.push({
+      id: categorySegmentId(cat),
+      label: `Audiencia · ${prettyCategory(cat)}`,
+      description: `Han asistido al menos una vez a ${prettyCategory(cat)}`,
+      icon: 'fa-bookmark',
+      color: 'purple',
+      match: a => (a.byCategory && a.byCategory[cat]) >= 1,
+    });
+  }
+
   return segments.map(s => ({
     id: s.id,
     label: s.label,
@@ -313,7 +369,7 @@ function computeSegmentCounts(affs) {
   }));
 }
 
-function filterBySegment(all, id) {
+function filterBySegment(all, id, categories = []) {
   if (id === 'vip') return all.filter(x => x.affinity.totalAttendances >= 10);
   if (id === 'active') return all.filter(x => x.affinity.status === 'activo');
   if (id === 'newcomers') return all.filter(x => x.affinity.totalAttendances === 1);
@@ -325,6 +381,12 @@ function filterBySegment(all, id) {
     if (id === `fans-${t}`) {
       const min = t === 'taller' || t === 'cine' ? 2 : 3;
       return all.filter(x => (x.affinity.byType[t] || 0) >= min);
+    }
+  }
+  // Segmentos dinámicos por categoría.
+  for (const cat of categories) {
+    if (id === categorySegmentId(cat)) {
+      return all.filter(x => (x.affinity.byCategory && x.affinity.byCategory[cat]) >= 1);
     }
   }
   return null;

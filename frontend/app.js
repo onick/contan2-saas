@@ -1902,6 +1902,19 @@ function activityFormHtml(activity = null) {
         <label>Descripción</label>
         <textarea name="description" maxlength="1000" placeholder="Opcional">${Utils.escapeHtml(activity?.description || '')}</textarea>
       </div>
+      <div class="form-group">
+        <label>Ciclo o categoría <span class="form-hint" style="font-weight:400">(opcional)</span></label>
+        <input type="text" name="category" list="activity-categories-list" maxlength="60"
+               value="${Utils.escapeHtml(activity?.category || '')}"
+               placeholder="Ej: 5to ciclo cine dominicano, cine clásico, jazz, patrimonio…" />
+        <datalist id="activity-categories-list">
+          ${[...new Set((State.activities || []).map(a => a.category).filter(Boolean))]
+            .sort()
+            .map(c => `<option value="${Utils.escapeHtml(c)}"></option>`)
+            .join('')}
+        </datalist>
+        <div class="form-hint">Agrupa actividades del mismo ciclo o tema. Te ayuda a segmentar la audiencia y a etiquetar la página pública.</div>
+      </div>
       ${activity ? `<div class="form-hint">Inscritos actuales: <strong>${activity.enrolledCount}</strong></div>` : ''}
 
       <div class="form-group suggestions-block" id="suggestions-block">
@@ -1934,6 +1947,8 @@ function readActivityForm(form) {
   };
   const status = fd.get('status');
   if (status) data.status = status;
+  const rawCategory = (fd.get('category') || '').trim();
+  data.category = rawCategory === '' ? null : rawCategory;
   return data;
 }
 
@@ -2264,6 +2279,7 @@ function renderActivityDetailModal() {
         <div class="activity-detail-titles">
           <div class="activity-detail-badges">
             <span class="badge badge--type-${activity.type}">${Utils.escapeHtml(Utils.activityTypeLabel(activity.type))}</span>
+            ${activity.category ? `<span class="badge" style="background:var(--color-primary-100);color:var(--color-primary-800);border:1px solid var(--color-primary-200);"><i class="fa-solid fa-bookmark"></i> ${Utils.escapeHtml(activity.category)}</span>` : ''}
             ${statusBadgeHtml}
             ${Utils.dateRelativeBadge(activity.date)}
           </div>
