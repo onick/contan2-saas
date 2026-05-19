@@ -4,7 +4,7 @@ import {
   validatePublicCheckin,
   normalizeUserData,
 } from '../domain/schemas.js';
-import { sendCredentialEmail } from '../services/email.js';
+import { sendCredentialEmail, sendReservationConfirmationEmail } from '../services/email.js';
 import { initRepositories, createTenantRepos } from '../db/repositories.js';
 import { PostgresInvitationRepository } from '../db/postgres/PostgresInvitationRepository.js';
 import { OrganizationRepository } from '../db/postgres/platform/OrganizationRepository.js';
@@ -371,10 +371,23 @@ export function createPublicRouter() {
         throw e;
       }
 
-      // Envio de credencial: best-effort, fire-and-forget.
-      sendCredentialEmail(user, req.organization).catch(err =>
-        console.error('[event-reserve] credencial email falló:', err.message),
-      );
+      // Email contextual (best-effort, fire-and-forget):
+      // - Usuario nuevo -> credencial digital con PNG adjunto (alta primera vez)
+      // - Usuario existente -> confirmacion de reserva mas liviana, le recordamos
+      //   su codigo ya emitido; sin PNG para no spamear ni duplicar credenciales.
+      if (isNewUser) {
+        sendCredentialEmail(user, req.organization).catch(err =>
+          console.error('[event-reserve] credencial email falló:', err.message),
+        );
+      } else {
+        sendReservationConfirmationEmail({
+          user,
+          activity,
+          organization: req.organization,
+        }).catch(err =>
+          console.error('[event-reserve] confirmación email falló:', err.message),
+        );
+      }
 
       res.status(201).json({
         ok: true,

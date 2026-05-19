@@ -415,9 +415,10 @@ export function buildEventPageHtml({ organization, activity, baseUrl }) {
           <section class="ev-success" id="evSuccess" aria-live="polite">
             <div class="check">✓</div>
             <h3 id="evSuccessTitle">¡Reserva confirmada!</h3>
-            <p>Te enviamos tu credencial digital con código QR a tu correo.</p>
-            <p>Muéstrala en la entrada el día de la actividad.</p>
+            <p id="evSuccessLine1">Te enviamos tu credencial digital con código QR a tu correo.</p>
+            <p id="evSuccessLine2">Muéstrala en la entrada el día de la actividad.</p>
             <div class="code" id="evSuccessCode"></div>
+            <p id="evSuccessHint" style="margin-top:12px;font-size:13px;color:#9ca3af;">Tu código personal — guárdalo o llévalo en tu correo.</p>
           </section>
         `}
 
@@ -474,13 +475,28 @@ export function buildEventPageHtml({ organization, activity, baseUrl }) {
       }
       function showSuccess(payload) {
         formCard.style.display = 'none';
+        var line1 = document.getElementById('evSuccessLine1');
+        var line2 = document.getElementById('evSuccessLine2');
+        var hint = document.getElementById('evSuccessHint');
+
         if (payload && payload.alreadyReserved) {
           successTitle.textContent = 'Ya tenías tu cupo reservado';
+          if (line1) line1.textContent = 'No tienes que hacer nada más — tu cupo está confirmado.';
+          if (line2) line2.textContent = 'Muestra tu credencial actual en la entrada el día de la actividad.';
+          if (hint) hint.textContent = 'Tu código personal:';
+        } else if (payload && payload.isNewUser === false) {
+          successTitle.textContent = '¡Reserva confirmada!';
+          if (line1) line1.textContent = 'Te enviamos una confirmación de reserva por correo.';
+          if (line2) line2.textContent = 'Ya tienes credencial con nosotros — úsala en la entrada el día de la actividad.';
+          if (hint) hint.textContent = 'Tu código habitual:';
         }
+        // else: visitante nuevo - se queda con el copy default que habla de la credencial recien creada.
+
         if (payload && payload.user && payload.user.code) {
           successCode.textContent = payload.user.code;
         } else {
           successCode.style.display = 'none';
+          if (hint) hint.style.display = 'none';
         }
         success.classList.add('on');
         success.scrollIntoView({ behavior: 'smooth', block: 'start' });

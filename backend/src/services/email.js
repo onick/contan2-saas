@@ -154,6 +154,50 @@ function cancellationHtml({ user, activity, tokens, logoData }) {
   return shell({ tokens, header, content });
 }
 
+function reservationConfirmationHtml({ user, activity, tokens, logoData }) {
+  const greeting = user.firstName ? `Hola ${user.firstName}` : 'Hola';
+  const header = headerHtml({
+    tokens, logoData,
+    eyebrow: tokens.orgName.toUpperCase(),
+    title: 'Reserva confirmada',
+  });
+  const content = `
+    <tr><td style="padding:32px 36px 8px;">
+      <p style="font-size:17px;font-weight:600;margin:0 0 8px;">${escapeHtml(greeting)},</p>
+      <p style="font-size:15px;line-height:1.6;color:#4b5563;margin:0 0 12px;">
+        Confirmamos tu cupo para:
+      </p>
+    </td></tr>
+    <tr><td style="padding:0 36px 8px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-left:4px solid ${tokens.accent};border-radius:8px;">
+        <tr><td style="padding:18px 22px;">
+          <div style="font-size:20px;font-weight:700;color:#1f2937;margin-bottom:8px;">${escapeHtml(activity.name)}</div>
+          <div style="font-size:14px;color:#6b7280;line-height:1.7;">
+            📅 ${escapeHtml(fmtActivityDate(activity.date))}<br>
+            📍 ${escapeHtml(activity.location)}
+          </div>
+          ${activity.description ? `<div style="font-size:13px;color:#6b7280;line-height:1.5;margin-top:10px;padding-top:10px;border-top:1px solid #e5e7eb;">${escapeHtml(activity.description)}</div>` : ''}
+        </td></tr>
+      </table>
+    </td></tr>
+    <tr><td style="padding:22px 36px 8px;">
+      <p style="font-size:15px;color:#1f2937;margin:0 0 10px;font-weight:600;">Usa tu credencial habitual en la entrada</p>
+      <p style="font-size:14px;line-height:1.6;color:#4b5563;margin:0 0 14px;">
+        Ya tienes una credencial digital con nosotros. Búscala en tu correo anterior o muéstrala desde tu teléfono el día de la actividad. Tu código es:
+      </p>
+    </td></tr>
+    <tr><td style="padding:0 36px 8px;text-align:center;">
+      <div style="display:inline-block;background:${tokens.primary};color:${tokens.onPrimary};padding:10px 22px;border-radius:10px;font-family:Menlo,monospace;font-size:20px;font-weight:700;letter-spacing:3px;">${escapeHtml(user.code)}</div>
+    </td></tr>
+    <tr><td style="padding:18px 36px 0;">
+      <p style="font-size:12px;color:#9ca3af;line-height:1.5;margin:0;text-align:center;">
+        Si extraviaste la credencial, contáctanos y te la reenviamos.
+      </p>
+    </td></tr>
+    <tr><td style="padding:24px 36px 32px;"></td></tr>`;
+  return shell({ tokens, header, content });
+}
+
 function invitationHtml({ user, activity, tokens, logoData, rsvpUrl }) {
   const greeting = user.firstName ? `Hola ${user.firstName}` : 'Hola';
   const yesUrl = `${rsvpUrl}?action=yes`;
@@ -258,6 +302,37 @@ export async function sendCredentialEmail(user, organization = null) {
     return { sent: true, id: result.data?.id };
   } catch (e) {
     console.error(`[email] excepción enviando a ${maskEmail(user.email)}:`, e.message);
+    return { sent: false, error: e.message };
+  }
+}
+
+export async function sendReservationConfirmationEmail({ user, activity, organization }) {
+  if (!user.email) return { skipped: true, reason: 'sin email' };
+
+  const { tokens, logoData, from, replyTo } = await brandingContext(organization);
+  const html = reservationConfirmationHtml({ user, activity, tokens, logoData });
+
+  const c = client();
+  if (!c) {
+    console.log(`[email-dev] confirmación de reserva a ${maskEmail(user.email)} (actividad: ${activity.name})`);
+    return { skipped: true, reason: 'sin RESEND_API_KEY' };
+  }
+  try {
+    const result = await c.emails.send({
+      from,
+      to: user.email,
+      ...(replyTo ? { reply_to: replyTo } : {}),
+      subject: `Reserva confirmada: ${activity.name}`,
+      html,
+    });
+    if (result.error) {
+      console.error(`[reserve-email] error a ${maskEmail(user.email)}:`, result.error.message || result.error);
+      return { sent: false, error: result.error.message || String(result.error) };
+    }
+    console.log(`[reserve-email] confirmación enviada a ${maskEmail(user.email)} (id=${result.data?.id || '?'})`);
+    return { sent: true, id: result.data?.id };
+  } catch (e) {
+    console.error(`[reserve-email] excepción a ${maskEmail(user.email)}:`, e.message);
     return { sent: false, error: e.message };
   }
 }
