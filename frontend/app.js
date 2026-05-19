@@ -2131,25 +2131,27 @@ function renderSuggestions(resp, { type, location }) {
     <div class="suggestions-list">
       ${suggestions
         .slice(0, 10)
-        .map(
-          s => `
+        .map(s => {
+          const typeLbl = Utils.activityTypeLabel(type).toLowerCase();
+          const locShort = location && location.length > 20 ? location.slice(0, 18) + '…' : location;
+          return `
         <div class="suggestion-row">
+          <span class="user-code">${Utils.escapeHtml(s.user.code)}</span>
           <div class="suggestion-info">
-            <span class="user-code">${Utils.escapeHtml(s.user.code)}</span>
-            <div>
-              <div class="cell-strong">${Utils.escapeHtml(s.user.firstName + ' ' + s.user.lastName)}</div>
-              <div class="cell-muted">${Utils.escapeHtml(s.user.email || s.user.phone || '—')}</div>
+            <div class="suggestion-name-row">
+              <div class="cell-strong suggestion-name" title="${Utils.escapeHtml(s.user.firstName + ' ' + s.user.lastName)}">${Utils.escapeHtml(s.user.firstName + ' ' + s.user.lastName)}</div>
+              <span class="suggestion-score" title="Puntuación de afinidad">${s.score}</span>
+            </div>
+            <div class="cell-muted suggestion-contact" title="${Utils.escapeHtml(s.user.email || s.user.phone || '')}">${Utils.escapeHtml(s.user.email || s.user.phone || '—')}</div>
+            <div class="suggestion-badges">
+              <span class="badge badge--info" title="${s.affinity.typeMatches} asistencias a ${typeLbl}"><i class="fa-solid fa-check"></i> ${s.affinity.typeMatches} ${Utils.escapeHtml(typeLbl)}</span>
+              ${s.affinity.locationMatches > 0
+                ? `<span class="badge badge--neutral" title="${s.affinity.locationMatches} asistencias en ${Utils.escapeHtml(location)}"><i class="fa-solid fa-location-dot"></i> ${s.affinity.locationMatches} en ${Utils.escapeHtml(locShort)}</span>`
+                : ''}
             </div>
           </div>
-          <div class="suggestion-stats">
-            <span class="badge badge--info" title="Asistencias a este tipo">${s.affinity.typeMatches} ${Utils.escapeHtml(Utils.activityTypeLabel(type))}(s)</span>
-            ${s.affinity.locationMatches > 0
-              ? `<span class="badge badge--neutral" title="Asistencias en esta ubicación">${s.affinity.locationMatches} ${Utils.escapeHtml(location)}</span>`
-              : ''}
-            <span class="suggestion-score" title="Puntuación de afinidad">${s.score}</span>
-          </div>
-        </div>`,
-        )
+        </div>`;
+        })
         .join('')}
       ${suggestions.length > 10
         ? `<div class="form-hint" style="text-align:center;padding:10px">+ ${suggestions.length - 10} más en la exportación</div>`

@@ -1364,10 +1364,9 @@ textarea {
 
 .suggestion-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -1375,19 +1374,53 @@ textarea {
   border-bottom: none;
 }
 
-.suggestion-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
+.suggestion-row .user-code {
+  flex-shrink: 0;
+  align-self: center;
 }
 
-.suggestion-stats {
+.suggestion-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.suggestion-name-row {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  flex-shrink: 0;
+  gap: 10px;
+}
+
+.suggestion-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion-contact {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.suggestion-badges .badge {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .suggestion-score {
@@ -1398,6 +1431,7 @@ textarea {
   font-weight: 700;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 /* ====== Segments view ====== */
