@@ -422,7 +422,7 @@ export function buildEventPageHtml({ organization, activity, baseUrl }) {
         `}
 
         <div class="ev-foot">
-          ${escapeHtml(orgName)} · <a href="/">Ver todas las actividades</a>
+          ${escapeHtml(orgName)}
         </div>
       </div>
     </article>

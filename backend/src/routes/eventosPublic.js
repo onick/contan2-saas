@@ -53,9 +53,7 @@ function notFoundHtml(msg) {
 <style>body{font-family:system-ui,-apple-system,sans-serif;background:#f7f8fb;color:#1f2937;
 display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;text-align:center}
 .box{max-width:420px;background:#fff;padding:32px;border-radius:18px;box-shadow:0 10px 30px rgba(15,23,42,0.08)}
-h1{margin:0 0 8px;font-size:22px}p{margin:0 0 18px;color:#6b7280;font-size:15px;line-height:1.5}
-a{display:inline-block;padding:10px 18px;background:#0f172a;color:#fff;border-radius:10px;text-decoration:none;font-weight:600}</style>
+h1{margin:0 0 8px;font-size:22px}p{margin:0;color:#6b7280;font-size:15px;line-height:1.5}</style>
 </head><body><div class="box"><h1>${safe}</h1>
-<p>El enlace que abriste no esta disponible. Es posible que la actividad haya terminado o cambiara de fecha.</p>
-<a href="/">Ver actividades</a></div></body></html>`;
+<p>El enlace que abriste no esta disponible. Es posible que la actividad haya terminado o cambiara de fecha.</p></div></body></html>`;
 }
