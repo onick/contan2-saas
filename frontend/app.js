@@ -195,6 +195,35 @@ const Utils = {
     if (diff === -1) return '<span class="badge badge--neutral badge--xs">Ayer</span>';
     return '';
   },
+  slugify(input) {
+    if (!input) return '';
+    return String(input)
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80);
+  },
+  async copyToClipboard(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch { /* fallback abajo */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch { return false; }
+  },
 };
 
 // ============================================================
@@ -2239,6 +2268,8 @@ function renderActivityDetailModal() {
         ${activity.description ? `<div class="activity-detail-desc">${Utils.escapeHtml(activity.description)}</div>` : ''}
       </div>
 
+      ${activity.status === 'activa' ? renderActivityShareSection(activity) : ''}
+
       ${_activityDetailCache.summary && (activity.status === 'finalizada' || activity.enrolledCount > 0)
         ? renderActivitySummary(_activityDetailCache.summary)
         : ''}
@@ -2284,6 +2315,44 @@ function renderActivityDetailModal() {
     handleActivityEdit(activity.id);
   };
   bindAttendeesSearch(attendees.length);
+}
+
+function renderActivityShareSection(activity) {
+  const slug = Utils.slugify(activity.name);
+  if (!slug) return '';
+  const url = `${window.location.origin}/eventos/${slug}`;
+  const waText = `Te invitamos a *${activity.name}* en ${activity.location} — ${url}`;
+  const waHref = `https://wa.me/?text=${encodeURIComponent(waText)}`;
+  const twHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(activity.name)}&url=${encodeURIComponent(url)}`;
+  return `
+    <div class="activity-detail-section">
+      <div class="activity-detail-section-header">
+        <h4><i class="fa-solid fa-share-nodes"></i> Compartir esta actividad</h4>
+      </div>
+      <p class="form-hint" style="margin:0 0 10px">
+        Página pública para compartir en WhatsApp y redes. Visitantes pueden reservar su cupo desde el link y recibir su credencial por correo.
+      </p>
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--color-surface-muted,#f4f6fa);border:1px solid var(--color-border);border-radius:var(--radius-md);margin-bottom:10px;">
+        <i class="fa-solid fa-link" style="color:var(--color-text-muted);font-size:13px"></i>
+        <input id="activity-share-url" type="text" readonly value="${Utils.escapeHtml(url)}"
+               style="flex:1;border:0;background:transparent;font-family:Menlo,Monaco,monospace;font-size:13px;color:var(--color-text);outline:none;text-overflow:ellipsis"
+               onclick="this.select()" />
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button type="button" class="btn btn--primary btn--sm" data-action="activity-share-copy" data-share-url="${Utils.escapeHtml(url)}">
+          <i class="fa-regular fa-copy"></i> Copiar enlace
+        </button>
+        <a class="btn btn--sm" href="${Utils.escapeHtml(waHref)}" target="_blank" rel="noopener" style="background:#25d366;color:#fff;border-color:#25d366">
+          <i class="fa-brands fa-whatsapp"></i> WhatsApp
+        </a>
+        <a class="btn btn--ghost btn--sm" href="${Utils.escapeHtml(twHref)}" target="_blank" rel="noopener">
+          <i class="fa-brands fa-x-twitter"></i> X / Twitter
+        </a>
+        <a class="btn btn--ghost btn--sm" href="${Utils.escapeHtml(url)}" target="_blank" rel="noopener">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir
+        </a>
+      </div>
+    </div>`;
 }
 
 function renderInvitationsSection(activity, invitations) {
@@ -2338,6 +2407,20 @@ function renderInvitationsSection(activity, invitations) {
         </table>
       </div>
     </div>`;
+}
+
+async function handleActivityShareCopy(target) {
+  const url = target?.dataset?.shareUrl;
+  if (!url) return;
+  const ok = await Utils.copyToClipboard(url);
+  if (ok) {
+    Toast.success('Enlace copiado');
+    const original = target.innerHTML;
+    target.innerHTML = '<i class="fa-solid fa-check"></i> Copiado';
+    setTimeout(() => { target.innerHTML = original; }, 1500);
+  } else {
+    Toast.error('No fue posible copiar — selecciona el enlace y cópialo manualmente');
+  }
 }
 
 async function handleActivityInvite(activityId) {
@@ -3604,6 +3687,7 @@ function bindGlobalEvents() {
       case 'activity-report-xlsx': handleActivityReport(id, target, 'xlsx'); break;
       case 'activity-report-pdf': handleActivityReport(id, target, 'pdf'); break;
       case 'activity-invite': handleActivityInvite(id); break;
+      case 'activity-share-copy': handleActivityShareCopy(target); break;
       case 'activities-export': handleExport('activities'); break;
       case 'activity-attendees-export':
         exportActivityAttendees(target.dataset.id); break;
