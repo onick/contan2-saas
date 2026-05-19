@@ -205,6 +205,24 @@ const Utils = {
       .replace(/^-+|-+$/g, '')
       .slice(0, 80);
   },
+  relativeDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(d);
+    target.setHours(0, 0, 0, 0);
+    const diff = Math.round((today - target) / 86400000);
+    if (diff === 0) return 'Hoy';
+    if (diff === 1) return 'Ayer';
+    if (diff > 1 && diff < 30) return `Hace ${diff} días`;
+    if (diff >= 30 && diff < 60) return 'Hace ~1 mes';
+    if (diff >= 60 && diff < 365) return `Hace ${Math.round(diff / 30)} meses`;
+    if (diff >= 365) return `Hace ${Math.floor(diff / 365)} año${Math.floor(diff / 365) === 1 ? '' : 's'}`;
+    if (diff < 0) return d.toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
+    return '—';
+  },
   async copyToClipboard(text) {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -3066,14 +3084,64 @@ async function handleAttendanceDelete(id) {
 // ============================================================
 // View: Segments
 // ============================================================
+const _segState = { onlyWithMembers: false, lastData: null };
+
 async function renderSegments() {
-  const { segments } = await API.insights.segments();
-  document.getElementById('content').innerHTML = `
+  const root = document.getElementById('content');
+  root.innerHTML = `
+    <div class="segments-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="form-hint" id="segments-summary" style="margin:0">Cargando segmentos…</div>
+      <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:13px;color:var(--color-text-muted)">
+        <input type="checkbox" id="segments-only-active" ${_segState.onlyWithMembers ? 'checked' : ''} />
+        Mostrar solo con miembros
+      </label>
+    </div>
+    <div id="segments-grid-host"><div class="segments-grid"><div class="skeleton-block" style="height:120px"></div><div class="skeleton-block" style="height:120px"></div><div class="skeleton-block" style="height:120px"></div></div></div>`;
+
+  try {
+    const { segments } = await API.insights.segments();
+    _segState.lastData = segments;
+    paintSegmentsGrid();
+  } catch (e) {
+    document.getElementById('segments-grid-host').innerHTML =
+      `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i><h3>No pudimos cargar los segmentos</h3><p>${Utils.escapeHtml(explainError(e))}</p></div>`;
+  }
+
+  const toggle = document.getElementById('segments-only-active');
+  if (toggle) {
+    toggle.addEventListener('change', e => {
+      _segState.onlyWithMembers = e.target.checked;
+      paintSegmentsGrid();
+    });
+  }
+}
+
+function paintSegmentsGrid() {
+  const segments = _segState.lastData || [];
+  const visible = _segState.onlyWithMembers ? segments.filter(s => s.count > 0) : segments;
+  const totalPeople = segments.reduce((sum, s) => sum + (s.count || 0), 0);
+  const withMembers = segments.filter(s => s.count > 0).length;
+
+  const summary = document.getElementById('segments-summary');
+  if (summary) {
+    summary.textContent = `${withMembers} de ${segments.length} segmentos con miembros · ${totalPeople} apariciones totales (un mismo usuario puede contar en varios segmentos).`;
+  }
+
+  const host = document.getElementById('segments-grid-host');
+  if (!host) return;
+
+  if (visible.length === 0) {
+    host.innerHTML = `<div class="empty"><i class="fa-solid fa-layer-group"></i><h3>No hay segmentos con miembros</h3><p>A medida que se acumulen asistencias y registros, los segmentos se irán poblando.</p></div>`;
+    return;
+  }
+
+  host.innerHTML = `
     <div class="segments-grid">
-      ${segments
-        .map(
-          s => `
-        <button class="segment-card" data-action="segment-open" data-id="${Utils.escapeHtml(s.id)}">
+      ${visible.map(s => {
+        const empty = !s.count;
+        return `
+        <button class="segment-card" data-action="segment-open" data-id="${Utils.escapeHtml(s.id)}" data-empty="${empty ? 'true' : 'false'}"
+                style="${empty ? 'opacity:0.5' : ''}">
           <div class="segment-icon segment-icon--${Utils.escapeHtml(s.color)}">
             <i class="fa-solid ${Utils.escapeHtml(s.icon)}"></i>
           </div>
@@ -3083,13 +3151,14 @@ async function renderSegments() {
           </div>
           <div class="segment-count">
             <span>${s.count}</span>
-            <small>persona(s)</small>
+            <small>persona${s.count === 1 ? '' : 's'}</small>
           </div>
-        </button>`,
-        )
-        .join('')}
+        </button>`;
+      }).join('')}
     </div>`;
 }
+
+const _segDetailCache = { id: null, data: null, meta: null };
 
 async function handleSegmentOpen(id) {
   let data;
@@ -3099,9 +3168,26 @@ async function handleSegmentOpen(id) {
     Toast.error(explainError(e));
     return;
   }
-  const { segments } = await API.insights.segments().catch(() => ({ segments: [] }));
-  const meta = segments.find(s => s.id === id) || { label: id, description: '', icon: 'fa-layer-group', color: 'blue' };
+  const meta = (_segState.lastData || []).find(s => s.id === id)
+    || { label: id, description: '', icon: 'fa-layer-group', color: 'blue' };
+  _segDetailCache.id = id;
+  _segDetailCache.data = data;
+  _segDetailCache.meta = meta;
 
+  // Asegura que las actividades activas estén disponibles para el picker de invitación
+  if (!State.activities || State.activities.length === 0) {
+    try {
+      const r = await API.activities.list();
+      State.activities = r.activities;
+    } catch { /* el picker reportará si no hay actividades */ }
+  }
+
+  Modal.open(meta.label, renderSegmentDetailBody(), null);
+  bindSegmentDetailHandlers();
+}
+
+function renderSegmentDetailBody() {
+  const { data, meta, id } = _segDetailCache;
   const STATUS_BADGE = {
     activo: '<span class="badge badge--success">Activo</span>',
     regular: '<span class="badge badge--info">Regular</span>',
@@ -3109,7 +3195,53 @@ async function handleSegmentOpen(id) {
     nuevo: '<span class="badge badge--neutral">Nuevo</span>',
   };
 
-  const body = `
+  const withEmail = data.users.filter(u => u.email).length;
+  const activeActivities = (State.activities || []).filter(a => a.status === 'activa');
+  const canInvite = data.total > 0 && withEmail > 0 && activeActivities.length > 0;
+
+  const searchKey = u => `${u.code} ${u.firstName} ${u.lastName} ${u.email || ''} ${u.phone || ''}`
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+
+  const tableHtml = data.total === 0
+    ? `<div class="empty"><i class="fa-solid fa-user-slash"></i><h3>Sin usuarios en este segmento</h3><p>A medida que se acumulen asistencias aparecerán aquí.</p></div>`
+    : `
+      <div class="attendees-search" style="margin-bottom:10px">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="segment-search-input" placeholder="Buscar por nombre, código, email o teléfono…" autocomplete="off" />
+        <span class="attendees-search-count" id="segment-search-count">${data.total} de ${data.total}</span>
+      </div>
+      <div class="table-wrapper" style="max-height:380px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-md)">
+        <table class="table" id="segment-table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre</th>
+              <th>Email</th>
+              <th>Asistencias</th>
+              <th>Última visita</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.users.map(u => `
+              <tr data-segment-row="${Utils.escapeHtml(searchKey(u))}">
+                <td><span class="user-code">${Utils.escapeHtml(u.code)}</span></td>
+                <td class="cell-strong">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</td>
+                <td class="cell-muted" title="${Utils.escapeHtml(u.phone || '')}">${u.email ? Utils.escapeHtml(u.email) : '<span class="badge badge--warning badge--xs">Sin email</span>'}</td>
+                <td><span class="badge badge--info">${u.totalAttendances}</span></td>
+                <td class="cell-muted">${Utils.relativeDate(u.lastAttendanceAt)}</td>
+                <td>${STATUS_BADGE[u.status] || ''}</td>
+              </tr>`).join('')}
+            <tr id="segment-empty-row" class="hidden">
+              <td colspan="6" class="empty-inline"><i class="fa-solid fa-magnifying-glass"></i> Sin resultados</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+
+  return `
     <div class="segment-detail">
       <div class="segment-detail-header">
         <div class="segment-icon segment-icon--${Utils.escapeHtml(meta.color)}">
@@ -3117,52 +3249,141 @@ async function handleSegmentOpen(id) {
         </div>
         <div>
           <h3>${Utils.escapeHtml(meta.label)}</h3>
-          <p class="form-hint">${Utils.escapeHtml(meta.description)} · ${data.total} persona(s)</p>
+          <p class="form-hint">${Utils.escapeHtml(meta.description)} · ${data.total} persona${data.total === 1 ? '' : 's'}${data.total > 0 ? ` · ${withEmail} con correo` : ''}</p>
         </div>
       </div>
-      ${data.total === 0
-        ? `<div class="empty"><i class="fa-solid fa-user-slash"></i><h3>Sin usuarios en este segmento</h3><p>A medida que se acumulen asistencias aparecerán aquí.</p></div>`
-        : `
-        <div class="table-wrapper" style="max-height:420px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-md)">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Nombre</th>
-                <th>Contacto</th>
-                <th>Asistencias</th>
-                <th>Última visita</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${data.users
-                .map(
-                  u => `
-                <tr>
-                  <td><span class="user-code">${Utils.escapeHtml(u.code)}</span></td>
-                  <td class="cell-strong">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</td>
-                  <td class="cell-muted">${Utils.escapeHtml(u.email || u.phone || '—')}</td>
-                  <td><span class="badge badge--info">${u.totalAttendances}</span></td>
-                  <td class="cell-muted">${u.lastAttendanceAt ? Utils.formatDate(u.lastAttendanceAt, false) : '—'}</td>
-                  <td>${STATUS_BADGE[u.status] || ''}</td>
-                </tr>`,
-                )
-                .join('')}
-            </tbody>
-          </table>
-        </div>`}
+
+      ${tableHtml}
+
+      <div id="segment-invite-panel"></div>
+
       <div class="form-actions">
         <button type="button" class="btn btn--ghost" data-close>Cerrar</button>
         ${data.total > 0
-          ? `<button type="button" class="btn btn--primary" data-action="segment-export" data-id="${Utils.escapeHtml(id)}">
+          ? `<button type="button" class="btn btn--ghost" data-action="segment-export" data-id="${Utils.escapeHtml(id)}">
               <i class="fa-solid fa-file-export"></i> Exportar a Excel
+            </button>`
+          : ''}
+        ${canInvite
+          ? `<button type="button" class="btn btn--primary" id="segment-invite-open">
+              <i class="fa-solid fa-paper-plane"></i> Invitar a una actividad
             </button>`
           : ''}
       </div>
     </div>`;
+}
 
-  Modal.open(meta.label, body, null);
+function bindSegmentDetailHandlers() {
+  const input = document.getElementById('segment-search-input');
+  const countEl = document.getElementById('segment-search-count');
+  const rows = document.querySelectorAll('[data-segment-row]');
+  const emptyRow = document.getElementById('segment-empty-row');
+  if (input) {
+    input.addEventListener('input', () => {
+      const q = input.value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      let visible = 0;
+      rows.forEach(tr => {
+        const match = !q || tr.dataset.segmentRow.includes(q);
+        tr.classList.toggle('hidden', !match);
+        if (match) visible += 1;
+      });
+      if (countEl) countEl.textContent = `${visible} de ${rows.length}`;
+      if (emptyRow) emptyRow.classList.toggle('hidden', visible !== 0);
+    });
+  }
+  const openBtn = document.getElementById('segment-invite-open');
+  if (openBtn) {
+    openBtn.addEventListener('click', () => paintSegmentInvitePanel());
+  }
+}
+
+function paintSegmentInvitePanel() {
+  const host = document.getElementById('segment-invite-panel');
+  if (!host) return;
+  const { data } = _segDetailCache;
+  const activeActivities = (State.activities || []).filter(a => a.status === 'activa');
+  const withEmailIds = data.users.filter(u => u.email && u.id).map(u => u.id);
+  const noEmailCount = data.users.filter(u => !u.email).length;
+
+  host.innerHTML = `
+    <div class="activity-detail-section" id="segment-invite-section">
+      <div class="activity-detail-section-header">
+        <h4><i class="fa-solid fa-paper-plane"></i> Invitar a este segmento</h4>
+      </div>
+      <p class="form-hint" style="margin:0 0 10px">
+        Se enviará una invitación por correo (con link único de RSVP) a los <strong>${withEmailIds.length}</strong> usuarios del segmento que tienen email.
+        ${noEmailCount > 0 ? ` Los ${noEmailCount} sin email serán omitidos.` : ''}
+      </p>
+      <div class="form-grid" style="grid-template-columns:1fr;gap:10px">
+        <label class="form-field">
+          <span class="form-label">Actividad</span>
+          <select id="segment-invite-activity" class="form-input">
+            ${activeActivities.map(a => `
+              <option value="${Utils.escapeHtml(a.id)}">${Utils.escapeHtml(a.name)} · ${Utils.formatDate(a.date, false)} · ${a.enrolledCount}/${a.capacity}</option>
+            `).join('')}
+          </select>
+        </label>
+      </div>
+      <div id="segment-invite-result" style="margin-top:10px"></div>
+      <div class="form-actions" style="margin-top:10px;border-top:0;padding-top:0">
+        <button type="button" class="btn btn--ghost" id="segment-invite-cancel">Cancelar</button>
+        <button type="button" class="btn btn--primary" id="segment-invite-confirm" ${withEmailIds.length === 0 ? 'disabled' : ''}>
+          <i class="fa-solid fa-paper-plane"></i> Enviar ${withEmailIds.length} invitación${withEmailIds.length === 1 ? '' : 'es'}
+        </button>
+      </div>
+    </div>`;
+
+  document.getElementById('segment-invite-cancel').onclick = () => { host.innerHTML = ''; };
+  document.getElementById('segment-invite-confirm').onclick = async () => {
+    const select = document.getElementById('segment-invite-activity');
+    const activityId = select?.value;
+    if (!activityId) { Toast.error('Selecciona una actividad'); return; }
+    const activity = activeActivities.find(a => a.id === activityId);
+    const ok = await Modal.confirm({
+      title: 'Confirmar envío',
+      message: `Vas a enviar ${withEmailIds.length} invitación${withEmailIds.length === 1 ? '' : 'es'} por correo para "${activity?.name || ''}". Los que ya estén invitados no recibirán doble. ¿Continuar?`,
+      confirmLabel: 'Sí, enviar',
+    });
+    if (!ok) return;
+    await sendSegmentInvitations(activityId, withEmailIds);
+  };
+}
+
+async function sendSegmentInvitations(activityId, userIds) {
+  const confirmBtn = document.getElementById('segment-invite-confirm');
+  const cancelBtn = document.getElementById('segment-invite-cancel');
+  const resultEl = document.getElementById('segment-invite-result');
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando…'; }
+  if (cancelBtn) cancelBtn.disabled = true;
+  try {
+    const result = await API.activities.invite(activityId, userIds);
+    const s = result.summary || {};
+    const html = `
+      <div class="form-hint" style="border:1px solid var(--color-border);border-radius:var(--radius-md);padding:12px;background:#f0fdf4;color:#166534">
+        <strong><i class="fa-solid fa-circle-check"></i> Envío completado.</strong><br>
+        Solicitadas: ${s.requested ?? userIds.length} ·
+        Creadas: ${s.created ?? 0} ·
+        Ya invitadas: ${s.alreadyInvited ?? 0} ·
+        Enviadas: ${s.emailsSent ?? 0} ·
+        Omitidas: ${s.emailsSkipped ?? 0} ·
+        Fallidas: ${s.emailsFailed ?? 0}
+      </div>`;
+    if (resultEl) resultEl.innerHTML = html;
+    Toast.success(`${s.emailsSent || 0} invitación${(s.emailsSent || 0) === 1 ? '' : 'es'} enviada${(s.emailsSent || 0) === 1 ? '' : 's'}`);
+    if (confirmBtn) {
+      confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> Enviado';
+    }
+  } catch (e) {
+    if (resultEl) {
+      resultEl.innerHTML = `<div class="form-hint" style="border:1px solid var(--color-border);border-radius:var(--radius-md);padding:12px;background:#fef2f2;color:#991b1b">
+        <strong><i class="fa-solid fa-triangle-exclamation"></i> No se pudo enviar.</strong><br>
+        ${Utils.escapeHtml(explainError(e))}
+      </div>`;
+    }
+    Toast.error(explainError(e));
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Reintentar'; }
+    if (cancelBtn) cancelBtn.disabled = false;
+  }
 }
 
 function exportSegment(id) {
@@ -3191,7 +3412,8 @@ function exportSegment(id) {
       ws['!cols'] = aoa[0].map(h => ({ wch: Math.max(14, String(h).length + 4) }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Segmento');
-      XLSX.writeFile(wb, `ccb-segmento-${id}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const prefix = (State.tenant?.codePrefix || 'segmento').toLowerCase();
+      XLSX.writeFile(wb, `${prefix}-segmento-${id}-${new Date().toISOString().slice(0, 10)}.xlsx`);
       Toast.success(`${data.total} persona(s) exportadas`);
     })
     .catch(e => Toast.error(explainError(e)));

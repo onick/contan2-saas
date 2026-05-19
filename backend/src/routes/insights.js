@@ -42,6 +42,8 @@ async function buildAffinityForUser(repos, user) {
 
   return {
     code: user.code,
+    userId: user.id,
+    hasEmail: !!user.email,
     name: `${user.firstName} ${user.lastName}`,
     visitCount: user.visitCount,
     totalAttendances,
@@ -158,6 +160,7 @@ export function createInsightsRouter() {
       res.json({
         segmentId: req.params.id,
         users: matches.map(({ user, affinity }) => ({
+          id: user.id,
           code: user.code,
           firstName: user.firstName,
           lastName: user.lastName,
@@ -269,6 +272,22 @@ function computeSegmentCounts(affs) {
       color: 'purple',
       match: a => a.status === 'dormido',
     },
+    {
+      id: 'with-email',
+      label: 'Con correo',
+      description: 'Usuarios contactables por email',
+      icon: 'fa-envelope',
+      color: 'green',
+      match: a => a.hasEmail,
+    },
+    {
+      id: 'without-email',
+      label: 'Sin correo',
+      description: 'Falta capturar correo electrónico',
+      icon: 'fa-envelope-open',
+      color: 'orange',
+      match: a => !a.hasEmail,
+    },
   ];
 
   ACTIVITY_TYPES.forEach(t => {
@@ -299,6 +318,8 @@ function filterBySegment(all, id) {
   if (id === 'active') return all.filter(x => x.affinity.status === 'activo');
   if (id === 'newcomers') return all.filter(x => x.affinity.totalAttendances === 1);
   if (id === 'dormant') return all.filter(x => x.affinity.status === 'dormido');
+  if (id === 'with-email') return all.filter(x => x.affinity.hasEmail);
+  if (id === 'without-email') return all.filter(x => !x.affinity.hasEmail);
   for (const t of ACTIVITY_TYPES) {
     if (t === 'otro') continue;
     if (id === `fans-${t}`) {
