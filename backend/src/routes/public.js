@@ -266,7 +266,9 @@ export function createPublicRouter() {
           throw e;
         }
         if (user.email) {
-          sendCredentialEmail(user, req.organization).catch(err =>
+          sendCredentialEmail(user, req.organization).then(r => {
+            if (r?.sent) req.repos.users.markCredentialSent(user.code).catch(() => {});
+          }).catch(err =>
             console.error('[public-checkin] envío credencial falló:', err.message),
           );
         }
@@ -377,7 +379,9 @@ export function createPublicRouter() {
       // - Usuario existente -> confirmacion de reserva mas liviana, le recordamos
       //   su codigo ya emitido; sin PNG para no spamear ni duplicar credenciales.
       if (isNewUser) {
-        sendCredentialEmail(user, req.organization).catch(err =>
+        sendCredentialEmail(user, req.organization).then(r => {
+          if (r?.sent) req.repos.users.markCredentialSent(user.code).catch(() => {});
+        }).catch(err =>
           console.error('[event-reserve] credencial email falló:', err.message),
         );
       } else {

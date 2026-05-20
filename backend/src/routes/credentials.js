@@ -57,6 +57,8 @@ export function createCredentialsRouter() {
       if (!result.sent) {
         return res.status(502).json({ ok: false, error: result.error });
       }
+      // Marca el timestamp de credencial enviada (para que la UI sepa el estado)
+      await req.repos.users.markCredentialSent(user.code).catch(() => {});
       res.json({ ok: true, id: result.id, email: user.email });
     } catch (e) {
       next(e);
@@ -97,9 +99,14 @@ export function createCredentialsRouter() {
         }
         try {
           const r = await sendCredentialEmail(user, req.organization);
-          if (r.sent) results.push({ code, ok: true, id: r.id });
-          else if (r.skipped) results.push({ code, ok: false, skipped: true, reason: r.reason });
-          else results.push({ code, ok: false, error: r.error });
+          if (r.sent) {
+            results.push({ code, ok: true, id: r.id });
+            await req.repos.users.markCredentialSent(code).catch(() => {});
+          } else if (r.skipped) {
+            results.push({ code, ok: false, skipped: true, reason: r.reason });
+          } else {
+            results.push({ code, ok: false, error: r.error });
+          }
         } catch (e) {
           results.push({ code, ok: false, error: e.message });
         }

@@ -1003,7 +1003,7 @@ function paintUsersTable() {
             <tr data-code="${Utils.escapeHtml(u.code)}" class="row-clickable" data-action="user-detail">
               <td><span class="user-code">${Utils.escapeHtml(u.code)}</span></td>
               <td class="cell-strong">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</td>
-              <td class="cell-muted">${Utils.escapeHtml(u.email || '—')}</td>
+              <td class="cell-muted">${renderEmailWithStatus(u)}</td>
               <td class="cell-muted">${Utils.escapeHtml(u.phone || '—')}</td>
               <td><span class="badge badge--info">${u.visitCount}</span></td>
               <td class="cell-muted">${Utils.formatDate(u.createdAt, false)}</td>
@@ -1106,6 +1106,26 @@ function qrUrl(code, size = 160) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(code)}`;
 }
 
+function renderEmailWithStatus(u) {
+  if (!u.email) return '—';
+  const sent = !!u.credentialSentAt;
+  const dot = sent
+    ? `<span title="Credencial enviada ${Utils.formatDate(u.credentialSentAt)}" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;margin-right:6px;vertical-align:middle"></span>`
+    : `<span title="Credencial pendiente de enviar" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#f59e0b;margin-right:6px;vertical-align:middle"></span>`;
+  return `${dot}${Utils.escapeHtml(u.email)}`;
+}
+
+function renderCredentialStatusBadge(user) {
+  if (!user.email) {
+    return `<span class="badge badge--warning" title="Sin correo registrado — no se le puede enviar credencial por email"><i class="fa-solid fa-envelope-open"></i> Sin email</span>`;
+  }
+  if (user.credentialSentAt) {
+    const rel = Utils.relativeDate(user.credentialSentAt);
+    return `<span class="badge badge--success" title="Credencial enviada por email el ${Utils.formatDate(user.credentialSentAt)}"><i class="fa-solid fa-circle-check"></i> Credencial enviada · ${rel.toLowerCase()}</span>`;
+  }
+  return `<span class="badge badge--warning" title="El usuario tiene email pero todavía no se le ha enviado la credencial. Usa 'Enviar credencial' abajo para hacerlo ahora."><i class="fa-solid fa-clock"></i> Credencial pendiente</span>`;
+}
+
 async function handleUserDetail(code) {
   let user, attResp, affinity;
   try {
@@ -1156,6 +1176,7 @@ async function handleUserDetail(code) {
           <div class="user-detail-stats">
             <span class="badge badge--info"><i class="fa-solid fa-repeat"></i> ${user.visitCount} visita(s)</span>
             <span class="badge badge--neutral">Registrado ${Utils.formatDate(user.createdAt, false)}</span>
+            ${renderCredentialStatusBadge(user)}
           </div>
         </div>
       </div>
@@ -1171,7 +1192,7 @@ async function handleUserDetail(code) {
         </button>
         ${user.email
           ? `<button type="button" class="btn btn--accent" id="user-detail-send">
-              <i class="fa-solid fa-envelope"></i> Enviar credencial
+              <i class="fa-solid fa-envelope"></i> ${user.credentialSentAt ? 'Reenviar credencial' : 'Enviar credencial'}
             </button>`
           : ''}
         <button type="button" class="btn btn--primary" id="user-detail-edit">
@@ -1201,6 +1222,11 @@ async function sendCredentialEmail(user) {
     });
     if (result.ok) {
       Toast.success(`Credencial enviada a ${user.email}`);
+      // Re-fetch del usuario para refrescar el badge y el botón con el nuevo estado
+      try {
+        const fresh = await API.users.get(user.code);
+        user.credentialSentAt = fresh.credentialSentAt;
+      } catch { /* ignore */ }
     } else {
       Toast.warning(result.message || 'Credencial generada pero no enviada');
     }
@@ -1209,7 +1235,9 @@ async function sendCredentialEmail(user) {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<i class="fa-solid fa-envelope"></i> Enviar credencial';
+      btn.innerHTML = user.credentialSentAt
+        ? '<i class="fa-solid fa-rotate"></i> Reenviar credencial'
+        : '<i class="fa-solid fa-envelope"></i> Enviar credencial';
     }
   }
 }

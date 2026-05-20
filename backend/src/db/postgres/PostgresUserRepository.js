@@ -11,6 +11,7 @@ function rowToUser(r) {
     email: r.email,
     phone: r.phone,
     visitCount: r.visit_count,
+    credentialSentAt: r.credential_sent_at instanceof Date ? r.credential_sent_at.toISOString() : r.credential_sent_at,
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
     updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : r.updated_at,
   };
@@ -127,6 +128,16 @@ export class PostgresUserRepository {
        WHERE organization_id = $1 AND code = $2
        RETURNING *`,
       values,
+    );
+    return rowToUser(rows[0]);
+  }
+
+  async markCredentialSent(code) {
+    const { rows } = await this.pool.query(
+      `UPDATE users SET credential_sent_at = NOW(), updated_at = NOW()
+       WHERE organization_id = $1 AND code = $2
+       RETURNING *`,
+      [this.orgId, code],
     );
     return rowToUser(rows[0]);
   }

@@ -19,7 +19,11 @@ export function createUsersRouter() {
       if (existing) throw new HttpError(409, 'El email ya está registrado');
       const user = await req.repos.users.create(data);
       if (user.email) {
-        sendCredentialEmail(user, req.organization).catch(err =>
+        sendCredentialEmail(user, req.organization).then(r => {
+          if (r?.sent) {
+            req.repos.users.markCredentialSent(user.code).catch(() => {});
+          }
+        }).catch(err =>
           console.error('[users] envío credencial falló:', err.message),
         );
       }

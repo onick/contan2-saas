@@ -30,6 +30,7 @@ export class MemoryUserRepository {
       email: data.email ?? null,
       phone: data.phone ?? null,
       visitCount: 1,
+      credentialSentAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -103,6 +104,15 @@ export class MemoryUserRepository {
     const user = this.users.get(id);
     user.visitCount += 1;
     user.updatedAt = new Date().toISOString();
+    return { ...user };
+  }
+
+  async markCredentialSent(code) {
+    const id = this.byCode.get(code);
+    if (!id) return null;
+    const user = this.users.get(id);
+    user.credentialSentAt = new Date().toISOString();
+    user.updatedAt = user.credentialSentAt;
     return { ...user };
   }
 
