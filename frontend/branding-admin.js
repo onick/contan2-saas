@@ -195,7 +195,38 @@
 
     root.innerHTML = renderForm(state);
     bindForm(root, state);
-    mountDomainSection();
+    bindTabs(root);
+    // El dominio tab se monta cuando se activa (lazy, ahorra una API call si no se visita)
+    if (getActiveTab() === 'dominio') mountDomainSection();
+  }
+
+  function bindTabs(root) {
+    const tabs = root.querySelectorAll('.ba-tab');
+    const panels = root.querySelectorAll('.ba-tab-panel');
+    const footer = root.querySelector('#ba-footer');
+
+    function activate(id) {
+      tabs.forEach(t => t.classList.toggle('is-active', t.dataset.tab === id));
+      panels.forEach(p => p.classList.toggle('is-active', p.dataset.panel === id));
+      if (footer) {
+        const showIn = (footer.dataset.showIn || '').split(',').map(s => s.trim());
+        footer.style.display = showIn.includes(id) ? '' : 'none';
+      }
+      setActiveTab(id);
+      // Lazy-load del dominio (sólo cuando se entra a esa tab)
+      if (id === 'dominio' && !root.querySelector('#domain-section-body')?.dataset.loaded) {
+        mountDomainSection();
+      }
+    }
+
+    tabs.forEach(t => t.addEventListener('click', () => activate(t.dataset.tab)));
+
+    // Aplicar visibilidad inicial del footer según tab activo persistido
+    const active = getActiveTab();
+    if (footer) {
+      const showIn = (footer.dataset.showIn || '').split(',').map(s => s.trim());
+      footer.style.display = showIn.includes(active) ? '' : 'none';
+    }
   }
 
   // ============================================================
@@ -204,6 +235,7 @@
   async function mountDomainSection() {
     const host = document.getElementById('domain-section-body');
     if (!host) return;
+    host.dataset.loaded = '1';
     try {
       const state = await fetch('/api/org/domain', { credentials: 'include' }).then(r => {
         if (r.status === 401) throw new Error('Necesitas iniciar sesión como staff para gestionar el dominio.');
@@ -212,7 +244,7 @@
       });
       paintDomainSection(host, state);
     } catch (e) {
-      host.innerHTML = `<div class="form-hint" style="color:var(--color-danger,#991b1b);padding:12px;background:#fef2f2;border-radius:8px">${escapeHtml(e.message)}</div>`;
+      host.innerHTML = `<div class="dom-banner dom-banner--error">${escapeHtml(e.message)}</div>`;
     }
   }
 
@@ -227,14 +259,13 @@
     if (!has) {
       // Estado inicial: sin dominio configurado
       host.innerHTML = `
-        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
-          <div style="flex:1;min-width:220px">
-            <label for="dom-input" style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Dominio o subdominio</label>
-            <input id="dom-input" type="text" placeholder="eventos.tu-organizacion.com"
-                   style="width:100%;padding:10px 12px;border:1.5px solid var(--color-border);border-radius:8px;font:inherit;font-size:14px" />
+        <div class="dom-empty">
+          <div class="dom-empty-form">
+            <label class="dom-input-label" for="dom-input">Dominio o subdominio</label>
+            <input id="dom-input" type="text" class="dom-input" placeholder="eventos.tu-organizacion.com" autocomplete="off" />
             <div class="form-hint">Sin <code>http://</code> ni <code>/</code>. Ejemplo: <code>eventos.centroculturalbanreservas.com</code></div>
           </div>
-          <button class="btn btn--primary" id="dom-submit" style="margin-top:24px">
+          <button class="btn btn--primary dom-empty-submit" id="dom-submit">
             <i class="fa-solid fa-arrow-right"></i> Solicitar dominio
           </button>
         </div>`;
@@ -249,42 +280,48 @@
       // Estado pendiente: tiene dominio pero no verificado
       const inst = state.instructions || {};
       host.innerHTML = `
-        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start">
-          <i class="fa-solid fa-clock" style="color:#b45309;margin-top:2px"></i>
-          <div style="flex:1">
-            <div style="font-weight:600;color:#9a3412">Pendiente de verificación DNS</div>
-            <div style="font-size:13px;color:#9a3412;margin-top:4px">Dominio solicitado: <code style="background:#fff;padding:2px 6px;border-radius:4px">${escapeHtml(state.customDomain)}</code></div>
+        <div class="dom-banner dom-banner--pending">
+          <i class="fa-solid fa-clock dom-banner-icon"></i>
+          <div class="dom-banner-body">
+            <div class="dom-banner-title">Pendiente de verificación DNS</div>
+            <div class="dom-banner-meta">Dominio solicitado: <code class="dom-code-inline">${escapeHtml(state.customDomain)}</code></div>
           </div>
         </div>
 
-        <p style="font-size:14px;font-weight:600;margin:18px 0 8px"><i class="fa-solid fa-list-ol"></i> Crea estos 2 registros DNS:</p>
+        <p class="dom-steps-title"><i class="fa-solid fa-list-ol"></i> Crea estos 2 registros DNS</p>
 
-        <div style="border:1px solid var(--color-border);border-radius:10px;overflow:hidden;margin-bottom:10px">
-          <div style="background:var(--color-surface-alt,#f4f6fa);padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--color-text-muted)">PASO 1 · TXT DE VERIFICACIÓN</div>
-          <div style="padding:12px 14px;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">
-            <div style="color:var(--color-text-muted)">Tipo:</div><div><strong>TXT</strong></div>
-            <div style="color:var(--color-text-muted)">Host/Nombre:</div><div><code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;user-select:all">${escapeHtml(inst.txt?.host || '')}</code> <button type="button" class="dom-copy" data-copy="${escapeHtml(inst.txt?.host || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
-            <div style="color:var(--color-text-muted)">Valor:</div><div><code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;user-select:all;word-break:break-all">${escapeHtml(inst.txt?.value || '')}</code> <button type="button" class="dom-copy" data-copy="${escapeHtml(inst.txt?.value || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
+        <div class="dom-record">
+          <div class="dom-record-step">PASO 1 · TXT DE VERIFICACIÓN</div>
+          <div class="dom-record-rows">
+            <div class="dom-record-label">Tipo</div>
+            <div class="dom-record-value"><strong>TXT</strong></div>
+            <div class="dom-record-label">Host / Nombre</div>
+            <div class="dom-record-value"><code class="dom-code">${escapeHtml(inst.txt?.host || '')}</code><button type="button" class="dom-copy" data-copy="${escapeHtml(inst.txt?.host || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
+            <div class="dom-record-label">Valor</div>
+            <div class="dom-record-value"><code class="dom-code">${escapeHtml(inst.txt?.value || '')}</code><button type="button" class="dom-copy" data-copy="${escapeHtml(inst.txt?.value || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
           </div>
         </div>
 
-        <div style="border:1px solid var(--color-border);border-radius:10px;overflow:hidden;margin-bottom:14px">
-          <div style="background:var(--color-surface-alt,#f4f6fa);padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--color-text-muted)">PASO 2 · CNAME PARA RUTEO</div>
-          <div style="padding:12px 14px;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">
-            <div style="color:var(--color-text-muted)">Tipo:</div><div><strong>CNAME</strong></div>
-            <div style="color:var(--color-text-muted)">Host/Nombre:</div><div><code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;user-select:all">${escapeHtml(inst.cname?.host || '')}</code> <button type="button" class="dom-copy" data-copy="${escapeHtml(inst.cname?.host || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
-            <div style="color:var(--color-text-muted)">Apunta a:</div><div><code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;user-select:all">${escapeHtml(inst.cname?.value || '')}</code> <button type="button" class="dom-copy" data-copy="${escapeHtml(inst.cname?.value || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
+        <div class="dom-record">
+          <div class="dom-record-step">PASO 2 · CNAME PARA RUTEO</div>
+          <div class="dom-record-rows">
+            <div class="dom-record-label">Tipo</div>
+            <div class="dom-record-value"><strong>CNAME</strong></div>
+            <div class="dom-record-label">Host / Nombre</div>
+            <div class="dom-record-value"><code class="dom-code">${escapeHtml(inst.cname?.host || '')}</code><button type="button" class="dom-copy" data-copy="${escapeHtml(inst.cname?.host || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
+            <div class="dom-record-label">Apunta a</div>
+            <div class="dom-record-value"><code class="dom-code">${escapeHtml(inst.cname?.value || '')}</code><button type="button" class="dom-copy" data-copy="${escapeHtml(inst.cname?.value || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
           </div>
         </div>
 
-        <div class="form-hint" style="margin-bottom:14px">
+        <div class="dom-hint">
           <i class="fa-solid fa-circle-info"></i> La propagación DNS puede tardar entre 1 y 30 minutos.
           Cuando ambos registros estén creados, pulsa <strong>Verificar ahora</strong>.
         </div>
 
-        <div id="dom-verify-result" style="margin-bottom:10px"></div>
+        <div id="dom-verify-result"></div>
 
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="dom-actions">
           <button class="btn btn--primary" id="dom-verify"><i class="fa-solid fa-circle-check"></i> Verificar ahora</button>
           <button class="btn btn--ghost" id="dom-delete"><i class="fa-solid fa-trash"></i> Cancelar solicitud</button>
         </div>`;
@@ -297,22 +334,22 @@
 
     // Estado verificado
     host.innerHTML = `
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;display:flex;gap:10px;align-items:flex-start">
-        <i class="fa-solid fa-circle-check" style="color:#16a34a;margin-top:2px;font-size:18px"></i>
-        <div style="flex:1">
-          <div style="font-weight:700;color:#166534">Dominio verificado</div>
-          <div style="font-size:13px;color:#166534;margin-top:4px">
-            <code style="background:#fff;padding:2px 6px;border-radius:4px;font-size:14px">${escapeHtml(state.customDomain)}</code>
-            <span style="opacity:0.7"> · verificado el ${new Date(state.verifiedAt).toLocaleString('es-DO')}</span>
+      <div class="dom-banner dom-banner--success">
+        <i class="fa-solid fa-circle-check dom-banner-icon"></i>
+        <div class="dom-banner-body">
+          <div class="dom-banner-title">Dominio verificado</div>
+          <div class="dom-banner-meta">
+            <code class="dom-code-inline">${escapeHtml(state.customDomain)}</code>
+            <span class="dom-banner-when">· verificado el ${new Date(state.verifiedAt).toLocaleString('es-DO')}</span>
           </div>
         </div>
       </div>
 
-      <div class="form-hint" style="margin-top:14px">
+      <div class="dom-hint">
         <i class="fa-solid fa-circle-info"></i> Si todavía no responde, nuestro equipo está activando el routing. Suele tardar pocos minutos. Una vez activo, podrás acceder a tu plataforma desde <strong>https://${escapeHtml(state.customDomain)}</strong>.
       </div>
 
-      <div style="margin-top:14px">
+      <div class="dom-actions">
         <button class="btn btn--ghost btn--sm" id="dom-delete"><i class="fa-solid fa-trash"></i> Remover dominio personalizado</button>
       </div>`;
     document.getElementById('dom-delete').onclick = deleteDomain;
@@ -375,8 +412,12 @@
         mountDomainSection();
       } else {
         if (result) {
-          result.innerHTML = `<div style="padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#9a3412;font-size:13px">
-            <strong>Aún no podemos verificar:</strong> ${escapeHtml(data.reason || 'Sin razón clara')}
+          result.innerHTML = `<div class="dom-banner dom-banner--warning">
+            <i class="fa-solid fa-triangle-exclamation dom-banner-icon"></i>
+            <div class="dom-banner-body">
+              <div class="dom-banner-title">Aún no podemos verificar</div>
+              <div class="dom-banner-meta">${escapeHtml(data.reason || 'Sin razón clara')}</div>
+            </div>
           </div>`;
         }
       }
@@ -403,12 +444,39 @@
     }
   }
 
+  const TABS = [
+    { id: 'apariencia', label: 'Apariencia', icon: 'fa-palette', desc: 'Colores, sidebar y logo del panel' },
+    { id: 'email',      label: 'Email',      icon: 'fa-envelope', desc: 'Logo en correos transaccionales' },
+    { id: 'dominio',    label: 'Dominio',    icon: 'fa-globe', desc: 'Tu propio dominio personalizado' },
+  ];
+  const STORAGE_KEY_TAB = 'contan2.branding.tab';
+
+  function getActiveTab() {
+    const stored = (typeof localStorage !== 'undefined') ? localStorage.getItem(STORAGE_KEY_TAB) : null;
+    if (stored && TABS.some(t => t.id === stored)) return stored;
+    return 'apariencia';
+  }
+  function setActiveTab(id) {
+    try { localStorage.setItem(STORAGE_KEY_TAB, id); } catch { /* ignore */ }
+  }
+
   function renderForm(s) {
+    const active = getActiveTab();
     return `
-      <div class="branding-grid">
-        <section class="card branding-card">
-          <header class="card-head">
-            <h2><i class="fa-solid fa-palette"></i> Colores</h2>
+      <div class="ba-page">
+        <nav class="ba-tabs" role="tablist">
+          ${TABS.map(t => `
+            <button type="button" role="tab" class="ba-tab ${active === t.id ? 'is-active' : ''}" data-tab="${t.id}">
+              <i class="fa-solid ${t.icon}"></i>
+              <span>${t.label}</span>
+            </button>`).join('')}
+        </nav>
+
+        <section class="ba-tab-panel ${active === 'apariencia' ? 'is-active' : ''}" data-panel="apariencia" role="tabpanel">
+          <div class="branding-grid">
+            <section class="card branding-card">
+              <header class="card-head">
+                <h2><i class="fa-solid fa-palette"></i> Colores</h2>
             <p>Selecciona tu color primario; el sistema deriva 10 tonos automáticamente.</p>
           </header>
           <div class="branding-fields">
@@ -475,31 +543,6 @@
           </div>
         </section>
 
-        <section class="card branding-card">
-          <header class="card-head">
-            <h2><i class="fa-solid fa-envelope"></i> Logo para emails</h2>
-            <p>Aparece en credencial digital y notificaciones (cancelaciones, invitaciones). Los clientes de email usan fondos claros, así que conviene una versión del logo en colores oscuros. Si lo dejas vacío, se usa el logo principal.</p>
-          </header>
-          <div class="branding-logo-picker">
-            <div class="branding-logo-preview" id="b-email-logo-preview">
-              ${(s.pendingEmailLogoPreview || s.emailLogoUrl)
-                ? `<img src="${s.pendingEmailLogoPreview || s.emailLogoUrl}" alt="" />`
-                : `<div class="branding-logo-empty"><i class="fa-solid fa-image"></i><span>Sin logo de email</span></div>`}
-            </div>
-            <div class="branding-logo-actions">
-              <label class="btn btn--ghost btn--sm">
-                <i class="fa-solid fa-arrow-up-from-bracket"></i>
-                <span>${(s.pendingEmailLogoPreview || s.emailLogoUrl) ? 'Cambiar logo de email' : 'Subir logo de email'}</span>
-                <input type="file" id="b-email-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
-              </label>
-              ${(s.pendingEmailLogoPreview || s.emailLogoUrl)
-                ? `<button type="button" class="btn btn--ghost btn--sm" id="b-email-logo-remove"><i class="fa-solid fa-xmark"></i> Quitar</button>`
-                : ''}
-              <div class="form-hint">PNG o JPG. Versión legible sobre fondo blanco. Máx 5 MB.</div>
-            </div>
-          </div>
-        </section>
-
         <aside class="card branding-card branding-preview">
           <header class="card-head">
             <h2><i class="fa-solid fa-eye"></i> Vista previa</h2>
@@ -527,21 +570,59 @@
           </div>
         </aside>
 
-        <footer class="branding-footer">
+          </div>
+        </section>
+
+        <section class="ba-tab-panel ${active === 'email' ? 'is-active' : ''}" data-panel="email" role="tabpanel">
+          <div class="ba-stack">
+            <section class="card branding-card">
+              <header class="card-head">
+                <h2><i class="fa-solid fa-envelope"></i> Logo para emails</h2>
+                <p>Aparece en credencial digital y notificaciones (cancelaciones, invitaciones). Los clientes de email usan fondos claros, así que conviene una versión del logo en colores oscuros. Si lo dejas vacío, se usa el logo principal.</p>
+              </header>
+              <div class="branding-logo-picker">
+                <div class="branding-logo-preview" id="b-email-logo-preview">
+                  ${(s.pendingEmailLogoPreview || s.emailLogoUrl)
+                    ? `<img src="${s.pendingEmailLogoPreview || s.emailLogoUrl}" alt="" />`
+                    : `<div class="branding-logo-empty"><i class="fa-solid fa-image"></i><span>Sin logo de email</span></div>`}
+                </div>
+                <div class="branding-logo-actions">
+                  <label class="btn btn--ghost btn--sm">
+                    <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                    <span>${(s.pendingEmailLogoPreview || s.emailLogoUrl) ? 'Cambiar logo de email' : 'Subir logo de email'}</span>
+                    <input type="file" id="b-email-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+                  </label>
+                  ${(s.pendingEmailLogoPreview || s.emailLogoUrl)
+                    ? `<button type="button" class="btn btn--ghost btn--sm" id="b-email-logo-remove"><i class="fa-solid fa-xmark"></i> Quitar</button>`
+                    : ''}
+                  <div class="form-hint">PNG o JPG. Versión legible sobre fondo blanco. Máx 5 MB.</div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="ba-tab-panel ${active === 'dominio' ? 'is-active' : ''}" data-panel="dominio" role="tabpanel">
+          <div class="ba-stack">
+            <section class="card branding-card">
+              <header class="card-head">
+                <h2><i class="fa-solid fa-globe"></i> Dominio personalizado</h2>
+                <p>Usa tu propio dominio (ej. <code>eventos.tu-organizacion.com</code>) en vez del subdominio que te asignamos. Requiere acceso al DNS de tu dominio.</p>
+              </header>
+              <div class="branding-fields">
+                <div id="domain-section-body">
+                  <div class="loader"><div class="spinner"></div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <footer class="branding-footer" id="ba-footer" data-show-in="apariencia,email">
           <button type="button" class="btn btn--ghost" id="b-reset"><i class="fa-solid fa-rotate-left"></i> Descartar cambios</button>
           <button type="button" class="btn btn--primary" id="b-save"><i class="fa-solid fa-floppy-disk"></i> Guardar identidad</button>
         </footer>
       </div>
-
-      <section class="card branding-card" id="domain-section" style="margin-top:24px;grid-column:1 / -1">
-        <header class="card-head">
-          <h2><i class="fa-solid fa-globe"></i> Dominio personalizado</h2>
-          <p>Usa tu propio dominio (ej. <code>eventos.tu-organizacion.com</code>) en vez del subdominio que te asignamos. Requiere acceso al DNS de tu dominio.</p>
-        </header>
-        <div id="domain-section-body">
-          <div class="loader" style="padding:24px"><div class="spinner"></div></div>
-        </div>
-      </section>
     `;
   }
 
