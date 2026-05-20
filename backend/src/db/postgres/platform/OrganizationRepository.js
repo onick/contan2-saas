@@ -21,6 +21,7 @@ function rowToOrg(r) {
     customDomain: r.custom_domain,
     customDomainVerifiedAt: r.custom_domain_verified_at instanceof Date
       ? r.custom_domain_verified_at.toISOString() : r.custom_domain_verified_at,
+    customDomainVerifyToken: r.custom_domain_verify_token,
     status: r.status,
     trialEndsAt: r.trial_ends_at instanceof Date ? r.trial_ends_at.toISOString() : r.trial_ends_at,
     plan: r.plan,
@@ -99,6 +100,7 @@ export class OrganizationRepository {
       staffPinHash: 'staff_pin_hash',
       customDomain: 'custom_domain',
       customDomainVerifiedAt: 'custom_domain_verified_at',
+      customDomainVerifyToken: 'custom_domain_verify_token',
       status: 'status',
       plan: 'plan',
       trialEndsAt: 'trial_ends_at',

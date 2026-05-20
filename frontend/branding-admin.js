@@ -195,6 +195,212 @@
 
     root.innerHTML = renderForm(state);
     bindForm(root, state);
+    mountDomainSection();
+  }
+
+  // ============================================================
+  // Custom domain — sección self-service
+  // ============================================================
+  async function mountDomainSection() {
+    const host = document.getElementById('domain-section-body');
+    if (!host) return;
+    try {
+      const state = await fetch('/api/org/domain', { credentials: 'include' }).then(r => {
+        if (r.status === 401) throw new Error('Necesitas iniciar sesión como staff para gestionar el dominio.');
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      });
+      paintDomainSection(host, state);
+    } catch (e) {
+      host.innerHTML = `<div class="form-hint" style="color:var(--color-danger,#991b1b);padding:12px;background:#fef2f2;border-radius:8px">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function paintDomainSection(host, state) {
+    const has = !!state.customDomain;
+    const verified = !!state.verifiedAt;
+
+    if (!has) {
+      // Estado inicial: sin dominio configurado
+      host.innerHTML = `
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <label for="dom-input" style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Dominio o subdominio</label>
+            <input id="dom-input" type="text" placeholder="eventos.tu-organizacion.com"
+                   style="width:100%;padding:10px 12px;border:1.5px solid var(--color-border);border-radius:8px;font:inherit;font-size:14px" />
+            <div class="form-hint">Sin <code>http://</code> ni <code>/</code>. Ejemplo: <code>eventos.centroculturalbanreservas.com</code></div>
+          </div>
+          <button class="btn btn--primary" id="dom-submit" style="margin-top:24px">
+            <i class="fa-solid fa-arrow-right"></i> Solicitar dominio
+          </button>
+        </div>`;
+      document.getElementById('dom-submit').onclick = submitDomain;
+      document.getElementById('dom-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') submitDomain();
+      });
+      return;
+    }
+
+    if (!verified) {
+      // Estado pendiente: tiene dominio pero no verificado
+      const inst = state.instructions || {};
+      host.innerHTML = `
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start">
+          <i class="fa-solid fa-clock" style="color:#b45309;margin-top:2px"></i>
+          <div style="flex:1">
+            <div style="font-weight:600;color:#9a3412">Pendiente de verificación DNS</div>
+            <div style="font-size:13px;color:#9a3412;margin-top:4px">Dominio solicitado: <code style="background:#fff;padding:2px 6px;border-radius:4px">${escapeHtml(state.customDomain)}</code></div>
+          </div>
+        </div>
+
+        <p style="font-size:14px;font-weight:600;margin:18px 0 8px"><i class="fa-solid fa-list-ol"></i> Crea estos 2 registros DNS:</p>
+
+        <div style="border:1px solid var(--color-border);border-radius:10px;overflow:hidden;margin-bottom:10px">
+          <div style="background:var(--color-surface-alt,#f4f6fa);padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--color-text-muted)">PASO 1 · TXT DE VERIFICACIÓN</div>
+          <div style="padding:12px 14px;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">
+            <div style="color:var(--color-text-muted)">Tipo:</div><div><strong>TXT</strong></div>
+            <div style="color:var(--color-text-muted)">Host/Nombre:</div><div><code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;user-select:all">${escapeHtml(inst.txt?.host || '')}</code> <button type="button" class="dom-copy" data-copy="${escapeHtml(inst.txt?.host || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
+            <div style="color:var(--color-text-muted)">Valor:</div><div><code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;user-select:all;word-break:break-all">${escapeHtml(inst.txt?.value || '')}</code> <button type="button" class="dom-copy" data-copy="${escapeHtml(inst.txt?.value || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--color-border);border-radius:10px;overflow:hidden;margin-bottom:14px">
+          <div style="background:var(--color-surface-alt,#f4f6fa);padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--color-text-muted)">PASO 2 · CNAME PARA RUTEO</div>
+          <div style="padding:12px 14px;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px">
+            <div style="color:var(--color-text-muted)">Tipo:</div><div><strong>CNAME</strong></div>
+            <div style="color:var(--color-text-muted)">Host/Nombre:</div><div><code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;user-select:all">${escapeHtml(inst.cname?.host || '')}</code> <button type="button" class="dom-copy" data-copy="${escapeHtml(inst.cname?.host || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
+            <div style="color:var(--color-text-muted)">Apunta a:</div><div><code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;user-select:all">${escapeHtml(inst.cname?.value || '')}</code> <button type="button" class="dom-copy" data-copy="${escapeHtml(inst.cname?.value || '')}" title="Copiar"><i class="fa-regular fa-copy"></i></button></div>
+          </div>
+        </div>
+
+        <div class="form-hint" style="margin-bottom:14px">
+          <i class="fa-solid fa-circle-info"></i> La propagación DNS puede tardar entre 1 y 30 minutos.
+          Cuando ambos registros estén creados, pulsa <strong>Verificar ahora</strong>.
+        </div>
+
+        <div id="dom-verify-result" style="margin-bottom:10px"></div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn--primary" id="dom-verify"><i class="fa-solid fa-circle-check"></i> Verificar ahora</button>
+          <button class="btn btn--ghost" id="dom-delete"><i class="fa-solid fa-trash"></i> Cancelar solicitud</button>
+        </div>`;
+
+      document.getElementById('dom-verify').onclick = verifyDomain;
+      document.getElementById('dom-delete').onclick = deleteDomain;
+      bindCopyButtons(host);
+      return;
+    }
+
+    // Estado verificado
+    host.innerHTML = `
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;display:flex;gap:10px;align-items:flex-start">
+        <i class="fa-solid fa-circle-check" style="color:#16a34a;margin-top:2px;font-size:18px"></i>
+        <div style="flex:1">
+          <div style="font-weight:700;color:#166534">Dominio verificado</div>
+          <div style="font-size:13px;color:#166534;margin-top:4px">
+            <code style="background:#fff;padding:2px 6px;border-radius:4px;font-size:14px">${escapeHtml(state.customDomain)}</code>
+            <span style="opacity:0.7"> · verificado el ${new Date(state.verifiedAt).toLocaleString('es-DO')}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-hint" style="margin-top:14px">
+        <i class="fa-solid fa-circle-info"></i> Si todavía no responde, nuestro equipo está activando el routing. Suele tardar pocos minutos. Una vez activo, podrás acceder a tu plataforma desde <strong>https://${escapeHtml(state.customDomain)}</strong>.
+      </div>
+
+      <div style="margin-top:14px">
+        <button class="btn btn--ghost btn--sm" id="dom-delete"><i class="fa-solid fa-trash"></i> Remover dominio personalizado</button>
+      </div>`;
+    document.getElementById('dom-delete').onclick = deleteDomain;
+  }
+
+  function bindCopyButtons(host) {
+    host.querySelectorAll('.dom-copy').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const val = btn.dataset.copy;
+        try {
+          await navigator.clipboard.writeText(val);
+          const prev = btn.innerHTML;
+          btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+          setTimeout(() => { btn.innerHTML = prev; }, 1200);
+        } catch { /* ignore */ }
+      });
+    });
+  }
+
+  async function submitDomain() {
+    const input = document.getElementById('dom-input');
+    const domain = (input?.value || '').trim();
+    if (!domain) {
+      window.Toast?.error?.('Escribe un dominio');
+      return;
+    }
+    const btn = document.getElementById('dom-submit');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando…'; }
+    try {
+      const r = await fetch('/api/org/domain', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        window.Toast?.error?.(data.error || `Error ${r.status}`);
+        return;
+      }
+      window.Toast?.success?.('Dominio registrado. Sigue las instrucciones para verificarlo.');
+      mountDomainSection();
+    } catch (e) {
+      window.Toast?.error?.(e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrow-right"></i> Solicitar dominio'; }
+    }
+  }
+
+  async function verifyDomain() {
+    const btn = document.getElementById('dom-verify');
+    const result = document.getElementById('dom-verify-result');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verificando DNS…'; }
+    if (result) result.innerHTML = '';
+    try {
+      const r = await fetch('/api/org/domain/verify', { method: 'POST', credentials: 'include' });
+      const data = await r.json().catch(() => ({}));
+      if (data.verified) {
+        window.Toast?.success?.('Dominio verificado');
+        mountDomainSection();
+      } else {
+        if (result) {
+          result.innerHTML = `<div style="padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#9a3412;font-size:13px">
+            <strong>Aún no podemos verificar:</strong> ${escapeHtml(data.reason || 'Sin razón clara')}
+          </div>`;
+        }
+      }
+    } catch (e) {
+      window.Toast?.error?.(e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Verificar ahora'; }
+    }
+  }
+
+  async function deleteDomain() {
+    if (!confirm('¿Eliminar el dominio personalizado? Esta acción no es reversible — tendrás que volver a configurarlo si lo quieres usar después.')) return;
+    try {
+      const r = await fetch('/api/org/domain', { method: 'DELETE', credentials: 'include' });
+      if (!r.ok && r.status !== 204) {
+        const data = await r.json().catch(() => ({}));
+        window.Toast?.error?.(data.error || `Error ${r.status}`);
+        return;
+      }
+      window.Toast?.success?.('Dominio removido');
+      mountDomainSection();
+    } catch (e) {
+      window.Toast?.error?.(e.message);
+    }
   }
 
   function renderForm(s) {
@@ -326,6 +532,16 @@
           <button type="button" class="btn btn--primary" id="b-save"><i class="fa-solid fa-floppy-disk"></i> Guardar identidad</button>
         </footer>
       </div>
+
+      <section class="card branding-card" id="domain-section" style="margin-top:24px;grid-column:1 / -1">
+        <header class="card-head">
+          <h2><i class="fa-solid fa-globe"></i> Dominio personalizado</h2>
+          <p>Usa tu propio dominio (ej. <code>eventos.tu-organizacion.com</code>) en vez del subdominio que te asignamos. Requiere acceso al DNS de tu dominio.</p>
+        </header>
+        <div id="domain-section-body">
+          <div class="loader" style="padding:24px"><div class="spinner"></div></div>
+        </div>
+      </section>
     `;
   }
 
