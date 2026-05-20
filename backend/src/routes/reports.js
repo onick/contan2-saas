@@ -3,7 +3,7 @@ import { HttpError } from '../middleware/errorHandler.js';
 import { buildActivityExcelReport, reportFilename } from '../services/reports/activityExcelReport.js';
 import { buildActivityPdfHtml, pdfHeaderFooter, pdfFilename } from '../services/reports/activityPdfTemplate.js';
 import { renderHtmlToPdf } from '../services/reports/pdfRenderer.js';
-import { buildPeriodSummary } from '../services/reports/periodAggregator.js';
+import { buildPeriodSummary, previousRange } from '../services/reports/periodAggregator.js';
 import { buildPeriodExcelReport, periodFilename } from '../services/reports/periodExcelReport.js';
 import { buildPeriodPdfHtml, periodPdfHeaderFooter, periodPdfFilename } from '../services/reports/periodPdfTemplate.js';
 
@@ -77,14 +77,43 @@ export function createReportsRouter() {
     try {
       if (!req.organization) throw new HttpError(404, 'Sin organización');
       const { from, to, types } = parsePeriodQuery(req);
-      const period = await buildPeriodSummary({ repos: req.repos, from, to, types });
-      // Limitamos lo que devolvemos para mantener la respuesta liviana.
+
+      // Cargamos en paralelo el período actual y el anterior (mismo span)
+      // para calcular deltas en la vista previa.
+      const prev = previousRange(from, to);
+      const [period, prevPeriod] = await Promise.all([
+        buildPeriodSummary({ repos: req.repos, from, to, types }),
+        prev
+          ? buildPeriodSummary({ repos: req.repos, from: prev.from, to: prev.to, types })
+              .catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
+      // Helper de delta %: positivo si subió, negativo si bajó, null si era 0
+      const deltaPct = (curr, before) => {
+        if (before == null || before === 0) return curr > 0 ? 100 : null;
+        return Math.round(((curr - before) / before) * 100);
+      };
+
+      const comparison = prevPeriod ? {
+        previousRange: prev,
+        previous: prevPeriod.summary,
+        deltas: {
+          activitiesCount: deltaPct(period.summary.activitiesCount, prevPeriod.summary.activitiesCount),
+          attendancesCount: deltaPct(period.summary.attendancesCount, prevPeriod.summary.attendancesCount),
+          uniqueAttendees: deltaPct(period.summary.uniqueAttendees, prevPeriod.summary.uniqueAttendees),
+          avgOccupancy: deltaPct(period.summary.avgOccupancy, prevPeriod.summary.avgOccupancy),
+        },
+      } : null;
+
       res.json({
         range: period.range,
         summary: period.summary,
         topActivities: period.topActivities,
         byType: period.byType,
         byMonth: period.byMonth,
+        byDay: period.byDay,
+        comparison,
       });
     } catch (e) {
       next(e);

@@ -20,6 +20,24 @@ function monthKey(iso) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+function dayKey(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+// Genera array continuo de fechas YYYY-MM-DD desde `from` hasta `to` (inclusive).
+// Para que el sparkline tenga 0 en días sin actividad y se vea continuo.
+function daysBetween(fromIso, toIso) {
+  const out = [];
+  const start = new Date(fromIso); start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(toIso); end.setUTCHours(0, 0, 0, 0);
+  for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
+    out.push(dayKey(new Date(t).toISOString()));
+  }
+  return out;
+}
+
 function monthLabel(key) {
   if (!key) return '—';
   const [y, m] = key.split('-');
@@ -96,6 +114,21 @@ export async function buildPeriodSummary({ repos, from, to, types }) {
   }
   const byMonth = [...byMonthMap.values()].sort((a, b) => a.key.localeCompare(b.key));
 
+  // Serie diaria: para cada día del rango cuántas asistencias ocurrieron.
+  // Útil para sparkline en la vista previa. Agrupa por la fecha del registro
+  // de asistencia (registeredAt), no por la fecha de la actividad — refleja
+  // el flujo real día a día.
+  const byDayMap = new Map();
+  for (const list of attendancesByActivity) {
+    for (const att of list) {
+      const k = dayKey(att.registeredAt);
+      if (!k) continue;
+      byDayMap.set(k, (byDayMap.get(k) || 0) + 1);
+    }
+  }
+  const allDays = daysBetween(from, to);
+  const byDay = allDays.map(d => ({ date: d, attendances: byDayMap.get(d) || 0 }));
+
   // Top visitantes (asistencias dentro del período)
   const visitsPerUser = new Map();
   for (const list of attendancesByActivity) {
@@ -139,6 +172,23 @@ export async function buildPeriodSummary({ repos, from, to, types }) {
     topActivities,
     byType,
     byMonth,
+    byDay,
     topUsers: topUsers.filter(Boolean),
   };
+}
+
+/**
+ * Calcula el rango "anterior" del mismo span. Si el rango actual es
+ * 2026-05-01 → 2026-05-21 (21 días), el rango anterior es 2026-04-10 →
+ * 2026-04-30 (mismos 21 días, terminando el día antes de `from`).
+ */
+export function previousRange(from, to) {
+  const fromMs = new Date(from).getTime();
+  const toMs = new Date(to).getTime();
+  if (isNaN(fromMs) || isNaN(toMs)) return null;
+  const span = toMs - fromMs;
+  const prevTo = new Date(fromMs - 86400000);
+  const prevFrom = new Date(prevTo.getTime() - span);
+  const fmt = d => d.toISOString().slice(0, 10);
+  return { from: fmt(prevFrom), to: fmt(prevTo) };
 }
