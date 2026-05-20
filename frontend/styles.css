@@ -2534,15 +2534,21 @@ tr.hidden { display: none; }
  * ============================================================ */
 .dom-empty {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 24px;
+}
+.dom-empty-row {
+  display: flex;
   gap: 14px;
   align-items: flex-end;
   flex-wrap: wrap;
-  padding: 20px 24px;
 }
 .dom-empty-form {
   flex: 1;
   min-width: 220px;
 }
+.dom-empty-hint { margin: 0; }
 .dom-input-label {
   display: block;
   font-size: 12px;

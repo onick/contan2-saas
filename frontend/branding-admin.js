@@ -260,14 +260,16 @@
       // Estado inicial: sin dominio configurado
       host.innerHTML = `
         <div class="dom-empty">
-          <div class="dom-empty-form">
-            <label class="dom-input-label" for="dom-input">Dominio o subdominio</label>
-            <input id="dom-input" type="text" class="dom-input" placeholder="eventos.tu-organizacion.com" autocomplete="off" />
-            <div class="form-hint">Sin <code>http://</code> ni <code>/</code>. Ejemplo: <code>eventos.centroculturalbanreservas.com</code></div>
+          <div class="dom-empty-row">
+            <div class="dom-empty-form">
+              <label class="dom-input-label" for="dom-input">Dominio o subdominio</label>
+              <input id="dom-input" type="text" class="dom-input" placeholder="eventos.tu-organizacion.com" autocomplete="off" />
+            </div>
+            <button class="btn btn--primary dom-empty-submit" id="dom-submit">
+              <i class="fa-solid fa-arrow-right"></i> Solicitar dominio
+            </button>
           </div>
-          <button class="btn btn--primary dom-empty-submit" id="dom-submit">
-            <i class="fa-solid fa-arrow-right"></i> Solicitar dominio
-          </button>
+          <div class="form-hint dom-empty-hint">Sin <code>http://</code> ni <code>/</code>. Ejemplo: <code>eventos.centroculturalbanreservas.com</code></div>
         </div>`;
       document.getElementById('dom-submit').onclick = submitDomain;
       document.getElementById('dom-input').addEventListener('keydown', e => {
