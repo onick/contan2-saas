@@ -112,10 +112,19 @@ export class MemoryActivityRepository {
     return this.activities.size;
   }
 
-  async countByDate(dateStr) {
+  async countByDate(dateStr, timeZone = 'UTC') {
+    // dateStr es YYYY-MM-DD en la zona timeZone. Para cada activity
+    // formatea su date en esa tz y compara.
     let n = 0;
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    });
     for (const a of this.activities.values()) {
-      if (a.date.slice(0, 10) === dateStr) n += 1;
+      const parts = Object.fromEntries(
+        fmt.formatToParts(new Date(a.date)).map(p => [p.type, p.value]),
+      );
+      const localDate = `${parts.year}-${parts.month}-${parts.day}`;
+      if (localDate === dateStr) n += 1;
     }
     return n;
   }

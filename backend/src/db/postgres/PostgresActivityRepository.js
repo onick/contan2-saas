@@ -192,12 +192,15 @@ export class PostgresActivityRepository {
     return rows[0].n;
   }
 
-  async countByDate(dateStr) {
+  async countByDate(dateStr, timeZone = 'UTC') {
+    // Cuenta actividades cuyo timestamp (date) cae en la fecha calendárica
+    // indicada cuando se interpreta en la zona horaria `timeZone`. Si no
+    // se pasa tz, asume UTC (comportamiento legacy).
     const { rows } = await this.pool.query(
       `SELECT COUNT(*)::int AS n FROM activities
        WHERE organization_id = $1
-         AND DATE(date AT TIME ZONE 'UTC') = $2::date`,
-      [this.orgId, dateStr],
+         AND DATE(date AT TIME ZONE $3) = $2::date`,
+      [this.orgId, dateStr, timeZone],
     );
     return rows[0].n;
   }

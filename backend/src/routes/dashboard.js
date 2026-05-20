@@ -7,12 +7,34 @@ const PERIODS = {
   '90d': { days: 90, label: 'Últimos 90 días' },
 };
 
-function startOfDay(d) {
-  const x = new Date(d);
-  x.setUTCHours(0, 0, 0, 0);
-  return x;
+// IMPORTANTE: las metricas de "hoy" se calculan SIEMPRE en la zona
+// horaria del tenant. Usar UTC produce off-by-one cuando la consulta
+// se hace cerca de medianoche local (ej: Santo Domingo, UTC-4 ->
+// despues de las 20:00 local ya estamos en el "manana" UTC y se
+// pierden los check-ins del dia).
+function startOfLocalDay(now, timeZone) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(now).map(p => [p.type, p.value]));
+  const h = parseInt(parts.hour, 10) % 24;
+  const m = parseInt(parts.minute, 10);
+  const s = parseInt(parts.second, 10);
+  const ms = now.getUTCMilliseconds();
+  return new Date(now.getTime() - ((h * 3600 + m * 60 + s) * 1000 + ms));
 }
-function ymd(d) { return d.toISOString().slice(0, 10); }
+function localYmd(date, timeZone) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+function tenantTz(req) {
+  return req.organization?.timezone || 'America/Santo_Domingo';
+}
 function deltaPct(curr, prev) {
   if (prev === 0) return curr === 0 ? 0 : 100;
   return Math.round(((curr - prev) / prev) * 100);
@@ -26,8 +48,9 @@ export function createDashboardRouter() {
       const periodKey = PERIODS[req.query.period] ? req.query.period : '30d';
       const period = PERIODS[periodKey];
       const now = new Date();
-      const today = startOfDay(now);
-      const todayStr = ymd(today);
+      const tz = tenantTz(req);
+      const today = startOfLocalDay(now, tz);
+      const todayStr = localYmd(today, tz);
 
       const periodStart = new Date(today.getTime() - (period.days - 1) * 86400000);
       const prevStart = new Date(periodStart.getTime() - period.days * 86400000);
@@ -47,7 +70,7 @@ export function createDashboardRouter() {
         upcomingActivities,
       ] = await Promise.all([
         req.repos.users.count(),
-        req.repos.activities.countByDate(todayStr),
+        req.repos.activities.countByDate(todayStr, tz),
         req.repos.activities.countByStatus('activa'),
         req.repos.attendance.count(),
         req.repos.activities.findTopByEnrolled(5),
@@ -80,11 +103,13 @@ export function createDashboardRouter() {
       });
 
       // Sparkline: count por día (todos los días del período, aunque sean 0)
+      // Importante: agrupar por día LOCAL del tenant (no por slice del ISO
+      // UTC), para que cada barra del spark cubra exactamente un día local.
       const sparkline = [];
       for (let i = 0; i < period.days; i++) {
         const d = new Date(periodStart.getTime() + i * 86400000);
-        const k = ymd(d);
-        const n = attCurr.filter(a => a.registeredAt.slice(0, 10) === k).length;
+        const k = localYmd(d, tz);
+        const n = attCurr.filter(a => localYmd(new Date(a.registeredAt), tz) === k).length;
         sparkline.push({ date: k, value: n });
       }
 
@@ -244,8 +269,9 @@ export function createDashboardRouter() {
   router.get('/checkin-context', async (req, res, next) => {
     try {
       const now = new Date();
-      const today = startOfDay(now);
-      const todayStr = ymd(today);
+      const tz = tenantTz(req);
+      const today = startOfLocalDay(now, tz);
+      const todayStr = localYmd(today, tz);
       const tomorrow = new Date(today.getTime() + 86400000);
 
       const [allAttendance, allActivities, allUsers] = await Promise.all([
