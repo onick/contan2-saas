@@ -311,6 +311,10 @@ const API = {
   attendance: {
     list: () => API.request('/attendance'),
     create: data => API.request('/attendance', { method: 'POST', body: JSON.stringify(data) }),
+    anonymous: (activityId, count = 1) => API.request('/attendance/anonymous', {
+      method: 'POST',
+      body: JSON.stringify({ activityId, count }),
+    }),
     remove: id => API.request(`/attendance/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
   dashboard: {
@@ -3794,6 +3798,9 @@ function paintCheckinActivities() {
     const nearFull = pct >= 80;
     const t = new Date(a.date).getTime();
     const isToday = t >= todayMs.getTime() && t < tomorrowMs;
+    const checkedIn = a.checkedInCount ?? 0;
+    const rsvpPending = a.rsvpPendingCount ?? 0;
+    const anonCount = a.anonymousCount ?? 0;
     return `
       <div class="ck-activity ${isFull ? 'is-full' : ''} ${nearFull && !isFull ? 'is-hot' : ''} ${isToday ? 'is-today' : ''}" data-activity-id="${Utils.escapeHtml(a.id)}">
         <div class="ck-activity-head">
@@ -3807,9 +3814,19 @@ function paintCheckinActivities() {
           <div class="progress-track"><div class="progress-bar ${nearFull ? 'progress-bar--hot' : ''}" style="width:${pct}%"></div></div>
           <div class="progress-meta"><span>${a.enrolledCount}/${a.capacity}</span><span>${pct}%</span></div>
         </div>
-        <button class="btn ${u && !isFull ? 'btn--accent' : 'btn--ghost'} btn--block" data-action="${u ? 'checkin-register' : 'checkin-focus-search'}" data-user-code="${Utils.escapeHtml(u?.code || '')}" data-activity-id="${Utils.escapeHtml(a.id)}" ${isFull ? 'disabled' : ''}>
-          ${isFull ? '<i class="fa-solid fa-ban"></i> Cupo lleno' : u ? '<i class="fa-solid fa-check"></i> Registrar asistencia' : '<i class="fa-solid fa-user"></i> Selecciona un visitante'}
-        </button>
+        <div class="ck-activity-breakdown" title="Check-in: gente físicamente presente. RSVP pendiente: reservaron online pero aún no llegan. Anónimos: walk-ins sin credencial.">
+          <span class="ck-bd-pill ck-bd-pill--in"><i class="fa-solid fa-check"></i> ${checkedIn} check-in</span>
+          ${rsvpPending > 0 ? `<span class="ck-bd-pill ck-bd-pill--rsvp"><i class="fa-regular fa-clock"></i> ${rsvpPending} RSVP</span>` : ''}
+          ${anonCount > 0 ? `<span class="ck-bd-pill ck-bd-pill--anon"><i class="fa-solid fa-user-secret"></i> ${anonCount} sin credencial</span>` : ''}
+        </div>
+        <div class="ck-activity-actions">
+          <button class="btn ${u && !isFull ? 'btn--accent' : 'btn--ghost'} btn--block" data-action="${u ? 'checkin-register' : 'checkin-focus-search'}" data-user-code="${Utils.escapeHtml(u?.code || '')}" data-activity-id="${Utils.escapeHtml(a.id)}" ${isFull ? 'disabled' : ''}>
+            ${isFull ? '<i class="fa-solid fa-ban"></i> Cupo lleno' : u ? '<i class="fa-solid fa-check"></i> Registrar asistencia' : '<i class="fa-solid fa-user"></i> Selecciona un visitante'}
+          </button>
+          <button class="btn btn--ghost btn--sm ck-activity-anon-btn" data-action="checkin-anonymous" data-activity-id="${Utils.escapeHtml(a.id)}" ${isFull ? 'disabled' : ''} title="Para visitantes que entran sin credencial">
+            <i class="fa-solid fa-plus"></i> +1 sin credencial
+          </button>
+        </div>
       </div>`;
   }).join('');
 }
@@ -3874,6 +3891,40 @@ function handleCheckinFocusSearch() {
   card.scrollIntoView({ behavior: 'smooth', block: 'center' });
   card.classList.add('pulse-attention');
   setTimeout(() => card.classList.remove('pulse-attention'), 1200);
+}
+
+async function handleCheckinAnonymous(activityId) {
+  if (!activityId) return;
+  const activity = (State.activities || []).find(a => a.id === activityId);
+  if (!activity) return;
+  const ok = await Modal.confirm({
+    title: 'Visitante sin credencial',
+    message: `¿Registrar 1 visitante anónimo en "${activity.name}"? Quedará sin email ni código (uso recomendado: grupos en pico de demanda, prensa, visitantes que no reservaron).`,
+    confirmLabel: 'Sí, registrar',
+  });
+  if (!ok) return;
+  try {
+    const result = await API.attendance.anonymous(activityId, 1);
+    if (result.registered > 0) {
+      Toast.success(`${result.registered} visitante${result.registered === 1 ? '' : 's'} sin credencial registrado${result.registered === 1 ? '' : 's'}`);
+    } else {
+      Toast.warning('No se pudo registrar (cupo lleno o actividad inactiva)');
+    }
+    // Refresca contexto vivo
+    const ctx = await API.dashboard.checkinContext();
+    _ckState.ctx = ctx;
+    State.activities = ctx.activeActivities;
+    paintCheckinStatsbar();
+    paintCheckinActivities();
+    paintCheckinRecentFeed();
+    const card = document.querySelector(`.ck-activity[data-activity-id="${activityId}"]`);
+    if (card) {
+      card.classList.add('pulse-success');
+      setTimeout(() => card.classList.remove('pulse-success'), 1200);
+    }
+  } catch (e) {
+    Toast.error(explainError(e));
+  }
 }
 
 async function handleCheckinRegister(userCode, activityId) {
@@ -3977,6 +4028,8 @@ function bindGlobalEvents() {
         repaintTable(paginateKey); break;
       case 'checkin-register':
         handleCheckinRegister(target.dataset.userCode, target.dataset.activityId); break;
+      case 'checkin-anonymous':
+        handleCheckinAnonymous(target.dataset.activityId); break;
       case 'checkin-focus-search':
         handleCheckinFocusSearch(); break;
       case 'ck-refresh':

@@ -294,16 +294,20 @@ export function createDashboardRouter() {
       const activitiesById = new Map(allActivities.map(a => [a.id, a]));
       const usersById = new Map(allUsers.map(u => [u.id, u]));
 
-      // Feed de últimos 12 check-ins: enriquecer con user + activity
+      // Feed de últimos 12 check-ins: enriquecer con user + activity.
+      // Para anónimos (sin user_id), mostrar etiqueta clara y sin código.
       const recentFeed = todayCheckins.slice(0, 12).map(a => {
-        const user = usersById.get(a.userId);
+        const user = a.userId ? usersById.get(a.userId) : null;
         const activity = activitiesById.get(a.activityId);
         return {
           attendanceId: a.id,
-          userCode: user?.code || a.userCode,
-          userName: user ? `${user.firstName} ${user.lastName}`.trim() : '—',
+          userCode: user?.code || a.userCode || null,
+          userName: a.anonymous
+            ? 'Visitante sin credencial'
+            : (user ? `${user.firstName} ${user.lastName}`.trim() : '—'),
           userEmail: user?.email || null,
           userVisitCount: user?.visitCount || 1,
+          anonymous: a.anonymous === true,
           activityId: a.activityId,
           activityName: activity?.name || a.activityName,
           activityType: activity?.type || null,
@@ -315,6 +319,22 @@ export function createDashboardRouter() {
       const activeActivities = allActivities
         .filter(a => a.status === 'activa')
         .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // Enriquecer cada activa con: checkedIn / rsvpPending / anonymous counts
+      // para que el panel muestre "47 check-in · 8 RSVP" en vez de solo el
+      // enrolled total. Esto da visibilidad de la gap (gente reservó pero
+      // aun no llegó) y de los walk-ins sin credencial.
+      if (activeActivities.length > 0 && req.repos.attendance.countsByActivities) {
+        const counts = await req.repos.attendance.countsByActivities(
+          activeActivities.map(a => a.id),
+        );
+        for (const a of activeActivities) {
+          const c = counts.get(a.id) || { checkedIn: 0, rsvpPending: 0, anonymous: 0 };
+          a.checkedInCount = c.checkedIn;
+          a.rsvpPendingCount = c.rsvpPending;
+          a.anonymousCount = c.anonymous;
+        }
+      }
 
       // Actividad de HOY (la primera activa cuya fecha cae en este día)
       const todayActivity = activeActivities.find(a => {
@@ -349,11 +369,18 @@ export function createDashboardRouter() {
         if (recentUsersToday.length >= 8) break;
       }
 
+      // uniqueAttendeesToday: cada usuario con credencial cuenta una vez,
+      // cada anónimo cuenta como individuo separado (no podemos saber si
+      // son la misma persona).
+      const uniqueWithUser = new Set(
+        todayCheckins.filter(c => c.userId).map(c => c.userId),
+      ).size;
+      const anonymousToday = todayCheckins.filter(c => c.anonymous).length;
       res.json({
         stats: {
           checkinsToday: todayCheckins.length,
           activeActivities: activeActivities.length,
-          uniqueAttendeesToday: new Set(todayCheckins.map(c => c.userId)).size,
+          uniqueAttendeesToday: uniqueWithUser + anonymousToday,
         },
         todayActivity,
         nextActivity,

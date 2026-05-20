@@ -7,16 +7,34 @@ export class MemoryAttendanceRepository {
 
   async create(data) {
     const id = randomUUID();
+    const anonymous = data.anonymous === true;
+    const checkedIn = data.checkedIn !== false;
+    const now = new Date().toISOString();
     const att = {
       id,
-      userId: data.userId,
-      userCode: data.userCode,
+      userId: anonymous ? null : (data.userId ?? null),
+      userCode: anonymous ? null : (data.userCode ?? null),
       activityId: data.activityId,
       activityName: data.activityName,
-      registeredAt: new Date().toISOString(),
+      anonymous,
+      registeredAt: now,
+      checkedInAt: checkedIn ? now : null,
     };
     this.attendances.set(id, att);
     return { ...att };
+  }
+
+  async countsByActivities(activityIds) {
+    const set = new Set(activityIds || []);
+    const m = new Map();
+    for (const id of set) m.set(id, { checkedIn: 0, rsvpPending: 0, anonymous: 0 });
+    for (const a of this.attendances.values()) {
+      if (!set.has(a.activityId)) continue;
+      const c = m.get(a.activityId);
+      if (a.checkedInAt) c.checkedIn += 1; else c.rsvpPending += 1;
+      if (a.anonymous) c.anonymous += 1;
+    }
+    return m;
   }
 
   async findAll(filters = {}) {

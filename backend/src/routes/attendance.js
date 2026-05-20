@@ -66,6 +66,58 @@ export function createAttendanceRouter() {
     }
   });
 
+  // POST /api/attendance/anonymous · check-in sin credencial
+  // Caso: visitante pasa por la puerta sin escanear (grupo en pico, VIP,
+  // prensa, alguien que perdió su credencial). El staff dispara este
+  // endpoint para que el conteo refleje la realidad. count opcional 1..10
+  // permite registrar grupos. Cero PII queda asociada — quedan trazables
+  // por activity/timestamp/anonymous=TRUE.
+  router.post('/anonymous', async (req, res, next) => {
+    try {
+      const activityId = String(req.body?.activityId || '').trim();
+      const count = Math.max(1, Math.min(10, Number(req.body?.count) || 1));
+      if (!activityId) throw new HttpError(400, 'activityId requerido');
+
+      const activity = await req.repos.activities.findById(activityId);
+      if (!activity) throw new HttpError(404, 'Actividad no encontrada');
+      if (activity.status !== 'activa') {
+        throw new HttpError(409, 'La actividad no está activa');
+      }
+
+      const created = [];
+      const errors = [];
+      for (let i = 0; i < count; i++) {
+        const reservation = await req.repos.activities.incrementEnrolledIfRoom(activityId);
+        if (!reservation.ok) {
+          errors.push(reservation.reason || 'unknown');
+          break;
+        }
+        try {
+          const att = await req.repos.attendance.create({
+            activityId,
+            activityName: activity.name,
+            anonymous: true,
+            checkedIn: true,
+          });
+          created.push(att);
+        } catch (e) {
+          await req.repos.activities.decrementEnrolled(activityId);
+          errors.push(e.message);
+          break;
+        }
+      }
+
+      const status = created.length === count ? 201 : (created.length > 0 ? 207 : 409);
+      res.status(status).json({
+        registered: created.length,
+        requested: count,
+        errors,
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
   router.get('/', async (req, res, next) => {
     try {
       const filters = {};
