@@ -388,6 +388,22 @@ const Modal = {
   init() {
     this.el = document.getElementById('modal-root');
     this.el.addEventListener('click', e => {
+      // Backdrop "protegido": clic en el fondo NO cierra cuando el modal
+      // contiene un form (data entry). Reportado por staff en tablet: un
+      // tap accidental fuera perdía los datos escritos. En su lugar se hace
+      // un shake breve del card para feedback visual de "te oí, pero te
+      // estoy protegiendo".
+      const backdropClicked = e.target.classList && e.target.classList.contains('modal-backdrop');
+      if (backdropClicked && this._formProtected) {
+        const card = this.el.querySelector('.modal-card');
+        if (card) {
+          card.classList.remove('modal-card--shake');
+          // forzar reflow para reiniciar animacion
+          void card.offsetWidth;
+          card.classList.add('modal-card--shake');
+        }
+        return;
+      }
       if (e.target.closest('[data-close]')) this.close();
     });
     document.addEventListener('keydown', e => {
@@ -399,6 +415,8 @@ const Modal = {
     document.getElementById('modal-body').innerHTML = bodyHtml;
     this.el.classList.remove('hidden');
     const form = this.el.querySelector('form');
+    // Modal con form -> proteger contra cierre por backdrop accidental.
+    this._formProtected = !!form;
     if (form && onSubmit) {
       form.addEventListener('submit', async e => {
         e.preventDefault();
@@ -417,6 +435,7 @@ const Modal = {
   close() {
     this.el.classList.add('hidden');
     document.getElementById('modal-body').innerHTML = '';
+    this._formProtected = false;
     if (this._closeResolver) {
       const r = this._closeResolver;
       this._closeResolver = null;
