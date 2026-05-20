@@ -193,11 +193,18 @@ export function createInsightsRouter() {
       if (!activity) throw new HttpError(404, 'Actividad no encontrada');
 
       const attendances = await req.repos.attendance.findByActivityId(req.params.id);
+      // Separar anónimos (sin user_id) de los identificados. Las métricas
+      // de afinidad (nuevos/habituales/VIPs) solo aplican a identificados;
+      // el total de asistencias incluye a TODOS (anónimos cuentan como
+      // gente que estuvo en sala).
+      const identifiedAtts = attendances.filter(a => a.userId);
+      const anonymousCount = attendances.length - identifiedAtts.length;
+
       const userAffs = await Promise.all(
-        attendances.map(async a => {
+        identifiedAtts.map(async a => {
           const user = await req.repos.users.findById(a.userId);
           if (!user) return null;
-          const aff = await buildAffinityForUser(req.repos,user);
+          const aff = await buildAffinityForUser(req.repos, user);
           return { user, attendance: a, affinity: aff };
         }),
       );
@@ -226,7 +233,11 @@ export function createInsightsRouter() {
           enrolledCount: activity.enrolledCount,
         },
         summary: {
-          totalAttendances: valid.length,
+          // Total real de gente que estuvo en sala (identificados + anónimos)
+          totalAttendances: attendances.length,
+          // Para que la UI pueda hacer "X identificados + Y sin credencial"
+          identifiedCount: valid.length,
+          anonymousCount,
           occupancyPct,
           newcomers,
           returning,

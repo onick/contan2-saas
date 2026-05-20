@@ -2584,6 +2584,11 @@ function renderActivitySummary(payload) {
   const s = payload.summary;
   if (!s || s.totalAttendances === 0) return '';
   const isFinalized = payload.activity.status === 'finalizada';
+  const anon = s.anonymousCount || 0;
+  const identified = s.identifiedCount ?? (s.totalAttendances - anon);
+  // Sublíneas claras para que los % no engañen al staff: nuevos/habituales/VIPs
+  // se miden contra `identified`, no contra `totalAttendances`.
+  const ofIdentified = identified > 0 ? `de ${identified} identificado${identified === 1 ? '' : 's'}` : '';
   return `
     <div class="activity-detail-section">
       <div class="activity-detail-section-header">
@@ -2593,12 +2598,12 @@ function renderActivitySummary(payload) {
         <div class="summary-card">
           <div class="summary-card-label">Asistencias</div>
           <div class="summary-card-value">${s.totalAttendances}</div>
-          <div class="summary-card-extra">${s.occupancyPct}% ocupación</div>
+          <div class="summary-card-extra">${s.occupancyPct}% ocupación${anon > 0 ? ` · incluye ${anon} sin credencial` : ''}</div>
         </div>
         <div class="summary-card">
           <div class="summary-card-label">Nuevos visitantes</div>
           <div class="summary-card-value">${s.newcomers}</div>
-          <div class="summary-card-extra">${s.newcomerRatio}% del total</div>
+          <div class="summary-card-extra">${s.newcomerRatio}% ${ofIdentified}</div>
         </div>
         <div class="summary-card">
           <div class="summary-card-label">Habituales</div>
@@ -2610,6 +2615,12 @@ function renderActivitySummary(payload) {
           <div class="summary-card-value">${s.vipCount}</div>
           <div class="summary-card-extra">≥10 visitas totales</div>
         </div>
+        ${anon > 0 ? `
+        <div class="summary-card summary-card--anon">
+          <div class="summary-card-label">Sin credencial</div>
+          <div class="summary-card-value">${anon}</div>
+          <div class="summary-card-extra">Walk-ins registrados manualmente</div>
+        </div>` : ''}
       </div>
     </div>`;
 }
