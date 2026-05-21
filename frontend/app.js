@@ -25,6 +25,7 @@ const ROUTES = {
   segments: { title: 'Segmentos', subtitle: 'Audiencias para campañas e invitaciones', render: renderSegments },
   reports: { title: 'Reportes', subtitle: 'Informes profesionales por período', render: () => window.renderReports && window.renderReports() },
   branding: { title: 'Identidad de marca', subtitle: 'Colores, logo y estilo del panel administrativo', render: () => window.renderBranding && window.renderBranding() },
+  'public-apps': { title: 'Modo público', subtitle: 'Apps de lobby: kiosko de auto-registro y scanner de check-in', render: () => window.renderPublicApps && window.renderPublicApps() },
 };
 
 const State = {

@@ -376,11 +376,20 @@ export function createDashboardRouter() {
         todayCheckins.filter(c => c.userId).map(c => c.userId),
       ).size;
       const anonymousToday = todayCheckins.filter(c => c.anonymous).length;
+
+      // Nuevos usuarios registrados hoy (sin importar si hicieron check-in).
+      // Útil para medir actividad del kiosko de auto-registro vs admin manual.
+      const newUsersToday = allUsers.filter(u => {
+        const t = new Date(u.createdAt).getTime();
+        return !isNaN(t) && t >= todayMs && t < tomorrowMs;
+      }).length;
+
       res.json({
         stats: {
           checkinsToday: todayCheckins.length,
           activeActivities: activeActivities.length,
           uniqueAttendeesToday: uniqueWithUser + anonymousToday,
+          newUsersToday,
         },
         todayActivity,
         nextActivity,
