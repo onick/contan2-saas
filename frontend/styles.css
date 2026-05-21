@@ -2802,7 +2802,8 @@ tr.hidden { display: none; }
   color: var(--color-text-muted);
   font-size: 13px;
 }
-.att-combobox-input {
+/* Selector más específico para ganar a .form-group input (regla global) */
+.att-combobox .att-combobox-input {
   flex: 1;
   border: 0;
   background: transparent;
@@ -2812,6 +2813,12 @@ tr.hidden { display: none; }
   font-size: 14px;
   outline: none;
   color: var(--color-text);
+  border-radius: 0;
+  box-shadow: none;
+}
+.att-combobox .att-combobox-input:focus {
+  border: 0;
+  box-shadow: none;
 }
 .att-combobox-clear {
   border: 0;
