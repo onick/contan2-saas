@@ -394,23 +394,59 @@ input {
   color: var(--k-primary);
 }
 
-.k-card-spots {
+/* Status del cupo en la card del kiosko — 4 estados contextuales
+   (open / busy / low / full). En vez de mostrar el ratio crudo
+   (que cuando es 0/N desincentiva por señal social negativa)
+   mostramos un mensaje calibrado:
+   - open: "Cupo disponible" (verde, sin numeros)
+   - busy: "N personas confirmadas" (azul, social proof)
+   - low:  "Ultimas N plazas" (ambar, urgencia / FOMO)
+   - full: "Cupo agotado" (rojo, deshabilita el boton) */
+.k-card-status {
   margin-top: auto;
   margin-bottom: 16px;
   padding: 12px 16px;
-  background: rgba(16, 185, 129, 0.1);
   border-radius: 12px;
-  font-weight: 600;
-  color: #047857;
-  font-size: 17px;
-  display: flex;
-  justify-content: space-between;
+  font-weight: 700;
+  font-size: 16px;
+  display: inline-flex;
   align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+}
+.k-card-status i { font-size: 14px; opacity: 0.9; }
+
+.k-card-status--open {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+}
+.k-card-status--busy {
+  background: rgba(59, 130, 246, 0.1);
+  color: #1d4ed8;
+}
+.k-card-status--low {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+.k-card-status--full {
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
 }
 
-.k-card-spots--low {
-  background: rgba(245, 158, 11, 0.12);
-  color: #b45309;
+/* Card en estado lleno: opacidad sutil + cursor not-allowed para que
+   se vea que no es accionable. */
+.k-card--full {
+  cursor: not-allowed;
+  opacity: 0.78;
+}
+.k-card--full:hover {
+  transform: none;
+  box-shadow: var(--k-shadow);
+}
+.k-btn--disabled {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+  cursor: not-allowed !important;
 }
 
 /* ============ Inputs ============ */

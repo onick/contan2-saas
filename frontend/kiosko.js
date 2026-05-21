@@ -60,6 +60,34 @@ function formatDate(iso) {
 function typeLabel(t) { return TYPE_LABELS[t] || t; }
 function typeIcon(t) { return TYPE_ICONS[t] || 'fa-calendar-day'; }
 
+// Devuelve un descriptor de estado de cupo para la card del kiosko.
+// Mostramos info contextual en vez del crudo "N/M" o "X plazas libres".
+// Logica:
+//   - 100%       -> cupo agotado (rojo, deshabilita el boton)
+//   - >= 80%     -> ultimas N plazas (ambar, urgencia/FOMO)
+//   - >= 40%     -> X personas confirmadas (azul, social proof)
+//   - resto      -> cupo disponible (verde, sin numeros para evitar
+//                   senal de "evento vacio" al inicio)
+function capacityStatus(a) {
+  const cap = Math.max(0, a.capacity || 0);
+  const enrolled = Math.max(0, a.enrolledCount || 0);
+  const remaining = Math.max(0, cap - enrolled);
+  const pct = cap > 0 ? enrolled / cap : 0;
+  if (cap > 0 && remaining === 0) {
+    return { kind: 'full', icon: 'fa-ban', label: 'Cupo agotado' };
+  }
+  if (pct >= 0.8) {
+    const label = remaining === 1
+      ? 'Última plaza disponible'
+      : `Últimas ${remaining} plazas`;
+    return { kind: 'low', icon: 'fa-fire', label };
+  }
+  if (pct >= 0.4) {
+    return { kind: 'busy', icon: 'fa-users', label: `${enrolled} personas confirmadas` };
+  }
+  return { kind: 'open', icon: 'fa-circle-check', label: 'Cupo disponible' };
+}
+
 async function api(path, options = {}) {
   const res = await fetch(`${API}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -225,11 +253,10 @@ function paintActivities(activities) {
   list.innerHTML = `
     <div class="k-card-grid">
       ${activities.map(a => {
-        const remaining = a.capacity - a.enrolledCount;
-        const pct = a.capacity ? (a.enrolledCount / a.capacity) : 0;
-        const low = pct >= 0.8;
+        const status = capacityStatus(a);
+        const isFull = status.kind === 'full';
         return `
-          <button type="button" class="k-card" data-activity-id="${escapeHtml(a.id)}" data-activity-name="${escapeHtml(a.name)}" data-activity-type="${escapeHtml(a.type)}">
+          <button type="button" class="k-card ${isFull ? 'k-card--full' : ''}" data-activity-id="${escapeHtml(a.id)}" data-activity-name="${escapeHtml(a.name)}" data-activity-type="${escapeHtml(a.type)}" ${isFull ? 'aria-disabled="true"' : ''}>
             ${a.imageUrl
               ? `<div class="k-card-cover">
                    <img class="k-card-cover-img" src="${escapeHtml(a.imageUrl)}" alt="" loading="lazy" data-cover-img />
@@ -242,12 +269,12 @@ function paintActivities(activities) {
                 <div><i class="fa-solid fa-calendar"></i> ${escapeHtml(formatDate(a.date))}</div>
                 <div><i class="fa-solid fa-location-dot"></i> ${escapeHtml(a.location)}</div>
               </div>
-              <div class="k-card-spots ${low ? 'k-card-spots--low' : ''}">
-                <span>${remaining} plaza${remaining === 1 ? '' : 's'} libres</span>
-                <span>${a.enrolledCount}/${a.capacity}</span>
+              <div class="k-card-status k-card-status--${status.kind}">
+                <i class="fa-solid ${status.icon}"></i>
+                <span>${status.label}</span>
               </div>
-              <div class="k-btn k-btn--accent k-btn--block" style="pointer-events:none">
-                <i class="fa-solid fa-check"></i> Asistir
+              <div class="k-btn k-btn--accent k-btn--block ${isFull ? 'k-btn--disabled' : ''}" style="pointer-events:none">
+                <i class="fa-solid ${isFull ? 'fa-ban' : 'fa-check'}"></i> ${isFull ? 'Cupo agotado' : 'Asistir'}
               </div>
             </div>
           </button>`;
@@ -255,6 +282,8 @@ function paintActivities(activities) {
     </div>`;
   list.querySelectorAll('[data-activity-id]').forEach(btn => {
     btn.addEventListener('click', () => {
+      // Si la card está marcada como cupo agotado, NO permitir avanzar.
+      if (btn.getAttribute('aria-disabled') === 'true') return;
       const id = btn.dataset.activityId;
       const name = btn.dataset.activityName;
       go('identify', { activity: { id, name } });
