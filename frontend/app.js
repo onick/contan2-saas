@@ -3090,9 +3090,6 @@ function paintAttendanceTable() {
 }
 
 function attendanceFormHtml() {
-  const userOpts = State.users
-    .map(u => `<option value="${Utils.escapeHtml(u.code)}">${Utils.escapeHtml(u.code + ' · ' + u.firstName + ' ' + u.lastName)}</option>`)
-    .join('');
   const availableActivities = State.activities.filter(
     a => a.status === 'activa' && a.enrolledCount < a.capacity,
   );
@@ -3101,48 +3098,227 @@ function attendanceFormHtml() {
       a => `<option value="${Utils.escapeHtml(a.id)}">${Utils.escapeHtml(a.name)} · ${a.enrolledCount}/${a.capacity}</option>`,
     )
     .join('');
-  const noUsers = !State.users.length;
   const noActivities = !availableActivities.length;
+  const noUsers = !State.users.length;
 
   return `
-    <form class="form">
-      <div class="form-group">
-        <label>Usuario <span class="required">*</span></label>
-        <select name="userCode" required ${noUsers ? 'disabled' : ''}>
-          <option value="">Seleccionar usuario…</option>
-          ${userOpts}
-        </select>
-        ${noUsers ? '<div class="form-hint">No hay usuarios registrados. Crea uno primero.</div>' : ''}
+    <form class="form attendance-form" data-mode="existing">
+      <div class="att-mode-toggle" role="tablist">
+        <button type="button" class="att-mode is-active" data-att-mode="existing" role="tab">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <span>Visitante registrado</span>
+        </button>
+        <button type="button" class="att-mode" data-att-mode="new" role="tab">
+          <i class="fa-solid fa-user-plus"></i>
+          <span>Visitante nuevo</span>
+        </button>
       </div>
+
+      <div class="att-section is-active" data-att-section="existing" role="tabpanel">
+        <div class="form-group">
+          <label>Buscar visitante <span class="required">*</span></label>
+          <div class="att-combobox" id="att-combobox">
+            <i class="fa-solid fa-magnifying-glass att-combobox-icon"></i>
+            <input type="text" id="att-search" class="att-combobox-input"
+                   placeholder="Nombre, código o correo…" autocomplete="off"
+                   ${noUsers ? 'disabled' : ''} />
+            <input type="hidden" name="userCode" id="att-user-code" />
+            <button type="button" class="att-combobox-clear" id="att-clear" hidden><i class="fa-solid fa-xmark"></i></button>
+            <div class="att-combobox-list" id="att-list" hidden></div>
+          </div>
+          ${noUsers
+            ? '<div class="form-hint">No hay visitantes registrados. Usa la pestaña <strong>Visitante nuevo</strong>.</div>'
+            : `<div class="form-hint">${State.users.length} visitantes en la base. Empieza a escribir para filtrar.</div>`}
+        </div>
+      </div>
+
+      <div class="att-section" data-att-section="new" role="tabpanel" hidden>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombre <span class="required">*</span></label>
+            <input type="text" name="newFirstName" minlength="2" maxlength="50" placeholder="María" />
+          </div>
+          <div class="form-group">
+            <label>Apellido <span class="required">*</span></label>
+            <input type="text" name="newLastName" minlength="2" maxlength="50" placeholder="Pérez" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Correo <span class="form-hint">(opcional, recibe su credencial digital)</span></label>
+          <input type="email" name="newEmail" placeholder="maria@ejemplo.com" />
+        </div>
+        <div class="form-group">
+          <label>Teléfono <span class="form-hint">(opcional)</span></label>
+          <input type="tel" name="newPhone" placeholder="809-555-1234" />
+        </div>
+      </div>
+
       <div class="form-group">
         <label>Actividad <span class="required">*</span></label>
         <select name="activityId" required ${noActivities ? 'disabled' : ''}>
           <option value="">Seleccionar actividad…</option>
           ${activityOpts}
         </select>
-        ${noActivities ? '<div class="form-hint">No hay actividades activas con cupo disponible.</div>' : '<div class="form-hint">Solo actividades activas con cupo libre.</div>'}
+        ${noActivities
+          ? '<div class="form-hint">No hay actividades activas con cupo disponible.</div>'
+          : '<div class="form-hint">Solo actividades activas con cupo libre.</div>'}
       </div>
+
       <div class="form-actions">
         <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
-        <button type="submit" class="btn btn--primary" ${noUsers || noActivities ? 'disabled' : ''}>
+        <button type="submit" class="btn btn--primary" id="att-submit" ${noActivities ? 'disabled' : ''}>
           <i class="fa-solid fa-check"></i> Registrar
         </button>
       </div>
     </form>`;
 }
 
+function bindAttendanceForm(form) {
+  // Tabs
+  const modes = form.querySelectorAll('[data-att-mode]');
+  const sections = form.querySelectorAll('[data-att-section]');
+  modes.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.attMode;
+      form.dataset.mode = mode;
+      modes.forEach(m => m.classList.toggle('is-active', m === btn));
+      sections.forEach(s => {
+        const isActive = s.dataset.attSection === mode;
+        s.classList.toggle('is-active', isActive);
+        s.hidden = !isActive;
+      });
+      // Focus en el primer input del nuevo modo
+      const firstInput = form.querySelector(`[data-att-section="${mode}"] input:not([type="hidden"])`);
+      firstInput?.focus();
+    });
+  });
+
+  // Combobox de búsqueda (modo "Visitante registrado")
+  const cb = form.querySelector('#att-combobox');
+  const search = form.querySelector('#att-search');
+  const list = form.querySelector('#att-list');
+  const hidden = form.querySelector('#att-user-code');
+  const clear = form.querySelector('#att-clear');
+
+  function renderList(query) {
+    const q = String(query || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const all = State.users || [];
+    const filtered = q
+      ? all.filter(u => {
+          const hay = `${u.code} ${u.firstName} ${u.lastName} ${u.email || ''}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+          return hay.includes(q);
+        })
+      : all.slice(0, 50); // sin query, muestra los primeros 50
+    const top = filtered.slice(0, 50);
+    if (top.length === 0) {
+      list.innerHTML = `<div class="att-combobox-empty">Sin coincidencias para "${Utils.escapeHtml(query)}". ¿Es un visitante nuevo?</div>`;
+    } else {
+      list.innerHTML = top.map(u => `
+        <button type="button" class="att-combobox-item" data-code="${Utils.escapeHtml(u.code)}" data-name="${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}">
+          <span class="user-code">${Utils.escapeHtml(u.code)}</span>
+          <span class="att-combobox-name">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</span>
+          ${u.email ? `<span class="att-combobox-email">${Utils.escapeHtml(u.email)}</span>` : ''}
+        </button>`).join('');
+      if (filtered.length > top.length) {
+        list.innerHTML += `<div class="att-combobox-more">+ ${filtered.length - top.length} más. Afina la búsqueda.</div>`;
+      }
+    }
+    list.hidden = false;
+  }
+
+  search?.addEventListener('focus', () => renderList(search.value));
+  search?.addEventListener('input', () => {
+    hidden.value = '';
+    clear.hidden = !search.value;
+    renderList(search.value);
+  });
+  document.addEventListener('click', e => {
+    if (!cb?.contains(e.target)) list && (list.hidden = true);
+  });
+  list?.addEventListener('click', e => {
+    const item = e.target.closest('[data-code]');
+    if (!item) return;
+    hidden.value = item.dataset.code;
+    search.value = `${item.dataset.code} · ${item.dataset.name}`;
+    clear.hidden = false;
+    list.hidden = true;
+  });
+  clear?.addEventListener('click', () => {
+    search.value = '';
+    hidden.value = '';
+    clear.hidden = true;
+    search.focus();
+    renderList('');
+  });
+}
+
+async function submitAttendanceForm(form) {
+  const mode = form.dataset.mode || 'existing';
+  const activityId = form.querySelector('[name="activityId"]').value;
+  if (!activityId) { Toast.error('Selecciona una actividad'); return; }
+
+  if (mode === 'existing') {
+    const userCode = form.querySelector('#att-user-code').value;
+    if (!userCode) { Toast.error('Selecciona un visitante registrado o cambia a "Visitante nuevo"'); return; }
+    await API.attendance.create({ userCode, activityId });
+    Toast.success('Asistencia registrada');
+    Modal.close();
+    renderAttendance();
+    return;
+  }
+
+  // Modo nuevo: crear user, luego registrar attendance
+  const firstName = String(form.querySelector('[name="newFirstName"]').value || '').trim();
+  const lastName = String(form.querySelector('[name="newLastName"]').value || '').trim();
+  const email = String(form.querySelector('[name="newEmail"]').value || '').trim();
+  const phone = String(form.querySelector('[name="newPhone"]').value || '').trim();
+  if (firstName.length < 2 || lastName.length < 2) {
+    Toast.error('Nombre y apellido son requeridos (mínimo 2 caracteres cada uno)');
+    return;
+  }
+  let createdUser;
+  try {
+    createdUser = await API.users.create({
+      firstName,
+      lastName,
+      email: email || undefined,
+      phone: phone || undefined,
+    });
+  } catch (e) {
+    Toast.error('No se pudo crear el visitante: ' + explainError(e));
+    return;
+  }
+  try {
+    await API.attendance.create({ userCode: createdUser.code, activityId });
+  } catch (e) {
+    Toast.warning(`Visitante creado (${createdUser.code}) pero falló registrar la asistencia: ${explainError(e)}. Reintenta desde "Visitante registrado".`);
+    Modal.close();
+    renderAttendance();
+    return;
+  }
+  Toast.success(`Visitante ${createdUser.code} creado y registrado en la actividad${email ? ' · credencial enviada a ' + email : ''}`);
+  Modal.close();
+  renderAttendance();
+}
+
 async function handleAttendanceNew() {
+  // Asegura tener users + activities cacheados
+  if (!State.users.length) {
+    try { State.users = (await API.users.list()).users; } catch {}
+  }
+  if (!State.activities.length) {
+    try { State.activities = (await API.activities.list()).activities; } catch {}
+  }
   Modal.open('Registrar asistencia', attendanceFormHtml(), async form => {
-    const data = Object.fromEntries(new FormData(form));
     try {
-      await API.attendance.create(data);
-      Toast.success('Asistencia registrada');
-      Modal.close();
-      renderAttendance();
+      await submitAttendanceForm(form);
     } catch (e) {
       Toast.error(explainError(e));
     }
   });
+  // Modal.open ya re-evalúa el form interno; vinculamos los handlers extra
+  const form = document.querySelector('.attendance-form');
+  if (form) bindAttendanceForm(form);
 }
 
 async function handleAttendanceDelete(id) {
