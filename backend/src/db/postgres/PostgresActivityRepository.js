@@ -75,7 +75,7 @@ export class PostgresActivityRepository {
    * Devuelve actividades cuya fecha cae en [from, to). Opcional filtrar por
    * tipos (lista) y/o status.
    */
-  async findByDateRange(from, to, { types, status } = {}) {
+  async findByDateRange(from, to, { types, status, categories } = {}) {
     const where = ['organization_id = $1', 'date >= $2', 'date < $3'];
     const params = [this.orgId, from, to];
     let idx = 4;
@@ -86,6 +86,12 @@ export class PostgresActivityRepository {
     if (status) {
       where.push(`status = $${idx++}`);
       params.push(status);
+    }
+    if (Array.isArray(categories) && categories.length) {
+      // Comparación case-insensitive porque las categorías se almacenan
+      // normalizadas a lowercase pero el caller podría pasar "Cine Clásico".
+      where.push(`LOWER(category) = ANY($${idx++}::text[])`);
+      params.push(categories.map(c => String(c).toLowerCase()));
     }
     const { rows } = await this.pool.query(
       `SELECT * FROM activities WHERE ${where.join(' AND ')} ORDER BY date ASC`,

@@ -41,16 +41,23 @@ export class MemoryActivityRepository {
     return a ? { ...a } : null;
   }
 
-  async findByDateRange(from, to, { types, status } = {}) {
+  async findByDateRange(from, to, { types, status, categories } = {}) {
     const fromT = new Date(from).getTime();
     const toT = new Date(to).getTime();
     const typeSet = Array.isArray(types) && types.length ? new Set(types) : null;
+    const catSet = Array.isArray(categories) && categories.length
+      ? new Set(categories.map(c => String(c).toLowerCase()))
+      : null;
     const out = [];
     for (const a of this.activities.values()) {
       const t = new Date(a.date).getTime();
       if (isNaN(t) || t < fromT || t >= toT) continue;
       if (typeSet && !typeSet.has(a.type)) continue;
       if (status && a.status !== status) continue;
+      if (catSet) {
+        const cat = a.category ? String(a.category).toLowerCase() : null;
+        if (!cat || !catSet.has(cat)) continue;
+      }
       out.push({ ...a });
     }
     out.sort((a, b) => new Date(a.date) - new Date(b.date));

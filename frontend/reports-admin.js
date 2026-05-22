@@ -85,8 +85,52 @@
   }
 
   // ---------- main render ----------
+  // Cache de categorías descubiertas en la org. Lo cargamos al entrar a /reports
+  // para poder mostrar los chips dinámicamente. Si la org no tiene actividades
+  // con categoría, el bloque entero no se renderiza.
+  let _availableCategories = [];
+
+  async function loadAvailableCategories() {
+    try {
+      // Reusa el State.activities si app.js ya lo tiene cargado.
+      let list = window.State?.activities;
+      if (!list || list.length === 0) {
+        const r = await fetch('/api/activities', { credentials: 'same-origin' });
+        if (r.ok) {
+          const d = await r.json();
+          list = d.activities || [];
+        }
+      }
+      const set = new Set();
+      for (const a of (list || [])) {
+        if (a.category) set.add(String(a.category).trim());
+      }
+      _availableCategories = [...set].sort();
+    } catch {
+      _availableCategories = [];
+    }
+  }
+
+  function categoryIcon(_label) { return 'fa-bookmark'; }
+  function categoryHtml() {
+    if (!_availableCategories.length) return '';
+    return `
+      <div class="rp-field">
+        <label>Ciclos / categorías <span class="rp-field-hint">(vacío = todos)</span></label>
+        <div class="type-chips" id="rp-categories">
+          ${_availableCategories.map(c => `
+            <label class="type-chip type-chip--category">
+              <input type="checkbox" value="${escape(c)}" />
+              <i class="fa-solid ${categoryIcon(c)}"></i>
+              <span>${escape(c)}</span>
+            </label>`).join('')}
+        </div>
+      </div>`;
+  }
+
   async function renderReports() {
     const root = document.getElementById('content');
+    await loadAvailableCategories();
     const quick = quickReports();
     root.innerHTML = `
       <div class="rp">
@@ -164,6 +208,7 @@
                       </label>`).join('')}
                   </div>
                 </div>
+                ${categoryHtml()}
                 <div class="rp-download-bar">
                   <button class="btn btn--ghost" id="rp-dl-xlsx"><i class="fa-solid fa-file-excel"></i> Descargar Excel</button>
                   <button class="btn btn--primary" id="rp-dl-pdf"><i class="fa-solid fa-file-pdf"></i> Descargar PDF</button>
@@ -277,6 +322,7 @@
     });
 
     root.querySelector('#rp-types').addEventListener('change', refreshPreview);
+    root.querySelector('#rp-categories')?.addEventListener('change', refreshPreview);
 
     root.querySelector('#rp-dl-xlsx').addEventListener('click', () => downloadFromForm('xlsx'));
     root.querySelector('#rp-dl-pdf').addEventListener('click', () => downloadFromForm('pdf'));
@@ -312,9 +358,11 @@
     const from = root.querySelector('#rp-from').value;
     const to = root.querySelector('#rp-to').value;
     const types = [...root.querySelectorAll('#rp-types input:checked')].map(i => i.value);
+    const categories = [...root.querySelectorAll('#rp-categories input:checked')].map(i => i.value);
     const params = new URLSearchParams({ from, to });
     if (types.length) params.set('types', types.join(','));
-    return { from, to, types, qs: params.toString() };
+    if (categories.length) params.set('categories', categories.join(','));
+    return { from, to, types, categories, qs: params.toString() };
   }
 
   // ---------- preview ----------
@@ -460,7 +508,7 @@
 
   // ---------- downloads ----------
   async function downloadFromForm(format) {
-    const { from, to, types, qs } = buildQuery();
+    const { from, to, types, categories, qs } = buildQuery();
     if (!from || !to) {
       window.Toast?.error?.('Selecciona fechas válidas');
       return;
@@ -471,7 +519,7 @@
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando…';
     try {
       const filename = await fetchAndSaveBlob(`/api/reports/period.${format}?${qs}`, format);
-      pushHistory({ from, to, types, format, filename, generatedAt: new Date().toISOString() });
+      pushHistory({ from, to, types, categories, format, filename, generatedAt: new Date().toISOString() });
       window.Toast?.success?.(`Informe ${format.toUpperCase()} listo`);
     } catch (e) {
       window.Toast?.error?.(e.message || 'No se pudo generar el informe');
@@ -481,12 +529,13 @@
     }
   }
 
-  async function downloadDirect({ from, to, types }, format) {
+  async function downloadDirect({ from, to, types, categories }, format) {
     const params = new URLSearchParams({ from, to });
     if (types && types.length) params.set('types', types.join(','));
+    if (categories && categories.length) params.set('categories', categories.join(','));
     try {
       const filename = await fetchAndSaveBlob(`/api/reports/period.${format}?${params}`, format);
-      pushHistory({ from, to, types: types || [], format, filename, generatedAt: new Date().toISOString() });
+      pushHistory({ from, to, types: types || [], categories: categories || [], format, filename, generatedAt: new Date().toISOString() });
       window.Toast?.success?.(`Informe ${format.toUpperCase()} listo`);
     } catch (e) {
       window.Toast?.error?.(e.message || 'No se pudo generar el informe');
@@ -537,7 +586,7 @@
         const idx = Number(btn.dataset.historyRedo);
         const item = list[idx];
         if (!item) return;
-        downloadDirect({ from: item.from, to: item.to, types: item.types || [] }, item.format);
+        downloadDirect({ from: item.from, to: item.to, types: item.types || [], categories: item.categories || [] }, item.format);
       });
     });
   }

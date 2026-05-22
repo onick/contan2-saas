@@ -50,8 +50,8 @@ function monthLabel(key) {
  * únicos asistentes y devuelve el summary necesario para renderizar el
  * reporte.
  */
-export async function buildPeriodSummary({ repos, from, to, types }) {
-  const activities = await repos.activities.findByDateRange(from, to, { types });
+export async function buildPeriodSummary({ repos, from, to, types, categories }) {
+  const activities = await repos.activities.findByDateRange(from, to, { types, categories });
 
   // Asistencias por actividad. Cargamos en paralelo.
   const attendancesByActivity = await Promise.all(

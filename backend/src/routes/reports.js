@@ -27,7 +27,19 @@ function parsePeriodQuery(req) {
     const bad = types.find(t => !VALID_TYPES.has(t));
     if (bad) throw new HttpError(400, `Tipo inválido: ${bad}`);
   }
-  return { from, to, types };
+
+  // Categorías (ciclos/temas) — texto libre normalizado. El repo hace match
+  // case-insensitive contra la columna `category` de activities.
+  let categories = null;
+  if (req.query.categories) {
+    categories = String(req.query.categories)
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && s.length <= 60);
+    if (categories.length === 0) categories = null;
+  }
+
+  return { from, to, types, categories };
 }
 
 async function loadActivityReportData(req) {
@@ -76,15 +88,15 @@ export function createReportsRouter() {
   router.get('/period/preview', async (req, res, next) => {
     try {
       if (!req.organization) throw new HttpError(404, 'Sin organización');
-      const { from, to, types } = parsePeriodQuery(req);
+      const { from, to, types, categories } = parsePeriodQuery(req);
 
       // Cargamos en paralelo el período actual y el anterior (mismo span)
       // para calcular deltas en la vista previa.
       const prev = previousRange(from, to);
       const [period, prevPeriod] = await Promise.all([
-        buildPeriodSummary({ repos: req.repos, from, to, types }),
+        buildPeriodSummary({ repos: req.repos, from, to, types, categories }),
         prev
-          ? buildPeriodSummary({ repos: req.repos, from: prev.from, to: prev.to, types })
+          ? buildPeriodSummary({ repos: req.repos, from: prev.from, to: prev.to, types, categories })
               .catch(() => null)
           : Promise.resolve(null),
       ]);
@@ -124,8 +136,8 @@ export function createReportsRouter() {
   router.get('/period.xlsx', async (req, res, next) => {
     try {
       if (!req.organization) throw new HttpError(404, 'Sin organización');
-      const { from, to, types } = parsePeriodQuery(req);
-      const period = await buildPeriodSummary({ repos: req.repos, from, to, types });
+      const { from, to, types, categories } = parsePeriodQuery(req);
+      const period = await buildPeriodSummary({ repos: req.repos, from, to, types, categories });
       const wb = await buildPeriodExcelReport({ organization: req.organization, period });
 
       const filename = periodFilename(from, to);
@@ -143,8 +155,8 @@ export function createReportsRouter() {
   router.get('/period.pdf', async (req, res, next) => {
     try {
       if (!req.organization) throw new HttpError(404, 'Sin organización');
-      const { from, to, types } = parsePeriodQuery(req);
-      const period = await buildPeriodSummary({ repos: req.repos, from, to, types });
+      const { from, to, types, categories } = parsePeriodQuery(req);
+      const period = await buildPeriodSummary({ repos: req.repos, from, to, types, categories });
       const html = await buildPeriodPdfHtml({ organization: req.organization, period });
       const hf = periodPdfHeaderFooter({ organization: req.organization, period });
       const pdfBuf = await renderHtmlToPdf(html, hf);

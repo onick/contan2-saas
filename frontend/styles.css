@@ -3547,6 +3547,21 @@ tr.hidden { display: none; }
   border-color: var(--color-primary);
 }
 
+/* Chips de categoría: ligeramente distintos en hover/active para que el
+   staff distinga "tipo" (cine, concierto…) de "ciclo/categoría"
+   (cine clásico, 5to ciclo dominicano…). */
+.type-chip--category i {
+  color: #8b5cf6;
+}
+.type-chip--category:has(input:checked) {
+  background: rgba(139, 92, 246, 0.12);
+  color: #6d28d9;
+  border-color: #a78bfa;
+}
+.type-chip--category:has(input:checked) i {
+  color: #6d28d9;
+}
+
 .rp-download-bar {
   display: flex;
   gap: 10px;
