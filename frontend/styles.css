@@ -1742,17 +1742,59 @@ textarea {
 .user-detail-meta {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   font-size: 13px;
   color: var(--color-text-muted);
   margin-bottom: 12px;
 }
 
-.user-detail-meta i {
+.user-detail-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+.user-detail-contact > i {
   width: 16px;
   color: var(--color-primary);
-  margin-right: 6px;
+  flex-shrink: 0;
 }
+.user-detail-contact > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-detail-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 4px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.55;
+  transition: background 120ms, color 120ms, opacity 120ms, border-color 120ms;
+}
+.user-detail-copy:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-primary);
+  border-color: var(--color-border);
+  opacity: 1;
+}
+.user-detail-copy.is-copied {
+  background: #10b981;
+  color: #fff;
+  border-color: #10b981;
+  opacity: 1;
+}
+.user-detail-copy i { font-size: 12px; }
 
 .user-detail-stats {
   display: flex;

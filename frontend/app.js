@@ -1171,8 +1171,21 @@ async function handleUserDetail(code) {
           <div class="user-code">${Utils.escapeHtml(user.code)}</div>
           <h3>${Utils.escapeHtml(user.firstName + ' ' + user.lastName)}</h3>
           <div class="user-detail-meta">
-            <div><i class="fa-solid fa-envelope"></i> ${Utils.escapeHtml(user.email || 'Sin email')}</div>
-            <div><i class="fa-solid fa-phone"></i> ${Utils.escapeHtml(user.phone || 'Sin teléfono')}</div>
+            <div class="user-detail-contact">
+              <i class="fa-solid fa-envelope"></i>
+              <span>${Utils.escapeHtml(user.email || 'Sin email')}</span>
+              ${user.email ? `<button type="button" class="user-detail-copy" data-copy="${Utils.escapeHtml(user.email)}" data-copy-label="correo" title="Copiar correo"><i class="fa-regular fa-copy"></i></button>` : ''}
+            </div>
+            <div class="user-detail-contact">
+              <i class="fa-solid fa-phone"></i>
+              <span>${Utils.escapeHtml(user.phone || 'Sin teléfono')}</span>
+              ${user.phone ? `<button type="button" class="user-detail-copy" data-copy="${Utils.escapeHtml(user.phone)}" data-copy-label="teléfono" title="Copiar teléfono"><i class="fa-regular fa-copy"></i></button>` : ''}
+            </div>
+            <div class="user-detail-contact">
+              <i class="fa-solid fa-id-card"></i>
+              <span>${Utils.escapeHtml(user.code)}</span>
+              <button type="button" class="user-detail-copy" data-copy="${Utils.escapeHtml(user.code)}" data-copy-label="código" title="Copiar código"><i class="fa-regular fa-copy"></i></button>
+            </div>
           </div>
           <div class="user-detail-stats">
             <span class="badge badge--info"><i class="fa-solid fa-repeat"></i> ${user.visitCount} visita(s)</span>
@@ -1209,6 +1222,26 @@ async function handleUserDetail(code) {
   };
   document.getElementById('user-detail-print').onclick = () => printCredential(user, url);
   document.getElementById('user-detail-send')?.addEventListener('click', () => sendCredentialEmail(user));
+  // Botones "copiar" al lado de email/teléfono/código
+  document.querySelectorAll('.user-detail-copy').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const value = btn.dataset.copy;
+      const label = btn.dataset.copyLabel || 'dato';
+      const ok = await Utils.copyToClipboard(value);
+      if (ok) {
+        Toast.success(`${label.charAt(0).toUpperCase() + label.slice(1)} copiado`);
+        const prev = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+        btn.classList.add('is-copied');
+        setTimeout(() => {
+          btn.innerHTML = prev;
+          btn.classList.remove('is-copied');
+        }, 1500);
+      } else {
+        Toast.error('No fue posible copiar');
+      }
+    });
+  });
 }
 
 async function sendCredentialEmail(user) {
