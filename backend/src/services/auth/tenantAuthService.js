@@ -268,6 +268,7 @@ export function publicStaff(staff) {
     email: staff.email,
     fullName: staff.fullName,
     status: staff.status,
+    role: staff.role || 'operator',
     mustChangePassword: !!staff.mustChangePassword,
     mfaEnabled: !!staff.mfaEnabled,
     lastLoginAt: staff.lastLoginAt,

@@ -11,6 +11,7 @@ function rowToStaff(r) {
     passwordHash: r.password_hash,
     fullName: r.full_name,
     status: r.status,
+    role: r.role || 'operator',
     failedAttempts: r.failed_attempts,
     lockedUntil: r.locked_until instanceof Date ? r.locked_until.toISOString() : r.locked_until,
     lockLevel: r.lock_level,
@@ -48,15 +49,75 @@ export class StaffMemberRepository {
     return rowToStaff(rows[0]);
   }
 
-  async create({ organizationId, email, passwordHash, fullName, mustChangePassword = false }) {
+  async create({ organizationId, email, passwordHash, fullName, mustChangePassword = false, role = 'operator' }) {
     const { rows } = await this.pool.query(
       `INSERT INTO staff_members
-        (organization_id, email, password_hash, full_name, must_change_password)
-       VALUES ($1, $2, $3, $4, $5)
+        (organization_id, email, password_hash, full_name, must_change_password, role)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [organizationId, email, passwordHash, fullName, mustChangePassword],
+      [organizationId, email, passwordHash, fullName, mustChangePassword, role],
     );
     return rowToStaff(rows[0]);
+  }
+
+  async listByOrganization(organizationId) {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM staff_members
+        WHERE organization_id = $1 AND deleted_at IS NULL
+        ORDER BY
+          CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+          full_name ASC`,
+      [organizationId],
+    );
+    return rows.map(rowToStaff);
+  }
+
+  async updateRole(staffId, role) {
+    const { rows } = await this.pool.query(
+      `UPDATE staff_members
+          SET role = $2, updated_at = NOW()
+        WHERE id = $1 AND deleted_at IS NULL
+        RETURNING *`,
+      [staffId, role],
+    );
+    return rowToStaff(rows[0]);
+  }
+
+  async updateStatus(staffId, status) {
+    const { rows } = await this.pool.query(
+      `UPDATE staff_members
+          SET status = $2, updated_at = NOW()
+        WHERE id = $1 AND deleted_at IS NULL
+        RETURNING *`,
+      [staffId, status],
+    );
+    return rowToStaff(rows[0]);
+  }
+
+  async softDelete(staffId) {
+    const { rows } = await this.pool.query(
+      `UPDATE staff_members
+          SET status = 'deleted',
+              deleted_at = NOW(),
+              updated_at = NOW()
+        WHERE id = $1 AND deleted_at IS NULL
+        RETURNING *`,
+      [staffId],
+    );
+    return rowToStaff(rows[0]);
+  }
+
+  async countActiveOwners(organizationId) {
+    const { rows } = await this.pool.query(
+      `SELECT COUNT(*)::int AS n
+         FROM staff_members
+        WHERE organization_id = $1
+          AND role = 'owner'
+          AND status = 'active'
+          AND deleted_at IS NULL`,
+      [organizationId],
+    );
+    return rows[0]?.n || 0;
   }
 
   /**

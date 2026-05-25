@@ -52,13 +52,21 @@
           <i class="fa-solid fa-chart-line"></i>
           <span>Reportes</span>
         </a>
-        <a href="#/branding" data-route="branding" class="nav-link">
+        <a href="#/branding" data-route="branding" class="nav-link" data-role-restricted="admin">
           <i class="fa-solid fa-palette"></i>
           <span>Identidad</span>
         </a>
         <a href="#/public-apps" data-route="public-apps" class="nav-link">
           <i class="fa-solid fa-tablet-screen-button"></i>
           <span>Modo público</span>
+        </a>
+        <a href="#/staff" data-route="staff" class="nav-link" data-role-restricted="admin">
+          <i class="fa-solid fa-user-shield"></i>
+          <span>Mi equipo</span>
+        </a>
+        <a href="#/audit" data-route="audit" class="nav-link" data-role-restricted="admin">
+          <i class="fa-solid fa-clipboard-list"></i>
+          <span>Bitácora</span>
         </a>
       </nav>
       <div class="sidebar-footer">
@@ -111,5 +119,7 @@
     <script src="branding-admin.js"></script>
     <script src="reports-admin.js"></script>
     <script src="public-apps-admin.js"></script>
+    <script src="staff-admin.js"></script>
+    <script src="audit-admin.js"></script>
   </body>
 </html>

@@ -30,6 +30,8 @@ import { createPlatformAuthRouter } from './src/routes/platformAuth.js';
 import { createReportsRouter } from './src/routes/reports.js';
 import { createEventosPublicRouter } from './src/routes/eventosPublic.js';
 import { createLandingRouter } from './src/routes/landing.js';
+import { createStaffManagementRouter } from './src/routes/staffManagement.js';
+import { createAuditLogRouter } from './src/routes/auditLog.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -137,6 +139,10 @@ app.use('/api/attendance', createAttendanceRouter());
 app.use('/api/dashboard', createDashboardRouter());
 app.use('/api/insights', createInsightsRouter());
 app.use('/api/staff', createStaffRouter());
+// Gestión de staff (Sprint 3): /members, /invitations. NO choca con
+// /login, /logout, /me del router legacy de arriba.
+app.use('/api/staff', createStaffManagementRouter());
+app.use('/api/audit-log', createAuditLogRouter());
 app.use('/api/credentials', createCredentialsRouter());
 app.use('/api/org/branding', createOrgBrandingRouter());
 app.use('/api/org/domain', createOrgDomainRouter());
@@ -152,6 +158,7 @@ const scannerHtml = serveHtmlWithBranding(path.join(frontendPath, 'scanner.html'
 const rsvpHtml = serveHtmlWithBranding(path.join(frontendPath, 'rsvp.html'));
 const loginHtml = serveHtmlWithBranding(path.join(frontendPath, 'login.html'));
 const indexHtml = serveHtmlWithBranding(path.join(frontendPath, 'index.html'));
+const inviteHtml = serveHtmlWithBranding(path.join(frontendPath, 'invite.html'));
 
 // Detecta si el host es el subdomain `admin.<rootDomain>` → es la sección
 // de plataforma (platform admin). Distinto del flow de tenant.
@@ -213,6 +220,8 @@ async function landingHandler(req, res, next) {
 app.get(/^\/kiosko(?:\/.*)?$/, resolveTenant, kioskoHtml);
 app.get(/^\/scanner(?:\/.*)?$/, resolveTenant, scannerHtml);
 app.get(/^\/rsvp(?:\/.*)?$/, resolveTenant, rsvpHtml);
+// Página pública de aceptación de invitación (token en path).
+app.get(/^\/invite(?:\/.*)?$/, resolveTenant, inviteHtml);
 // /login, /login/forgot, /login/reset:
 // - En admin.<root> → platform-login (super admin)
 // - En marketing host → redirect a la landing (no hay tenant para loguearse)
@@ -260,6 +269,9 @@ app.use((req, res, next) => {
   }
   if (req.path === '/rsvp' || req.path.startsWith('/rsvp/')) {
     return resolveTenant(req, res, () => rsvpHtml(req, res, next));
+  }
+  if (req.path === '/invite' || req.path.startsWith('/invite/')) {
+    return resolveTenant(req, res, () => inviteHtml(req, res, next));
   }
   if (req.path === '/login' || req.path.startsWith('/login/')) {
     return resolveTenant(req, res, () => loginHtml(req, res, next));

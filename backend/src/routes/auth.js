@@ -18,8 +18,12 @@ import {
 import { StaffMemberRepository } from '../db/postgres/platform/StaffMemberRepository.js';
 import { StaffSessionRepository } from '../db/postgres/platform/StaffSessionRepository.js';
 import { StaffPasswordResetRepository } from '../db/postgres/platform/StaffPasswordResetRepository.js';
+import { StaffInvitationRepository } from '../db/postgres/platform/StaffInvitationRepository.js';
 import { initRepositories } from '../db/repositories.js';
 import { listActiveSessions, revokeSession } from '../services/auth/sessionService.js';
+import { recordAudit } from '../services/auth/auditService.js';
+import { hashPassword, generateOpaqueToken, hashToken, validatePasswordStrength } from '../services/auth/passwordService.js';
+import { maskEmail } from '../utils/log.js';
 import { config } from '../config.js';
 
 const COOKIE_NAME = getSessionCookieName();
@@ -96,16 +100,40 @@ export function createAuthRouter() {
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) throw new HttpError(400, 'Datos inválidos', parsed.error.issues);
       const repos = await getRepos();
-      const result = await svcLogin({
-        organization: req.organization,
-        repos,
-        email: parsed.data.email,
-        password: parsed.data.password,
-        rememberMe: !!parsed.data.rememberMe,
-        ip: req.ip,
-        userAgent: req.get('User-Agent'),
-      });
+      let result;
+      try {
+        result = await svcLogin({
+          organization: req.organization,
+          repos,
+          email: parsed.data.email,
+          password: parsed.data.password,
+          rememberMe: !!parsed.data.rememberMe,
+          ip: req.ip,
+          userAgent: req.get('User-Agent'),
+        });
+      } catch (e) {
+        // Audit del fallo. No tenemos currentStaff aún.
+        recordAudit({
+          req,
+          action: 'auth.login_failed',
+          actorOverride: { emailMasked: maskEmail(parsed.data.email) },
+          organizationIdOverride: req.organization.id,
+          metadata: { reason: e.status === 423 ? 'lockout' : 'bad_credentials' },
+        }).catch(() => {});
+        throw e;
+      }
       setSessionCookie(res, result.sessionToken, result.expiresAt);
+      recordAudit({
+        req,
+        action: 'auth.login',
+        actorOverride: {
+          staffId: result.staff.id,
+          emailMasked: maskEmail(result.staff.email),
+          role: result.staff.role,
+        },
+        organizationIdOverride: req.organization.id,
+        metadata: { rememberMe: !!parsed.data.rememberMe },
+      }).catch(() => {});
       res.json({
         ok: true,
         staff: result.staff,
@@ -122,6 +150,7 @@ export function createAuthRouter() {
         await svcLogout({ repos, sessionId: req.currentSessionId });
       }
       clearSessionCookie(res);
+      recordAudit({ req, action: 'auth.logout' }).catch(() => {});
       res.json({ ok: true });
     } catch (e) { next(e); }
   });
@@ -158,11 +187,15 @@ export function createAuthRouter() {
       const parsed = resetSchema.safeParse(req.body);
       if (!parsed.success) throw new HttpError(400, 'Datos inválidos', parsed.error.issues);
       const repos = await getRepos();
-      await svcResetPassword({
+      const ret = await svcResetPassword({
         repos,
         token: parsed.data.token,
         newPassword: parsed.data.newPassword,
       });
+      // ret.staff puede no venir; pero podemos buscar por hash si fuera necesario.
+      // Por simplicidad sin retornar el staff, omitimos actor; el organizationId
+      // viene del req (path en custom domain → resolveTenant ya lo pobló).
+      recordAudit({ req, action: 'auth.password_reset_used' }).catch(() => {});
       res.json({ ok: true, message: 'Contraseña restablecida. Inicia sesión con la nueva.' });
     } catch (e) { next(e); }
   });
@@ -180,6 +213,7 @@ export function createAuthRouter() {
         currentPassword: parsed.data.currentPassword,
         newPassword: parsed.data.newPassword,
       });
+      recordAudit({ req, action: 'auth.password_changed' }).catch(() => {});
       res.json({ ok: true, message: 'Contraseña actualizada.' });
     } catch (e) { next(e); }
   });
@@ -214,6 +248,97 @@ export function createAuthRouter() {
       const repos = await getRepos();
       await revokeSession({ repo: repos.session, sessionId: req.params.id });
       res.status(204).end();
+    } catch (e) { next(e); }
+  });
+
+  // ------ Invitaciones (públicas: aceptar) ------
+
+  // GET /api/auth/invitation/:token — preview (sin auth).
+  router.get('/invitation/:token', async (req, res, next) => {
+    try {
+      if (config.DB_DRIVER !== 'postgres') throw new HttpError(503, 'Auth requiere Postgres');
+      const inst = await initRepositories();
+      const invRepo = new StaffInvitationRepository(inst.pool);
+      const inv = await invRepo.findByTokenHash(hashToken(req.params.token));
+      if (!inv) return res.status(404).json({ error: 'Invitación no encontrada' });
+      if (inv.status !== 'pending') return res.status(410).json({ error: `Invitación ${inv.status}` });
+      if (new Date(inv.expiresAt) < new Date()) {
+        return res.status(410).json({ error: 'Invitación expirada' });
+      }
+      // Mostramos info mínima: organización + email + role.
+      const { OrganizationRepository } = await import('../db/postgres/platform/OrganizationRepository.js');
+      const orgRepo = new OrganizationRepository(inst.pool);
+      const org = await orgRepo.findById(inv.organizationId);
+      res.json({
+        invitation: {
+          email: inv.email,
+          fullName: inv.fullName,
+          role: inv.role,
+          expiresAt: inv.expiresAt,
+          organization: org ? { id: org.id, slug: org.slug, name: org.name } : null,
+        },
+      });
+    } catch (e) { next(e); }
+  });
+
+  // POST /api/auth/accept-invitation — { token, password, fullName? }
+  const acceptInvRateLimit = rateLimit({ windowMs: 60 * 60_000, max: 10,
+    message: 'Demasiados intentos. Espera una hora.' });
+  router.post('/accept-invitation', acceptInvRateLimit, async (req, res, next) => {
+    try {
+      if (config.DB_DRIVER !== 'postgres') throw new HttpError(503, 'Auth requiere Postgres');
+      const { token, password, fullName } = req.body || {};
+      if (!token || typeof token !== 'string') throw new HttpError(400, 'Token requerido');
+      if (!password || typeof password !== 'string') throw new HttpError(400, 'Contraseña requerida');
+      const strengthErrs = validatePasswordStrength(password);
+      if (strengthErrs.length) throw new HttpError(400, 'Password débil: ' + strengthErrs.join(', '));
+
+      const inst = await initRepositories();
+      const invRepo = new StaffInvitationRepository(inst.pool);
+      const staffRepo = new StaffMemberRepository(inst.pool);
+
+      const inv = await invRepo.findByTokenHash(hashToken(token));
+      if (!inv) throw new HttpError(404, 'Invitación no encontrada');
+      if (inv.status !== 'pending') throw new HttpError(410, `Invitación ${inv.status}`);
+      if (new Date(inv.expiresAt) < new Date()) throw new HttpError(410, 'Invitación expirada');
+
+      // Si ya existe un staff con ese email en la org (race condition o
+      // re-aceptación de invitación duplicada), no creamos otro.
+      const existing = await staffRepo.findByEmail(inv.organizationId, inv.email);
+      if (existing) {
+        throw new HttpError(409, 'Ya existe una cuenta con este correo. Usa "Olvidé mi contraseña".');
+      }
+
+      const finalName = (fullName && String(fullName).trim()) || inv.fullName || inv.email.split('@')[0];
+      const passwordHash = await hashPassword(password);
+
+      const staff = await staffRepo.create({
+        organizationId: inv.organizationId,
+        email: inv.email,
+        passwordHash,
+        fullName: finalName,
+        mustChangePassword: false,
+        role: inv.role,
+      });
+
+      await invRepo.markAccepted(inv.id, staff.id);
+
+      recordAudit({
+        req,
+        action: 'staff.invite_accepted',
+        organizationIdOverride: inv.organizationId,
+        actorOverride: {
+          staffId: staff.id,
+          emailMasked: maskEmail(staff.email),
+          role: staff.role,
+        },
+        targetType: 'staff_invitation',
+        targetId: inv.id,
+        targetLabel: inv.email,
+        metadata: { role: inv.role },
+      }).catch(() => {});
+
+      res.json({ ok: true, message: 'Invitación aceptada. Ya puedes iniciar sesión.' });
     } catch (e) { next(e); }
   });
 

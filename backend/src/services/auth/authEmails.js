@@ -238,3 +238,61 @@ export async function sendNewLoginNotificationEmail({ staffMember, organization,
     organization,
   });
 }
+
+function roleLabel(role) {
+  if (role === 'owner') return 'propietario(a)';
+  if (role === 'admin') return 'administrador(a)';
+  return 'operador(a)';
+}
+
+function staffInvitationHtml({ email, fullName, role, tokens, logoData, inviteUrl, invitedByName, expiresAt }) {
+  const greeting = fullName ? `Hola ${String(fullName).split(' ')[0]}` : 'Hola';
+  const expiresStr = expiresAt instanceof Date
+    ? expiresAt.toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' })
+    : String(expiresAt || '');
+  const header = headerHtml({
+    tokens, logoData,
+    eyebrow: tokens.orgName.toUpperCase(),
+    title: 'Te invitaron a unirte al equipo',
+  });
+  const content = `
+    <tr><td style="padding:32px 36px 12px;">
+      <p style="font-size:17px;font-weight:600;margin:0 0 8px;">${escapeHtml(greeting)},</p>
+      <p style="font-size:15px;line-height:1.6;color:#4b5563;margin:0 0 16px;">
+        ${invitedByName ? `<strong>${escapeHtml(invitedByName)}</strong> te invitó` : 'Te invitaron'}
+        a sumarte al panel administrativo de <strong>${escapeHtml(tokens.orgName)}</strong>
+        con el rol de <strong>${escapeHtml(roleLabel(role))}</strong>.
+      </p>
+      <p style="font-size:14px;line-height:1.6;color:#4b5563;margin:0 0 16px;">
+        Haz clic en el botón para crear tu contraseña y completar tu acceso.
+        El enlace es válido hasta <strong>${escapeHtml(expiresStr)}</strong>.
+      </p>
+    </td></tr>
+    <tr><td style="padding:8px 36px 20px;">
+      <a href="${escapeHtml(inviteUrl)}" style="display:block;background:${tokens.primary};color:${tokens.onPrimary};text-decoration:none;text-align:center;padding:14px 18px;border-radius:10px;font-weight:700;font-size:15px;">Aceptar invitación</a>
+    </td></tr>
+    <tr><td style="padding:0 36px 12px;">
+      <p style="font-size:12px;color:#6b7280;line-height:1.5;margin:0 0 8px;">Si no esperabas esta invitación, puedes ignorar este correo.</p>
+    </td></tr>
+    <tr><td style="padding:14px 36px 32px;">
+      <p style="font-size:11px;color:#9ca3af;line-height:1.5;margin:0;">Si el botón no funciona, copia este enlace en tu navegador:<br>
+        <a href="${escapeHtml(inviteUrl)}" style="color:${tokens.primary};word-break:break-all;">${escapeHtml(inviteUrl)}</a>
+      </p>
+    </td></tr>`;
+  return shell({ tokens, header, content });
+}
+
+export async function sendStaffInvitationEmail({
+  email, fullName, role, organization, inviteUrl, invitedByName, expiresAt,
+}) {
+  const { tokens, logoData } = await brandingContext(organization);
+  const html = staffInvitationHtml({
+    email, fullName, role, tokens, logoData, inviteUrl, invitedByName, expiresAt,
+  });
+  return sendBranded({
+    to: email,
+    subject: `Te invitaron a ${tokens.orgName}`,
+    html,
+    organization,
+  });
+}

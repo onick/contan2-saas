@@ -26,6 +26,8 @@ const ROUTES = {
   reports: { title: 'Reportes', subtitle: 'Informes profesionales por período', render: () => window.renderReports && window.renderReports() },
   branding: { title: 'Identidad de marca', subtitle: 'Colores, logo y estilo del panel administrativo', render: () => window.renderBranding && window.renderBranding() },
   'public-apps': { title: 'Modo público', subtitle: 'Apps de lobby: kiosko de auto-registro y scanner de check-in', render: () => window.renderPublicApps && window.renderPublicApps() },
+  staff: { title: 'Mi equipo', subtitle: 'Personas con acceso al panel y sus permisos', render: () => window.renderStaff && window.renderStaff() },
+  audit: { title: 'Bitácora', subtitle: 'Eventos importantes registrados por el sistema', render: () => window.renderAudit && window.renderAudit() },
 };
 
 const State = {
@@ -4374,12 +4376,26 @@ async function ensureAuthenticated() {
     const data = await res.json();
     State.currentStaff = data?.staff || null;
     State.currentSessionId = data?.sessionId || null;
+    applyRoleGating();
     return true;
   } catch (e) {
     // Sin conexión: dejamos pasar (el siguiente request fallará y el usuario verá un error).
     console.error('[auth] /me network error:', e.message);
     return true;
   }
+}
+
+// Oculta items del sidebar marcados con `data-role-restricted="admin"`
+// cuando el staff actual no es owner ni admin. Si todavía no resolvimos
+// el rol (currentStaff null) los dejamos visibles — el backend bloqueará
+// igualmente.
+function applyRoleGating() {
+  const role = State?.currentStaff?.role;
+  if (!role) return;
+  const isPrivileged = role === 'owner' || role === 'admin';
+  document.querySelectorAll('[data-role-restricted="admin"]').forEach(el => {
+    el.style.display = isPrivileged ? '' : 'none';
+  });
 }
 
 async function init() {

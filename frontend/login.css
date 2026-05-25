@@ -230,3 +230,48 @@ html, body {
   color: var(--color-text-muted, #6b7280);
   text-align: center;
 }
+
+/* --- Invite (Sprint 3): loader + role pill --- */
+.auth-loader { text-align: center; padding: 24px 0; color: var(--color-text-muted, #64748b); }
+.auth-spinner {
+  width: 28px; height: 28px;
+  border: 3px solid var(--color-border, #e2e8f0);
+  border-top-color: var(--color-primary, #4338ca);
+  border-radius: 50%;
+  margin: 0 auto 14px;
+  animation: authSpin .8s linear infinite;
+}
+@keyframes authSpin { to { transform: rotate(360deg); } }
+
+.invite-pill {
+  display: inline-block;
+  background: var(--color-primary-50, #eef2ff);
+  color: var(--color-primary, #4338ca);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.invite-meta {
+  background: var(--color-bg-secondary, #f8fafc);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 12px 0 18px;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+.invite-meta strong { color: var(--color-text, #0f172a); }
+
+.invite-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 16px;
+  color: #991b1b;
+  margin: 20px 0;
+}
+.invite-error h2 { margin: 0 0 6px; font-size: 1.05rem; }
+.invite-error p { margin: 0; font-size: 0.92rem; }
