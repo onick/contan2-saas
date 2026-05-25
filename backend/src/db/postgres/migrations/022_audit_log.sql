@@ -1,5 +1,5 @@
 -- ============================================================================
--- 022_audit_log · bitácora append-only de eventos por tenant
+-- 022_tenant_audit_log · bitácora append-only de eventos por tenant
 -- ============================================================================
 -- Tabla append-only. Nunca se borra ni se modifica desde la aplicación.
 -- Cualquier query desde el admin del tenant DEBE filtrar por
@@ -30,7 +30,7 @@
 -- siga siendo legible aunque el staff se borre después.
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS audit_log (
+CREATE TABLE IF NOT EXISTS tenant_audit_log (
   id                  BIGSERIAL PRIMARY KEY,
   organization_id     UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   actor_staff_id      UUID NULL REFERENCES staff_members(id) ON DELETE SET NULL,
@@ -46,12 +46,12 @@ CREATE TABLE IF NOT EXISTS audit_log (
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS audit_log_org_time_idx
-  ON audit_log (organization_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS tenant_audit_log_org_time_idx
+  ON tenant_audit_log (organization_id, created_at DESC, id DESC);
 
-CREATE INDEX IF NOT EXISTS audit_log_org_action_idx
-  ON audit_log (organization_id, action);
+CREATE INDEX IF NOT EXISTS tenant_audit_log_org_action_idx
+  ON tenant_audit_log (organization_id, action);
 
-CREATE INDEX IF NOT EXISTS audit_log_org_actor_idx
-  ON audit_log (organization_id, actor_staff_id)
+CREATE INDEX IF NOT EXISTS tenant_audit_log_org_actor_idx
+  ON tenant_audit_log (organization_id, actor_staff_id)
   WHERE actor_staff_id IS NOT NULL;

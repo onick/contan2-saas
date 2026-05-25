@@ -1,5 +1,5 @@
 // =============================================================================
-// AuditLogRepository.js · append-only access a audit_log
+// AuditLogRepository.js · append-only access a tenant_audit_log
 // =============================================================================
 
 function rowToEntry(r) {
@@ -44,7 +44,7 @@ export class AuditLogRepository {
     if (!organizationId || !action) return null;
     try {
       const { rows } = await this.pool.query(
-        `INSERT INTO audit_log
+        `INSERT INTO tenant_audit_log
           (organization_id, actor_staff_id, actor_email_masked, actor_role,
            action, target_type, target_id, target_label, metadata, ip_hash, ua)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)
@@ -111,7 +111,7 @@ export class AuditLogRepository {
 
     params.push(lim + 1); // pedimos uno extra para saber si hay más página
     const { rows } = await this.pool.query(
-      `SELECT * FROM audit_log
+      `SELECT * FROM tenant_audit_log
         WHERE ${where}
         ORDER BY created_at DESC, id DESC
         LIMIT $${params.length}`,

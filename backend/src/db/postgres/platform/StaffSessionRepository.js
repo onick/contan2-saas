@@ -23,7 +23,7 @@ export class StaffSessionRepository {
 
   async create({ accountId, tokenHash, expiresAt, rememberMe, ipHash, userAgent }) {
     const { rows } = await this.pool.query(
-      `INSERT INTO staff_sessions
+      `INSERT INTO staff_auth_sessions
         (staff_member_id, token_hash, expires_at, remember_me, ip_hash, user_agent)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
@@ -35,7 +35,7 @@ export class StaffSessionRepository {
   async findByTokenHash(tokenHash) {
     if (!tokenHash) return null;
     const { rows } = await this.pool.query(
-      `SELECT * FROM staff_sessions
+      `SELECT * FROM staff_auth_sessions
        WHERE token_hash = $1 AND revoked_at IS NULL
        LIMIT 1`,
       [tokenHash],
@@ -46,7 +46,7 @@ export class StaffSessionRepository {
   async revoke(sessionId) {
     if (!sessionId) return;
     await this.pool.query(
-      `UPDATE staff_sessions SET revoked_at = NOW()
+      `UPDATE staff_auth_sessions SET revoked_at = NOW()
        WHERE id = $1 AND revoked_at IS NULL`,
       [sessionId],
     );
@@ -56,13 +56,13 @@ export class StaffSessionRepository {
     if (!accountId) return;
     if (exceptSessionId) {
       await this.pool.query(
-        `UPDATE staff_sessions SET revoked_at = NOW()
+        `UPDATE staff_auth_sessions SET revoked_at = NOW()
          WHERE staff_member_id = $1 AND id != $2 AND revoked_at IS NULL`,
         [accountId, exceptSessionId],
       );
     } else {
       await this.pool.query(
-        `UPDATE staff_sessions SET revoked_at = NOW()
+        `UPDATE staff_auth_sessions SET revoked_at = NOW()
          WHERE staff_member_id = $1 AND revoked_at IS NULL`,
         [accountId],
       );
@@ -72,7 +72,7 @@ export class StaffSessionRepository {
   async listActiveForAccount(accountId) {
     if (!accountId) return [];
     const { rows } = await this.pool.query(
-      `SELECT * FROM staff_sessions
+      `SELECT * FROM staff_auth_sessions
        WHERE staff_member_id = $1 AND revoked_at IS NULL AND expires_at > NOW()
        ORDER BY created_at DESC`,
       [accountId],
