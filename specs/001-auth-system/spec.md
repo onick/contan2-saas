@@ -1,10 +1,26 @@
-# Spec 001 — Sistema de Autenticación
+# Spec 001 — Sistema de Autenticación (Tenant + Platform)
 
-> **Estado:** Borrador inicial · pendiente de aprobación
+> **Estado:** Borrador v2 · ajustado tras decisión de "Marcelino = platform admin, Karen = tenant owner"
 > **Sprint:** 1 de 6 (mes 1, sem 1-2)
 > **Bloquea:** todo el resto del roadmap (staff multi-usuario, billing,
 > signup self-service, audit log).
 > **Autor:** Claude · 2026-05-25
+
+## Modelo de cuentas (importante leer primero)
+
+Existen **dos tipos de cuenta distintos**, con tablas separadas y
+flujos de login separados, pero compartiendo el servicio interno de
+auth (hash, sesiones, lockout):
+
+| Tipo | Quién | Subdomain de login | Scope |
+|---|---|---|---|
+| **Platform admin** (super admin) | Marcelino (y futuros operadores de contan2) | `admin.contan2.com` | Cross-tenant. Puede ver/gestionar todos los tenants, impersonar, ver billing global, etc. |
+| **Tenant staff** | Karen (CCB) y futuros staff de cada tenant | `<slug>.contan2.com` (ej. `ccb.contan2.com`) o custom domain | Limitado a UNA organización. No puede ver otras orgs ni billing global. |
+
+**Por qué tablas separadas:** un platform admin no pertenece a ningún
+tenant, no necesita `organization_id`. Un staff de tenant no necesita
+permisos cross-tenant. Mezclarlos en una tabla obliga a campos opcionales
++ checks en cada query — peor mantenibilidad.
 
 ---
 
@@ -327,45 +343,50 @@ Para no romper producción:
 
 ---
 
-## 12. Preguntas abiertas para Marcelino
+## 12. Decisiones tomadas (eran preguntas abiertas — ya resueltas)
 
-Antes de pasar al `/speckit.plan` (diseño técnico) necesito que valides:
+1. **Forzar cambio de password al primer login** del usuario migrado:
+   **SÍ**. Estándar de la industria, reduce riesgo de passwords
+   temporales débiles olvidadas.
 
-1. **`must_change_password` forzado al primer login** del staff migrado:
-   ¿OK? Alternativa: dejar la temporal y avisar pero no forzar.
+2. **Duración de "recordarme"**: **30 días** vs 12h por defecto.
+   Balance conveniencia/seguridad.
 
-2. **Duración de "recordarme"**: propongo 30 días. ¿Te parece bien o
-   prefieres más/menos?
+3. **Login desde nueva IP**: **SÍ** envía email de notificación.
+   Transparencia anti-toma-de-cuenta. Si genera ruido, se puede
+   opt-out en settings (sprint futuro).
 
-3. **Login desde nueva IP**: ¿enviar email de notificación o silencioso?
-   Pro-email: transparencia. Contra-email: ruido si trabajas desde
-   multiples lugares.
+4. **Bloqueo escalado**: **30min → 1h → 24h** (3 niveles). Anti
+   brute-force agresivo pero no permanente.
 
-4. **Bloqueo escalado** (30min → 1h → 24h): ¿OK esta progresión, o
-   prefieres bloqueo plano (siempre 30min) o más agresivo (1h fijo)?
+5. **MFA/TOTP en este sprint**: **NO**, pero con hook arquitectónico:
+   las columnas `mfa_enabled BOOLEAN DEFAULT FALSE` y `mfa_secret TEXT
+   NULL` se incluyen en el schema desde el día 1. Sumar la feature
+   completa en un sprint futuro será una migración cero.
 
-5. **¿Quieres MFA/TOTP** como opcional en este sprint, aunque sea
-   marcado como "experimental"? Si sí, lo agrego ahora; si no, queda
-   para un sprint futuro.
+6. **Recovery del owner que perdió todo**:
+   - Tenant owner que perdió acceso: super admin (Marcelino) lo
+     reseta vía endpoint `POST /api/platform/tenants/:id/reset-owner`.
+   - Super admin que perdió acceso: solo otro super admin lo reseta
+     (mientras solo haya uno, intervención manual sobre la DB).
 
-6. **Recovery del owner**: si un owner pierde acceso Y su email también
-   está caído, ¿qué hacemos? Propongo: contacto por DM a soporte +
-   verificación humana. Si se vuelve común, automatizamos.
-
-7. **Sobre Marcelino específicamente**: ¿tu email para la cuenta sigue
-   siendo `mfranciscomartinez@gmail.com`? ¿Algún otro staff del CCB
-   que también tenga acceso al admin?
+7. **Cuentas iniciales del sistema**:
+   - **Marcelino** = platform super admin (cuenta en
+     `platform_admins`, ningún `organization_id`)
+   - **Karen** = tenant owner del CCB (cuenta en `staff_members` con
+     `organization_id = ccb_org_id`). Email de Karen pendiente; se
+     le creará la cuenta antes del primer deploy del Sprint.
+   - **Cuando se cree la cuenta de Karen**, el PIN actual (2828) se
+     deprecia en 7 días.
 
 ---
 
-## 13. Siguiente paso
+## 13. Siguientes pasos (artefactos en este mismo directorio)
 
-Una vez aprobado este spec (o ajustado según tus respuestas a la sección
-12):
-1. **`/speckit.plan`** — diseño técnico detallado (estructura de archivos,
-   middlewares, decisión final de librería de argon2, etc.)
-2. **`/speckit.tasks`** — desglose en tareas implementables (~25-35
-   tareas, cada una mergeable independientemente)
-3. **Implementación** — branch `develop`, PRs hacia `develop`, tests,
-   smoke local, deploy a staging eventualmente, merge a `multitenant`
-   cuando esté listo.
+1. ✅ **`spec.md`** (este documento) — qué construimos y por qué
+2. **`plan.md`** — diseño técnico detallado (librerías, archivos,
+   middlewares, estructura)
+3. **`tasks.md`** — desglose ejecutable en tareas atómicas
+4. **Implementación** en branch `develop`, con commits incrementales
+   por task. Cada task se puede mergear independiente (pero el merge
+   a `multitenant` solo cuando el sprint completo esté listo y testeado).
