@@ -141,75 +141,588 @@
   // ============================================================
   // TENANTS
   // ============================================================
+  const TenantsCtx = {
+    raw: [],
+    q: '',
+    status: '',      // '' | 'active' | 'suspended' | 'trial' | 'deleted'
+    plan: '',        // '' | 'free' | 'pro' | 'enterprise'
+    sortKey: 'lastActivityAt',
+    sortDir: 'desc',
+    density: 'comfortable', // 'comfortable' | 'compact'
+    loaded: false,
+  };
+
+  function loadPrefs() {
+    try {
+      const p = JSON.parse(localStorage.getItem('pf:tenants:prefs') || '{}');
+      if (p.status) TenantsCtx.status = p.status;
+      if (p.plan) TenantsCtx.plan = p.plan;
+      if (p.sortKey) TenantsCtx.sortKey = p.sortKey;
+      if (p.sortDir) TenantsCtx.sortDir = p.sortDir;
+      if (p.density) TenantsCtx.density = p.density;
+    } catch {}
+  }
+  function savePrefs() {
+    try {
+      localStorage.setItem('pf:tenants:prefs', JSON.stringify({
+        status: TenantsCtx.status, plan: TenantsCtx.plan,
+        sortKey: TenantsCtx.sortKey, sortDir: TenantsCtx.sortDir,
+        density: TenantsCtx.density,
+      }));
+    } catch {}
+  }
+
+  /**
+   * Health signal por tenant. Devuelve { level, label, hint }.
+   *   ok     verde  — operación activa
+   *   warn   ámbar  — algo a revisar (stale, dominio pendiente)
+   *   risk   rojo   — riesgo alto (suspendido, trial vence pronto)
+   *   off    gris   — eliminado o pre-uso
+   */
+  function healthOf(t) {
+    if (t.status === 'deleted') return { level: 'off', label: 'Eliminado', hint: 'Tenant marcado como eliminado.' };
+    if (t.status === 'suspended') return { level: 'risk', label: 'Suspendido', hint: 'Sin acceso para el staff de este tenant.' };
+
+    const flags = [];
+    if (t.trialEndsAt) {
+      const daysLeft = Math.ceil((new Date(t.trialEndsAt).getTime() - Date.now()) / 86400000);
+      if (daysLeft <= 0) flags.push({ level: 'risk', label: 'Trial vencido', hint: 'El trial terminó.' });
+      else if (daysLeft <= 7) flags.push({ level: 'warn', label: `Trial: ${daysLeft}d`, hint: `Quedan ${daysLeft} días de trial.` });
+    }
+    if (t.customDomain && !t.customDomainVerifiedAt) {
+      flags.push({ level: 'warn', label: 'DNS pendiente', hint: `Dominio ${t.customDomain} no verificado.` });
+    }
+    const lastTs = t.lastActivityAt ? new Date(t.lastActivityAt).getTime() : 0;
+    if (lastTs) {
+      const days = (Date.now() - lastTs) / 86400000;
+      if (days >= 30) flags.push({ level: 'warn', label: 'Inactivo 30d+', hint: 'Sin actividad relevante en 30 días.' });
+      else if (days >= 14) flags.push({ level: 'warn', label: 'Inactivo 14d+', hint: 'Sin actividad relevante en 14 días.' });
+    } else {
+      flags.push({ level: 'warn', label: 'Sin uso', hint: 'Tenant nunca ha tenido actividad operativa.' });
+    }
+    if (!flags.length) return { level: 'ok', label: 'Operando', hint: 'Tenant activo con uso reciente.' };
+    // Si hay varias warns y al menos una risk, priorizar risk
+    const risk = flags.find(f => f.level === 'risk');
+    if (risk) return risk;
+    return flags[0];
+  }
+
+  function applyFiltersAndSort() {
+    const q = TenantsCtx.q.trim().toLowerCase();
+    let list = TenantsCtx.raw.slice();
+    if (q) {
+      list = list.filter(t =>
+        (t.name || '').toLowerCase().includes(q) ||
+        (t.slug || '').toLowerCase().includes(q) ||
+        (t.customDomain || '').toLowerCase().includes(q),
+      );
+    }
+    if (TenantsCtx.status === 'trial') {
+      list = list.filter(t => !!t.trialEndsAt && new Date(t.trialEndsAt) > new Date());
+    } else if (TenantsCtx.status) {
+      list = list.filter(t => t.status === TenantsCtx.status);
+    }
+    if (TenantsCtx.plan) {
+      list = list.filter(t => t.plan === TenantsCtx.plan);
+    }
+
+    const dir = TenantsCtx.sortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      const k = TenantsCtx.sortKey;
+      const av = a[k], bv = b[k];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      const as = String(av), bs = String(bv);
+      if (/^\d{4}-\d{2}-\d{2}T/.test(as) && /^\d{4}-\d{2}-\d{2}T/.test(bs)) {
+        return (new Date(as) - new Date(bs)) * dir;
+      }
+      return as.localeCompare(bs, 'es') * dir;
+    });
+    return list;
+  }
+
+  function tenantInitials(name) {
+    if (!name) return '··';
+    return String(name).trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase();
+  }
+
+  function brandSwatch(t) {
+    const primary = t.primaryColor || '#1a237e';
+    const accent = t.secondaryColor || '#ff6f00';
+    if (t.logoUrl) {
+      return `<div class="pf-tenant-cell__avatar" style="background:${escapeHtml(primary)};">
+        <img src="${escapeHtml(t.logoUrl)}" alt="" />
+      </div>`;
+    }
+    return `<div class="pf-tenant-cell__avatar" style="background:linear-gradient(135deg, ${escapeHtml(primary)} 0%, ${escapeHtml(accent)} 100%);">${escapeHtml(tenantInitials(t.name))}</div>`;
+  }
+
+  function domainBadge(t) {
+    if (t.customDomain && t.customDomainVerifiedAt) {
+      return `<span class="pf-mini-pill pf-mini-pill--ok" title="${escapeHtml(t.customDomain)} verificado">
+        <i class="fa-solid fa-globe"></i> ${escapeHtml(t.customDomain)}
+      </span>`;
+    }
+    if (t.customDomain) {
+      return `<span class="pf-mini-pill pf-mini-pill--warn" title="DNS sin verificar">
+        <i class="fa-solid fa-globe"></i> ${escapeHtml(t.customDomain)}
+      </span>`;
+    }
+    return `<span class="pf-mini-pill pf-mini-pill--mute"><i class="fa-solid fa-link"></i> ${escapeHtml(t.slug || '')}.contan2.com</span>`;
+  }
+
+  function tenantUrl(t) {
+    if (t.customDomain && t.customDomainVerifiedAt) return `https://${t.customDomain}`;
+    return `https://${t.slug}.contan2.com`;
+  }
+
+  function renderKpiStrip() {
+    const list = TenantsCtx.raw;
+    const total = list.length;
+    const active = list.filter(t => t.status === 'active').length;
+    const suspended = list.filter(t => t.status === 'suspended').length;
+    const trial = list.filter(t => t.trialEndsAt && new Date(t.trialEndsAt) > new Date()).length;
+    const att30 = list.reduce((s, t) => s + (t.attendancesCount30d || 0), 0);
+    const users = list.reduce((s, t) => s + (t.usersCount || 0), 0);
+    const planCounts = list.reduce((acc, t) => {
+      acc[t.plan] = (acc[t.plan] || 0) + 1; return acc;
+    }, {});
+    const distroParts = [];
+    if (planCounts.enterprise) distroParts.push(`<span class="pf-plan-dot pf-plan-dot--enterprise"></span> ${planCounts.enterprise} ent.`);
+    if (planCounts.pro)        distroParts.push(`<span class="pf-plan-dot pf-plan-dot--pro"></span> ${planCounts.pro} pro`);
+    if (planCounts.free)       distroParts.push(`<span class="pf-plan-dot pf-plan-dot--free"></span> ${planCounts.free} free`);
+
+    return `
+      <div class="pf-kpis pf-kpis--compact">
+        <div class="pf-kpi">
+          <div class="pf-kpi__label"><i class="fa-solid fa-building"></i> Total</div>
+          <div class="pf-kpi__value">${fmtNum(total)}</div>
+          <div class="pf-kpi__delta">${distroParts.join(' · ') || '—'}</div>
+        </div>
+        <div class="pf-kpi">
+          <div class="pf-kpi__label"><i class="fa-solid fa-circle-check"></i> Activos</div>
+          <div class="pf-kpi__value" style="color:#34d399;">${fmtNum(active)}</div>
+          <div class="pf-kpi__delta">${suspended ? `${suspended} suspendidos` : 'sin suspensiones'}</div>
+        </div>
+        <div class="pf-kpi">
+          <div class="pf-kpi__label"><i class="fa-solid fa-hourglass-half"></i> En trial</div>
+          <div class="pf-kpi__value">${fmtNum(trial)}</div>
+          <div class="pf-kpi__delta">${trial ? 'requieren follow-up' : 'sin trials abiertos'}</div>
+        </div>
+        <div class="pf-kpi">
+          <div class="pf-kpi__label"><i class="fa-solid fa-users"></i> Audiencia total</div>
+          <div class="pf-kpi__value">${fmtNum(users)}</div>
+          <div class="pf-kpi__delta">${fmtNum(att30)} asistencias 30d</div>
+        </div>
+      </div>`;
+  }
+
+  function renderFilterBar() {
+    const tab = (val, label, count) => `
+      <button type="button" class="pf-pill-tab ${TenantsCtx.status === val ? 'is-active' : ''}" data-status="${val}">
+        ${label}${count != null ? ` <span class="pf-pill-tab__count">${fmtNum(count)}</span>` : ''}
+      </button>`;
+    const counts = TenantsCtx.raw.reduce((acc, t) => {
+      acc.active += t.status === 'active' ? 1 : 0;
+      acc.suspended += t.status === 'suspended' ? 1 : 0;
+      acc.trial += (t.trialEndsAt && new Date(t.trialEndsAt) > new Date()) ? 1 : 0;
+      return acc;
+    }, { active: 0, suspended: 0, trial: 0 });
+    return `
+      <div class="pf-filters pf-filters--tenants">
+        <div class="pf-pill-tabs" role="tablist">
+          ${tab('', 'Todos', TenantsCtx.raw.length)}
+          ${tab('active', 'Activos', counts.active)}
+          ${tab('trial', 'En trial', counts.trial)}
+          ${tab('suspended', 'Suspendidos', counts.suspended)}
+        </div>
+        <select id="pf-plan-filter" aria-label="Filtrar por plan">
+          <option value="">Todos los planes</option>
+          <option value="enterprise" ${TenantsCtx.plan === 'enterprise' ? 'selected' : ''}>Enterprise</option>
+          <option value="pro" ${TenantsCtx.plan === 'pro' ? 'selected' : ''}>Pro</option>
+          <option value="free" ${TenantsCtx.plan === 'free' ? 'selected' : ''}>Free</option>
+        </select>
+        <div class="pf-filters__spacer"></div>
+        <div class="pf-density" role="group" aria-label="Densidad">
+          <button type="button" class="pf-density__btn ${TenantsCtx.density === 'comfortable' ? 'is-active' : ''}" data-density="comfortable" title="Cómodo">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <button type="button" class="pf-density__btn ${TenantsCtx.density === 'compact' ? 'is-active' : ''}" data-density="compact" title="Compacto">
+            <i class="fa-solid fa-grip-lines"></i>
+          </button>
+        </div>
+      </div>`;
+  }
+
+  const COLS = [
+    { key: 'name',                 label: 'Tenant',          sortable: true,  align: 'left'  },
+    { key: 'plan',                 label: 'Plan',            sortable: true,  align: 'left'  },
+    { key: 'status',               label: 'Salud',           sortable: false, align: 'left'  },
+    { key: 'usersCount',           label: 'Usuarios',        sortable: true,  align: 'right' },
+    { key: 'attendancesCount30d',  label: 'Asist. 30d',      sortable: true,  align: 'right' },
+    { key: 'staffCount',           label: 'Staff',           sortable: true,  align: 'right' },
+    { key: 'lastActivityAt',       label: 'Última actividad',sortable: true,  align: 'left'  },
+    { key: '_actions',             label: '',                sortable: false, align: 'right' },
+  ];
+
+  function renderTable(list) {
+    const compact = TenantsCtx.density === 'compact';
+    return `
+      <div class="pf-card pf-card--scroll-x">
+        <div class="pf-table-wrap">
+          <table class="pf-table pf-table--tenants ${compact ? 'is-compact' : ''}">
+            <thead>
+              <tr>
+                ${COLS.map(c => {
+                  if (!c.sortable) return `<th class="${c.align === 'right' ? 'is-right' : ''}">${escapeHtml(c.label)}</th>`;
+                  const isActive = TenantsCtx.sortKey === c.key;
+                  const arrow = isActive ? (TenantsCtx.sortDir === 'asc' ? '▲' : '▼') : '';
+                  return `<th class="pf-th-sort ${c.align === 'right' ? 'is-right' : ''} ${isActive ? 'is-active' : ''}" data-sort="${c.key}">
+                    ${escapeHtml(c.label)} <span class="pf-th-arrow">${arrow}</span>
+                  </th>`;
+                }).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${list.map(t => renderTenantRow(t)).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function renderTenantRow(t) {
+    const h = healthOf(t);
+    return `
+      <tr class="is-clickable" data-id="${escapeHtml(t.id)}">
+        <td>
+          <div class="pf-tenant-cell">
+            ${brandSwatch(t)}
+            <div class="pf-tenant-cell__meta">
+              <div class="pf-tenant-cell__name">${escapeHtml(t.name || '—')}</div>
+              <div class="pf-tenant-cell__sub">
+                <code>${escapeHtml(t.slug || '')}</code>
+                ${domainBadge(t)}
+              </div>
+            </div>
+          </div>
+        </td>
+        <td><span class="pf-tag pf-tag--${escapeHtml(t.plan)}">${escapeHtml(t.plan || '—')}</span></td>
+        <td>
+          <span class="pf-health pf-health--${h.level}" title="${escapeHtml(h.hint)}">
+            <span class="pf-health__dot"></span>${escapeHtml(h.label)}
+          </span>
+        </td>
+        <td class="is-right">${fmtNum(t.usersCount)}</td>
+        <td class="is-right">${fmtNum(t.attendancesCount30d)}</td>
+        <td class="is-right">${fmtNum(t.staffCount)}</td>
+        <td title="${escapeHtml(fmtDate(t.lastActivityAt))}">${escapeHtml(relTime(t.lastActivityAt))}</td>
+        <td class="is-right">
+          <div class="pf-row-actions" data-row-actions>
+            <button type="button" class="pf-icon-btn" data-act="menu" aria-label="Acciones">
+              <i class="fa-solid fa-ellipsis-vertical"></i>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+  }
+
+  function rowActionsMenu(t) {
+    const isActive = t.status === 'active';
+    return `
+      <div class="pf-popover" id="pf-row-menu">
+        <a class="pf-popover__item" href="#/tenants/${escapeHtml(t.id)}">
+          <i class="fa-solid fa-eye"></i> Ver detalle
+        </a>
+        <a class="pf-popover__item" href="${escapeHtml(tenantUrl(t))}" target="_blank" rel="noopener">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir panel
+        </a>
+        <button class="pf-popover__item" data-action="copy-url" data-url="${escapeHtml(tenantUrl(t))}">
+          <i class="fa-solid fa-copy"></i> Copiar URL
+        </button>
+        <div class="pf-popover__sep"></div>
+        ${t.status === 'deleted' ? '' : (isActive
+          ? `<button class="pf-popover__item pf-popover__item--danger" data-action="suspend">
+              <i class="fa-solid fa-ban"></i> Suspender
+            </button>`
+          : `<button class="pf-popover__item" data-action="reactivate">
+              <i class="fa-solid fa-rotate-left"></i> Reactivar
+            </button>`)}
+      </div>`;
+  }
+
+  function closePopover() {
+    document.getElementById('pf-row-menu')?.remove();
+  }
+
+  function bindTenantsUI() {
+    const root = content();
+
+    // Tabs
+    root.querySelectorAll('[data-status]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        TenantsCtx.status = btn.dataset.status;
+        savePrefs();
+        rerender(true);
+      });
+    });
+
+    // Plan select
+    root.querySelector('#pf-plan-filter')?.addEventListener('change', (e) => {
+      TenantsCtx.plan = e.target.value;
+      savePrefs();
+      rerender(true);
+    });
+
+    // Density
+    root.querySelectorAll('[data-density]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        TenantsCtx.density = btn.dataset.density;
+        savePrefs();
+        rerender();
+      });
+    });
+
+    // Sort headers
+    root.querySelectorAll('[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const k = th.dataset.sort;
+        if (TenantsCtx.sortKey === k) {
+          TenantsCtx.sortDir = TenantsCtx.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          TenantsCtx.sortKey = k;
+          TenantsCtx.sortDir = ['name', 'plan'].includes(k) ? 'asc' : 'desc';
+        }
+        savePrefs();
+        rerender();
+      });
+    });
+
+    // Row click → detalle (excepto si clickeas en el menú)
+    root.querySelectorAll('tr.is-clickable').forEach(tr => {
+      tr.addEventListener('click', (e) => {
+        if (e.target.closest('[data-row-actions]')) return;
+        window.location.hash = `#/tenants/${tr.dataset.id}`;
+      });
+    });
+
+    // Row menu
+    root.querySelectorAll('[data-row-actions] [data-act="menu"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tr = btn.closest('tr');
+        const tenant = TenantsCtx.raw.find(x => x.id === tr.dataset.id);
+        if (!tenant) return;
+        closePopover();
+        const wrapper = btn.closest('[data-row-actions]');
+        wrapper.insertAdjacentHTML('beforeend', rowActionsMenu(tenant));
+        bindPopoverActions(tenant);
+      });
+    });
+
+    // Cierra popover al clickear afuera
+    document.addEventListener('click', closePopover, { once: true });
+  }
+
+  function bindPopoverActions(tenant) {
+    const menu = document.getElementById('pf-row-menu');
+    if (!menu) return;
+    menu.addEventListener('click', e => e.stopPropagation());
+
+    menu.querySelector('[data-action="copy-url"]')?.addEventListener('click', async (e) => {
+      const url = e.currentTarget.dataset.url;
+      try {
+        await navigator.clipboard.writeText(url);
+        Toast.ok('URL copiada');
+      } catch {
+        Toast.error('No se pudo copiar');
+      }
+      closePopover();
+    });
+
+    menu.querySelector('[data-action="suspend"]')?.addEventListener('click', async () => {
+      closePopover();
+      const ok = await Modal.confirm({
+        title: 'Suspender tenant',
+        message: `Suspender "${tenant.name}" deshabilita el acceso de su staff. Esta acción se puede revertir.`,
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        await api('POST', `/api/platform/tenants/${tenant.id}/suspend`);
+        Toast.ok('Tenant suspendido');
+        await loadTenantsData();
+        rerender();
+      } catch (e) { Toast.error(e.message); }
+    });
+
+    menu.querySelector('[data-action="reactivate"]')?.addEventListener('click', async () => {
+      closePopover();
+      try {
+        await api('POST', `/api/platform/tenants/${tenant.id}/reactivate`);
+        Toast.ok('Tenant reactivado');
+        await loadTenantsData();
+        rerender();
+      } catch (e) { Toast.error(e.message); }
+    });
+  }
+
+  function downloadCsv() {
+    const list = applyFiltersAndSort();
+    const rows = [
+      ['Nombre', 'Slug', 'Plan', 'Estado', 'Custom domain', 'Dominio verificado',
+       'Usuarios', 'Asist 30d', 'Asist 7d', 'Actividades activas', 'Staff',
+       'Última actividad', 'Último login staff', 'Creado'],
+      ...list.map(t => [
+        t.name || '', t.slug || '', t.plan || '', t.status || '',
+        t.customDomain || '', t.customDomainVerifiedAt ? 'sí' : 'no',
+        t.usersCount ?? '', t.attendancesCount30d ?? '', t.attendancesCount7d ?? '',
+        t.activitiesActive ?? '', t.staffCount ?? '',
+        t.lastActivityAt || '', t.lastStaffLoginAt || '',
+        t.createdAt || '',
+      ]),
+    ];
+    const csv = rows.map(r => r.map(cell => {
+      const s = String(cell ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tenants-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    Toast.ok(`CSV con ${list.length} tenant${list.length === 1 ? '' : 's'} listo`);
+  }
+
+  function renderSkeleton() {
+    const rows = Array(4).fill(0).map(() => `
+      <tr class="pf-skel-row">
+        <td><div class="pf-skel pf-skel--avatar"></div><div class="pf-skel pf-skel--line" style="width:60%"></div></td>
+        <td><div class="pf-skel pf-skel--line" style="width:48px"></div></td>
+        <td><div class="pf-skel pf-skel--line" style="width:80px"></div></td>
+        <td class="is-right"><div class="pf-skel pf-skel--line" style="width:40px;margin-left:auto;"></div></td>
+        <td class="is-right"><div class="pf-skel pf-skel--line" style="width:40px;margin-left:auto;"></div></td>
+        <td class="is-right"><div class="pf-skel pf-skel--line" style="width:30px;margin-left:auto;"></div></td>
+        <td><div class="pf-skel pf-skel--line" style="width:80px"></div></td>
+        <td></td>
+      </tr>`).join('');
+    return `
+      <div class="pf-kpis pf-kpis--compact">
+        ${Array(4).fill(0).map(() => `
+          <div class="pf-kpi">
+            <div class="pf-skel pf-skel--line" style="width:60%;margin-bottom:8px;"></div>
+            <div class="pf-skel pf-skel--line pf-skel--big" style="width:30%;"></div>
+          </div>`).join('')}
+      </div>
+      <div class="pf-card">
+        <div class="pf-table-wrap">
+          <table class="pf-table pf-table--tenants">
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
   let _tenantSearchTimer = null;
+
   async function tenants() {
+    loadPrefs();
     setPageTitle('Tenants', 'Organizaciones que viven en la plataforma');
     setTopbarActions(`
       <div class="pf-search">
         <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="search" id="pf-tenants-q" placeholder="Buscar por nombre o slug" autocomplete="off" />
-      </div>`);
-    loader();
-    await loadTenants('');
-    $('#pf-tenants-q')?.addEventListener('input', (e) => {
-      clearTimeout(_tenantSearchTimer);
-      const q = e.target.value;
-      _tenantSearchTimer = setTimeout(() => loadTenants(q), 220);
-    });
-  }
+        <input type="search" id="pf-tenants-q" placeholder="Buscar nombre, slug o dominio" autocomplete="off" />
+      </div>
+      <button class="pf-btn pf-btn--ghost pf-btn--sm" id="pf-export-btn" title="Exportar CSV">
+        <i class="fa-solid fa-file-csv"></i> Exportar
+      </button>
+      <button class="pf-btn pf-btn--primary pf-btn--sm" id="pf-new-tenant-btn" disabled title="Self-service de signup llega en Sprint 5">
+        <i class="fa-solid fa-plus"></i> Nuevo tenant
+      </button>
+    `);
 
-  async function loadTenants(q) {
+    if (!TenantsCtx.loaded) {
+      content().innerHTML = renderSkeleton();
+    }
+
     try {
-      const url = '/api/platform/tenants' + (q ? `?q=${encodeURIComponent(q)}` : '');
-      const data = await api('GET', url);
-      const list = data.tenants || [];
-      if (!list.length) {
-        content().innerHTML = `
-          <div class="pf-empty">
-            <i class="fa-solid fa-building-circle-xmark"></i>
-            <h3>${q ? 'Sin resultados' : 'Aún no hay tenants'}</h3>
-            <p>${q ? 'Ajusta tu búsqueda.' : 'Cuando crees el primer tenant aparecerá aquí.'}</p>
-          </div>`;
-        return;
-      }
-      content().innerHTML = `
-        <div class="pf-card">
-          <div class="pf-table-wrap">
-            <table class="pf-table">
-              <thead>
-                <tr>
-                  <th>Tenant</th>
-                  <th>Slug</th>
-                  <th>Plan</th>
-                  <th>Estado</th>
-                  <th>Usuarios</th>
-                  <th>Asist. 30d</th>
-                  <th>Última actividad</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${list.map(t => `
-                  <tr class="is-clickable" data-id="${t.id}">
-                    <td><strong>${escapeHtml(t.name || '—')}</strong></td>
-                    <td><code>${escapeHtml(t.slug || '')}</code></td>
-                    <td><span class="pf-tag pf-tag--${t.plan}">${escapeHtml(t.plan || '—')}</span></td>
-                    <td><span class="pf-tag pf-tag--${t.status}">${escapeHtml(t.status || '—')}</span></td>
-                    <td>${fmtNum(t.usersCount)}</td>
-                    <td>${fmtNum(t.attendancesCount30d)}</td>
-                    <td title="${escapeHtml(fmtDate(t.lastActivityAt))}">${escapeHtml(relTime(t.lastActivityAt))}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>`;
-      content().querySelectorAll('tr.is-clickable').forEach(tr => {
-        tr.addEventListener('click', () => {
-          window.location.hash = `#/tenants/${tr.dataset.id}`;
-        });
-      });
+      await loadTenantsData();
+      rerender();
     } catch (e) {
       errorBlock(e.message);
+      return;
     }
+
+    // Topbar bindings
+    document.getElementById('pf-tenants-q').value = TenantsCtx.q;
+    document.getElementById('pf-tenants-q').addEventListener('input', (e) => {
+      clearTimeout(_tenantSearchTimer);
+      _tenantSearchTimer = setTimeout(() => {
+        TenantsCtx.q = e.target.value;
+        rerender();
+      }, 180);
+    });
+    document.getElementById('pf-export-btn').addEventListener('click', downloadCsv);
+  }
+
+  async function loadTenantsData() {
+    const data = await api('GET', '/api/platform/tenants');
+    TenantsCtx.raw = data.tenants || [];
+    TenantsCtx.loaded = true;
+  }
+
+  function rerender() {
+    const list = applyFiltersAndSort();
+
+    if (!TenantsCtx.raw.length) {
+      content().innerHTML = `
+        ${renderKpiStrip()}
+        <div class="pf-empty">
+          <i class="fa-solid fa-building-circle-xmark"></i>
+          <h3>Aún no hay tenants</h3>
+          <p>Cuando crees el primero, aparecerá aquí.</p>
+        </div>`;
+      return;
+    }
+
+    if (!list.length) {
+      content().innerHTML = `
+        ${renderKpiStrip()}
+        ${renderFilterBar()}
+        <div class="pf-empty">
+          <i class="fa-solid fa-filter-circle-xmark"></i>
+          <h3>Ningún tenant cumple los filtros</h3>
+          <p>Limpia o ajusta los filtros para ver más resultados.</p>
+          <button class="pf-btn pf-btn--ghost pf-btn--sm" id="pf-clear-filters">Limpiar filtros</button>
+        </div>`;
+      bindTenantsUI();
+      document.getElementById('pf-clear-filters')?.addEventListener('click', () => {
+        TenantsCtx.q = '';
+        TenantsCtx.status = '';
+        TenantsCtx.plan = '';
+        const input = document.getElementById('pf-tenants-q');
+        if (input) input.value = '';
+        savePrefs();
+        rerender();
+      });
+      return;
+    }
+
+    content().innerHTML = `
+      ${renderKpiStrip()}
+      ${renderFilterBar()}
+      ${renderTable(list)}
+      <div class="pf-table-foot">
+        Mostrando <strong>${fmtNum(list.length)}</strong> de ${fmtNum(TenantsCtx.raw.length)} tenant${TenantsCtx.raw.length === 1 ? '' : 's'}
+      </div>
+    `;
+    bindTenantsUI();
   }
 
   // ============================================================

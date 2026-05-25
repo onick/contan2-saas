@@ -54,8 +54,10 @@ function publicOrgSummary(o, kpis = {}) {
     createdAt: o.createdAt,
     usersCount: kpis.usersCount ?? null,
     attendancesCount30d: kpis.attendancesCount30d ?? null,
+    attendancesCount7d: kpis.attendancesCount7d ?? null,
     activitiesActive: kpis.activitiesActive ?? null,
     staffCount: kpis.staffCount ?? null,
+    lastStaffLoginAt: kpis.lastStaffLoginAt ?? null,
     lastActivityAt: kpis.lastActivityAt ?? null,
   };
 }
@@ -116,41 +118,39 @@ async function fetchRecentAudit(pool, limit = 8) {
 }
 
 async function fetchTenantSummary(pool, orgId) {
-  const usersR = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM users WHERE organization_id = $1`, [orgId],
-  );
-  const attR = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM attendance
-      WHERE organization_id = $1 AND registered_at >= NOW() - INTERVAL '30 days'`,
+  // Una sola query consolidada para evitar 6 ida-y-vuelta por tenant.
+  const { rows } = await pool.query(
+    `SELECT
+       (SELECT COUNT(*)::int FROM users WHERE organization_id = $1) AS users_count,
+       (SELECT COUNT(*)::int FROM attendance
+         WHERE organization_id = $1 AND registered_at >= NOW() - INTERVAL '30 days') AS att_30d,
+       (SELECT COUNT(*)::int FROM attendance
+         WHERE organization_id = $1 AND registered_at >= NOW() - INTERVAL '7 days') AS att_7d,
+       (SELECT COUNT(*)::int FROM activities
+         WHERE organization_id = $1 AND status IN ('open','draft') AND date >= NOW() - INTERVAL '1 day') AS activities_active,
+       (SELECT COUNT(*)::int FROM staff_members
+         WHERE organization_id = $1 AND deleted_at IS NULL) AS staff_count,
+       (SELECT MAX(last_login_at) FROM staff_members
+         WHERE organization_id = $1 AND deleted_at IS NULL) AS last_staff_login_at,
+       GREATEST(
+         COALESCE((SELECT MAX(registered_at) FROM attendance WHERE organization_id = $1), 'epoch'::timestamptz),
+         COALESCE((SELECT MAX(created_at) FROM activities WHERE organization_id = $1), 'epoch'::timestamptz),
+         COALESCE((SELECT MAX(created_at) FROM users WHERE organization_id = $1), 'epoch'::timestamptz)
+       ) AS last_at`,
     [orgId],
   );
-  const actR = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM activities
-      WHERE organization_id = $1 AND status IN ('open','draft') AND date >= NOW() - INTERVAL '1 day'`,
-    [orgId],
-  );
-  const staffR = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM staff_members
-      WHERE organization_id = $1 AND deleted_at IS NULL`,
-    [orgId],
-  );
-  const lastR = await pool.query(
-    `SELECT GREATEST(
-       COALESCE((SELECT MAX(registered_at) FROM attendance WHERE organization_id = $1), 'epoch'::timestamptz),
-       COALESCE((SELECT MAX(created_at) FROM activities WHERE organization_id = $1), 'epoch'::timestamptz),
-       COALESCE((SELECT MAX(created_at) FROM users WHERE organization_id = $1), 'epoch'::timestamptz)
-     ) AS last_at`,
-    [orgId],
-  );
+  const r = rows[0];
   return {
-    usersCount: usersR.rows[0].n,
-    attendancesCount30d: attR.rows[0].n,
-    activitiesActive: actR.rows[0].n,
-    staffCount: staffR.rows[0].n,
-    lastActivityAt: lastR.rows[0].last_at
-      ? (lastR.rows[0].last_at instanceof Date
-          ? lastR.rows[0].last_at.toISOString()
-          : lastR.rows[0].last_at)
+    usersCount: r.users_count,
+    attendancesCount30d: r.att_30d,
+    attendancesCount7d: r.att_7d,
+    activitiesActive: r.activities_active,
+    staffCount: r.staff_count,
+    lastStaffLoginAt: r.last_staff_login_at instanceof Date
+      ? r.last_staff_login_at.toISOString()
+      : r.last_staff_login_at,
+    lastActivityAt: r.last_at
+      ? (r.last_at instanceof Date ? r.last_at.toISOString() : r.last_at)
       : null,
   };
 }
