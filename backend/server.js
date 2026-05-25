@@ -139,11 +139,15 @@ app.use('/api', notFoundHandler);
 const kioskoHtml = serveHtmlWithBranding(path.join(frontendPath, 'kiosko.html'));
 const scannerHtml = serveHtmlWithBranding(path.join(frontendPath, 'scanner.html'));
 const rsvpHtml = serveHtmlWithBranding(path.join(frontendPath, 'rsvp.html'));
+const loginHtml = serveHtmlWithBranding(path.join(frontendPath, 'login.html'));
 const indexHtml = serveHtmlWithBranding(path.join(frontendPath, 'index.html'));
 
 app.get(/^\/kiosko(?:\/.*)?$/, resolveTenant, kioskoHtml);
 app.get(/^\/scanner(?:\/.*)?$/, resolveTenant, scannerHtml);
 app.get(/^\/rsvp(?:\/.*)?$/, resolveTenant, rsvpHtml);
+// /login, /login/forgot, /login/reset — todas comparten el mismo HTML.
+// El JS lee el path y muestra la vista correcta.
+app.get(/^\/login(?:\/.*)?$/, resolveTenant, loginHtml);
 
 // Paginas publicas compartibles por actividad (Open Graph para WhatsApp/redes).
 // Requieren tenant + repos para resolver el slug -> actividad de la org actual.
@@ -170,6 +174,9 @@ app.use((req, res, next) => {
   }
   if (req.path === '/rsvp' || req.path.startsWith('/rsvp/')) {
     return resolveTenant(req, res, () => rsvpHtml(req, res, next));
+  }
+  if (req.path === '/login' || req.path.startsWith('/login/')) {
+    return resolveTenant(req, res, () => loginHtml(req, res, next));
   }
   return resolveTenant(req, res, () => indexHtml(req, res, next));
 });

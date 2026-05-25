@@ -4350,9 +4350,45 @@ function setupSidebarToggle() {
 // ============================================================
 // Init
 // ============================================================
-function init() {
+async function ensureAuthenticated() {
+  // Llama a /api/auth/me; si 401, redirige a /login con next al hash actual.
+  // Si 200, guarda al staff en State y permite que el SPA cargue.
+  // Backward-compat: si el sistema nuevo no está deployado (endpoint no
+  // existe en este server), seguimos con el flujo viejo del PIN sin tocar nada.
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    if (res.status === 404) {
+      // Endpoint no existe (server pre-Sprint-1). Continuamos sin auth check.
+      return true;
+    }
+    if (res.status === 401) {
+      const next = window.location.hash || '#/dashboard';
+      window.location.href = '/login?next=' + encodeURIComponent('/' + next);
+      return false;
+    }
+    if (!res.ok) {
+      // 5xx u otro: dejamos pasar para no romper el admin si auth está degradada.
+      console.error('[auth] /me retornó', res.status);
+      return true;
+    }
+    const data = await res.json();
+    State.currentStaff = data?.staff || null;
+    State.currentSessionId = data?.sessionId || null;
+    return true;
+  } catch (e) {
+    // Sin conexión: dejamos pasar (el siguiente request fallará y el usuario verá un error).
+    console.error('[auth] /me network error:', e.message);
+    return true;
+  }
+}
+
+async function init() {
   Modal.init();
   bindGlobalEvents();
+  // Verificar sesión ANTES de pintar nada. Si redirige a /login, el resto
+  // de la inicialización no corre.
+  const ok = await ensureAuthenticated();
+  if (!ok) return;
   if (!window.location.hash) window.location.hash = '#/dashboard';
   window.addEventListener('hashchange', navigate);
   navigate();

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0182a2" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Iniciar sesión</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="login.css" />
+  <script src="branding.js"></script>
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-card">
+      <div class="auth-brand" id="auth-brand">
+        <div class="auth-brand-logo" id="auth-logo"></div>
+        <div class="auth-brand-org" id="auth-org-name"></div>
+      </div>
+
+      <div data-view="login" class="auth-view is-active">
+        <h1>Iniciar sesión</h1>
+        <p class="auth-lead">Accede al panel administrativo.</p>
+
+        <form id="login-form" novalidate>
+          <div class="auth-field">
+            <label for="email">Correo electrónico</label>
+            <input id="email" name="email" type="email" autocomplete="email" required autofocus />
+          </div>
+          <div class="auth-field">
+            <label for="password">Contraseña</label>
+            <div class="auth-input-with-action">
+              <input id="password" name="password" type="password" autocomplete="current-password" required minlength="1" />
+              <button type="button" class="auth-toggle-eye" id="toggle-password" aria-label="Mostrar contraseña">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          <label class="auth-checkbox">
+            <input type="checkbox" name="rememberMe" />
+            <span>Recordarme en este equipo</span>
+          </label>
+
+          <div class="auth-message" id="login-message"></div>
+
+          <button type="submit" class="auth-btn auth-btn--primary" id="login-submit">
+            <span class="auth-btn-label">Iniciar sesión</span>
+            <i class="fa-solid fa-arrow-right auth-btn-icon"></i>
+          </button>
+        </form>
+
+        <div class="auth-links">
+          <a href="/login/forgot">¿Olvidaste tu contraseña?</a>
+        </div>
+      </div>
+
+      <div data-view="forgot" class="auth-view">
+        <h1>Recuperar contraseña</h1>
+        <p class="auth-lead">Te enviaremos un enlace para restablecerla.</p>
+
+        <form id="forgot-form" novalidate>
+          <div class="auth-field">
+            <label for="forgot-email">Correo electrónico</label>
+            <input id="forgot-email" name="email" type="email" autocomplete="email" required autofocus />
+          </div>
+
+          <div class="auth-message" id="forgot-message"></div>
+
+          <button type="submit" class="auth-btn auth-btn--primary" id="forgot-submit">
+            <span class="auth-btn-label">Enviar enlace</span>
+          </button>
+        </form>
+
+        <div class="auth-links">
+          <a href="/login">Volver al login</a>
+        </div>
+      </div>
+
+      <div data-view="reset" class="auth-view">
+        <h1>Nueva contraseña</h1>
+        <p class="auth-lead">Crea una contraseña segura para tu cuenta.</p>
+
+        <form id="reset-form" novalidate>
+          <div class="auth-field">
+            <label for="reset-password">Nueva contraseña</label>
+            <div class="auth-input-with-action">
+              <input id="reset-password" name="newPassword" type="password" autocomplete="new-password" required minlength="10" />
+              <button type="button" class="auth-toggle-eye" id="toggle-reset-password" aria-label="Mostrar contraseña">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+            <div class="auth-hint">Mínimo 10 caracteres. Evita pass comunes.</div>
+          </div>
+          <div class="auth-field">
+            <label for="reset-confirm">Confirmar contraseña</label>
+            <input id="reset-confirm" name="newPasswordConfirm" type="password" autocomplete="new-password" required minlength="10" />
+          </div>
+
+          <div class="auth-message" id="reset-message"></div>
+
+          <button type="submit" class="auth-btn auth-btn--primary" id="reset-submit">
+            <span class="auth-btn-label">Guardar nueva contraseña</span>
+          </button>
+        </form>
+
+        <div class="auth-links">
+          <a href="/login">Volver al login</a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="auth-footer">
+      <span id="auth-footer-org"></span>
+    </footer>
+  </main>
+
+  <script src="login.js"></script>
+</body>
+</html>
