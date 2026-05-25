@@ -27,6 +27,7 @@ import { createOrgBrandingRouter } from './src/routes/orgBranding.js';
 import { createOrgDomainRouter } from './src/routes/orgDomain.js';
 import { createAuthRouter } from './src/routes/auth.js';
 import { createPlatformAuthRouter } from './src/routes/platformAuth.js';
+import { createPlatformAdminRouter } from './src/routes/platformAdmin.js';
 import { createReportsRouter } from './src/routes/reports.js';
 import { createEventosPublicRouter } from './src/routes/eventosPublic.js';
 import { createLandingRouter } from './src/routes/landing.js';
@@ -119,6 +120,9 @@ app.use('/uploads', express.static(UPLOADS_DIR, {
 // resolveTenant sí los pasa (lo marca como subdomain reservado), pero
 // buildTenantRepos los rechazaría con 404.
 app.use('/api/platform/auth', createPlatformAuthRouter());
+// Endpoints administrativos cross-tenant (Sprint 4). El router monta su
+// propio requirePlatformAdmin internamente, así que cualquier ruta es segura.
+app.use('/api/platform', createPlatformAdminRouter());
 
 // Landing endpoints — públicos, sin tenant scope (marketing host).
 app.use('/api/landing', createLandingRouter());

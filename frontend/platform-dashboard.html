@@ -3,147 +3,101 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#0b1220" />
   <meta name="robots" content="noindex,nofollow" />
   <title>contan2 · Plataforma</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-  <style>
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; -webkit-font-smoothing: antialiased; }
-    .pf-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 18px 32px;
-      background: rgba(15, 23, 42, 0.95);
-      border-bottom: 1px solid #1e293b;
-      position: sticky; top: 0; z-index: 10;
-    }
-    .pf-brand { display: flex; align-items: center; gap: 12px; }
-    .pf-brand-logo {
-      width: 36px; height: 36px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #f59e0b, #b45309);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; color: #1c1917;
-    }
-    .pf-brand-name { font-weight: 700; }
-    .pf-brand-sub { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
-    .pf-user { display: flex; align-items: center; gap: 12px; font-size: 13px; }
-    .pf-logout-btn {
-      background: transparent; border: 1px solid #334155; color: #cbd5e1;
-      padding: 6px 14px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px;
-    }
-    .pf-logout-btn:hover { background: #1e293b; }
-
-    .pf-shell { max-width: 1280px; margin: 0 auto; padding: 32px; }
-    h1 { font-size: 28px; font-weight: 800; margin: 0 0 6px; color: #f8fafc; }
-    .pf-lead { font-size: 14px; color: #94a3b8; margin: 0 0 28px; }
-
-    .pf-kpis {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 28px;
-    }
-    .pf-kpi {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 18px;
-    }
-    .pf-kpi-label {
-      font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
-      color: #94a3b8; font-weight: 600; margin-bottom: 6px;
-    }
-    .pf-kpi-value {
-      font-size: 32px; font-weight: 800; color: #f59e0b;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .pf-section { background: #1e293b; border: 1px solid #334155; border-radius: 14px; overflow: hidden; }
-    .pf-section-head {
-      padding: 16px 22px; border-bottom: 1px solid #334155;
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .pf-section-head h2 { font-size: 16px; margin: 0; }
-    .pf-table { width: 100%; border-collapse: collapse; }
-    .pf-table th, .pf-table td {
-      padding: 12px 22px; text-align: left; font-size: 13px;
-      border-bottom: 1px solid #334155;
-    }
-    .pf-table th {
-      font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
-      color: #94a3b8; font-weight: 600; background: #0f172a;
-    }
-    .pf-table tr:last-child td { border-bottom: none; }
-    .pf-tag {
-      display: inline-block; padding: 2px 8px; border-radius: 999px;
-      font-size: 11px; font-weight: 600;
-    }
-    .pf-tag--active { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-    .pf-tag--suspended { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-
-    @media (max-width: 768px) {
-      .pf-kpis { grid-template-columns: 1fr 1fr; }
-      .pf-shell { padding: 20px; }
-      .pf-top { padding: 14px 20px; }
-    }
-
-    .pf-loading, .pf-empty { padding: 32px; text-align: center; color: #94a3b8; }
-  </style>
+  <link rel="stylesheet" href="platform.css" />
 </head>
 <body>
-  <nav class="pf-top">
-    <div class="pf-brand">
-      <div class="pf-brand-logo">c2</div>
-      <div>
-        <div class="pf-brand-name">contan2</div>
-        <div class="pf-brand-sub">plataforma</div>
-      </div>
-    </div>
-    <div class="pf-user">
-      <span id="pf-user-name">…</span>
-      <button class="pf-logout-btn" id="pf-logout-btn">Cerrar sesión</button>
-    </div>
-  </nav>
+  <div id="pf-must-change-banner" class="pf-banner pf-banner--warn" hidden>
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    Tu contraseña actual es temporal. Cámbiala antes de seguir trabajando.
+    <button type="button" class="pf-banner__cta" id="pf-banner-go">Cambiar ahora</button>
+  </div>
 
-  <main class="pf-shell">
-    <h1>Operación</h1>
-    <p class="pf-lead">Vista de plataforma. Datos cross-tenant en tiempo real.</p>
+  <div class="pf-shell">
+    <aside class="pf-sidebar" id="pf-sidebar">
+      <div class="pf-sidebar__brand">
+        <div class="pf-logo">c2</div>
+        <div>
+          <div class="pf-brand__name">contan2</div>
+          <div class="pf-brand__sub">plataforma</div>
+        </div>
+      </div>
 
-    <div class="pf-kpis">
-      <div class="pf-kpi">
-        <div class="pf-kpi-label">Tenants activos</div>
-        <div class="pf-kpi-value" id="kpi-tenants">—</div>
-      </div>
-      <div class="pf-kpi">
-        <div class="pf-kpi-label">Usuarios totales</div>
-        <div class="pf-kpi-value" id="kpi-users">—</div>
-      </div>
-      <div class="pf-kpi">
-        <div class="pf-kpi-label">Asistencias totales</div>
-        <div class="pf-kpi-value" id="kpi-attendances">—</div>
-      </div>
-      <div class="pf-kpi">
-        <div class="pf-kpi-label">Actividades activas</div>
-        <div class="pf-kpi-value" id="kpi-activities">—</div>
-      </div>
-    </div>
+      <nav class="pf-nav" aria-label="Principal">
+        <a href="#/operacion" class="pf-nav-link" data-route="operacion">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>Operación</span>
+        </a>
+        <a href="#/tenants" class="pf-nav-link" data-route="tenants">
+          <i class="fa-solid fa-building"></i>
+          <span>Tenants</span>
+        </a>
+        <a href="#/audit" class="pf-nav-link" data-route="audit">
+          <i class="fa-solid fa-clipboard-list"></i>
+          <span>Bitácora</span>
+        </a>
+        <a href="#/account" class="pf-nav-link" data-route="account">
+          <i class="fa-solid fa-user-gear"></i>
+          <span>Mi cuenta</span>
+        </a>
+      </nav>
 
-    <section class="pf-section">
-      <header class="pf-section-head">
-        <h2>Tenants</h2>
+      <div class="pf-sidebar__foot">
+        <div class="pf-user-card">
+          <div class="pf-avatar" id="pf-avatar">··</div>
+          <div class="pf-user-meta">
+            <div class="pf-user-name" id="pf-user-name">…</div>
+            <div class="pf-user-role">Super admin</div>
+          </div>
+        </div>
+        <button class="pf-btn pf-btn--ghost pf-btn--full" id="pf-logout-btn">
+          <i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión
+        </button>
+      </div>
+    </aside>
+
+    <main class="pf-main">
+      <header class="pf-topbar">
+        <button class="pf-burger" id="pf-burger" aria-label="Abrir menú">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+        <div class="pf-page-titles">
+          <h1 id="pf-page-title">Operación</h1>
+          <p id="pf-page-subtitle">Vista de plataforma. Datos cross-tenant en tiempo real.</p>
+        </div>
+        <div class="pf-topbar__actions" id="pf-topbar-actions"></div>
       </header>
-      <div id="pf-tenants-host">
-        <div class="pf-loading">Cargando…</div>
-      </div>
-    </section>
-  </main>
 
-  <script src="platform-dashboard.js"></script>
+      <section class="pf-content" id="pf-content">
+        <div class="pf-loader"><div class="pf-spinner"></div></div>
+      </section>
+    </main>
+
+    <div class="pf-sidebar-backdrop" id="pf-sidebar-backdrop"></div>
+  </div>
+
+  <!-- Modal genérico -->
+  <div class="pf-modal" id="pf-modal" hidden aria-hidden="true">
+    <div class="pf-modal__backdrop" data-close></div>
+    <div class="pf-modal__card" role="dialog" aria-modal="true">
+      <header class="pf-modal__head">
+        <h3 id="pf-modal-title"></h3>
+        <button type="button" class="pf-modal__x" data-close aria-label="Cerrar">×</button>
+      </header>
+      <div class="pf-modal__body" id="pf-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="pf-toasts" id="pf-toasts"></div>
+
+  <script src="platform-app.js"></script>
+  <script src="platform-views.js"></script>
 </body>
 </html>
