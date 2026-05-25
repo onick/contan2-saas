@@ -74,6 +74,7 @@ async function main() {
     passwordHash,
     fullName: args.name,
     mustChangePassword: true,
+    role: 'owner',
   });
 
   const loginUrl = org.customDomain && org.customDomainVerifiedAt
