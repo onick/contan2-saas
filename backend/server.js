@@ -26,6 +26,7 @@ import { createCredentialsRouter } from './src/routes/credentials.js';
 import { createOrgBrandingRouter } from './src/routes/orgBranding.js';
 import { createOrgDomainRouter } from './src/routes/orgDomain.js';
 import { createAuthRouter } from './src/routes/auth.js';
+import { createPlatformAuthRouter } from './src/routes/platformAuth.js';
 import { createReportsRouter } from './src/routes/reports.js';
 import { createEventosPublicRouter } from './src/routes/eventosPublic.js';
 
@@ -109,6 +110,12 @@ app.use('/uploads', express.static(UPLOADS_DIR, {
   maxAge: '7d',
   immutable: true,
 }));
+
+// Platform admin endpoints — DEBEN ir antes del buildTenantRepos porque
+// el platform admin NO pertenece a ningún tenant (req.organizationId = null).
+// resolveTenant sí los pasa (lo marca como subdomain reservado), pero
+// buildTenantRepos los rechazaría con 404.
+app.use('/api/platform/auth', createPlatformAuthRouter());
 
 // Tenant resolution + repos (basado en subdomain o custom domain)
 app.use('/api', resolveTenant);
