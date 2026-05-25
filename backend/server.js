@@ -25,6 +25,7 @@ import { createStaffRouter } from './src/routes/staff.js';
 import { createCredentialsRouter } from './src/routes/credentials.js';
 import { createOrgBrandingRouter } from './src/routes/orgBranding.js';
 import { createOrgDomainRouter } from './src/routes/orgDomain.js';
+import { createAuthRouter } from './src/routes/auth.js';
 import { createReportsRouter } from './src/routes/reports.js';
 import { createEventosPublicRouter } from './src/routes/eventosPublic.js';
 
@@ -128,6 +129,7 @@ app.use('/api/staff', createStaffRouter());
 app.use('/api/credentials', createCredentialsRouter());
 app.use('/api/org/branding', createOrgBrandingRouter());
 app.use('/api/org/domain', createOrgDomainRouter());
+app.use('/api/auth', createAuthRouter());
 app.use('/api/reports', createReportsRouter());
 
 app.use('/api', notFoundHandler);
