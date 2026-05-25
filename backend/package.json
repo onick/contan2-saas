@@ -13,6 +13,7 @@
     "url": "https://github.com/onick/contan2-saas.git"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.0.2",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -23,7 +24,8 @@
     "puppeteer-core": "^24.43.1",
     "qrcode": "^1.5.4",
     "resend": "^6.12.3",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "zod": "^4.4.3"
   },
   "engines": {
     "node": ">=18"
