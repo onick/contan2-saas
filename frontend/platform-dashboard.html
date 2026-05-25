@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>contan2 · Plataforma</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; -webkit-font-smoothing: antialiased; }
+    .pf-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 32px;
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid #1e293b;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .pf-brand { display: flex; align-items: center; gap: 12px; }
+    .pf-brand-logo {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #f59e0b, #b45309);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; color: #1c1917;
+    }
+    .pf-brand-name { font-weight: 700; }
+    .pf-brand-sub { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+    .pf-user { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+    .pf-logout-btn {
+      background: transparent; border: 1px solid #334155; color: #cbd5e1;
+      padding: 6px 14px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px;
+    }
+    .pf-logout-btn:hover { background: #1e293b; }
+
+    .pf-shell { max-width: 1280px; margin: 0 auto; padding: 32px; }
+    h1 { font-size: 28px; font-weight: 800; margin: 0 0 6px; color: #f8fafc; }
+    .pf-lead { font-size: 14px; color: #94a3b8; margin: 0 0 28px; }
+
+    .pf-kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .pf-kpi {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .pf-kpi-label {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+      color: #94a3b8; font-weight: 600; margin-bottom: 6px;
+    }
+    .pf-kpi-value {
+      font-size: 32px; font-weight: 800; color: #f59e0b;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pf-section { background: #1e293b; border: 1px solid #334155; border-radius: 14px; overflow: hidden; }
+    .pf-section-head {
+      padding: 16px 22px; border-bottom: 1px solid #334155;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .pf-section-head h2 { font-size: 16px; margin: 0; }
+    .pf-table { width: 100%; border-collapse: collapse; }
+    .pf-table th, .pf-table td {
+      padding: 12px 22px; text-align: left; font-size: 13px;
+      border-bottom: 1px solid #334155;
+    }
+    .pf-table th {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+      color: #94a3b8; font-weight: 600; background: #0f172a;
+    }
+    .pf-table tr:last-child td { border-bottom: none; }
+    .pf-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+    }
+    .pf-tag--active { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .pf-tag--suspended { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+
+    @media (max-width: 768px) {
+      .pf-kpis { grid-template-columns: 1fr 1fr; }
+      .pf-shell { padding: 20px; }
+      .pf-top { padding: 14px 20px; }
+    }
+
+    .pf-loading, .pf-empty { padding: 32px; text-align: center; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <nav class="pf-top">
+    <div class="pf-brand">
+      <div class="pf-brand-logo">c2</div>
+      <div>
+        <div class="pf-brand-name">contan2</div>
+        <div class="pf-brand-sub">plataforma</div>
+      </div>
+    </div>
+    <div class="pf-user">
+      <span id="pf-user-name">…</span>
+      <button class="pf-logout-btn" id="pf-logout-btn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <main class="pf-shell">
+    <h1>Operación</h1>
+    <p class="pf-lead">Vista de plataforma. Datos cross-tenant en tiempo real.</p>
+
+    <div class="pf-kpis">
+      <div class="pf-kpi">
+        <div class="pf-kpi-label">Tenants activos</div>
+        <div class="pf-kpi-value" id="kpi-tenants">—</div>
+      </div>
+      <div class="pf-kpi">
+        <div class="pf-kpi-label">Usuarios totales</div>
+        <div class="pf-kpi-value" id="kpi-users">—</div>
+      </div>
+      <div class="pf-kpi">
+        <div class="pf-kpi-label">Asistencias totales</div>
+        <div class="pf-kpi-value" id="kpi-attendances">—</div>
+      </div>
+      <div class="pf-kpi">
+        <div class="pf-kpi-label">Actividades activas</div>
+        <div class="pf-kpi-value" id="kpi-activities">—</div>
+      </div>
+    </div>
+
+    <section class="pf-section">
+      <header class="pf-section-head">
+        <h2>Tenants</h2>
+      </header>
+      <div id="pf-tenants-host">
+        <div class="pf-loading">Cargando…</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="platform-dashboard.js"></script>
+</body>
+</html>

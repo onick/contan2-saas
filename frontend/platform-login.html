@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>contan2 · Acceso plataforma</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="login.css" />
+  <style>
+    /* Tema dark para platform admin — visualmente distinto del tenant login */
+    body {
+      background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+    }
+    .auth-card {
+      background: #fff;
+    }
+    .auth-brand-logo {
+      background: linear-gradient(135deg, #0f172a 0%, #475569 100%);
+      color: #fff;
+    }
+    .auth-brand-org { color: #94a3b8; }
+    .auth-btn--primary { background: #0f172a; color: #fff; }
+    .auth-footer { color: #94a3b8; }
+    .auth-field input:focus {
+      border-color: #0f172a;
+      box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.12);
+    }
+    .auth-links a { color: #0f172a; }
+    .auth-platform-badge {
+      display: inline-block;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-brand-logo">
+          <span style="font-weight:800;font-size:24px;">c2</span>
+        </div>
+        <div class="auth-brand-org">contan2 · Plataforma</div>
+      </div>
+
+      <div data-view="login" class="auth-view is-active">
+        <div style="text-align:center;"><span class="auth-platform-badge"><i class="fa-solid fa-shield-halved"></i> Acceso de plataforma</span></div>
+        <h1>Super admin</h1>
+        <p class="auth-lead">Operación de contan2 — control cross-tenant.</p>
+
+        <form id="login-form" novalidate>
+          <div class="auth-field">
+            <label for="email">Correo</label>
+            <input id="email" name="email" type="email" autocomplete="email" required autofocus />
+          </div>
+          <div class="auth-field">
+            <label for="password">Contraseña</label>
+            <div class="auth-input-with-action">
+              <input id="password" name="password" type="password" autocomplete="current-password" required minlength="1" />
+              <button type="button" class="auth-toggle-eye" id="toggle-password" aria-label="Mostrar contraseña">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          <label class="auth-checkbox">
+            <input type="checkbox" name="rememberMe" />
+            <span>Recordarme en este equipo</span>
+          </label>
+
+          <div class="auth-message" id="login-message"></div>
+
+          <button type="submit" class="auth-btn auth-btn--primary" id="login-submit">
+            <span class="auth-btn-label">Iniciar sesión</span>
+            <i class="fa-solid fa-arrow-right auth-btn-icon"></i>
+          </button>
+        </form>
+
+        <div class="auth-links">
+          <a href="/login/forgot">¿Olvidaste tu contraseña?</a>
+        </div>
+      </div>
+
+      <div data-view="forgot" class="auth-view">
+        <h1>Recuperar contraseña</h1>
+        <p class="auth-lead">Te enviaremos un enlace para restablecerla.</p>
+        <form id="forgot-form" novalidate>
+          <div class="auth-field">
+            <label for="forgot-email">Correo</label>
+            <input id="forgot-email" name="email" type="email" autocomplete="email" required autofocus />
+          </div>
+          <div class="auth-message" id="forgot-message"></div>
+          <button type="submit" class="auth-btn auth-btn--primary" id="forgot-submit">
+            <span class="auth-btn-label">Enviar enlace</span>
+          </button>
+        </form>
+        <div class="auth-links"><a href="/login">Volver al login</a></div>
+      </div>
+
+      <div data-view="reset" class="auth-view">
+        <h1>Nueva contraseña</h1>
+        <p class="auth-lead">Crea una contraseña segura.</p>
+        <form id="reset-form" novalidate>
+          <div class="auth-field">
+            <label for="reset-password">Nueva contraseña</label>
+            <div class="auth-input-with-action">
+              <input id="reset-password" name="newPassword" type="password" autocomplete="new-password" required minlength="10" />
+              <button type="button" class="auth-toggle-eye" id="toggle-reset-password" aria-label="Mostrar">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+            <div class="auth-hint">Mínimo 10 caracteres.</div>
+          </div>
+          <div class="auth-field">
+            <label for="reset-confirm">Confirmar</label>
+            <input id="reset-confirm" name="newPasswordConfirm" type="password" autocomplete="new-password" required minlength="10" />
+          </div>
+          <div class="auth-message" id="reset-message"></div>
+          <button type="submit" class="auth-btn auth-btn--primary" id="reset-submit">
+            <span class="auth-btn-label">Guardar nueva contraseña</span>
+          </button>
+        </form>
+        <div class="auth-links"><a href="/login">Volver al login</a></div>
+      </div>
+    </section>
+
+    <footer class="auth-footer">© contan2 · solo personal autorizado</footer>
+  </main>
+
+  <script src="platform-login.js"></script>
+</body>
+</html>

@@ -149,12 +149,44 @@ const rsvpHtml = serveHtmlWithBranding(path.join(frontendPath, 'rsvp.html'));
 const loginHtml = serveHtmlWithBranding(path.join(frontendPath, 'login.html'));
 const indexHtml = serveHtmlWithBranding(path.join(frontendPath, 'index.html'));
 
+// Detecta si el host es el subdomain `admin.<rootDomain>` → es la sección
+// de plataforma (platform admin). Distinto del flow de tenant.
+function isPlatformHost(req) {
+  const host = (req.hostname || '').toLowerCase();
+  const root = (config.ROOT_DOMAIN || 'localhost').toLowerCase();
+  return host === `admin.${root}` || host === 'admin.localhost';
+}
+
+// HTML del platform admin (NO usa serveHtmlWithBranding porque no hay tenant)
+import fs from 'fs/promises';
+const _platformHtmlCache = new Map();
+async function servePlatformHtml(filename) {
+  return async (req, res, next) => {
+    try {
+      let html = _platformHtmlCache.get(filename);
+      if (!html) {
+        html = await fs.readFile(path.join(frontendPath, filename), 'utf-8');
+        _platformHtmlCache.set(filename, html);
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(html);
+    } catch (e) { next(e); }
+  };
+}
+const platformLoginHandler = await servePlatformHtml('platform-login.html');
+const platformDashboardHandler = await servePlatformHtml('platform-dashboard.html');
+
 app.get(/^\/kiosko(?:\/.*)?$/, resolveTenant, kioskoHtml);
 app.get(/^\/scanner(?:\/.*)?$/, resolveTenant, scannerHtml);
 app.get(/^\/rsvp(?:\/.*)?$/, resolveTenant, rsvpHtml);
-// /login, /login/forgot, /login/reset — todas comparten el mismo HTML.
-// El JS lee el path y muestra la vista correcta.
-app.get(/^\/login(?:\/.*)?$/, resolveTenant, loginHtml);
+// /login, /login/forgot, /login/reset:
+// - En admin.<root> → platform-login (super admin)
+// - En otros hosts (tenants) → login.html (staff login)
+app.get(/^\/login(?:\/.*)?$/, (req, res, next) => {
+  if (isPlatformHost(req)) return platformLoginHandler(req, res, next);
+  return resolveTenant(req, res, () => loginHtml(req, res, next));
+});
 
 // Paginas publicas compartibles por actividad (Open Graph para WhatsApp/redes).
 // Requieren tenant + repos para resolver el slug -> actividad de la org actual.
@@ -173,6 +205,13 @@ app.use(express.static(frontendPath, {
 app.use((req, res, next) => {
   if (req.method !== 'GET') return next();
   if (req.path.startsWith('/api')) return next();
+  // Platform host (admin.<root>): /login → platform-login, todo lo demás → platform-dashboard
+  if (isPlatformHost(req)) {
+    if (req.path === '/login' || req.path.startsWith('/login/')) {
+      return platformLoginHandler(req, res, next);
+    }
+    return platformDashboardHandler(req, res, next);
+  }
   if (req.path === '/kiosko' || req.path.startsWith('/kiosko/')) {
     return resolveTenant(req, res, () => kioskoHtml(req, res, next));
   }
