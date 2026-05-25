@@ -29,6 +29,7 @@ import { createAuthRouter } from './src/routes/auth.js';
 import { createPlatformAuthRouter } from './src/routes/platformAuth.js';
 import { createReportsRouter } from './src/routes/reports.js';
 import { createEventosPublicRouter } from './src/routes/eventosPublic.js';
+import { createLandingRouter } from './src/routes/landing.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -117,6 +118,9 @@ app.use('/uploads', express.static(UPLOADS_DIR, {
 // buildTenantRepos los rechazaría con 404.
 app.use('/api/platform/auth', createPlatformAuthRouter());
 
+// Landing endpoints — públicos, sin tenant scope (marketing host).
+app.use('/api/landing', createLandingRouter());
+
 // Tenant resolution + repos (basado en subdomain o custom domain)
 app.use('/api', resolveTenant);
 app.use('/api', buildTenantRepos);
@@ -157,6 +161,20 @@ function isPlatformHost(req) {
   return host === `admin.${root}` || host === 'admin.localhost';
 }
 
+// Detecta si el host es el dominio raíz de marketing (`contan2.com` o
+// `www.contan2.com`), o un atajo de dev (`landing.localhost` o query
+// `?landing=1`). En esos casos servimos la landing pública, NO el admin SPA.
+// Esto cierra el leak descrito en CONSTITUTION §2.2 (admin nunca expuesto
+// desde URLs neutras).
+function isMarketingHost(req) {
+  const host = (req.hostname || '').toLowerCase();
+  const root = (config.ROOT_DOMAIN || 'localhost').toLowerCase();
+  if (host === root || host === `www.${root}`) return true;
+  if (host === 'landing.localhost') return true;
+  if (req.query?.landing === '1' && (host === 'localhost' || host === '127.0.0.1')) return true;
+  return false;
+}
+
 // HTML del platform admin (NO usa serveHtmlWithBranding porque no hay tenant)
 import fs from 'fs/promises';
 const _platformHtmlCache = new Map();
@@ -177,14 +195,31 @@ async function servePlatformHtml(filename) {
 const platformLoginHandler = await servePlatformHtml('platform-login.html');
 const platformDashboardHandler = await servePlatformHtml('platform-dashboard.html');
 
+// Landing: HTML estático sin SSR de branding (no tiene tenant).
+// Cache 5min para que cambios de copy se vean razonablemente rápido.
+async function landingHandler(req, res, next) {
+  try {
+    let html = _platformHtmlCache.get('landing.html');
+    if (!html) {
+      html = await fs.readFile(path.join(frontendPath, 'landing.html'), 'utf-8');
+      _platformHtmlCache.set('landing.html', html);
+    }
+    res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (e) { next(e); }
+}
+
 app.get(/^\/kiosko(?:\/.*)?$/, resolveTenant, kioskoHtml);
 app.get(/^\/scanner(?:\/.*)?$/, resolveTenant, scannerHtml);
 app.get(/^\/rsvp(?:\/.*)?$/, resolveTenant, rsvpHtml);
 // /login, /login/forgot, /login/reset:
 // - En admin.<root> → platform-login (super admin)
+// - En marketing host → redirect a la landing (no hay tenant para loguearse)
 // - En otros hosts (tenants) → login.html (staff login)
 app.get(/^\/login(?:\/.*)?$/, (req, res, next) => {
   if (isPlatformHost(req)) return platformLoginHandler(req, res, next);
+  if (isMarketingHost(req)) return res.redirect(302, '/#login');
   return resolveTenant(req, res, () => loginHtml(req, res, next));
 });
 
@@ -211,6 +246,11 @@ app.use((req, res, next) => {
       return platformLoginHandler(req, res, next);
     }
     return platformDashboardHandler(req, res, next);
+  }
+  // Marketing host (root contan2.com / www): landing pública. NUNCA admin SPA.
+  // Esta es la frontera que cierra el leak histórico de §2.2.
+  if (isMarketingHost(req)) {
+    return landingHandler(req, res, next);
   }
   if (req.path === '/kiosko' || req.path.startsWith('/kiosko/')) {
     return resolveTenant(req, res, () => kioskoHtml(req, res, next));

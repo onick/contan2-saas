@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>contan2 · Plataforma para centros culturales</title>
+    <meta name="description" content="Gestiona tu centro cultural sin perder visitantes en el camino. Registro, check-in, segmentación y reportes branded en una sola plataforma — usada por el Centro Cultural Banreservas." />
+    <meta name="theme-color" content="#4338ca" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="contan2 · Plataforma para centros culturales" />
+    <meta property="og:description" content="Registro, check-in, segmentación y reportes branded — todo en una sola plataforma que tu equipo aprende en una tarde." />
+    <meta property="og:url" content="https://contan2.com/" />
+    <meta property="og:site_name" content="contan2" />
+    <meta property="og:locale" content="es_DO" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234338ca'/%3E%3Ctext x='50%25' y='56%25' text-anchor='middle' fill='white' font-family='Inter,Arial' font-size='28' font-weight='700'%3Ec2%3C/text%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="landing.css" />
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "contan2",
+      "url": "https://contan2.com",
+      "description": "Plataforma SaaS multi-tenant para gestión de visitantes en centros culturales.",
+      "areaServed": "DO",
+      "sameAs": []
+    }
+    </script>
+  </head>
+  <body>
+    <a href="#main" class="skip-link">Saltar al contenido</a>
+
+    <header class="ln-header" role="banner">
+      <div class="ln-container ln-header__inner">
+        <a href="/" class="ln-brand" aria-label="contan2 — inicio">
+          <span class="ln-brand__mark" aria-hidden="true">c2</span>
+          <span class="ln-brand__name">contan2</span>
+        </a>
+        <nav class="ln-nav" aria-label="Principal">
+          <a href="#features">Características</a>
+          <a href="#caso-ccb">Casos de uso</a>
+          <a href="#pricing">Precio</a>
+          <a href="#contacto">Contacto</a>
+        </nav>
+        <div class="ln-header__actions">
+          <button type="button" class="ln-btn ln-btn--ghost" id="ln-open-login">
+            Iniciar sesión
+          </button>
+          <a href="#contacto" class="ln-btn ln-btn--primary ln-btn--sm">Solicitar demo</a>
+        </div>
+        <button type="button" class="ln-burger" id="ln-burger" aria-label="Abrir menú" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ============ HERO ============ -->
+      <section class="ln-hero" aria-labelledby="hero-title">
+        <div class="ln-container ln-hero__inner">
+          <div class="ln-hero__copy">
+            <span class="ln-eyebrow">Plataforma SaaS · hecha en RD</span>
+            <h1 id="hero-title">
+              Gestiona tu centro cultural <span class="ln-accent">sin perder visitantes</span> en el camino.
+            </h1>
+            <p class="ln-lede">
+              Registro, check-in con QR, segmentación de audiencia y reportes branded —
+              en una sola plataforma que tu equipo aprende en una tarde.
+            </p>
+            <div class="ln-hero__ctas">
+              <a href="#contacto" class="ln-btn ln-btn--primary ln-btn--lg">Solicitar demo</a>
+              <a href="#features" class="ln-btn ln-btn--ghost ln-btn--lg">Ver cómo funciona</a>
+            </div>
+            <div class="ln-trust">
+              <span class="ln-trust__dot" aria-hidden="true"></span>
+              Usado por el <strong>Centro Cultural Banreservas</strong> · 12.000+ visitantes gestionados
+            </div>
+          </div>
+          <div class="ln-hero__visual" aria-hidden="true">
+            <div class="ln-mock">
+              <div class="ln-mock__bar">
+                <span></span><span></span><span></span>
+              </div>
+              <div class="ln-mock__body">
+                <div class="ln-mock__side">
+                  <div class="ln-mock__logo">CCB</div>
+                  <div class="ln-mock__nav-item ln-mock__nav-item--active">Dashboard</div>
+                  <div class="ln-mock__nav-item">Check-in</div>
+                  <div class="ln-mock__nav-item">Usuarios</div>
+                  <div class="ln-mock__nav-item">Actividades</div>
+                  <div class="ln-mock__nav-item">Segmentos</div>
+                  <div class="ln-mock__nav-item">Reportes</div>
+                </div>
+                <div class="ln-mock__main">
+                  <div class="ln-mock__kpis">
+                    <div class="ln-mock__kpi">
+                      <div class="ln-mock__kpi-label">Visitantes hoy</div>
+                      <div class="ln-mock__kpi-value">187</div>
+                      <div class="ln-mock__kpi-delta">+12% vs ayer</div>
+                    </div>
+                    <div class="ln-mock__kpi">
+                      <div class="ln-mock__kpi-label">Asistencia</div>
+                      <div class="ln-mock__kpi-value">94%</div>
+                      <div class="ln-mock__kpi-delta">3 actividades</div>
+                    </div>
+                    <div class="ln-mock__kpi">
+                      <div class="ln-mock__kpi-label">Nuevos</div>
+                      <div class="ln-mock__kpi-value">42</div>
+                      <div class="ln-mock__kpi-delta">+8 que ayer</div>
+                    </div>
+                  </div>
+                  <div class="ln-mock__chart">
+                    <div class="ln-mock__bar-tall" style="height: 30%"></div>
+                    <div class="ln-mock__bar-tall" style="height: 55%"></div>
+                    <div class="ln-mock__bar-tall" style="height: 42%"></div>
+                    <div class="ln-mock__bar-tall" style="height: 78%"></div>
+                    <div class="ln-mock__bar-tall" style="height: 65%"></div>
+                    <div class="ln-mock__bar-tall" style="height: 92%"></div>
+                    <div class="ln-mock__bar-tall" style="height: 88%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PARA QUIÉN ============ -->
+      <section class="ln-section" aria-labelledby="para-quien-title">
+        <div class="ln-container">
+          <header class="ln-section__head ln-reveal">
+            <span class="ln-eyebrow">Para quién es</span>
+            <h2 id="para-quien-title">Hecho para equipos que operan cultura</h2>
+            <p class="ln-section__sub">
+              Si tu organización mueve visitantes, contan2 te quita la planilla, el WhatsApp
+              improvisado y el Excel desactualizado.
+            </p>
+          </header>
+          <div class="ln-grid ln-grid--3">
+            <article class="ln-card ln-reveal">
+              <div class="ln-card__icon" aria-hidden="true">🏛️</div>
+              <h3>Centros culturales</h3>
+              <p>
+                Públicos rotativos, agenda de eventos múltiple, branding propio. Cuándo el
+                visitante es el corazón, contan2 te da check-in con QR, segmentos y reportes
+                listos para directorio.
+              </p>
+            </article>
+            <article class="ln-card ln-reveal">
+              <div class="ln-card__icon" aria-hidden="true">🎭</div>
+              <h3>Fundaciones e institutos</h3>
+              <p>
+                Talleres, ciclos, residencias artísticas. Te seguimos el registro de quién vino,
+                cuántas veces, a qué actividades — datos para tus reportes anuales sin tener que
+                pelearte con hojas de cálculo.
+              </p>
+            </article>
+            <article class="ln-card ln-reveal">
+              <div class="ln-card__icon" aria-hidden="true">🎓</div>
+              <h3>Escuelas y academias</h3>
+              <p>
+                Programas con cupo, cursos por categoría, anti-doble inscripción. Tu staff
+                aprende a operarlo en una tarde y el reporte mensual lo genera la plataforma.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ FEATURES ============ -->
+      <section id="features" class="ln-section ln-section--soft" aria-labelledby="features-title">
+        <div class="ln-container">
+          <header class="ln-section__head ln-reveal">
+            <span class="ln-eyebrow">Características</span>
+            <h2 id="features-title">Todo lo que necesitas, nada que te estorbe</h2>
+            <p class="ln-section__sub">
+              Diseñado por gente que opera un centro cultural real. Lo que sobra, no está.
+            </p>
+          </header>
+          <div class="ln-grid ln-grid--3">
+            <article class="ln-feat ln-reveal">
+              <div class="ln-feat__ic" aria-hidden="true">🆔</div>
+              <h3>Credencial QR personal</h3>
+              <p>Cada visitante recibe su QR por email. Check-in en kiosko o scanner, sin filas, sin papelitos.</p>
+            </article>
+            <article class="ln-feat ln-reveal">
+              <div class="ln-feat__ic" aria-hidden="true">🔗</div>
+              <h3>Páginas públicas compartibles</h3>
+              <p>Cada actividad tiene URL pública con Open Graph listo para WhatsApp y redes. El público se inscribe sin tu staff.</p>
+            </article>
+            <article class="ln-feat ln-reveal">
+              <div class="ln-feat__ic" aria-hidden="true">🎨</div>
+              <h3>Branding propio</h3>
+              <p>Color, logo, dominio personalizado. Tu marca, no la nuestra. Self-service desde el panel.</p>
+            </article>
+            <article class="ln-feat ln-reveal">
+              <div class="ln-feat__ic" aria-hidden="true">📨</div>
+              <h3>Segmentos e invitaciones</h3>
+              <p>Filtra audiencia por categoría, asistencia previa, edad. Envía invitaciones masivas con bulk-send y métricas de apertura.</p>
+            </article>
+            <article class="ln-feat ln-reveal">
+              <div class="ln-feat__ic" aria-hidden="true">📊</div>
+              <h3>Reportes PDF y Excel</h3>
+              <p>Por actividad, por categoría, mensual y anual. Branded con tu logo, listos para enviar a directorio.</p>
+            </article>
+            <article class="ln-feat ln-reveal">
+              <div class="ln-feat__ic" aria-hidden="true">🏢</div>
+              <h3>Multi-tenant nativo</h3>
+              <p>Una sola plataforma, varios centros. Cada uno con su dominio, su staff y sus datos completamente aislados.</p>
+            </article>
+            <article class="ln-feat ln-reveal">
+              <div class="ln-feat__ic" aria-hidden="true">🛡️</div>
+              <h3>Anti pérdida de datos</h3>
+              <p>Modales con datos sin guardar nunca se cierran por backdrop click. Forms validados en cliente y servidor.</p>
+            </article>
+            <article class="ln-feat ln-reveal">
+              <div class="ln-feat__ic" aria-hidden="true">🚪</div>
+              <h3>Kiosko y scanner integrados</h3>
+              <p>Tablet en la entrada para registro express. Scanner en el control de acceso. Ambos sincronizados al panel en tiempo real.</p>
+            </article>
+            <article class="ln-feat ln-reveal">
+              <div class="ln-feat__ic" aria-hidden="true">🔐</div>
+              <h3>Auth profesional</h3>
+              <p>Login email + password, recovery, bloqueo escalado anti brute-force, notificación de login desde nueva IP. Sin PINs compartidos.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CASO CCB ============ -->
+      <section id="caso-ccb" class="ln-section" aria-labelledby="ccb-title">
+        <div class="ln-container">
+          <div class="ln-quote ln-reveal">
+            <div class="ln-quote__body">
+              <span class="ln-eyebrow">Caso de éxito</span>
+              <h2 id="ccb-title">
+                "Pasamos del Excel improvisado a tener reportes que se entregan al
+                directorio sin retoques."
+              </h2>
+              <p class="ln-quote__attr">
+                — Equipo del <strong>Centro Cultural Banreservas</strong><br>
+                Anchor client de contan2 desde 2026.
+              </p>
+            </div>
+            <div class="ln-quote__kpis">
+              <div class="ln-kpi">
+                <div class="ln-kpi__value" data-kpi="visitors">12K+</div>
+                <div class="ln-kpi__label">Visitantes gestionados</div>
+              </div>
+              <div class="ln-kpi">
+                <div class="ln-kpi__value" data-kpi="events">200+</div>
+                <div class="ln-kpi__label">Actividades operadas</div>
+              </div>
+              <div class="ln-kpi">
+                <div class="ln-kpi__value" data-kpi="attendance">95%</div>
+                <div class="ln-kpi__label">Asistencia promedio</div>
+              </div>
+              <div class="ln-kpi">
+                <div class="ln-kpi__value" data-kpi="reactivation">+38%</div>
+                <div class="ln-kpi__label">Reactivación con segmentos</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PRICING ============ -->
+      <section id="pricing" class="ln-section ln-section--soft" aria-labelledby="pricing-title">
+        <div class="ln-container">
+          <header class="ln-section__head ln-reveal">
+            <span class="ln-eyebrow">Precio</span>
+            <h2 id="pricing-title">Transparente. Sin sorpresas.</h2>
+            <p class="ln-section__sub">
+              Un solo precio, todos los features incluidos. Sin cargos por usuario, sin
+              "premium tier" para reportes básicos.
+            </p>
+          </header>
+          <div class="ln-grid ln-grid--3 ln-pricing">
+            <article class="ln-plan ln-reveal">
+              <div class="ln-plan__head">
+                <h3>Starter</h3>
+                <div class="ln-plan__price">
+                  <span class="ln-plan__price-tag">Próximamente</span>
+                </div>
+                <p class="ln-plan__pitch">Para organizaciones que están arrancando.</p>
+              </div>
+              <ul class="ln-plan__feats">
+                <li>1.000 visitantes / mes</li>
+                <li>2 staff de tenant</li>
+                <li>Branding básico</li>
+                <li>Reportes Excel</li>
+              </ul>
+              <a href="#contacto" class="ln-btn ln-btn--ghost ln-btn--full">Avísame cuando salga</a>
+            </article>
+
+            <article class="ln-plan ln-plan--featured ln-reveal">
+              <div class="ln-plan__badge">Más elegido</div>
+              <div class="ln-plan__head">
+                <h3>Growth</h3>
+                <div class="ln-plan__price">
+                  <span class="ln-plan__price-currency">USD</span>
+                  <span class="ln-plan__price-value">99</span>
+                  <span class="ln-plan__price-period">/mes</span>
+                </div>
+                <p class="ln-plan__pitch">El plan que usa el Centro Cultural Banreservas.</p>
+              </div>
+              <ul class="ln-plan__feats">
+                <li><strong>5.000 visitantes / mes</strong></li>
+                <li>Staff ilimitado por tenant</li>
+                <li>Branding completo + dominio propio</li>
+                <li>Segmentos y bulk invite</li>
+                <li>Reportes PDF + Excel branded</li>
+                <li>Kiosko + scanner integrados</li>
+                <li>Soporte directo del fundador</li>
+              </ul>
+              <a href="#contacto" class="ln-btn ln-btn--primary ln-btn--full">Solicitar demo</a>
+              <p class="ln-plan__foot">+ setup fee único $500–750 USD (incluye customización y training).</p>
+            </article>
+
+            <article class="ln-plan ln-reveal">
+              <div class="ln-plan__head">
+                <h3>Enterprise</h3>
+                <div class="ln-plan__price">
+                  <span class="ln-plan__price-tag">Conversemos</span>
+                </div>
+                <p class="ln-plan__pitch">Para redes de centros y volúmenes &gt; 5k/mes.</p>
+              </div>
+              <ul class="ln-plan__feats">
+                <li>Visitantes ilimitados</li>
+                <li>Multi-organización (red de centros)</li>
+                <li>SLA y soporte priorizado</li>
+                <li>Integraciones a medida</li>
+                <li>Onboarding presencial en RD</li>
+              </ul>
+              <a href="#contacto" class="ln-btn ln-btn--ghost ln-btn--full">Hablemos</a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CONTACTO ============ -->
+      <section id="contacto" class="ln-section" aria-labelledby="contacto-title">
+        <div class="ln-container ln-contact">
+          <div class="ln-contact__copy ln-reveal">
+            <span class="ln-eyebrow">Contacto</span>
+            <h2 id="contacto-title">Cuéntanos qué necesitas.</h2>
+            <p>
+              Te respondemos en menos de 24h con una propuesta concreta y un enlace
+              para agendar una demo. Sin formularios eternos, sin call con vendedores
+              que no conocen el producto.
+            </p>
+            <ul class="ln-contact__pts">
+              <li>Demo de 30 min con datos reales del CCB</li>
+              <li>Migración asistida desde Excel o sistema actual</li>
+              <li>Onboarding 1-a-1 con el fundador</li>
+            </ul>
+          </div>
+          <form class="ln-form ln-reveal" id="ln-contact-form" novalidate>
+            <div class="ln-field">
+              <label for="ln-name">Tu nombre</label>
+              <input id="ln-name" name="name" type="text" autocomplete="name" required maxlength="120" />
+            </div>
+            <div class="ln-field">
+              <label for="ln-org">Organización</label>
+              <input id="ln-org" name="organization" type="text" autocomplete="organization" required maxlength="160" />
+            </div>
+            <div class="ln-field">
+              <label for="ln-email">Email</label>
+              <input id="ln-email" name="email" type="email" autocomplete="email" required maxlength="255" />
+            </div>
+            <div class="ln-field">
+              <label for="ln-message">¿Qué te gustaría resolver? <span class="ln-field__opt">(opcional)</span></label>
+              <textarea id="ln-message" name="message" rows="4" maxlength="2000"></textarea>
+            </div>
+            <!-- Honeypot -->
+            <div class="ln-honeypot" aria-hidden="true">
+              <label for="ln-fax">No completar este campo</label>
+              <input type="text" id="ln-fax" name="fax" tabindex="-1" autocomplete="off" />
+            </div>
+            <button type="submit" class="ln-btn ln-btn--primary ln-btn--lg ln-btn--full" id="ln-submit">
+              Solicitar demo
+            </button>
+            <p class="ln-form__msg" id="ln-form-msg" role="status" aria-live="polite"></p>
+            <p class="ln-form__legal">
+              Al enviar aceptas que te contactemos por email. Tus datos se usan solo para
+              esta solicitud. <a href="/privacidad">Privacidad</a>.
+            </p>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <footer class="ln-footer" role="contentinfo">
+      <div class="ln-container ln-footer__inner">
+        <div class="ln-footer__brand">
+          <a href="/" class="ln-brand ln-brand--light" aria-label="contan2">
+            <span class="ln-brand__mark" aria-hidden="true">c2</span>
+            <span class="ln-brand__name">contan2</span>
+          </a>
+          <p>Plataforma SaaS para gestión de visitantes en centros culturales. Hecho en RD.</p>
+        </div>
+        <div class="ln-footer__cols">
+          <div>
+            <h4>Producto</h4>
+            <ul>
+              <li><a href="#features">Características</a></li>
+              <li><a href="#pricing">Precio</a></li>
+              <li><a href="#contacto">Solicitar demo</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>Recursos</h4>
+            <ul>
+              <li><a href="mailto:soporte@contan2.com">Soporte</a></li>
+              <li><a href="/estado">Estado del sistema</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>Legal</h4>
+            <ul>
+              <li><a href="/terminos">Términos</a></li>
+              <li><a href="/privacidad">Privacidad</a></li>
+              <li><a href="/cookies">Cookies</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>Acceso</h4>
+            <ul>
+              <li><button type="button" class="ln-link-btn" data-open-login>Iniciar sesión</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="ln-footer__bar">
+        <div class="ln-container">
+          <span>© <span id="ln-year">2026</span> contan2 · hecho en RD</span>
+          <span class="ln-footer__hand">v0.2 · Sprint 2</span>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Modal: selector de tenant para login -->
+    <div class="ln-modal" id="ln-login-modal" hidden aria-hidden="true" role="dialog" aria-labelledby="ln-login-title" aria-modal="true">
+      <div class="ln-modal__backdrop" data-close-login></div>
+      <div class="ln-modal__card" role="document">
+        <button type="button" class="ln-modal__x" aria-label="Cerrar" data-close-login>&times;</button>
+        <h3 id="ln-login-title">Iniciar sesión en tu organización</h3>
+        <p>Ingresa el identificador (slug) de tu organización o tu dominio personalizado.</p>
+        <form id="ln-login-form" class="ln-form">
+          <div class="ln-field">
+            <label for="ln-slug">Slug u organización</label>
+            <div class="ln-slug-input">
+              <input id="ln-slug" name="slug" type="text" autocomplete="off" placeholder="ccb" required />
+              <span class="ln-slug-input__suffix">.contan2.com</span>
+            </div>
+            <p class="ln-field__hint">Ej: si tu panel es <code>ccb.contan2.com</code>, ingresa <code>ccb</code>.</p>
+          </div>
+          <button type="submit" class="ln-btn ln-btn--primary ln-btn--full">Ir a iniciar sesión</button>
+        </form>
+        <p class="ln-modal__alt">
+          ¿No sabes tu slug? <a href="#contacto" data-close-login>Escríbenos</a> y te ayudamos.
+        </p>
+      </div>
+    </div>
+
+    <script defer src="landing.js"></script>
+  </body>
+</html>

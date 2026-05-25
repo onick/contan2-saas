@@ -1,0 +1,29 @@
+{
+  "hero": {
+    "eyebrow": "Plataforma SaaS · hecha en RD",
+    "h1Lead": "Gestiona tu centro cultural",
+    "h1Accent": "sin perder visitantes",
+    "h1Tail": "en el camino.",
+    "lede": "Registro, check-in con QR, segmentación de audiencia y reportes branded — en una sola plataforma que tu equipo aprende en una tarde.",
+    "trust": "Usado por el Centro Cultural Banreservas · 12.000+ visitantes gestionados"
+  },
+  "kpis": {
+    "visitors": "12K+",
+    "events": "200+",
+    "attendance": "95%",
+    "reactivation": "+38%"
+  },
+  "pricing": {
+    "growth": {
+      "currency": "USD",
+      "amount": 99,
+      "period": "/mes",
+      "setupFee": "$500–750 USD one-time"
+    }
+  },
+  "contact": {
+    "inboxEmail": "mfranciscomartinez@gmail.com",
+    "publicEmail": "hola@contan2.com"
+  },
+  "notes": "Este JSON es la fuente de verdad de copy/KPI editables. Los HTML actuales tienen los valores en línea; cuando hagamos pasada 2 los leeremos desde aquí."
+}
