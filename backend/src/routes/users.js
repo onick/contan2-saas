@@ -110,6 +110,39 @@ export function createUsersRouter() {
     try {
       const users = await req.repos.users.findAll();
       users.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      // Enriquecer con lastVisitAt + visitsByWeek (8 semanas hacia atrás)
+      // de un solo barrido sobre attendance (cheap: 1 query, O(N) en memoria).
+      // Skip si no hay repo de attendance (modo memory legacy resiliente).
+      try {
+        const allAtt = await req.repos.attendance.findAll();
+        const now = Date.now();
+        const WEEK_MS = 7 * 86400000;
+        const byUser = new Map();
+        for (const a of allAtt) {
+          if (!a.userId) continue;
+          const t = new Date(a.registeredAt).getTime();
+          let bucket = byUser.get(a.userId);
+          if (!bucket) {
+            bucket = { lastAt: t, weeks: [0, 0, 0, 0, 0, 0, 0, 0] };
+            byUser.set(a.userId, bucket);
+          } else if (t > bucket.lastAt) {
+            bucket.lastAt = t;
+          }
+          const wIdx = Math.floor((now - t) / WEEK_MS);
+          if (wIdx >= 0 && wIdx < 8) bucket.weeks[wIdx]++;
+        }
+        for (const u of users) {
+          const b = byUser.get(u.id);
+          u.lastVisitAt = b ? new Date(b.lastAt).toISOString() : null;
+          u.visitsByWeek = b ? b.weeks : [0, 0, 0, 0, 0, 0, 0, 0];
+        }
+      } catch (e) {
+        // No queremos romper el listado si el enrichment falla; los
+        // campos quedan undefined y el frontend tolera ausencia.
+        console.warn('[users:list] enrichment skipped:', e.message);
+      }
+
       res.json({ users, total: users.length });
     } catch (e) {
       next(e);

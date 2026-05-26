@@ -43,6 +43,10 @@ const State = {
     attendance: { userCode: '', activityId: '' },
   },
   usersSelection: new Set(),
+  usersFetchedAt: 0,
+  usersSyncTimer: null,
+  usersDensity: 'comfy',
+  usersVisibleCols: { contact: true, visits: true, lastVisit: true, registered: true },
   pagination: {
     users: { page: 1, pageSize: 25, sortBy: 'createdAt', sortDir: 'desc' },
     activities: { page: 1, pageSize: 25, sortBy: 'date', sortDir: 'asc' },
@@ -500,6 +504,11 @@ function parseRoute() {
 
 async function navigate() {
   const route = parseRoute();
+  // Cleanup vistas que tienen timers/listeners stateful
+  if (State.currentRoute === 'users' && route !== 'users') {
+    if (typeof usersStopSyncTimer === 'function') usersStopSyncTimer();
+    closeUserPanel();
+  }
   State.currentRoute = route;
   document.querySelectorAll('.nav-link').forEach(a => {
     a.classList.toggle('active', a.dataset.route === route);
@@ -995,9 +1004,106 @@ function usersRelativeDate(iso) {
   return `hace ${Math.floor(days / 30)} meses`;
 }
 
+const USERS_LS_PREFIX = 'ccb:users:';
+function usersLsGet(key, fallback) {
+  try {
+    const v = localStorage.getItem(USERS_LS_PREFIX + key);
+    return v == null ? fallback : JSON.parse(v);
+  } catch { return fallback; }
+}
+function usersLsSet(key, value) {
+  try { localStorage.setItem(USERS_LS_PREFIX + key, JSON.stringify(value)); } catch {}
+}
+
+function usersFmtSyncAgo(ts) {
+  if (!ts) return '';
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 5) return 'ahora';
+  if (s < 60) return `hace ${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `hace ${m}min`;
+  const h = Math.floor(m / 60);
+  return `hace ${h}h`;
+}
+
+function usersStartSyncTimer() {
+  usersStopSyncTimer();
+  State.usersSyncTimer = setInterval(() => {
+    const el = document.getElementById('users-sync');
+    if (!el) { usersStopSyncTimer(); return; }
+    el.textContent = `Sincronizado ${usersFmtSyncAgo(State.usersFetchedAt)}`;
+  }, 5000);
+}
+function usersStopSyncTimer() {
+  if (State.usersSyncTimer) { clearInterval(State.usersSyncTimer); State.usersSyncTimer = null; }
+}
+
+function usersTopRankSet(users, n = 3) {
+  const sorted = [...users].filter(u => (u.visitCount || 0) > 0)
+    .sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0));
+  const rank = new Map();
+  for (let i = 0; i < Math.min(n, sorted.length); i++) rank.set(sorted[i].code, i + 1);
+  return rank;
+}
+
+function usersSparklineSvg(weeks) {
+  if (!Array.isArray(weeks) || !weeks.length) {
+    weeks = [0, 0, 0, 0, 0, 0, 0, 0];
+  }
+  // weeks[0] = más reciente. Renderizamos de viejo→reciente (izq→der) → reverse.
+  const bars = weeks.slice(0, 8).reverse();
+  const max = Math.max(1, ...bars);
+  return `<svg class="u-sparkline" viewBox="0 0 64 16" width="64" height="16" aria-hidden="true">${
+    bars.map((nB, i) => {
+      const h = nB ? Math.max(2.5, (nB / max) * 14) : 1.4;
+      const y = (16 - h).toFixed(2);
+      const x = i * 8 + 1;
+      const cls = nB ? 'u-spark-bar--on' : 'u-spark-bar--off';
+      return `<rect class="${cls}" x="${x}" y="${y}" width="5" height="${h.toFixed(2)}" rx="1.5"></rect>`;
+    }).join('')
+  }</svg>`;
+}
+
+function usersAvgVisits(users) {
+  if (!users.length) return 0;
+  const sum = users.reduce((s, u) => s + (u.visitCount || 0), 0);
+  return Math.round((sum / users.length) * 10) / 10;
+}
+
+function usersBindKeyboard() {
+  if (window._usersKeyboardBound) return;
+  window._usersKeyboardBound = true;
+  document.addEventListener('keydown', e => {
+    // Sólo activo en la vista de usuarios
+    if (State.currentRoute !== 'users') return;
+    const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target.tagName || '').toUpperCase()) || e.target.isContentEditable;
+    if (isTyping) {
+      if (e.key === 'Escape') { e.target.blur(); usersCloseAutocomplete(); }
+      return;
+    }
+    if (e.key === '/') {
+      e.preventDefault();
+      document.getElementById('users-search')?.focus();
+    } else if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      handleUserNew();
+    } else if (e.key === 'Escape') {
+      if (document.querySelector('.users-panel')) closeUserPanel();
+    }
+  });
+}
+
 async function renderUsers() {
+  // Restore persisted preferences
+  State.usersDensity = usersLsGet('density', 'comfy');
+  State.usersVisibleCols = Object.assign(
+    { contact: true, visits: true, lastVisit: true, registered: true },
+    usersLsGet('cols', {}),
+  );
+
   const { users } = await API.users.list();
   State.users = users;
+  State.usersFetchedAt = Date.now();
   State.usersSelection.clear();
 
   document.getElementById('topbar-actions').innerHTML = `
@@ -1007,32 +1113,54 @@ async function renderUsers() {
     <button class="btn btn--ghost" data-action="user-import" title="Importar usuarios desde Excel">
       <i class="fa-solid fa-file-import"></i> Importar
     </button>
-    <button class="btn btn--ghost" data-action="users-export" title="Exportar a Excel">
-      <i class="fa-solid fa-file-export"></i> Exportar
+    <button class="btn btn--ghost" data-action="users-export" title="Exportar a Excel (E)">
+      <i class="fa-solid fa-file-export"></i> Exportar <span class="kbd-hint">E</span>
     </button>
-    <button class="btn btn--accent" data-action="user-new">
-      <i class="fa-solid fa-plus"></i> Nuevo usuario
+    <button class="btn btn--accent" data-action="user-new" title="Nuevo usuario (N)">
+      <i class="fa-solid fa-plus"></i> Nuevo usuario <span class="kbd-hint">N</span>
     </button>`;
 
   document.getElementById('content').innerHTML = `
     <div class="users-view">
-      <div class="users-toolbar">
+      <div class="users-toolbar users-toolbar--row1">
         <div class="users-search">
           <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="search" id="users-search" placeholder="Buscar por nombre, código, email o teléfono…" value="${Utils.escapeHtml(State.filters.users)}" />
+          <input type="search" id="users-search" autocomplete="off" placeholder="Buscar por nombre, código, email o teléfono…" value="${Utils.escapeHtml(State.filters.users)}" />
+          <span class="users-search__kbd">/</span>
+          <div class="users-autocomplete" id="users-autocomplete" hidden></div>
         </div>
         <div class="users-pills" id="users-pills" role="tablist"></div>
         <div class="users-toolbar__spacer"></div>
-        <div class="users-toolbar__stats" id="users-stats"></div>
+        <div class="users-toolbar__viewopts">
+          <div class="users-density" role="group" aria-label="Densidad de filas">
+            <button class="users-density__btn ${State.usersDensity === 'compact' ? 'is-active' : ''}" data-action="users-density" data-density="compact" title="Compacto"><i class="fa-solid fa-bars"></i></button>
+            <button class="users-density__btn ${State.usersDensity === 'comfy' ? 'is-active' : ''}" data-action="users-density" data-density="comfy" title="Cómodo"><i class="fa-solid fa-grip-lines"></i></button>
+          </div>
+          <div class="users-cols-menu" id="users-cols-menu">
+            <button class="btn btn--ghost btn--sm" data-action="users-cols-toggle" title="Mostrar/ocultar columnas">
+              <i class="fa-solid fa-table-columns"></i> Columnas
+            </button>
+            <div class="users-cols-dropdown" id="users-cols-dropdown" hidden></div>
+          </div>
+        </div>
+      </div>
+      <div class="users-toolbar users-toolbar--row2">
+        <div class="users-stats-strip" id="users-stats-strip"></div>
+        <span class="users-toolbar__spacer"></span>
+        <span class="users-sync" id="users-sync">Sincronizado ahora</span>
       </div>
       <div id="users-table"></div>
     </div>
     <div id="users-bulk-bar"></div>`;
 
-  document.getElementById('users-search').addEventListener('input', e => {
+  const searchInput = document.getElementById('users-search');
+  searchInput.addEventListener('input', e => {
     State.filters.users = e.target.value;
     paintUsersTable();
+    paintUsersAutocomplete(e.target.value);
   });
+  searchInput.addEventListener('focus', e => paintUsersAutocomplete(e.target.value));
+  searchInput.addEventListener('blur', () => setTimeout(usersCloseAutocomplete, 150));
 
   document.getElementById('users-pills').addEventListener('click', e => {
     const btn = e.target.closest('[data-cat]');
@@ -1042,6 +1170,16 @@ async function renderUsers() {
     paintUsersTable();
   });
 
+  // Click fuera de cols dropdown lo cierra
+  document.addEventListener('click', e => {
+    const dd = document.getElementById('users-cols-dropdown');
+    if (dd && !dd.hidden && !e.target.closest('#users-cols-menu')) {
+      dd.hidden = true;
+    }
+  });
+
+  usersBindKeyboard();
+  usersStartSyncTimer();
   paintUsersTable();
 }
 
@@ -1061,13 +1199,27 @@ function paintUsersPills(stats, activeCat) {
 
 function paintUsersTable() {
   const stats = usersComputeStats(State.users);
+  const avg = usersAvgVisits(State.users);
   document.getElementById('users-pills').innerHTML = paintUsersPills(stats, State.filters.usersCategory);
-  document.getElementById('users-stats').innerHTML = `
-    <span><strong>${stats.total.toLocaleString('es-DO')}</strong> total</span>
-    <span class="users-stat-sep">·</span>
-    <span><strong>${stats.frequent}</strong> <span class="u-fire-text">frecuentes</span></span>
-    <span class="users-stat-sep">·</span>
-    <span><strong>${stats.newWeek}</strong> nuevos</span>`;
+
+  const stripEl = document.getElementById('users-stats-strip');
+  if (stripEl) {
+    stripEl.innerHTML = `
+      <span class="users-stat"><strong>${stats.total.toLocaleString('es-DO')}</strong> <span>totales</span></span>
+      <span class="users-stat-sep">·</span>
+      <span class="users-stat"><strong>${stats.frequent}</strong> <span class="u-fire-text">frecuentes (3+)</span></span>
+      <span class="users-stat-sep">·</span>
+      <span class="users-stat"><strong>${stats.newWeek}</strong> <span>nuevos esta semana</span></span>
+      <span class="users-stat-sep">·</span>
+      <span class="users-stat"><strong>${stats.noEmail}</strong> <span>sin email</span></span>
+      <span class="users-stat-sep">·</span>
+      <span class="users-stat"><strong>${avg.toLocaleString('es-DO')}</strong> <span>visitas promedio</span></span>`;
+  }
+  const syncEl = document.getElementById('users-sync');
+  if (syncEl) syncEl.textContent = `Sincronizado ${usersFmtSyncAgo(State.usersFetchedAt)}`;
+
+  // Cols dropdown
+  paintUsersColsDropdown();
 
   const q = State.filters.users.trim().toLowerCase();
   const byCat = usersApplyCategoryFilter(State.users, State.filters.usersCategory);
@@ -1083,11 +1235,15 @@ function paintUsersTable() {
   });
 
   const result = applyTablePipeline(filtered, 'users');
+  const topRank = usersTopRankSet(State.users, 3);
 
   const selSet = State.usersSelection;
   const pageCodes = result.items.map(u => u.code);
   const allSelected = pageCodes.length > 0 && pageCodes.every(c => selSet.has(c));
   const someSelected = pageCodes.some(c => selSet.has(c));
+
+  const cols = State.usersVisibleCols;
+  const densityClass = State.usersDensity === 'compact' ? 'is-compact' : 'is-comfy';
 
   const html = !result.total
     ? `<div class="users-empty">
@@ -1097,22 +1253,24 @@ function paintUsersTable() {
       </div>`
     : `
     <div class="users-table-wrap">
-      <table class="users-table">
+      <table class="users-table ${densityClass}">
         <thead>
           <tr>
             <th class="th-check">
               <input type="checkbox" class="u-check" id="users-check-all" data-action="users-check-all" ${allSelected ? 'checked' : ''} ${someSelected && !allSelected ? 'data-indeterminate="1"' : ''} />
             </th>
             ${th('users', 'firstName', 'Visitante')}
-            ${th('users', 'email', 'Contacto')}
-            ${th('users', 'visitCount', 'Visitas', 'class="sortable th-num"')}
-            ${th('users', 'createdAt', 'Registro')}
+            ${cols.contact ? th('users', 'email', 'Contacto') : ''}
+            ${cols.visits ? th('users', 'visitCount', 'Visitas', 'class="sortable th-num"') : ''}
+            ${cols.lastVisit ? th('users', 'lastVisitAt', 'Última visita') : ''}
+            ${cols.registered ? th('users', 'createdAt', 'Registro') : ''}
             <th class="th-actions"></th>
           </tr>
         </thead>
         <tbody>
           ${result.items.map(u => {
             const isSelected = selSet.has(u.code);
+            const rank = topRank.get(u.code);
             return `
             <tr data-code="${Utils.escapeHtml(u.code)}" class="users-row ${isSelected ? 'is-selected' : ''}" data-action="user-detail">
               <td class="td-check" data-stop-row>
@@ -1120,6 +1278,7 @@ function paintUsersTable() {
               </td>
               <td>
                 <div class="u-user-cell">
+                  ${rank ? `<span class="u-rank u-rank--${rank}" title="Top ${rank} por visitas">#${rank}</span>` : ''}
                   ${userAvatarHtml(u)}
                   <div class="u-user-meta">
                     <span class="u-user-name">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</span>
@@ -1127,11 +1286,21 @@ function paintUsersTable() {
                   </div>
                 </div>
               </td>
-              <td>${renderContactCell(u)}</td>
-              <td class="td-num">${userVisitsHtml(u.visitCount || 0)}</td>
-              <td>
+              ${cols.contact ? `<td>${renderContactCell(u)}</td>` : ''}
+              ${cols.visits ? `<td class="td-num">
+                <div class="u-visits-cell">
+                  ${userVisitsHtml(u.visitCount || 0)}
+                  ${usersSparklineSvg(u.visitsByWeek)}
+                </div>
+              </td>` : ''}
+              ${cols.lastVisit ? `<td class="u-lastvisit-cell">
+                ${u.lastVisitAt
+                  ? `<span class="u-lastvisit">${usersRelativeDate(u.lastVisitAt)}</span>`
+                  : `<span class="u-lastvisit is-empty">nunca</span>`}
+              </td>` : ''}
+              ${cols.registered ? `<td>
                 <span class="u-date">${Utils.formatDate(u.createdAt, false)}<span class="u-date-rel">${usersRelativeDate(u.createdAt)}</span></span>
-              </td>
+              </td>` : ''}
               <td class="td-actions" data-stop-row>
                 <div class="u-row-actions">
                   <button class="u-icon-btn" data-action="user-copy-code" data-code="${Utils.escapeHtml(u.code)}" title="Copiar código"><i class="fa-regular fa-copy"></i></button>
@@ -1153,6 +1322,108 @@ function paintUsersTable() {
   if (checkAll && someSelected && !allSelected) checkAll.indeterminate = true;
 
   paintUsersBulkBar();
+}
+
+function paintUsersAutocomplete(query) {
+  const dropdown = document.getElementById('users-autocomplete');
+  if (!dropdown) return;
+  const q = (query || '').trim().toLowerCase();
+  if (q.length < 1) { dropdown.hidden = true; dropdown.innerHTML = ''; return; }
+
+  const matches = [];
+  for (const u of State.users) {
+    let where = null;
+    const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+    if (u.code.toLowerCase().includes(q)) where = 'code';
+    else if (fullName.includes(q)) where = 'name';
+    else if (u.email && u.email.toLowerCase().includes(q)) where = 'email';
+    if (where) matches.push({ u, where });
+    if (matches.length >= 5) break;
+  }
+
+  if (!matches.length) {
+    dropdown.innerHTML = `<div class="users-ac__empty">Sin coincidencias para "${Utils.escapeHtml(query)}"</div>`;
+    dropdown.hidden = false;
+    return;
+  }
+
+  const highlight = (s, term) => {
+    const idx = s.toLowerCase().indexOf(term.toLowerCase());
+    if (idx === -1) return Utils.escapeHtml(s);
+    return Utils.escapeHtml(s.slice(0, idx)) +
+      `<mark>${Utils.escapeHtml(s.slice(idx, idx + term.length))}</mark>` +
+      Utils.escapeHtml(s.slice(idx + term.length));
+  };
+
+  dropdown.innerHTML = `
+    <div class="users-ac__section-label">Coincidencias · ${matches.length}</div>
+    ${matches.map(({ u, where }) => `
+      <button class="users-ac__item" data-action="user-detail" data-code="${Utils.escapeHtml(u.code)}">
+        ${userAvatarHtml(u)}
+        <div class="users-ac__main">
+          ${where === 'email' && u.email
+            ? `<span class="users-ac__title">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</span><span class="users-ac__sub">${highlight(u.email, query.trim())}</span>`
+            : where === 'code'
+              ? `<span class="users-ac__title">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</span><span class="users-ac__sub u-user-code">${highlight(u.code, query.trim())}</span>`
+              : `<span class="users-ac__title">${highlight(u.firstName + ' ' + u.lastName, query.trim())}</span><span class="users-ac__sub u-user-code">${Utils.escapeHtml(u.code)}</span>`}
+        </div>
+        <span class="users-ac__visits">${u.visitCount || 0} <i class="fa-solid fa-arrow-right-long"></i></span>
+      </button>
+    `).join('')}`;
+  dropdown.hidden = false;
+}
+
+function usersCloseAutocomplete() {
+  const dd = document.getElementById('users-autocomplete');
+  if (dd) { dd.hidden = true; dd.innerHTML = ''; }
+}
+
+function paintUsersColsDropdown() {
+  const dd = document.getElementById('users-cols-dropdown');
+  if (!dd) return;
+  const cols = State.usersVisibleCols;
+  const opts = [
+    { k: 'contact',     label: 'Contacto' },
+    { k: 'visits',      label: 'Visitas' },
+    { k: 'lastVisit',   label: 'Última visita' },
+    { k: 'registered',  label: 'Registro' },
+  ];
+  dd.innerHTML = opts.map(o => `
+    <label class="users-cols-dropdown__item">
+      <input type="checkbox" class="u-check" data-action="users-col-toggle" data-col="${o.k}" ${cols[o.k] ? 'checked' : ''} />
+      <span>${o.label}</span>
+    </label>`).join('');
+}
+
+function handleUsersDensity(density) {
+  if (density !== 'compact' && density !== 'comfy') return;
+  State.usersDensity = density;
+  usersLsSet('density', density);
+  document.querySelectorAll('.users-density__btn').forEach(b => {
+    b.classList.toggle('is-active', b.dataset.density === density);
+  });
+  const tbl = document.querySelector('.users-table');
+  if (tbl) {
+    tbl.classList.toggle('is-compact', density === 'compact');
+    tbl.classList.toggle('is-comfy', density === 'comfy');
+  }
+}
+
+function handleUsersColsToggleMenu() {
+  const dd = document.getElementById('users-cols-dropdown');
+  if (!dd) return;
+  dd.hidden = !dd.hidden;
+}
+
+function handleUsersColToggle(col, checked) {
+  if (!(col in State.usersVisibleCols)) return;
+  // No permitir ocultar TODO; al menos una columna no-essential debe quedar
+  const next = { ...State.usersVisibleCols, [col]: checked };
+  const anyVisible = Object.values(next).some(Boolean);
+  if (!anyVisible) return;
+  State.usersVisibleCols = next;
+  usersLsSet('cols', next);
+  paintUsersTable();
 }
 
 function renderContactCell(u) {
@@ -4732,6 +5003,9 @@ function bindGlobalEvents() {
       case 'user-panel-send-cred': handleUserPanelSendCred(); break;
       case 'user-panel-edit': handleUserPanelEdit(target.dataset.code); break;
       case 'user-panel-print': handleUserPanelPrint(); break;
+      case 'users-density': handleUsersDensity(target.dataset.density); break;
+      case 'users-cols-toggle': handleUsersColsToggleMenu(); break;
+      case 'users-col-toggle': handleUsersColToggle(target.dataset.col, target.checked); break;
       case 'activity-new': handleActivityNew(); break;
       case 'activity-edit': handleActivityEdit(id); break;
       case 'activity-delete': handleActivityDelete(id); break;
