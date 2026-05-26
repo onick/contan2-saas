@@ -202,11 +202,6 @@ function renderWelcome(root) {
 
   root.innerHTML = `
     <div class="k-screen k-welcome">
-      <div class="k-corner-marks">
-        <span class="tl"></span><span class="tr"></span>
-        <span class="bl"></span><span class="br"></span>
-      </div>
-
       <div class="k-welcome-top">
         <img src="/assets/logo.png" alt="Centro Cultural Banreservas" class="k-welcome-logo" data-org-logo />
         <div class="k-welcome-name" data-org-name>Centro Cultural Banreservas</div>

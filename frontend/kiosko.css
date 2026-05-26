@@ -252,11 +252,11 @@ input { user-select: text; -webkit-user-select: text; }
 }
 
 .k-welcome-logo {
-  width: 132px;
-  height: 132px;
+  width: 240px;
+  height: 240px;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 8px 28px rgba(43, 199, 238, 0.18));
+  filter: drop-shadow(0 10px 36px rgba(43, 199, 238, 0.22));
   pointer-events: none;
   user-select: none;
 }
@@ -1397,6 +1397,6 @@ input { user-select: text; -webkit-user-select: text; }
   .k-ticket-eyebrow { font-size: 9px; }
   .k-ticket-label { font-size: 16px; }
   .k-ticket-arrow { padding-right: 18px; font-size: 28px; }
-  .k-welcome-logo { width: 96px; height: 96px; }
+  .k-welcome-logo { width: 160px; height: 160px; }
   .k-corner-marks span { width: 28px; height: 28px; }
 }
