@@ -203,7 +203,7 @@ function renderWelcome(root) {
   root.innerHTML = `
     <div class="k-screen k-welcome">
       <div class="k-welcome-top">
-        <img src="/assets/logo.png" alt="Centro Cultural Banreservas" class="k-welcome-logo" data-org-logo />
+        <img src="${escapeHtml((window.__tenant__ && window.__tenant__.logoUrl) || '/assets/logo.png')}" alt="${escapeHtml((window.__tenant__ && window.__tenant__.name) || 'Centro Cultural Banreservas')}" class="k-welcome-logo" data-org-logo />
       </div>
 
       <div class="k-welcome-clock">
@@ -233,6 +233,20 @@ function renderWelcome(root) {
     try { await document.documentElement.requestFullscreen?.(); } catch {}
     go('activities');
   });
+
+  // Si el tenant aún no había cargado cuando se renderizó el welcome, el
+  // <img> arranca con /assets/logo.png (default mono blanco). Al llegar
+  // tenant:ready, actualizamos al logoUrl real del tenant para evitar
+  // que el visitante vea el logo blanco-genérico antes de tocar.
+  if (!window.__tenant__ || !window.__tenant__.logoUrl) {
+    window.addEventListener('tenant:ready', evt => {
+      if (State.screen !== 'welcome') return;
+      const url = evt?.detail?.logoUrl;
+      if (!url) return;
+      const img = document.querySelector('.k-welcome-logo');
+      if (img && img.src.indexOf(url) === -1) img.src = url;
+    }, { once: true });
+  }
 }
 
 // ============ Screen: activities ============
