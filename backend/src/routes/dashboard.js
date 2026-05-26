@@ -385,6 +385,7 @@ export function createDashboardRouter() {
       }).length;
 
       res.json({
+        serverNow: new Date().toISOString(),
         stats: {
           checkinsToday: todayCheckins.length,
           activeActivities: activeActivities.length,

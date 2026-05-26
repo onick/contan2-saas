@@ -3717,7 +3717,25 @@ function exportSegment(id) {
 // ============================================================
 // View: Check-in (premium command center)
 // ============================================================
-const _ckState = { ctx: null, autoRefreshTimer: null, lastQuery: '' };
+// clockSkewMs = Date.now() del browser − server.now() al momento de la respuesta.
+// Positivo = browser adelantado. Lo usamos para corregir todas las "hace X" y el
+// reloj del topbar, para que un Mac con clock drift no haga ver tiempos falsos.
+const _ckState = { ctx: null, autoRefreshTimer: null, lastQuery: '', clockSkewMs: 0 };
+
+// Actualiza el skew cada vez que recibimos un ctx del server.
+function ckUpdateClockSkew(ctx) {
+  if (!ctx?.serverNow) return;
+  const serverMs = new Date(ctx.serverNow).getTime();
+  if (Number.isFinite(serverMs)) {
+    _ckState.clockSkewMs = Date.now() - serverMs;
+  }
+}
+
+// Notion de "ahora" calibrada al server. Usar SIEMPRE en lugar de Date.now()
+// para cálculos de "hace X" en el check-in.
+function ckServerNowMs() {
+  return Date.now() - _ckState.clockSkewMs;
+}
 
 async function renderCheckin() {
   if (_ckState.autoRefreshTimer) clearInterval(_ckState.autoRefreshTimer);
@@ -3733,6 +3751,7 @@ async function renderCheckin() {
     ]);
     State.users = usersResp.users;
     _ckState.ctx = ctx;
+    ckUpdateClockSkew(ctx);
     State.activities = ctx.activeActivities;
     State.checkin = State.checkin || { selectedUser: null };
     paintCheckin();
@@ -3766,6 +3785,7 @@ async function refreshCheckinContext() {
   try {
     const ctx = await API.dashboard.checkinContext();
     _ckState.ctx = ctx;
+    ckUpdateClockSkew(ctx);
     State.activities = ctx.activeActivities;
     paintCheckinStatsbar();
     paintCheckinActivities();
@@ -3776,15 +3796,22 @@ async function refreshCheckinContext() {
 
 // Cuenta cuántos check-ins ocurrieron en los últimos N minutos a partir del
 // recentFeed (suficiente para una señal "estás recibiendo X/10 min").
+// Usa ckServerNowMs() — robusto a clock drift del Mac del operador.
 function ckCountInLastMinutes(minutes = 10) {
   const feed = _ckState.ctx?.recentFeed || [];
-  const cutoff = Date.now() - minutes * 60_000;
+  const cutoff = ckServerNowMs() - minutes * 60_000;
   return feed.filter(f => new Date(f.registeredAt).getTime() >= cutoff).length;
 }
 
-// Hora local formateada HH:MM (sin segundos para no animar todo el rato).
+// Hora local del tenant formateada HH:MM. Calibrada al reloj del server +
+// timezone del tenant, así un Mac con TZ o clock drift no afecta el display.
+// Se actualiza en cada refresh (cada 30s) y al cargar la página.
 function ckLocalTime() {
-  return new Date().toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const tz = window.__tenant__?.timezone || 'America/Santo_Domingo';
+  return new Date(ckServerNowMs()).toLocaleTimeString('es-DO', {
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: tz,
+  });
 }
 
 function paintCheckin() {
@@ -4073,7 +4100,7 @@ function paintCheckinActivities() {
 
     // Pace: cuántos check-ins entraron en los últimos 10 min sobre esta actividad
     const feed = _ckState.ctx?.recentFeed || [];
-    const cutoff = Date.now() - 10 * 60_000;
+    const cutoff = ckServerNowMs() - 10 * 60_000;
     const pace = feed.filter(f => f.activityId === a.id && new Date(f.registeredAt).getTime() >= cutoff).length;
 
     const primaryBtn = isFull
@@ -4143,7 +4170,7 @@ function paintCheckinRecentFeed() {
     if (footEl) footEl.innerHTML = '';
     return;
   }
-  const now = Date.now();
+  const now = ckServerNowMs();
   el.innerHTML = feed.map(f => {
     const initials = f.anonymous
       ? ''
@@ -4168,7 +4195,7 @@ function paintCheckinRecentFeed() {
       </div>`;
   }).join('');
 
-  // Footer con timestamp del más reciente
+  // Footer con timestamp del más reciente (también calibrado al server)
   if (footEl && feed[0]) {
     const lastSecs = Math.max(0, Math.floor((now - new Date(feed[0].registeredAt).getTime()) / 1000));
     const lastAgo = lastSecs < 60 ? `${lastSecs} seg`
