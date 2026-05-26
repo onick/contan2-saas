@@ -1087,8 +1087,15 @@ function usersBindKeyboard() {
     } else if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       handleUserNew();
+    } else if (e.key.toLowerCase() === 'e' && !e.ctrlKey && !e.metaKey) {
+      // E = exportar. Si hay selección, exporta la selección; si no, exporta todo.
+      e.preventDefault();
+      if (State.usersSelection.size > 0) handleUsersBulkExport();
+      else handleExport('users');
     } else if (e.key === 'Escape') {
+      // Prioridad: panel abierto > selección bulk > nada
       if (document.querySelector('.users-panel')) closeUserPanel();
+      else if (State.usersSelection.size > 0) handleUsersBulkClear();
     }
   });
 }
@@ -1460,11 +1467,21 @@ function paintUsersBulkBar() {
         <span>seleccionado${n === 1 ? '' : 's'}</span>
       </div>
       <span class="users-bulk-bar__sep"></span>
-      <button class="users-bulk-btn" data-action="bulk-send-cred"><i class="fa-solid fa-envelope"></i> Enviar credencial</button>
-      <button class="users-bulk-btn" data-action="bulk-export"><i class="fa-solid fa-file-export"></i> Exportar</button>
-      <button class="users-bulk-btn is-danger" data-action="bulk-delete"><i class="fa-regular fa-trash-can"></i> Eliminar</button>
+      <button class="users-bulk-btn users-bulk-btn--primary" data-action="bulk-send-cred">
+        <i class="fa-solid fa-paper-plane"></i> Enviar credencial
+      </button>
+      <button class="users-bulk-btn" data-action="bulk-export">
+        <i class="fa-solid fa-file-export"></i> Exportar
+        <span class="kbd-hint kbd-hint--dark">E</span>
+      </button>
+      <button class="users-bulk-btn is-danger" data-action="bulk-delete">
+        <i class="fa-regular fa-trash-can"></i> Eliminar
+      </button>
       <span class="users-bulk-bar__sep"></span>
-      <button class="users-bulk-bar__close" data-action="bulk-clear" title="Limpiar selección"><i class="fa-solid fa-xmark"></i></button>
+      <button class="users-bulk-btn users-bulk-btn--quiet" data-action="bulk-clear">
+        <i class="fa-solid fa-xmark"></i> Limpiar selección
+        <span class="kbd-hint kbd-hint--dark">esc</span>
+      </button>
     </div>`;
 }
 
