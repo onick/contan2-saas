@@ -26,10 +26,11 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
-function fmtActivityDate(iso) {
+function fmtActivityDate(iso, tz) {
   return new Date(iso).toLocaleString('es-DO', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
+    timeZone: tz || 'America/Santo_Domingo',
   });
 }
 
@@ -136,7 +137,7 @@ function cancellationHtml({ user, activity, tokens, logoData }) {
         <tr><td style="padding:16px 20px;">
           <div style="font-size:18px;font-weight:700;color:#1f2937;margin-bottom:6px;">${escapeHtml(activity.name)}</div>
           <div style="font-size:14px;color:#6b7280;line-height:1.5;">
-            📅 ${escapeHtml(fmtActivityDate(activity.date))}<br>
+            📅 ${escapeHtml(fmtActivityDate(activity.date, tokens.timezone))}<br>
             📍 ${escapeHtml(activity.location)}
           </div>
         </td></tr>
@@ -173,7 +174,7 @@ function reservationConfirmationHtml({ user, activity, tokens, logoData }) {
         <tr><td style="padding:18px 22px;">
           <div style="font-size:20px;font-weight:700;color:#1f2937;margin-bottom:8px;">${escapeHtml(activity.name)}</div>
           <div style="font-size:14px;color:#6b7280;line-height:1.7;">
-            📅 ${escapeHtml(fmtActivityDate(activity.date))}<br>
+            📅 ${escapeHtml(fmtActivityDate(activity.date, tokens.timezone))}<br>
             📍 ${escapeHtml(activity.location)}
           </div>
           ${activity.description ? `<div style="font-size:13px;color:#6b7280;line-height:1.5;margin-top:10px;padding-top:10px;border-top:1px solid #e5e7eb;">${escapeHtml(activity.description)}</div>` : ''}
@@ -217,7 +218,7 @@ function invitationHtml({ user, activity, tokens, logoData, rsvpUrl }) {
         <tr><td style="padding:18px 22px;">
           <div style="font-size:20px;font-weight:700;color:#1f2937;margin-bottom:8px;">${escapeHtml(activity.name)}</div>
           <div style="font-size:14px;color:#6b7280;line-height:1.7;">
-            📅 ${escapeHtml(fmtActivityDate(activity.date))}<br>
+            📅 ${escapeHtml(fmtActivityDate(activity.date, tokens.timezone))}<br>
             📍 ${escapeHtml(activity.location)}
           </div>
           ${activity.description ? `<div style="font-size:13px;color:#6b7280;line-height:1.5;margin-top:10px;padding-top:10px;border-top:1px solid #e5e7eb;">${escapeHtml(activity.description)}</div>` : ''}

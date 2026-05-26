@@ -32,6 +32,10 @@ export function resolveBrandingTokens(organization) {
     accent, accentLight,
     onPrimary, onAccent,
     orgName: organization?.name || 'contan2-saas',
+    // Timezone del tenant para formatear fechas dentro de los emails.
+    // Default DR porque ese es el contexto del cliente ancla; cualquier
+    // tenant puede sobreescribir vía organization.timezone.
+    timezone: organization?.timezone || 'America/Santo_Domingo',
   };
 }
 
