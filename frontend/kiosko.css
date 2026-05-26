@@ -955,6 +955,8 @@ input { user-select: text; -webkit-user-select: text; }
   max-height: 360px;
   overflow-y: auto;
   text-align: left;
+  display: flex;
+  flex-direction: column;
 }
 .k-suggestions.hidden { display: none; }
 
@@ -1010,8 +1012,163 @@ input { user-select: text; -webkit-user-select: text; }
   display: flex;
   align-items: center;
   gap: 12px;
+  background: var(--k-card);
 }
 .k-suggestion-hint i { color: var(--k-primary-400); }
+.k-suggestion-hint--foot {
+  border-top: 1px solid var(--k-hairline);
+  background: var(--k-card-soft);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--k-ink-dimmer);
+}
+
+/* ===== User match cards (type-ahead de nombres) ===== */
+/* 1 match único: card grande con greeting "¿Eres tú?" */
+.k-suggestion-match {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  padding: 20px 24px;
+  background: var(--k-card);
+  border: 0;
+  border-left: 3px solid var(--k-primary-400);
+  cursor: pointer;
+  text-align: left;
+  color: var(--k-ink);
+  font: inherit;
+  transition: background 0.12s ease;
+}
+.k-suggestion-match:hover,
+.k-suggestion-match.is-active {
+  background: var(--k-card-soft);
+}
+.k-suggestion-match-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(43, 199, 238, 0.12);
+  border: 1px solid rgba(43, 199, 238, 0.3);
+  color: var(--k-primary-400);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.k-suggestion-match-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.k-suggestion-match-greeting {
+  font-family: var(--k-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: var(--k-primary-400);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.k-suggestion-match-name {
+  font-family: var(--k-font);
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+  color: var(--k-ink);
+}
+.k-suggestion-match-meta {
+  font-family: var(--k-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--k-ink-dim);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.k-suggestion-match-arrow {
+  font-size: 16px;
+  color: var(--k-primary-400);
+  flex-shrink: 0;
+}
+
+/* Header "¿Cuál eres tú?" cuando hay 2-3 matches */
+.k-suggestion-match-header {
+  padding: 14px 22px 10px;
+  font-family: var(--k-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  color: var(--k-ink-dim);
+  text-transform: uppercase;
+  font-weight: 600;
+  background: var(--k-card);
+  border-bottom: 1px solid var(--k-hairline);
+}
+
+/* Filas de match (2-3 resultados) */
+.k-suggestion-match-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 22px;
+  background: var(--k-card);
+  border: 0;
+  border-bottom: 1px solid var(--k-hairline);
+  cursor: pointer;
+  text-align: left;
+  color: var(--k-ink);
+  font: inherit;
+  transition: background 0.12s ease;
+}
+.k-suggestion-match-row:last-of-type { border-bottom: 0; }
+.k-suggestion-match-row:hover,
+.k-suggestion-match-row.is-active {
+  background: var(--k-card-soft);
+}
+.k-suggestion-match-row-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(43, 199, 238, 0.10);
+  border: 1px solid rgba(43, 199, 238, 0.22);
+  color: var(--k-primary-400);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.k-suggestion-match-row-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.k-suggestion-match-row-name {
+  font-family: var(--k-font);
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  color: var(--k-ink);
+}
+.k-suggestion-match-row-meta {
+  font-family: var(--k-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--k-ink-dim);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.k-suggestion-match-row-arrow {
+  font-size: 14px;
+  color: var(--k-ink-dimmer);
+  flex-shrink: 0;
+}
+.k-suggestion-match-row:hover .k-suggestion-match-row-arrow,
+.k-suggestion-match-row.is-active .k-suggestion-match-row-arrow {
+  color: var(--k-primary-400);
+}
 
 /* ===== Confirmation screen (split poster + panel) ===== */
 .k-confirm {
