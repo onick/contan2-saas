@@ -9,9 +9,15 @@ node_modules
 .vscode
 .idea
 
+# Agent skills (project-local, no se commitean al repo)
+.agents/
+.claude/
+skills-lock.json
+
 backend/data/db.json
 backend/data/db.json.tmp
 backend/data/uploads/*
 !backend/data/uploads/.gitkeep
 backups/*
 !backups/.gitkeep
+_design-explorations/
