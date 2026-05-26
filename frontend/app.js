@@ -2019,8 +2019,239 @@ function renderAffinitySection(aff) {
     </div>`;
 }
 
+// Credencial física tipo tarjeta CR80 (85.6 × 54mm).
+// Detecta VIP (visitCount >= 10) y usa variante premium dark con foil
+// cobre. Resto usa variante banking sober cyan/teal. Logo SVG inline,
+// sin /assets/logo.png externo (causaba imagen gigantesca al imprimir).
+// QR como URL externa (api.qrserver.com), mismas dimensiones físicas
+// (22mm) para garantizar escaneabilidad post-impresión.
+
+function _credentialMonthYear(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    return `${months[d.getMonth()]} ${d.getFullYear()}`;
+  } catch { return ''; }
+}
+
+function _credentialIsVip(user) {
+  return (user?.visitCount || 0) >= 10;
+}
+
+const _CREDENTIAL_LOGO_SVG = `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M14 50 V30 L32 16 L50 30 V50" />
+  <path d="M22 50 V36 H42 V50" />
+</svg>`;
+
+function _credentialBankingHtml(user, qrUrlSrc, esc) {
+  const since = _credentialMonthYear(user.createdAt);
+  return `
+  <article class="credential">
+    <div class="card-inner">
+      <header class="brand">
+        <span class="brand__mark">${_CREDENTIAL_LOGO_SVG}</span>
+        <div class="brand__name">
+          Centro Cultural<br/>Banreservas
+          <small>Miembro acreditado</small>
+        </div>
+      </header>
+      <section class="identity">
+        <div class="identity__label">Member</div>
+        <div class="identity__code">${esc(user.code)}</div>
+        <div class="identity__name">${esc(user.firstName + ' ' + user.lastName)}</div>
+      </section>
+      <footer class="footer">
+        ${since ? `<div class="footer__since">Miembro desde<br/><strong>${esc(since)}</strong></div>` : '<span></span>'}
+        ${user.email ? `<div class="footer__email">${esc(user.email)}</div>` : ''}
+      </footer>
+      <div class="qr"><img src="${esc(qrUrlSrc)}" alt="QR ${esc(user.code)}" /></div>
+    </div>
+  </article>`;
+}
+
+function _credentialBankingCss() {
+  return `
+    @page { size: 85.6mm 54mm; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(1,130,162,.08), transparent 60%), #0b1018;
+      color: #e8ecf2;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 56px 24px 80px;
+    }
+    .toolbar { width: 100%; max-width: 720px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 64px; }
+    .toolbar__print {
+      font-family: 'Inter', sans-serif; font-size: .84rem; font-weight: 600;
+      color: #0b1018; background: #2bc7ee; border: 0;
+      padding: 10px 18px; border-radius: 8px; cursor: pointer;
+      letter-spacing: .01em; transition: background .15s, transform .15s;
+    }
+    .toolbar__print:hover { background: #4dd3f0; transform: translateY(-1px); }
+    .toolbar__hint { font-family: 'JetBrains Mono', monospace; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; }
+    .stage { transform: scale(2.5); transform-origin: top center; margin-bottom: 360px; }
+    .credential {
+      width: 85.6mm; height: 54mm; border-radius: 3mm; overflow: hidden; position: relative;
+      color: #fff;
+      background:
+        radial-gradient(circle at 88% 12%, rgba(255,255,255,.10), transparent 40%),
+        linear-gradient(135deg, #0182a2 0%, #0e8baa 38%, #074d63 72%, #053642 100%);
+      box-shadow: 0 18px 50px -12px rgba(0,0,0,.55), 0 4px 16px -4px rgba(1,130,162,.35);
+      font-family: 'Inter', sans-serif;
+      isolation: isolate;
+    }
+    .credential::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+      background: repeating-linear-gradient(135deg, rgba(255,255,255,.025) 0, rgba(255,255,255,.025) .4mm, transparent .4mm, transparent 1.2mm);
+    }
+    .credential::after {
+      content: ''; position: absolute; top: 0; right: 0; width: 22mm; height: 22mm; pointer-events: none; z-index: 0;
+      background: radial-gradient(circle at top right, rgba(255,255,255,.18), transparent 60%);
+    }
+    .card-inner {
+      position: relative; z-index: 1; width: 100%; height: 100%;
+      padding: 4.5mm 5mm;
+      display: grid; grid-template-columns: 1fr 22mm; grid-template-rows: auto 1fr auto; gap: 0 4mm;
+    }
+    .brand { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 2.4mm; }
+    .brand__mark { width: 8mm; height: 8mm; color: #fff; flex: 0 0 auto; display: inline-block; }
+    .brand__mark svg { width: 100%; height: 100%; }
+    .brand__name { font-size: 5.6pt; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; line-height: 1.15; color: rgba(255,255,255,.96); }
+    .brand__name small { display: block; font-weight: 400; font-size: 4.6pt; letter-spacing: .16em; color: rgba(255,255,255,.55); margin-top: .4mm; }
+    .identity { grid-column: 1; grid-row: 2; align-self: end; padding-bottom: .5mm; }
+    .identity__label { font-family: 'JetBrains Mono', monospace; font-size: 5pt; letter-spacing: .22em; text-transform: uppercase; color: #ff6f00; font-weight: 600; margin-bottom: 1.6mm; }
+    .identity__code { font-family: 'JetBrains Mono', monospace; font-size: 11pt; font-weight: 600; letter-spacing: .08em; color: #fff; line-height: 1; margin-bottom: 1.8mm; }
+    .identity__name { font-family: 'Inter', sans-serif; font-size: 10pt; font-weight: 600; letter-spacing: -.005em; color: #fff; line-height: 1.1; }
+    .footer { grid-column: 1; grid-row: 3; display: flex; justify-content: space-between; align-items: flex-end; font-size: 5.6pt; color: rgba(255,255,255,.72); letter-spacing: .04em; }
+    .footer__since { font-size: 6pt; font-weight: 500; color: rgba(255,255,255,.78); }
+    .footer__since strong { font-weight: 600; color: #fff; }
+    .footer__email { font-family: 'JetBrains Mono', monospace; font-size: 5.2pt; color: rgba(255,255,255,.55); }
+    .qr {
+      grid-column: 2; grid-row: 1 / 4; align-self: center; justify-self: end;
+      width: 22mm; height: 22mm; background: #fff; border-radius: 2mm; padding: 1mm;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,.20);
+    }
+    .qr img { width: 100%; height: 100%; display: block; }
+    @media print {
+      body { background: #fff !important; padding: 0 !important; display: block !important; min-height: 0 !important; }
+      .toolbar { display: none !important; }
+      .stage { transform: none !important; margin: 0 !important; }
+      .credential { box-shadow: none !important; border-radius: 0 !important; page-break-after: avoid; page-break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }`;
+}
+
+function _credentialPremiumHtml(user, qrUrlSrc, esc) {
+  const since = _credentialMonthYear(user.createdAt);
+  return `
+  <article class="credential">
+    <div class="card-inner">
+      <header class="brand">
+        <span class="brand__mark">${_CREDENTIAL_LOGO_SVG}</span>
+        <div class="brand__tag">
+          Premium Member
+          <small>Centro Cultural Banreservas</small>
+        </div>
+      </header>
+      <section class="identity">
+        <div class="identity__code">${esc(user.code)}</div>
+        <div class="identity__name">${esc(user.firstName + ' ' + user.lastName)}</div>
+      </section>
+      <footer class="footer">
+        ${since ? `<div class="footer__since">Miembro desde <strong>${esc(since)}</strong></div>` : ''}
+        ${user.email ? `<div class="footer__email">${esc(user.email)}</div>` : ''}
+      </footer>
+      <div class="qr"><img src="${esc(qrUrlSrc)}" alt="QR ${esc(user.code)}" /></div>
+    </div>
+  </article>`;
+}
+
+function _credentialPremiumCss() {
+  return `
+    @page { size: 85.6mm 54mm; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 80% -10%, rgba(200,169,106,.06), transparent 60%), #0b1018;
+      color: #e8ecf2;
+      min-height: 100vh; -webkit-font-smoothing: antialiased;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 56px 24px 80px;
+    }
+    .toolbar { width: 100%; max-width: 720px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 64px; }
+    .toolbar__print {
+      font-family: 'Inter', sans-serif; font-size: .84rem; font-weight: 600;
+      color: #0b1018; background: #c8a96a; border: 0;
+      padding: 10px 18px; border-radius: 8px; cursor: pointer;
+      letter-spacing: .01em; transition: background .15s, transform .15s;
+    }
+    .toolbar__print:hover { background: #d8bb7d; transform: translateY(-1px); }
+    .toolbar__hint { font-family: 'JetBrains Mono', monospace; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: #c8a96a; }
+    .stage { transform: scale(2.5); transform-origin: top center; margin-bottom: 360px; }
+    .credential {
+      width: 85.6mm; height: 54mm; border-radius: 3mm; overflow: hidden; position: relative;
+      color: #fff;
+      background:
+        radial-gradient(120% 80% at 20% 0%, rgba(200,169,106,.16), transparent 55%),
+        radial-gradient(80% 60% at 100% 100%, rgba(200,169,106,.08), transparent 50%),
+        linear-gradient(160deg, #131826 0%, #0b1018 45%, #050810 100%);
+      box-shadow: 0 18px 50px -12px rgba(0,0,0,.75), 0 4px 18px -4px rgba(200,169,106,.18);
+      font-family: 'Inter', sans-serif;
+      isolation: isolate;
+    }
+    .credential::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        radial-gradient(rgba(255,255,255,.025) .4px, transparent .4px),
+        radial-gradient(rgba(200,169,106,.025) .3px, transparent .3px);
+      background-size: 1.5mm 1.5mm, 2.2mm 2.2mm;
+      background-position: 0 0, .7mm .7mm;
+    }
+    .credential::after {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: .5mm; pointer-events: none; z-index: 2;
+      background: linear-gradient(90deg, transparent 0%, rgba(200,169,106,.4) 15%, #c8a96a 45%, #e0c08a 55%, rgba(200,169,106,.4) 85%, transparent 100%);
+    }
+    .card-inner {
+      position: relative; z-index: 1; width: 100%; height: 100%;
+      padding: 5mm 5.5mm 4.5mm;
+      display: grid; grid-template-columns: 1fr 22mm; grid-template-rows: auto 1fr auto; gap: 0 4mm;
+    }
+    .brand { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 2.4mm; }
+    .brand__mark { width: 9mm; height: 9mm; color: #c8a96a; flex: 0 0 auto; display: inline-block; filter: drop-shadow(0 0 .4mm rgba(200,169,106,.3)); }
+    .brand__mark svg { width: 100%; height: 100%; }
+    .brand__tag { font-family: 'JetBrains Mono', monospace; font-size: 5.2pt; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: #c8a96a; line-height: 1.2; }
+    .brand__tag small { display: block; font-weight: 400; font-size: 4.4pt; letter-spacing: .22em; color: rgba(200,169,106,.55); margin-top: .6mm; }
+    .identity { grid-column: 1; grid-row: 2; align-self: end; padding-bottom: .5mm; }
+    .identity__code { font-family: 'JetBrains Mono', monospace; font-size: 10pt; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #e0c08a; line-height: 1; margin-bottom: 2mm; }
+    .identity__name { font-family: 'Inter', sans-serif; font-size: 11pt; font-weight: 700; letter-spacing: -.005em; color: #fff; line-height: 1.05; }
+    .footer { grid-column: 1; grid-row: 3; display: flex; flex-direction: column; gap: .8mm; }
+    .footer__since { font-family: 'JetBrains Mono', monospace; font-size: 5pt; letter-spacing: .18em; text-transform: uppercase; color: rgba(200,169,106,.72); }
+    .footer__since strong { color: #c8a96a; font-weight: 600; }
+    .footer__email { font-family: 'Inter', sans-serif; font-size: 5pt; color: rgba(255,255,255,.45); letter-spacing: .01em; }
+    .qr {
+      grid-column: 2; grid-row: 1 / 4; align-self: center; justify-self: end;
+      width: 22mm; height: 22mm; background: #fff; border-radius: 1.4mm; padding: 1.2mm;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 .15mm rgba(200,169,106,.55), 0 2px 8px rgba(0,0,0,.45), inset 0 0 0 .1mm rgba(255,255,255,.9);
+    }
+    .qr img { width: 100%; height: 100%; display: block; }
+    @media print {
+      body { background: #fff !important; padding: 0 !important; display: block !important; min-height: 0 !important; }
+      .toolbar { display: none !important; }
+      .stage { transform: none !important; margin: 0 !important; }
+      .credential { box-shadow: none !important; border-radius: 0 !important; page-break-after: avoid; page-break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }`;
+}
+
 function printCredential(user, url) {
-  const w = window.open('', '_blank', 'width=520,height=720');
+  const w = window.open('', '_blank', 'width=720,height=720');
   if (!w) {
     Toast.error('El navegador bloqueó la ventana de impresión');
     return;
@@ -2031,41 +2262,33 @@ function printCredential(user, url) {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+
+  const vip = _credentialIsVip(user);
+  // QR a tamaño físico (22mm impresos ≈ 240px de origen para nitidez)
+  const qrSrc = url.replace(/size=\d+x\d+/, 'size=240x240');
+  const css = vip ? _credentialPremiumCss() : _credentialBankingCss();
+  const body = vip ? _credentialPremiumHtml(user, qrSrc, esc) : _credentialBankingHtml(user, qrSrc, esc);
+  const variantLabel = vip ? 'Premium VIP' : 'Member';
+
   w.document.write(`<!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8"><title>Credencial ${esc(user.code)}</title>
-<style>
-  body { font-family: 'Inter', system-ui, sans-serif; padding: 40px; margin: 0; background: #f4f6fa; }
-  .card {
-    border-radius: 20px; padding: 28px; max-width: 380px; margin: 0 auto;
-    background: linear-gradient(135deg, #1a237e 0%, #534bae 100%); color: white;
-    box-shadow: 0 16px 32px -8px rgba(0,0,0,0.2);
-  }
-  .logo { font-weight: 700; letter-spacing: 1.5px; font-size: 11px; opacity: 0.85; margin-bottom: 8px; }
-  .title { font-size: 14px; font-weight: 600; margin-bottom: 24px; }
-  .code {
-    font-family: 'Menlo', monospace; background: #ff6f00; color: white;
-    padding: 8px 14px; border-radius: 8px; display: inline-block;
-    font-weight: 700; font-size: 16px; letter-spacing: 1px;
-  }
-  .name { font-size: 22px; font-weight: 700; margin: 16px 0 6px; }
-  .email { font-size: 13px; opacity: 0.85; margin-bottom: 20px; }
-  .qr { background: white; padding: 12px; border-radius: 12px; display: inline-block; }
-  .qr img { display: block; }
-  .footer { font-size: 10px; opacity: 0.6; margin-top: 20px; letter-spacing: 1px; }
-  @media print { body { padding: 0; background: white; } .card { box-shadow: none; } }
-</style></head>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Credencial ${esc(user.code)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>${css}</style>
+</head>
 <body>
-  <div class="card">
-    <img src="${location.origin}/assets/logo.png" alt="CCB" class="brand-logo" />
-    <div class="title">Credencial de Miembro</div>
-    <div class="code">${esc(user.code)}</div>
-    <div class="name">${esc(user.firstName)} ${esc(user.lastName)}</div>
-    <div class="email">${esc(user.email || '')}</div>
-    <div class="qr"><img src="${esc(url)}" alt="QR" width="180" height="180" /></div>
-    <div class="footer">PRESENTAR ESTA CREDENCIAL AL INGRESO</div>
+  <div class="toolbar">
+    <span class="toolbar__hint">${variantLabel} · ${esc(user.code)}</span>
+    <button class="toolbar__print" onclick="window.print()">Imprimir credencial</button>
   </div>
-  <script>window.onload=()=>setTimeout(()=>window.print(),400)<\/script>
-</body></html>`);
+  <div class="stage">${body}</div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),500);<\/script>
+</body>
+</html>`);
   w.document.close();
 }
 
