@@ -38,9 +38,11 @@ const State = {
   stats: null,
   filters: {
     users: '',
+    usersCategory: 'all',
     activities: { search: '', status: '', type: '' },
     attendance: { userCode: '', activityId: '' },
   },
+  usersSelection: new Set(),
   pagination: {
     users: { page: 1, pageSize: 25, sortBy: 'createdAt', sortDir: 'desc' },
     activities: { page: 1, pageSize: 25, sortBy: 'date', sortDir: 'asc' },
@@ -922,11 +924,81 @@ function countUpAllNumbers(root) {
 }
 
 // ============================================================
-// View: Users
+// View: Users · Variante A (Operations Console)
 // ============================================================
+
+function usersHashHue(seed) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
+function userAvatarHtml(u, size = 'sm') {
+  const initials = ((u.firstName || '').charAt(0) + (u.lastName || '').charAt(0)).toUpperCase() || '?';
+  const hue = usersHashHue(u.code || u.firstName + u.lastName);
+  const cls = size === 'lg' ? 'u-avatar u-avatar--lg' : 'u-avatar';
+  return `<span class="${cls}" style="background:hsl(${hue} 58% 46%)">${Utils.escapeHtml(initials)}</span>`;
+}
+
+function userVisitsClass(n) {
+  if (!n) return 'u-visits u-visits--0';
+  if (n >= 8) return 'u-visits u-visits--hot';
+  if (n >= 3) return 'u-visits u-visits--mid';
+  return 'u-visits u-visits--low';
+}
+
+function userVisitsHtml(n) {
+  const cls = userVisitsClass(n);
+  const fire = n >= 8 ? '<i class="fa-solid fa-fire"></i>' : '';
+  return `<span class="${cls}">${fire}${n || 0}</span>`;
+}
+
+function usersIsFrequent(u) { return (u.visitCount || 0) >= 3; }
+function usersIsNewWeek(u) {
+  if (!u.createdAt) return false;
+  const ms = Date.now() - new Date(u.createdAt).getTime();
+  return ms >= 0 && ms <= 7 * 86400000;
+}
+
+function usersComputeStats(users) {
+  let total = users.length, frequent = 0, newWeek = 0, noEmail = 0, noCred = 0;
+  for (const u of users) {
+    if (usersIsFrequent(u)) frequent++;
+    if (usersIsNewWeek(u)) newWeek++;
+    if (!u.email) noEmail++;
+    if (u.email && !u.credentialSentAt) noCred++;
+  }
+  return { total, frequent, newWeek, noEmail, noCred };
+}
+
+function usersApplyCategoryFilter(users, cat) {
+  switch (cat) {
+    case 'frequent':  return users.filter(usersIsFrequent);
+    case 'new':       return users.filter(usersIsNewWeek);
+    case 'no-email':  return users.filter(u => !u.email);
+    case 'no-cred':   return users.filter(u => u.email && !u.credentialSentAt);
+    default:          return users;
+  }
+}
+
+function usersRelativeDate(iso) {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(ms / 86400000);
+  if (days < 0) return '';
+  if (days === 0) return 'hoy';
+  if (days === 1) return 'ayer';
+  if (days < 7) return `hace ${days} días`;
+  if (days < 14) return 'hace 1 semana';
+  if (days < 30) return `hace ${Math.floor(days / 7)} semanas`;
+  if (days < 60) return 'hace 1 mes';
+  return `hace ${Math.floor(days / 30)} meses`;
+}
+
 async function renderUsers() {
   const { users } = await API.users.list();
   State.users = users;
+  State.usersSelection.clear();
 
   document.getElementById('topbar-actions').innerHTML = `
     <button class="btn btn--ghost" data-action="user-template" title="Descargar plantilla Excel">
@@ -943,87 +1015,315 @@ async function renderUsers() {
     </button>`;
 
   document.getElementById('content').innerHTML = `
-    <div class="panel">
-      <div class="panel-header">
-        <div>
-          <h2>Usuarios registrados</h2>
-          <p>${users.length} usuario(s) con código CCB</p>
+    <div class="users-view">
+      <div class="users-toolbar">
+        <div class="users-search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" id="users-search" placeholder="Buscar por nombre, código, email o teléfono…" value="${Utils.escapeHtml(State.filters.users)}" />
         </div>
-        <div class="toolbar">
-          <div class="search-input">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="users-search" placeholder="Buscar por nombre, email o código…" value="${Utils.escapeHtml(State.filters.users)}" />
-          </div>
-        </div>
+        <div class="users-pills" id="users-pills" role="tablist"></div>
+        <div class="users-toolbar__spacer"></div>
+        <div class="users-toolbar__stats" id="users-stats"></div>
       </div>
-      <div class="panel-body panel-body--flush">
-        <div id="users-table"></div>
-      </div>
-    </div>`;
+      <div id="users-table"></div>
+    </div>
+    <div id="users-bulk-bar"></div>`;
 
-  const search = document.getElementById('users-search');
-  search.addEventListener('input', e => {
+  document.getElementById('users-search').addEventListener('input', e => {
     State.filters.users = e.target.value;
     paintUsersTable();
   });
+
+  document.getElementById('users-pills').addEventListener('click', e => {
+    const btn = e.target.closest('[data-cat]');
+    if (!btn) return;
+    State.filters.usersCategory = btn.dataset.cat;
+    State.pagination.users.page = 1;
+    paintUsersTable();
+  });
+
   paintUsersTable();
 }
 
+function paintUsersPills(stats, activeCat) {
+  const pills = [
+    { cat: 'all',      label: 'Todos',           n: stats.total,     icon: '' },
+    { cat: 'frequent', label: 'Frecuentes',      n: stats.frequent,  icon: '<i class="fa-solid fa-fire u-fire-icon"></i>' },
+    { cat: 'new',      label: 'Nuevos 7d',       n: stats.newWeek,   icon: '' },
+    { cat: 'no-email', label: 'Sin email',       n: stats.noEmail,   icon: '' },
+    { cat: 'no-cred',  label: 'Sin credencial',  n: stats.noCred,    icon: '' },
+  ];
+  return pills.map(p => `
+    <button class="users-pill ${p.cat === activeCat ? 'is-active' : ''}" data-cat="${p.cat}">
+      ${p.icon}${p.label} <span class="users-pill__n">${p.n}</span>
+    </button>`).join('');
+}
+
 function paintUsersTable() {
+  const stats = usersComputeStats(State.users);
+  document.getElementById('users-pills').innerHTML = paintUsersPills(stats, State.filters.usersCategory);
+  document.getElementById('users-stats').innerHTML = `
+    <span><strong>${stats.total.toLocaleString('es-DO')}</strong> total</span>
+    <span class="users-stat-sep">·</span>
+    <span><strong>${stats.frequent}</strong> <span class="u-fire-text">frecuentes</span></span>
+    <span class="users-stat-sep">·</span>
+    <span><strong>${stats.newWeek}</strong> nuevos</span>`;
+
   const q = State.filters.users.trim().toLowerCase();
-  const filtered = State.users.filter(u => {
+  const byCat = usersApplyCategoryFilter(State.users, State.filters.usersCategory);
+  const filtered = byCat.filter(u => {
     if (!q) return true;
     return (
       u.code.toLowerCase().includes(q) ||
       u.firstName.toLowerCase().includes(q) ||
       u.lastName.toLowerCase().includes(q) ||
-      (u.email && u.email.toLowerCase().includes(q))
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.phone && u.phone.toLowerCase().includes(q))
     );
   });
 
   const result = applyTablePipeline(filtered, 'users');
 
+  const selSet = State.usersSelection;
+  const pageCodes = result.items.map(u => u.code);
+  const allSelected = pageCodes.length > 0 && pageCodes.every(c => selSet.has(c));
+  const someSelected = pageCodes.some(c => selSet.has(c));
+
   const html = !result.total
-    ? `<div class="empty"><i class="fa-solid fa-user-slash"></i><h3>Sin resultados</h3><p>No hay usuarios que coincidan.</p></div>`
+    ? `<div class="users-empty">
+        <i class="fa-solid fa-user-slash"></i>
+        <h3>Sin resultados</h3>
+        <p>${q ? 'No hay visitantes que coincidan con tu búsqueda.' : 'No hay visitantes en este filtro.'}</p>
+      </div>`
     : `
-    <div class="table-wrapper">
-      <table class="table">
+    <div class="users-table-wrap">
+      <table class="users-table">
         <thead>
           <tr>
-            ${th('users', 'code', 'Código')}
-            ${th('users', 'firstName', 'Nombre')}
-            ${th('users', 'email', 'Email')}
-            ${th('users', 'phone', 'Teléfono')}
-            ${th('users', 'visitCount', 'Visitas')}
+            <th class="th-check">
+              <input type="checkbox" class="u-check" id="users-check-all" data-action="users-check-all" ${allSelected ? 'checked' : ''} ${someSelected && !allSelected ? 'data-indeterminate="1"' : ''} />
+            </th>
+            ${th('users', 'firstName', 'Visitante')}
+            ${th('users', 'email', 'Contacto')}
+            ${th('users', 'visitCount', 'Visitas', 'class="sortable th-num"')}
             ${th('users', 'createdAt', 'Registro')}
-            <th style="text-align:right">Acciones</th>
+            <th class="th-actions"></th>
           </tr>
         </thead>
         <tbody>
-          ${result.items
-            .map(
-              u => `
-            <tr data-code="${Utils.escapeHtml(u.code)}" class="row-clickable" data-action="user-detail">
-              <td><span class="user-code">${Utils.escapeHtml(u.code)}</span></td>
-              <td class="cell-strong">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</td>
-              <td class="cell-muted">${renderEmailWithStatus(u)}</td>
-              <td class="cell-muted">${Utils.escapeHtml(u.phone || '—')}</td>
-              <td><span class="badge badge--info">${u.visitCount}</span></td>
-              <td class="cell-muted">${Utils.formatDate(u.createdAt, false)}</td>
+          ${result.items.map(u => {
+            const isSelected = selSet.has(u.code);
+            return `
+            <tr data-code="${Utils.escapeHtml(u.code)}" class="users-row ${isSelected ? 'is-selected' : ''}" data-action="user-detail">
+              <td class="td-check" data-stop-row>
+                <input type="checkbox" class="u-check" data-action="user-toggle-sel" data-code="${Utils.escapeHtml(u.code)}" ${isSelected ? 'checked' : ''} />
+              </td>
               <td>
-                <div class="table-actions" data-stop-row>
-                  <button class="icon-btn" data-action="user-edit" data-code="${Utils.escapeHtml(u.code)}" title="Editar"><i class="fa-solid fa-pen"></i></button>
-                  <button class="icon-btn icon-btn--danger" data-action="user-delete" data-code="${Utils.escapeHtml(u.code)}" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                <div class="u-user-cell">
+                  ${userAvatarHtml(u)}
+                  <div class="u-user-meta">
+                    <span class="u-user-name">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</span>
+                    <span class="u-user-code">${Utils.escapeHtml(u.code)}</span>
+                  </div>
                 </div>
               </td>
-            </tr>`,
-            )
-            .join('')}
+              <td>${renderContactCell(u)}</td>
+              <td class="td-num">${userVisitsHtml(u.visitCount || 0)}</td>
+              <td>
+                <span class="u-date">${Utils.formatDate(u.createdAt, false)}<span class="u-date-rel">${usersRelativeDate(u.createdAt)}</span></span>
+              </td>
+              <td class="td-actions" data-stop-row>
+                <div class="u-row-actions">
+                  <button class="u-icon-btn" data-action="user-copy-code" data-code="${Utils.escapeHtml(u.code)}" title="Copiar código"><i class="fa-regular fa-copy"></i></button>
+                  ${u.email ? `<button class="u-icon-btn" data-action="user-send-cred" data-code="${Utils.escapeHtml(u.code)}" title="${u.credentialSentAt ? 'Reenviar credencial' : 'Enviar credencial'}"><i class="fa-solid fa-envelope"></i></button>` : ''}
+                  <button class="u-icon-btn" data-action="user-edit" data-code="${Utils.escapeHtml(u.code)}" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                  <button class="u-icon-btn u-icon-btn--danger" data-action="user-delete" data-code="${Utils.escapeHtml(u.code)}" title="Eliminar"><i class="fa-regular fa-trash-can"></i></button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
         </tbody>
       </table>
     </div>
     ${paginationHtml('users', result)}`;
+
   document.getElementById('users-table').innerHTML = html;
+
+  const checkAll = document.getElementById('users-check-all');
+  if (checkAll && someSelected && !allSelected) checkAll.indeterminate = true;
+
+  paintUsersBulkBar();
+}
+
+function renderContactCell(u) {
+  if (!u.email && !u.phone) {
+    return `<div class="u-contact-cell">
+      <span class="u-contact-email is-empty"><span class="u-status-dot"></span><span class="u-email-txt">Sin contacto</span></span>
+    </div>`;
+  }
+  const emailCls = !u.email ? 'is-empty' : (u.credentialSentAt ? 'is-sent' : 'is-pending');
+  const emailTxt = u.email || 'Sin email';
+  const tooltip = u.email
+    ? (u.credentialSentAt
+        ? `Credencial enviada ${Utils.formatDate(u.credentialSentAt)}`
+        : 'Credencial pendiente de enviar')
+    : 'Sin email registrado';
+  return `<div class="u-contact-cell">
+    <span class="u-contact-email ${emailCls}" title="${Utils.escapeHtml(tooltip)}">
+      <span class="u-status-dot"></span>
+      <span class="u-email-txt">${Utils.escapeHtml(emailTxt)}</span>
+    </span>
+    ${u.phone ? `<span class="u-contact-phone">${Utils.escapeHtml(u.phone)}</span>` : '<span class="u-contact-phone is-empty">Sin teléfono</span>'}
+  </div>`;
+}
+
+function paintUsersBulkBar() {
+  const host = document.getElementById('users-bulk-bar');
+  if (!host) return;
+  const n = State.usersSelection.size;
+  if (!n) { host.innerHTML = ''; return; }
+  host.innerHTML = `
+    <div class="users-bulk-bar">
+      <div class="users-bulk-bar__count">
+        <span class="users-bulk-bar__badge">${n}</span>
+        <span>seleccionado${n === 1 ? '' : 's'}</span>
+      </div>
+      <span class="users-bulk-bar__sep"></span>
+      <button class="users-bulk-btn" data-action="bulk-send-cred"><i class="fa-solid fa-envelope"></i> Enviar credencial</button>
+      <button class="users-bulk-btn" data-action="bulk-export"><i class="fa-solid fa-file-export"></i> Exportar</button>
+      <button class="users-bulk-btn is-danger" data-action="bulk-delete"><i class="fa-regular fa-trash-can"></i> Eliminar</button>
+      <span class="users-bulk-bar__sep"></span>
+      <button class="users-bulk-bar__close" data-action="bulk-clear" title="Limpiar selección"><i class="fa-solid fa-xmark"></i></button>
+    </div>`;
+}
+
+function handleUserToggleSelection(code, checked) {
+  if (checked) State.usersSelection.add(code);
+  else State.usersSelection.delete(code);
+  // Repaint solo bulk + check-all (no toda la tabla)
+  paintUsersBulkBar();
+  const row = document.querySelector(`tr.users-row[data-code="${CSS.escape(code)}"]`);
+  if (row) row.classList.toggle('is-selected', checked);
+  // Recompute check-all state
+  const checkAll = document.getElementById('users-check-all');
+  if (checkAll) {
+    const pageCodes = Array.from(document.querySelectorAll('tr.users-row')).map(r => r.dataset.code);
+    const allSel = pageCodes.length > 0 && pageCodes.every(c => State.usersSelection.has(c));
+    const someSel = pageCodes.some(c => State.usersSelection.has(c));
+    checkAll.checked = allSel;
+    checkAll.indeterminate = someSel && !allSel;
+  }
+}
+
+function handleUsersCheckAll(checked) {
+  const rows = document.querySelectorAll('tr.users-row');
+  rows.forEach(r => {
+    const code = r.dataset.code;
+    if (checked) State.usersSelection.add(code);
+    else State.usersSelection.delete(code);
+    r.classList.toggle('is-selected', checked);
+    const cb = r.querySelector('.u-check[data-action="user-toggle-sel"]');
+    if (cb) cb.checked = checked;
+  });
+  paintUsersBulkBar();
+}
+
+async function handleUserCopyCode(code) {
+  const ok = await Utils.copyToClipboard(code);
+  if (ok) Toast.success(`Código ${code} copiado`);
+  else Toast.error('No fue posible copiar');
+}
+
+async function handleUserSendCredQuick(code) {
+  const user = State.users.find(u => u.code === code);
+  if (!user || !user.email) return;
+  try {
+    const result = await API.request(`/credentials/${encodeURIComponent(code)}/send`, { method: 'POST' });
+    if (result.ok) {
+      Toast.success(`Credencial enviada a ${user.email}`);
+      try {
+        const fresh = await API.users.get(code);
+        user.credentialSentAt = fresh.credentialSentAt;
+        paintUsersTable();
+      } catch { /* ignore */ }
+    } else {
+      Toast.warning(result.message || 'Credencial generada pero no enviada');
+    }
+  } catch (e) {
+    Toast.error(explainError(e));
+  }
+}
+
+async function handleUsersBulkSendCred() {
+  const codes = Array.from(State.usersSelection);
+  const eligible = codes.filter(c => {
+    const u = State.users.find(x => x.code === c);
+    return u && u.email;
+  });
+  if (!eligible.length) {
+    Toast.warning('Ninguno de los seleccionados tiene email');
+    return;
+  }
+  if (!confirm(`Enviar credencial a ${eligible.length} visitante(s) por email?`)) return;
+  try {
+    const r = await API.request('/credentials/bulk-send', {
+      method: 'POST',
+      body: JSON.stringify({ codes: eligible }),
+    });
+    Toast.success(`Enviadas ${r.sent || eligible.length} credenciales`);
+    State.usersSelection.clear();
+    renderUsers();
+  } catch (e) {
+    Toast.error(explainError(e));
+  }
+}
+
+function handleUsersBulkClear() {
+  State.usersSelection.clear();
+  document.querySelectorAll('tr.users-row.is-selected').forEach(r => r.classList.remove('is-selected'));
+  document.querySelectorAll('.u-check[data-action="user-toggle-sel"]').forEach(cb => cb.checked = false);
+  const checkAll = document.getElementById('users-check-all');
+  if (checkAll) { checkAll.checked = false; checkAll.indeterminate = false; }
+  paintUsersBulkBar();
+}
+
+async function handleUsersBulkExport() {
+  const codes = Array.from(State.usersSelection);
+  const rows = State.users.filter(u => codes.includes(u.code));
+  if (!rows.length) return;
+  if (typeof XLSX === 'undefined') {
+    Toast.error('Librería de Excel no cargada');
+    return;
+  }
+  const data = rows.map(u => ({
+    Código: u.code,
+    Nombre: u.firstName,
+    Apellido: u.lastName,
+    Email: u.email || '',
+    Teléfono: u.phone || '',
+    Visitas: u.visitCount || 0,
+    Registro: u.createdAt,
+    'Credencial enviada': u.credentialSentAt || '',
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Selección');
+  XLSX.writeFile(wb, `usuarios_seleccion_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  Toast.success(`Exportados ${rows.length} usuarios`);
+}
+
+async function handleUsersBulkDelete() {
+  const codes = Array.from(State.usersSelection);
+  if (!codes.length) return;
+  if (!confirm(`¿Eliminar ${codes.length} visitante(s)? Esta acción no se puede deshacer.`)) return;
+  let ok = 0, fail = 0;
+  for (const code of codes) {
+    try { await API.users.remove(code); ok++; } catch { fail++; }
+  }
+  if (ok) Toast.success(`${ok} eliminado(s)`);
+  if (fail) Toast.error(`${fail} fallaron`);
+  State.usersSelection.clear();
+  renderUsers();
 }
 
 function userFormHtml(user = null) {
@@ -1130,6 +1430,9 @@ function renderCredentialStatusBadge(user) {
 }
 
 async function handleUserDetail(code) {
+  closeUserPanel(); // si hay uno abierto, sale primero
+  // Mostrar shell del panel inmediatamente con loader (mejor UX percibida)
+  openUserPanelShell(code);
   let user, attResp, affinity;
   try {
     [user, attResp, affinity] = await Promise.all([
@@ -1139,111 +1442,192 @@ async function handleUserDetail(code) {
     ]);
   } catch (e) {
     Toast.error(explainError(e));
+    closeUserPanel();
     return;
   }
+  paintUserPanel(user, attResp, affinity);
+  document.querySelectorAll('tr.users-row.is-active').forEach(r => r.classList.remove('is-active'));
+  document.querySelector(`tr.users-row[data-code="${CSS.escape(code)}"]`)?.classList.add('is-active');
+}
 
-  const url = qrUrl(user.code);
-  const histHtml = attResp.attendances.length
-    ? `
-    <div class="table-wrapper" style="max-height:240px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-md)">
-      <table class="table">
-        <thead><tr><th>Actividad</th><th>Fecha</th></tr></thead>
-        <tbody>
-          ${attResp.attendances
-            .map(
-              a => `
-            <tr>
-              <td class="cell-strong">${Utils.escapeHtml(a.activityName)}</td>
-              <td class="cell-muted">${Utils.formatDate(a.registeredAt)}</td>
-            </tr>`,
-            )
-            .join('')}
-        </tbody>
-      </table>
-    </div>`
-    : '<div class="form-hint">Este usuario aún no tiene asistencias registradas.</div>';
+function openUserPanelShell(code) {
+  const existing = document.getElementById('users-panel-host');
+  if (existing) existing.remove();
+  const host = document.createElement('div');
+  host.id = 'users-panel-host';
+  host.innerHTML = `
+    <div class="users-panel-scrim" data-action="user-panel-close"></div>
+    <aside class="users-panel" role="dialog" aria-label="Detalle del visitante">
+      <div class="users-panel__loader">
+        <div class="users-panel__spinner"></div>
+        <p>Cargando…</p>
+      </div>
+    </aside>`;
+  document.body.appendChild(host);
+  document.body.classList.add('users-panel-open');
+}
 
-  const body = `
-    <div class="user-detail">
-      <div class="user-detail-header">
-        <div class="user-qr-wrap">
-          <img src="${url}" alt="QR ${Utils.escapeHtml(user.code)}" class="user-qr" />
+function paintUserPanel(user, attResp, affinity) {
+  const host = document.getElementById('users-panel-host');
+  if (!host) return;
+  const panel = host.querySelector('.users-panel');
+  if (!panel) return;
+
+  const att = attResp?.attendances || [];
+  const totalAtt = attResp?.total || 0;
+  const lastVisitIso = att[0]?.registeredAt;
+  const lastVisitRel = lastVisitIso ? usersRelativeDate(lastVisitIso) : '—';
+
+  const activityIconFor = type => ({
+    exposicion: 'fa-image', concierto: 'fa-music', cine: 'fa-film',
+    taller: 'fa-screwdriver-wrench', teatro: 'fa-masks-theater',
+    conferencia: 'fa-microphone', otro: 'fa-calendar-day',
+  }[type] || 'fa-calendar-day');
+
+  const activitiesHtml = att.length
+    ? `<div class="users-panel-activities">
+        ${att.slice(0, 6).map(a => `
+          <div class="users-panel-activity">
+            <span class="users-panel-activity__icon"><i class="fa-solid ${activityIconFor(a.activityType)}"></i></span>
+            <div class="users-panel-activity__main">
+              <p class="users-panel-activity__title">${Utils.escapeHtml(a.activityName)}</p>
+              <p class="users-panel-activity__date">${Utils.formatDate(a.registeredAt)}</p>
+            </div>
+          </div>`).join('')}
+        ${att.length > 6 ? `<p class="users-panel-activity__more">+ ${att.length - 6} más</p>` : ''}
+      </div>`
+    : `<p class="users-panel-empty">Sin asistencias registradas todavía.</p>`;
+
+  const credCard = user.email
+    ? `<div class="users-panel-cred ${user.credentialSentAt ? 'is-sent' : 'is-pending'}">
+        <span class="users-panel-cred__icon"><i class="fa-solid ${user.credentialSentAt ? 'fa-circle-check' : 'fa-clock'}"></i></span>
+        <div class="users-panel-cred__main">
+          <p class="users-panel-cred__status">${user.credentialSentAt ? 'Credencial enviada' : 'Credencial pendiente'}</p>
+          <p class="users-panel-cred__sub">${user.credentialSentAt ? Utils.formatDate(user.credentialSentAt) : 'No se ha enviado por email'}</p>
         </div>
-        <div class="user-detail-info">
-          <div class="user-code">${Utils.escapeHtml(user.code)}</div>
-          <h3>${Utils.escapeHtml(user.firstName + ' ' + user.lastName)}</h3>
-          <div class="user-detail-meta">
-            <div class="user-detail-contact">
-              <i class="fa-solid fa-envelope"></i>
-              <span>${Utils.escapeHtml(user.email || 'Sin email')}</span>
-              ${user.email ? `<button type="button" class="user-detail-copy" data-copy="${Utils.escapeHtml(user.email)}" data-copy-label="correo" title="Copiar correo"><i class="fa-regular fa-copy"></i></button>` : ''}
+        <button class="btn btn--ghost btn--sm" data-action="user-panel-send-cred"><i class="fa-solid fa-${user.credentialSentAt ? 'rotate' : 'envelope'}"></i> ${user.credentialSentAt ? 'Reenviar' : 'Enviar'}</button>
+      </div>`
+    : `<div class="users-panel-cred is-empty">
+        <span class="users-panel-cred__icon"><i class="fa-solid fa-envelope-open"></i></span>
+        <div class="users-panel-cred__main">
+          <p class="users-panel-cred__status">Sin email</p>
+          <p class="users-panel-cred__sub">Agrega un email para poder enviar credencial</p>
+        </div>
+      </div>`;
+
+  panel.innerHTML = `
+    <header class="users-panel__head">
+      ${userAvatarHtml(user, 'lg')}
+      <div class="users-panel__head-main">
+        <h2 class="users-panel__name">${Utils.escapeHtml(user.firstName + ' ' + user.lastName)}</h2>
+        <span class="users-panel__code">
+          ${Utils.escapeHtml(user.code)}
+          <button class="users-panel__copy" data-action="user-panel-copy" data-copy="${Utils.escapeHtml(user.code)}" title="Copiar código"><i class="fa-regular fa-copy"></i></button>
+        </span>
+      </div>
+      <button class="users-panel__close" data-action="user-panel-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+    </header>
+
+    <div class="users-panel__stats">
+      <div class="users-panel-stat">
+        <div class="users-panel-stat__label">Visitas</div>
+        <div class="users-panel-stat__value">${user.visitCount || 0}${(user.visitCount || 0) >= 8 ? ' <i class="fa-solid fa-fire"></i>' : ''}</div>
+      </div>
+      <div class="users-panel-stat">
+        <div class="users-panel-stat__label">Última visita</div>
+        <div class="users-panel-stat__value">${lastVisitRel === '—' ? '<span class="users-panel-stat__none">—</span>' : `<span class="users-panel-stat__small">${lastVisitRel}</span>`}</div>
+      </div>
+      <div class="users-panel-stat">
+        <div class="users-panel-stat__label">Registro</div>
+        <div class="users-panel-stat__value"><span class="users-panel-stat__small">${Utils.formatDate(user.createdAt, false)}</span></div>
+      </div>
+    </div>
+
+    <div class="users-panel__body">
+      <section class="users-panel-section">
+        <h3 class="users-panel-section__title"><i class="fa-solid fa-address-card"></i> Contacto</h3>
+        <div class="users-panel-contact">
+          <div class="users-panel-contact__row">
+            <span class="users-panel-contact__icon"><i class="fa-solid fa-envelope"></i></span>
+            <div class="users-panel-contact__val">
+              ${user.email ? Utils.escapeHtml(user.email) : '<span class="is-empty">Sin email</span>'}
             </div>
-            <div class="user-detail-contact">
-              <i class="fa-solid fa-phone"></i>
-              <span>${Utils.escapeHtml(user.phone || 'Sin teléfono')}</span>
-              ${user.phone ? `<button type="button" class="user-detail-copy" data-copy="${Utils.escapeHtml(user.phone)}" data-copy-label="teléfono" title="Copiar teléfono"><i class="fa-regular fa-copy"></i></button>` : ''}
-            </div>
-            <div class="user-detail-contact">
-              <i class="fa-solid fa-id-card"></i>
-              <span>${Utils.escapeHtml(user.code)}</span>
-              <button type="button" class="user-detail-copy" data-copy="${Utils.escapeHtml(user.code)}" data-copy-label="código" title="Copiar código"><i class="fa-regular fa-copy"></i></button>
-            </div>
+            ${user.email ? `<button class="u-icon-btn" data-action="user-panel-copy" data-copy="${Utils.escapeHtml(user.email)}" data-copy-label="email" title="Copiar"><i class="fa-regular fa-copy"></i></button>` : ''}
           </div>
-          <div class="user-detail-stats">
-            <span class="badge badge--info"><i class="fa-solid fa-repeat"></i> ${user.visitCount} visita(s)</span>
-            <span class="badge badge--neutral">Registrado ${Utils.formatDate(user.createdAt, false)}</span>
-            ${renderCredentialStatusBadge(user)}
+          <div class="users-panel-contact__row">
+            <span class="users-panel-contact__icon"><i class="fa-solid fa-phone"></i></span>
+            <div class="users-panel-contact__val">
+              ${user.phone ? Utils.escapeHtml(user.phone) : '<span class="is-empty">Sin teléfono</span>'}
+            </div>
+            ${user.phone ? `<button class="u-icon-btn" data-action="user-panel-copy" data-copy="${Utils.escapeHtml(user.phone)}" data-copy-label="teléfono" title="Copiar"><i class="fa-regular fa-copy"></i></button>` : ''}
           </div>
         </div>
-      </div>
-      ${affinity ? renderAffinitySection(affinity) : ''}
-      <div class="user-detail-section">
-        <h4>Historial de asistencias <span class="muted-count">(${attResp.total})</span></h4>
-        ${histHtml}
-      </div>
-      <div class="form-actions">
-        <button type="button" class="btn btn--ghost" data-close>Cerrar</button>
-        <button type="button" class="btn btn--accent" id="user-detail-print">
-          <i class="fa-solid fa-print"></i> Imprimir
-        </button>
-        ${user.email
-          ? `<button type="button" class="btn btn--accent" id="user-detail-send">
-              <i class="fa-solid fa-envelope"></i> ${user.credentialSentAt ? 'Reenviar credencial' : 'Enviar credencial'}
-            </button>`
-          : ''}
-        <button type="button" class="btn btn--primary" id="user-detail-edit">
-          <i class="fa-solid fa-pen"></i> Editar
-        </button>
-      </div>
-    </div>`;
+      </section>
 
-  Modal.open('Detalle de usuario', body, null);
-  document.getElementById('user-detail-edit').onclick = () => {
-    Modal.close();
-    handleUserEdit(code);
-  };
-  document.getElementById('user-detail-print').onclick = () => printCredential(user, url);
-  document.getElementById('user-detail-send')?.addEventListener('click', () => sendCredentialEmail(user));
-  // Botones "copiar" al lado de email/teléfono/código
-  document.querySelectorAll('.user-detail-copy').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const value = btn.dataset.copy;
-      const label = btn.dataset.copyLabel || 'dato';
-      const ok = await Utils.copyToClipboard(value);
-      if (ok) {
-        Toast.success(`${label.charAt(0).toUpperCase() + label.slice(1)} copiado`);
-        const prev = btn.innerHTML;
-        btn.innerHTML = '<i class="fa-solid fa-check"></i>';
-        btn.classList.add('is-copied');
-        setTimeout(() => {
-          btn.innerHTML = prev;
-          btn.classList.remove('is-copied');
-        }, 1500);
-      } else {
-        Toast.error('No fue posible copiar');
-      }
-    });
-  });
+      <section class="users-panel-section">
+        <h3 class="users-panel-section__title"><i class="fa-solid fa-id-badge"></i> Credencial</h3>
+        ${credCard}
+      </section>
+
+      <section class="users-panel-section">
+        <h3 class="users-panel-section__title"><i class="fa-solid fa-clock-rotate-left"></i> Últimas actividades <span class="users-panel-section__count">(${totalAtt})</span></h3>
+        ${activitiesHtml}
+      </section>
+
+      ${affinity ? `<section class="users-panel-section">${renderAffinitySection(affinity)}</section>` : ''}
+    </div>
+
+    <footer class="users-panel__foot">
+      <button class="btn btn--ghost" data-action="user-panel-print"><i class="fa-solid fa-print"></i> Imprimir</button>
+      <button class="btn btn--primary" data-action="user-panel-edit" data-code="${Utils.escapeHtml(user.code)}"><i class="fa-solid fa-pen"></i> Editar</button>
+    </footer>`;
+
+  // Memorize current panel user (para que delegated handlers puedan usarlo)
+  panel.dataset.code = user.code;
+}
+
+function closeUserPanel() {
+  const host = document.getElementById('users-panel-host');
+  if (host) host.remove();
+  document.body.classList.remove('users-panel-open');
+  document.querySelectorAll('tr.users-row.is-active').forEach(r => r.classList.remove('is-active'));
+}
+
+async function handleUserPanelSendCred() {
+  const panel = document.querySelector('.users-panel');
+  if (!panel) return;
+  const code = panel.dataset.code;
+  if (!code) return;
+  const user = State.users.find(u => u.code === code);
+  if (!user?.email) return;
+  await handleUserSendCredQuick(code);
+  // Refresh panel data
+  handleUserDetail(code);
+}
+
+function handleUserPanelEdit(code) {
+  closeUserPanel();
+  handleUserEdit(code);
+}
+
+function handleUserPanelPrint() {
+  const panel = document.querySelector('.users-panel');
+  if (!panel) return;
+  const code = panel.dataset.code;
+  const user = State.users.find(u => u.code === code);
+  if (!user) return;
+  printCredential(user, qrUrl(user.code));
+}
+
+async function handleUserPanelCopy(value, label = 'dato', btn) {
+  const ok = await Utils.copyToClipboard(value);
+  if (!ok) { Toast.error('No fue posible copiar'); return; }
+  Toast.success(`${label.charAt(0).toUpperCase() + label.slice(1)} copiado`);
+  if (btn) {
+    const prev = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+    setTimeout(() => { btn.innerHTML = prev; }, 1200);
+  }
 }
 
 async function sendCredentialEmail(user) {
@@ -4335,6 +4719,19 @@ function bindGlobalEvents() {
       case 'user-template': handleUserTemplate(); break;
       case 'user-import': handleUserImport(); break;
       case 'users-export': handleExport('users'); break;
+      case 'user-copy-code': handleUserCopyCode(code); break;
+      case 'user-send-cred': handleUserSendCredQuick(code); break;
+      case 'user-toggle-sel': handleUserToggleSelection(code, target.checked); break;
+      case 'users-check-all': handleUsersCheckAll(target.checked); break;
+      case 'bulk-send-cred': handleUsersBulkSendCred(); break;
+      case 'bulk-export': handleUsersBulkExport(); break;
+      case 'bulk-delete': handleUsersBulkDelete(); break;
+      case 'bulk-clear': handleUsersBulkClear(); break;
+      case 'user-panel-close': closeUserPanel(); break;
+      case 'user-panel-copy': handleUserPanelCopy(target.dataset.copy, target.dataset.copyLabel || 'código', target); break;
+      case 'user-panel-send-cred': handleUserPanelSendCred(); break;
+      case 'user-panel-edit': handleUserPanelEdit(target.dataset.code); break;
+      case 'user-panel-print': handleUserPanelPrint(); break;
       case 'activity-new': handleActivityNew(); break;
       case 'activity-edit': handleActivityEdit(id); break;
       case 'activity-delete': handleActivityDelete(id); break;
