@@ -204,7 +204,6 @@ function renderWelcome(root) {
     <div class="k-screen k-welcome">
       <div class="k-welcome-top">
         <img src="/assets/logo.png" alt="Centro Cultural Banreservas" class="k-welcome-logo" data-org-logo />
-        <div class="k-welcome-name" data-org-name>Centro Cultural Banreservas</div>
       </div>
 
       <div class="k-welcome-clock">

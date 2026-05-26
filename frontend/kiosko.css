@@ -235,7 +235,7 @@ input { user-select: text; -webkit-user-select: text; }
   align-items: center;
   justify-content: space-between;
   text-align: center;
-  padding: 80px 96px 96px;
+  padding: 36px 96px 88px;
   background:
     radial-gradient(ellipse at 50% 100%, rgba(1, 130, 162, 0.16), transparent 55%),
     radial-gradient(ellipse at 50% 0%, rgba(43, 199, 238, 0.04), transparent 60%),
@@ -248,7 +248,7 @@ input { user-select: text; -webkit-user-select: text; }
   flex-direction: column;
   align-items: center;
   gap: 18px;
-  margin-top: 20px;
+  margin-top: 0;
 }
 
 .k-welcome-logo {
@@ -311,6 +311,7 @@ input { user-select: text; -webkit-user-select: text; }
   flex-direction: column;
   align-items: center;
   gap: 28px;
+  margin-top: 56px;
 }
 
 .k-welcome-meta {
