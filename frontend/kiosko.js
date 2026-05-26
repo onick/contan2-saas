@@ -208,13 +208,7 @@ function renderWelcome(root) {
       </div>
 
       <div class="k-welcome-top">
-        <div class="k-welcome-arc">
-          <svg width="140" height="80" viewBox="0 0 64 36" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" style="color: var(--k-primary-400);">
-            <path d="M6 34 V20 L32 4 L58 20 V34" />
-            <path d="M14 34 V25 L32 13 L50 25 V34" />
-            <path d="M22 34 V30 L32 22 L42 30 V34" stroke-opacity="0.5" />
-          </svg>
-        </div>
+        <img src="/assets/logo.png" alt="Centro Cultural Banreservas" class="k-welcome-logo" data-org-logo />
         <div class="k-welcome-name" data-org-name>Centro Cultural Banreservas</div>
       </div>
 
@@ -224,10 +218,19 @@ function renderWelcome(root) {
       </div>
 
       <div class="k-welcome-cta-wrap">
-        <button class="k-btn k-btn--ticket k-btn--pulse" id="k-start">
-          <span style="font-weight: 300; font-size: 32px;">→</span>
-          <span>Toca para registrarte</span>
-          <span style="font-weight: 300; font-size: 32px;">←</span>
+        <button class="k-btn k-btn--ticket k-btn--pulse" id="k-start" aria-label="Toca para registrarte">
+          <span class="k-ticket-stub">
+            <svg class="k-ticket-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 8.5 a2 2 0 0 1 2 -2 h14 a2 2 0 0 1 2 2 v1.5 a2 2 0 0 0 0 4 v1.5 a2 2 0 0 1 -2 2 h-14 a2 2 0 0 1 -2 -2 v-1.5 a2 2 0 0 0 0 -4 z" />
+              <path d="M8 6.5 v11" stroke-dasharray="1.5 2" />
+            </svg>
+            <span class="k-ticket-stub-num">01</span>
+          </span>
+          <span class="k-ticket-body">
+            <span class="k-ticket-eyebrow">Admit one</span>
+            <span class="k-ticket-label">Toca para registrarte</span>
+          </span>
+          <span class="k-ticket-arrow" aria-hidden="true">→</span>
         </button>
         <div class="k-welcome-meta">Asistencia · Cine · Concierto · Taller · Exposición</div>
       </div>
