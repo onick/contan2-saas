@@ -324,54 +324,89 @@
   // ============================================================
   function openInviteModal() {
     const isOwner = State.currentStaff?.role === 'owner';
+    const roleCards = ROLES
+      .filter(r => isOwner || r.value !== 'owner')
+      .map((r, i) => `
+        <label class="staff-role-card">
+          <input type="radio" name="role" value="${r.value}" ${r.value === 'operator' ? 'checked' : ''} />
+          <span class="staff-role-card__icon">
+            <i class="${roleIcon(r.value)}"></i>
+          </span>
+          <span class="staff-role-card__main">
+            <span class="staff-role-card__title">${Utils.escapeHtml(r.label)}</span>
+            <span class="staff-role-card__desc">${Utils.escapeHtml(r.desc)}</span>
+          </span>
+          <span class="staff-role-card__check"><i class="fa-solid fa-check"></i></span>
+        </label>`).join('');
+
     const html = `
-      <form id="invite-form" class="staff-form" novalidate>
+      <form id="invite-form" class="staff-invite-form" novalidate>
+        <p class="staff-invite-form__lede">
+          Le enviaremos un correo con un enlace de un solo uso para que cree su contraseña.
+        </p>
+
         <div class="form-group">
           <label for="inv-email">Correo</label>
-          <input id="inv-email" type="email" name="email" required autocomplete="off" placeholder="nombre@ejemplo.com" />
+          <input id="inv-email" type="email" name="email" required autocomplete="off"
+                 placeholder="nombre@ejemplo.com" />
         </div>
+
         <div class="form-group">
-          <label for="inv-fullname">Nombre <span class="staff-form__opt">(opcional)</span></label>
-          <input id="inv-fullname" type="text" name="fullName" maxlength="160" />
+          <label for="inv-fullname">Nombre <span class="staff-form__opt">— opcional</span></label>
+          <input id="inv-fullname" type="text" name="fullName" maxlength="160"
+                 autocomplete="off" placeholder="Para que se sienta esperado" />
         </div>
-        <div class="form-group">
-          <label for="inv-role">Rol</label>
-          <select id="inv-role" name="role" required>
-            ${ROLES.filter(r => isOwner || r.value !== 'owner').map(r => `
-              <option value="${r.value}" ${r.value === 'operator' ? 'selected' : ''}>
-                ${r.label} — ${r.desc}
-              </option>`).join('')}
-          </select>
+
+        <fieldset class="staff-role-picker">
+          <legend>Rol que tendrá</legend>
+          ${roleCards}
+          ${!isOwner ? `
+            <p class="staff-role-picker__note">
+              <i class="fa-solid fa-circle-info"></i>
+              Solo el propietario puede invitar a otros propietarios.
+            </p>` : ''}
+        </fieldset>
+
+        <div class="staff-invite-form__hint">
+          <i class="fa-regular fa-clock"></i>
+          El enlace expira en <strong>24 horas</strong>. Si no se acepta, podrás reenviarla o revocarla desde "Mi equipo".
         </div>
-        <p class="staff-form__hint">
-          La persona recibirá un correo con un enlace para crear su contraseña.
-          El enlace es válido por <strong>24 horas</strong>.
-        </p>
+
         <div class="modal-footer">
           <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
-          <button type="submit" class="btn btn--primary">Enviar invitación</button>
+          <button type="submit" class="btn btn--primary">
+            <i class="fa-solid fa-paper-plane"></i> Enviar invitación
+          </button>
         </div>
       </form>`;
     Modal.open('Invitar a tu equipo', html);
+
     const form = document.getElementById('invite-form');
+    const emailInput = form.querySelector('#inv-email');
+    setTimeout(() => emailInput?.focus(), 50);
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const role = form.querySelector('input[name="role"]:checked')?.value || 'operator';
       const data = {
         email: form.email.value.trim(),
         fullName: form.fullName.value.trim() || undefined,
-        role: form.role.value,
+        role,
       };
       const btn = form.querySelector('button[type="submit"]');
-      btn.disabled = true; btn.textContent = 'Enviando…';
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Enviando…';
       try {
         await postJson('/api/staff/invitations', data);
         Toast.success('Invitación enviada');
         Modal.close();
-        Ctx.pendingExpanded = true; // mostrar inmediatamente para feedback
+        Ctx.pendingExpanded = true;
         await reloadAndRender();
       } catch (err) {
         Toast.error(err.message || 'Error enviando la invitación');
-        btn.disabled = false; btn.textContent = 'Enviar invitación';
+        btn.disabled = false;
+        btn.innerHTML = original;
       }
     });
   }

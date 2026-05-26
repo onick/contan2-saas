@@ -5546,7 +5546,138 @@ body { overflow-x: hidden; }
   font-weight: 400;
   color: var(--color-text-dim, #94a3b8);
   font-size: .8rem;
+  letter-spacing: 0.01em;
 }
+
+/* ----- Modal Invitar persona (mejorado) ----- */
+.staff-invite-form .form-group { margin-bottom: 14px; }
+.staff-invite-form__lede {
+  font-size: .92rem;
+  color: var(--color-text-muted, #6b7280);
+  margin: 0 0 18px;
+  line-height: 1.5;
+  padding: 12px 14px;
+  background: var(--color-surface-alt, #f9fafb);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0 8px 8px 0;
+}
+.staff-invite-form__hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: .82rem;
+  color: var(--color-text-muted, #6b7280);
+  background: var(--color-surface-alt, #f9fafb);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  padding: 11px 14px;
+  margin: 16px 0 4px;
+  line-height: 1.5;
+}
+.staff-invite-form__hint i {
+  color: var(--color-text-muted, #6b7280);
+  margin-top: 2px;
+  flex-shrink: 0;
+  font-size: .9rem;
+}
+.staff-invite-form__hint strong { color: var(--color-text, #1f2937); }
+
+/* ----- Role picker cards ----- */
+.staff-role-picker {
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+}
+.staff-role-picker legend {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--color-text, #1f2937);
+  margin-bottom: 8px;
+  padding: 0;
+}
+.staff-role-card {
+  display: grid;
+  grid-template-columns: 40px 1fr 22px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1.5px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  margin-bottom: 7px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, transform .12s;
+  position: relative;
+  background: var(--color-surface, #fff);
+}
+.staff-role-card:hover {
+  border-color: var(--color-primary-100, #c5cae9);
+  background: var(--color-surface-alt, #f9fafb);
+}
+.staff-role-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.staff-role-card:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-50, #e8eaf6);
+}
+.staff-role-card:focus-within {
+  box-shadow: 0 0 0 4px var(--color-primary-100, #c5cae9);
+}
+.staff-role-card__icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: var(--color-surface-alt, #f9fafb);
+  display: grid;
+  place-items: center;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 1rem;
+  transition: background .15s, color .15s;
+}
+.staff-role-card:has(input:checked) .staff-role-card__icon {
+  background: var(--color-primary);
+  color: var(--color-on-primary, #fff);
+}
+.staff-role-card__main { min-width: 0; }
+.staff-role-card__title {
+  font-size: .94rem;
+  font-weight: 600;
+  color: var(--color-text, #1f2937);
+  display: block;
+}
+.staff-role-card__desc {
+  font-size: .78rem;
+  color: var(--color-text-muted, #6b7280);
+  line-height: 1.4;
+  margin-top: 2px;
+  display: block;
+}
+.staff-role-card__check {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border, #e5e7eb);
+  display: grid;
+  place-items: center;
+  color: transparent;
+  font-size: .68rem;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.staff-role-card:has(input:checked) .staff-role-card__check {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary, #fff);
+}
+.staff-role-picker__note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .76rem;
+  color: var(--color-text-dim, #94a3b8);
+  margin: 8px 0 0;
+  padding: 0 4px;
+}
+.staff-role-picker__note i { font-size: .72rem; }
 
 /* ----- Modal footer (también usado por audit y otros) ----- */
 .modal-footer {
