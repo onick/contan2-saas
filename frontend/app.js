@@ -2039,10 +2039,25 @@ function _credentialIsVip(user) {
   return (user?.visitCount || 0) >= 10;
 }
 
-const _CREDENTIAL_LOGO_SVG = `<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-  <path d="M14 50 V30 L32 16 L50 30 V50" />
-  <path d="M22 50 V36 H42 V50" />
-</svg>`;
+// Logo del tenant para impresión:
+//   1) tenant.logoUrl si el tenant lo configuró
+//   2) /assets/logo.png (default del bundle, CCB)
+//   3) SVG arco inline si la imagen no carga (onerror fallback)
+//
+// Tamaño físico controlado en CSS — fix de raíz del bug original
+// donde el <img> sin width/height se renderizaba al tamaño natural.
+const _CREDENTIAL_LOGO_FALLBACK_SVG = `<svg viewBox='0 0 64 64' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M14 50 V30 L32 16 L50 30 V50'/><path d='M22 50 V36 H42 V50'/></svg>`;
+
+function _credentialLogoImgHtml() {
+  const tenant = (typeof window !== 'undefined' && window.__tenant__) || null;
+  const src = tenant?.logoUrl || `${location.origin}/assets/logo.png`;
+  const orgName = tenant?.name || 'Centro Cultural Banreservas';
+  const safeAlt = String(orgName).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const safeSrc = String(src).replace(/"/g, '&quot;');
+  // onerror reemplaza el <img> por SVG arco fallback. Mantenemos clases
+  // para que el styling de .brand__mark siga aplicando.
+  return `<img src="${safeSrc}" alt="${safeAlt}" onerror="this.outerHTML=\`${_CREDENTIAL_LOGO_FALLBACK_SVG}\`" />`;
+}
 
 function _credentialBankingHtml(user, qrUrlSrc, esc) {
   const since = _credentialMonthYear(user.createdAt);
@@ -2050,7 +2065,7 @@ function _credentialBankingHtml(user, qrUrlSrc, esc) {
   <article class="credential">
     <div class="card-inner">
       <header class="brand">
-        <span class="brand__mark">${_CREDENTIAL_LOGO_SVG}</span>
+        <span class="brand__mark">${_credentialLogoImgHtml()}</span>
         <div class="brand__name">
           Centro Cultural<br/>Banreservas
           <small>Miembro acreditado</small>
@@ -2120,8 +2135,9 @@ function _credentialBankingCss() {
       display: grid; grid-template-columns: 1fr 22mm; grid-template-rows: auto 1fr auto; gap: 0 4mm;
     }
     .brand { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 2.4mm; }
-    .brand__mark { width: 8mm; height: 8mm; color: #fff; flex: 0 0 auto; display: inline-block; }
-    .brand__mark svg { width: 100%; height: 100%; }
+    .brand__mark { width: 10mm; height: 10mm; color: #fff; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
+    .brand__mark svg, .brand__mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .brand__mark img { filter: brightness(0) invert(1); }
     .brand__name { font-size: 5.6pt; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; line-height: 1.15; color: rgba(255,255,255,.96); }
     .brand__name small { display: block; font-weight: 400; font-size: 4.6pt; letter-spacing: .16em; color: rgba(255,255,255,.55); margin-top: .4mm; }
     .identity { grid-column: 1; grid-row: 2; align-self: end; padding-bottom: .5mm; }
@@ -2153,7 +2169,7 @@ function _credentialPremiumHtml(user, qrUrlSrc, esc) {
   <article class="credential">
     <div class="card-inner">
       <header class="brand">
-        <span class="brand__mark">${_CREDENTIAL_LOGO_SVG}</span>
+        <span class="brand__mark">${_credentialLogoImgHtml()}</span>
         <div class="brand__tag">
           Premium Member
           <small>Centro Cultural Banreservas</small>
@@ -2224,8 +2240,10 @@ function _credentialPremiumCss() {
       display: grid; grid-template-columns: 1fr 22mm; grid-template-rows: auto 1fr auto; gap: 0 4mm;
     }
     .brand { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 2.4mm; }
-    .brand__mark { width: 9mm; height: 9mm; color: #c8a96a; flex: 0 0 auto; display: inline-block; filter: drop-shadow(0 0 .4mm rgba(200,169,106,.3)); }
-    .brand__mark svg { width: 100%; height: 100%; }
+    .brand__mark { width: 11mm; height: 11mm; color: #c8a96a; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; filter: drop-shadow(0 0 .4mm rgba(200,169,106,.3)); }
+    .brand__mark svg, .brand__mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    /* Premium: tinte cobre sobre el PNG via filter chain (aprox a #c8a96a) */
+    .brand__mark img { filter: brightness(0) saturate(100%) invert(80%) sepia(18%) saturate(580%) hue-rotate(355deg) brightness(92%); }
     .brand__tag { font-family: 'JetBrains Mono', monospace; font-size: 5.2pt; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: #c8a96a; line-height: 1.2; }
     .brand__tag small { display: block; font-weight: 400; font-size: 4.4pt; letter-spacing: .22em; color: rgba(200,169,106,.55); margin-top: .6mm; }
     .identity { grid-column: 1; grid-row: 2; align-self: end; padding-bottom: .5mm; }
