@@ -27,7 +27,7 @@ const ROUTES = {
   branding: { title: 'Identidad de marca', subtitle: 'Colores, logo y estilo del panel administrativo', render: () => window.renderBranding && window.renderBranding() },
   'public-apps': { title: 'Modo público', subtitle: 'Apps de lobby: kiosko de auto-registro y scanner de check-in', render: () => window.renderPublicApps && window.renderPublicApps() },
   staff: { title: 'Mi equipo', subtitle: 'Personas con acceso al panel y sus permisos', render: () => window.renderStaff && window.renderStaff() },
-  audit: { title: 'Bitácora', subtitle: 'Eventos importantes registrados por el sistema', render: () => window.renderAudit && window.renderAudit() },
+  audit: { title: 'Historial', subtitle: 'Quién hizo qué cuándo · registro append-only del sistema', render: () => window.renderAudit && window.renderAudit() },
 };
 
 const State = {
