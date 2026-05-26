@@ -189,16 +189,48 @@ function hideOverlay() {
 
 // ============ Screen: welcome ============
 function renderWelcome(root) {
+  const now = new Date();
+  const time = now.toLocaleTimeString('es-DO', { hour: 'numeric', minute: '2-digit', hour12: true });
+  // Split "3:02 p. m." → "3:02" + "PM"
+  const m = time.match(/^(\d{1,2}:\d{2})\s*(a\.?\s*m\.?|p\.?\s*m\.?)?/i);
+  const clockMain = m ? m[1] : time;
+  const clockAmpm = m && m[2] ? m[2].replace(/[.\s]/g, '').toUpperCase() : '';
+  const dateStr = now.toLocaleDateString('es-DO', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  const dateFmt = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+
   root.innerHTML = `
     <div class="k-screen k-welcome">
-      <img src="/assets/logo.png" alt="Centro Cultural Banreservas" class="k-welcome-logo" />
-      <div>
-        <h1 class="k-welcome-title">¡Bienvenido!</h1>
-        <p class="k-welcome-sub">Regístrate en una actividad y disfruta de tu visita.</p>
+      <div class="k-corner-marks">
+        <span class="tl"></span><span class="tr"></span>
+        <span class="bl"></span><span class="br"></span>
       </div>
-      <button class="k-btn k-btn--accent k-btn--xl k-btn--pulse" id="k-start">
-        <i class="fa-solid fa-hand-pointer"></i> Toca para comenzar
-      </button>
+
+      <div class="k-welcome-top">
+        <div class="k-welcome-arc">
+          <svg width="140" height="80" viewBox="0 0 64 36" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" style="color: var(--k-primary-400);">
+            <path d="M6 34 V20 L32 4 L58 20 V34" />
+            <path d="M14 34 V25 L32 13 L50 25 V34" />
+            <path d="M22 34 V30 L32 22 L42 30 V34" stroke-opacity="0.5" />
+          </svg>
+        </div>
+        <div class="k-welcome-name" data-org-name>Centro Cultural Banreservas</div>
+      </div>
+
+      <div class="k-welcome-clock">
+        <div class="k-clock-time">${escapeHtml(clockMain)}${clockAmpm ? `<span class="k-clock-ampm">${escapeHtml(clockAmpm)}</span>` : ''}</div>
+        <div class="k-clock-date">${escapeHtml(dateFmt)}</div>
+      </div>
+
+      <div class="k-welcome-cta-wrap">
+        <button class="k-btn k-btn--ticket k-btn--pulse" id="k-start">
+          <span style="font-weight: 300; font-size: 32px;">→</span>
+          <span>Toca para registrarte</span>
+          <span style="font-weight: 300; font-size: 32px;">←</span>
+        </button>
+        <div class="k-welcome-meta">Asistencia · Cine · Concierto · Taller · Exposición</div>
+      </div>
     </div>`;
   $('#k-start').addEventListener('click', async () => {
     try { await document.documentElement.requestFullscreen?.(); } catch {}
@@ -711,9 +743,10 @@ function showNotFoundOptions(mode) {
     ? 'No encontramos a nadie con ese correo. ¿Es tu primera visita?'
     : 'No encontramos ese código. Verifica que esté bien escrito o regístrate como nuevo.';
   userStage.innerHTML = `
-    <div class="k-not-found">
-      <div class="k-not-found-icon"><i class="fa-solid fa-user-slash"></i></div>
-      <div class="k-not-found-msg">${escapeHtml(msg)}</div>
+    <div class="k-empty" style="max-width:560px;margin:0 auto 28px;">
+      <i class="fa-solid fa-user-slash"></i>
+      <h3>No te encontramos</h3>
+      <p>${escapeHtml(msg)}</p>
     </div>
     <div class="k-actions">
       <button class="k-btn k-btn--ghost" id="k-retry">
@@ -734,19 +767,17 @@ function showUserBanner(user) {
   codeStage.style.display = 'none';
   userStage.style.display = 'block';
   userStage.innerHTML = `
-    <div class="k-user-banner">
-      <div class="k-user-banner-avatar"><i class="fa-solid fa-user-check"></i></div>
-      <div class="k-user-banner-info">
-        <div class="k-user-banner-greeting">Hola,</div>
-        <div class="k-user-banner-name">${escapeHtml(user.firstName + ' ' + user.lastName)}</div>
-        <div class="k-user-banner-visits">Esta sería tu visita número ${user.visitCount + 1}</div>
-      </div>
+    <div class="k-user-card">
+      <span class="k-user-card-label"><i class="fa-solid fa-user-check"></i> &nbsp;Encontrado · ¿Eres tú?</span>
+      <span class="k-user-card-name">${escapeHtml(user.firstName + ' ' + user.lastName)}</span>
+      <span class="k-user-card-code">${escapeHtml(user.code)}</span>
+      <span class="k-mono-eyebrow">Esta sería tu visita número ${user.visitCount + 1}</span>
     </div>
     <div class="k-actions">
       <button class="k-btn k-btn--ghost" id="k-not-me">
         <i class="fa-solid fa-arrow-left"></i> No soy yo
       </button>
-      <button class="k-btn k-btn--success k-btn--xl" id="k-confirm">
+      <button class="k-btn k-btn--primary k-btn--xl" id="k-confirm">
         <i class="fa-solid fa-check"></i> Confirmar asistencia
       </button>
     </div>`;
@@ -857,37 +888,50 @@ function renderNewUserForm(root) {
 function renderConfirmation(root) {
   const u = State.user;
   const a = State.activity;
+  // Tipo de la actividad determina el gradient del poster lateral. Si no
+  // viene en State (algunos paths solo guardan id+name), default 'otro'.
+  const aType = a?.type || 'otro';
   root.innerHTML = `
     <div class="k-screen k-confirm">
-      <div class="k-check">
-        <svg viewBox="0 0 100 100"><path d="M25 52 L43 70 L75 32" /></svg>
-      </div>
-      <div class="k-confirm-name">¡Bienvenido${u.firstName ? ', ' + escapeHtml(u.firstName) : ''}!</div>
-      <div class="k-confirm-msg">
-        ${State.isNewUser
-          ? 'Tu registro se ha completado. <strong>Anota tu código CCB</strong> para próximas visitas.'
-          : 'Tu asistencia ha sido registrada correctamente.'}
-      </div>
+      <aside class="k-confirm-poster k-card-band--${escapeHtml(aType)}">
+        <div class="k-confirm-poster-meta">${escapeHtml(typeLabel(aType))} · Asistencia confirmada</div>
+        <div>
+          <div class="k-confirm-poster-title">${escapeHtml(a?.name || '')}</div>
+          <div class="k-confirm-poster-sub">${escapeHtml(formatDate(a?.date) || 'Te esperamos')}</div>
+        </div>
+      </aside>
 
-      <div class="k-code">${escapeHtml(u.code)}</div>
+      <section class="k-confirm-panel">
+        <div class="k-check">
+          <svg viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="28" />
+            <path d="M20 33 L29 42 L46 24" />
+          </svg>
+        </div>
 
-      <div class="k-confirm-card">
-        <div class="k-confirm-activity">${escapeHtml(a.name)}</div>
-        <div class="k-confirm-meta">Asistencia registrada</div>
+        <div class="k-confirm-name">¡Bienvenid${u.firstName ? 'a, ' + escapeHtml(u.firstName) : 'o'}!</div>
+        <div class="k-confirm-msg">
+          ${State.isNewUser
+            ? `Tu registro se completó. <strong>Anota tu código</strong> para próximas visitas — también te lo enviamos por correo si lo registraste.`
+            : `Tu asistencia a <strong>"${escapeHtml(a?.name || '')}"</strong> está registrada. Te esperamos.`}
+        </div>
+
+        <div class="k-code">${escapeHtml(u.code)}</div>
+
         <div class="k-visit-badge">
           <i class="fa-solid fa-${State.isNewUser ? 'star' : 'repeat'}"></i>
-          ${State.isNewUser ? '¡Tu primera visita!' : `Visita número ${u.visitCount}`}
+          ${State.isNewUser ? 'Tu primera visita' : `Visita número ${u.visitCount}`}
         </div>
-      </div>
 
-      <button class="k-btn k-btn--primary k-btn--xl" id="k-home">
+        <div class="k-countdown">
+          Volviendo al inicio en <span id="k-countdown-num">15</span>s
+          <div class="k-progress"><div class="k-progress-bar" id="k-progress"></div></div>
+        </div>
+      </section>
+
+      <button class="k-btn k-btn--ghost" id="k-home" style="position:absolute;top:24px;right:24px;z-index:5;">
         <i class="fa-solid fa-house"></i> Volver al inicio
       </button>
-
-      <div class="k-countdown">
-        Volviendo al inicio en <span id="k-countdown-num">15</span>s
-        <div class="k-progress"><div class="k-progress-bar" id="k-progress"></div></div>
-      </div>
     </div>`;
   $('#k-home').addEventListener('click', goHome);
   startCountdown(15);
