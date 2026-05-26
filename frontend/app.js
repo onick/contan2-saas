@@ -3721,6 +3721,9 @@ const _ckState = { ctx: null, autoRefreshTimer: null, lastQuery: '' };
 
 async function renderCheckin() {
   if (_ckState.autoRefreshTimer) clearInterval(_ckState.autoRefreshTimer);
+  // Topbar limpio en check-in: el "Nuevo visitante" vive dentro del hero,
+  // y el reloj/livestat va en el statsbar embebido.
+  document.getElementById('topbar-actions').innerHTML = '';
   const root = document.getElementById('content');
   root.innerHTML = checkinSkeletonHtml();
   try {
@@ -3744,10 +3747,13 @@ async function renderCheckin() {
 function checkinSkeletonHtml() {
   return `
     <div class="ck">
-      <div class="ck-statsbar skeleton-block" style="height:88px"></div>
+      <div class="ck-statsbar skeleton-block" style="height:54px"></div>
       <div class="ck-grid">
-        <div class="panel skeleton-block" style="height:520px"></div>
-        <div class="panel skeleton-block" style="height:520px"></div>
+        <div>
+          <div class="skeleton-block" style="height:140px;border-radius:14px"></div>
+          <div class="skeleton-block" style="height:340px;margin-top:14px;border-radius:14px"></div>
+        </div>
+        <div class="skeleton-block" style="height:560px;border-radius:14px"></div>
       </div>
     </div>`;
 }
@@ -3768,52 +3774,72 @@ async function refreshCheckinContext() {
   } catch {}
 }
 
+// Cuenta cuántos check-ins ocurrieron en los últimos N minutos a partir del
+// recentFeed (suficiente para una señal "estás recibiendo X/10 min").
+function ckCountInLastMinutes(minutes = 10) {
+  const feed = _ckState.ctx?.recentFeed || [];
+  const cutoff = Date.now() - minutes * 60_000;
+  return feed.filter(f => new Date(f.registeredAt).getTime() >= cutoff).length;
+}
+
+// Hora local formateada HH:MM (sin segundos para no animar todo el rato).
+function ckLocalTime() {
+  return new Date().toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 function paintCheckin() {
   const root = document.getElementById('content');
+  const prefix = (window.__tenant__?.codePrefix || 'CCB').toUpperCase();
   root.innerHTML = `
     <div class="ck">
+      <!-- Live stats embebido (cockpit, no KPI cards) -->
       <div id="ck-statsbar"></div>
-      <div id="ck-today-hero"></div>
+
+      <!-- 2-col: left main (search hero + activities) · right feed sticky -->
       <div class="ck-grid">
-        <section class="panel ck-left">
-          <div class="panel-header">
-            <div>
-              <h2><span class="ck-step">1</span> Encuentra al visitante</h2>
-              <p>Por nombre, código, email o teléfono</p>
-            </div>
-          </div>
-          <div class="panel-body ck-left-body">
-            <div class="search-input search-input--lg">
-              <i class="fa-solid fa-magnifying-glass"></i>
-              <input type="text" id="ck-search" placeholder="${(window.__tenant__?.codePrefix || 'CCB').toUpperCase()}-XXXXXX, nombre o email…" autocomplete="off" />
-              <kbd class="ck-kbd">/</kbd>
+        <div class="ck-main">
+
+          <section class="ck-hero" id="ck-hero">
+            <div class="ck-hero__label">Encontrar visitante</div>
+            <div class="ck-hero__row">
+              <label class="ck-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="ck-search" placeholder="${Utils.escapeHtml(prefix)}-XXXXXX, nombre, email o teléfono…" autocomplete="off" />
+                <kbd class="ck-kbd">/</kbd>
+              </label>
+              <button type="button" class="ck-new-btn" data-action="user-new">
+                <i class="fa-solid fa-user-plus"></i> Nuevo visitante
+              </button>
             </div>
             <div id="ck-recent-chips" class="ck-recent-chips"></div>
             <div id="ck-suggestions" class="ck-suggestions"></div>
             <div id="ck-selected"></div>
-          </div>
-        </section>
+          </section>
 
-        <section class="panel ck-right">
-          <div class="panel-header">
-            <div>
-              <h2><span class="ck-step">2</span> Registra asistencia</h2>
-              <p id="ck-activities-meta"></p>
-            </div>
-          </div>
-          <div class="panel-body">
+          <section class="ck-act-section">
+            <header class="ck-act-section__head">
+              <h2>Actividades activas</h2>
+              <span class="ck-act-section__count" id="ck-activities-count">0</span>
+              <span class="ck-act-section__hint" id="ck-activities-hint">Click una para marcar al visitante seleccionado</span>
+            </header>
             <div id="ck-activities" class="ck-activities"></div>
-          </div>
-          <div class="panel-footer ck-feed-wrap">
-            <h3 class="ck-feed-title"><i class="fa-solid fa-tower-broadcast"></i> Movimiento en vivo</h3>
-            <div id="ck-feed" class="ck-feed"></div>
-          </div>
-        </section>
+          </section>
+
+        </div>
+
+        <aside class="ck-feed-wrap">
+          <header class="ck-feed__head">
+            <h2>Movimiento</h2>
+            <span class="ck-feed__live">EN VIVO</span>
+            <span class="ck-feed__count" id="ck-feed-count">0 hoy</span>
+          </header>
+          <div id="ck-feed" class="ck-feed"></div>
+          <div class="ck-feed__foot" id="ck-feed-foot"></div>
+        </aside>
       </div>
     </div>`;
 
   paintCheckinStatsbar();
-  paintCheckinTodayHero();
   paintCheckinActivities();
   paintCheckinSelected();
   paintCheckinRecentChips();
@@ -3854,67 +3880,27 @@ function paintCheckinStatsbar() {
   const el = document.getElementById('ck-statsbar');
   if (!el || !_ckState.ctx) return;
   const s = _ckState.ctx.stats;
+  const last10 = ckCountInLastMinutes(10);
+  const time = ckLocalTime();
   el.innerHTML = `
     <div class="ck-statsbar">
-      <div class="ck-stat">
-        <div class="ck-stat-icon ck-stat-icon--accent"><i class="fa-solid fa-clipboard-check"></i></div>
-        <div>
-          <div class="ck-stat-label">Check-ins hoy</div>
-          <div class="ck-stat-value">${s.checkinsToday}</div>
-        </div>
+      <span class="ck-statsbar__live">
+        <span class="ck-statsbar__live-dot"></span> EN VIVO
+      </span>
+      <div class="ck-statsbar__items">
+        <span class="ck-statsbar__item"><strong>${s.checkinsToday}</strong> check-ins hoy</span>
+        <span class="ck-statsbar__sep">·</span>
+        <span class="ck-statsbar__item"><strong>${last10}</strong> en últimos 10 min</span>
+        <span class="ck-statsbar__sep">·</span>
+        <span class="ck-statsbar__item"><strong>${s.uniqueAttendeesToday}</strong> visitantes únicos</span>
+        <span class="ck-statsbar__sep">·</span>
+        <span class="ck-statsbar__item"><strong>${s.activeActivities}</strong> activas</span>
       </div>
-      <div class="ck-stat">
-        <div class="ck-stat-icon"><i class="fa-solid fa-users"></i></div>
-        <div>
-          <div class="ck-stat-label">Visitantes únicos hoy</div>
-          <div class="ck-stat-value">${s.uniqueAttendeesToday}</div>
-        </div>
-      </div>
-      <div class="ck-stat">
-        <div class="ck-stat-icon"><i class="fa-solid fa-bolt"></i></div>
-        <div>
-          <div class="ck-stat-label">Actividades activas</div>
-          <div class="ck-stat-value">${s.activeActivities}</div>
-        </div>
-      </div>
-      <div class="ck-stat-actions">
-        <button type="button" class="btn btn--ghost btn--sm" data-action="user-new">
-          <i class="fa-solid fa-user-plus"></i> Nuevo visitante
-        </button>
-        <button type="button" class="btn btn--ghost btn--sm" data-action="ck-refresh" title="Refrescar">
+      <div class="ck-statsbar__right">
+        <span class="ck-statsbar__clock">${time}<small>hora local</small></span>
+        <button type="button" class="ck-statsbar__refresh" data-action="ck-refresh" title="Refrescar">
           <i class="fa-solid fa-arrows-rotate"></i>
         </button>
-      </div>
-    </div>`;
-}
-
-function paintCheckinTodayHero() {
-  const el = document.getElementById('ck-today-hero');
-  if (!el || !_ckState.ctx) return;
-  const today = _ckState.ctx.todayActivity;
-  if (!today) { el.innerHTML = ''; return; }
-  const occ = today.capacity ? Math.round((today.enrolledCount / today.capacity) * 100) : 0;
-  const hour = new Date(today.date).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
-  el.innerHTML = `
-    <div class="ck-today-hero">
-      <div class="ck-today-eyebrow"><i class="fa-solid fa-circle"></i> EVENTO DE HOY</div>
-      <div class="ck-today-row">
-        ${today.imageUrl
-          ? `<div class="ck-today-thumb"><img src="${Utils.escapeHtml(today.imageUrl)}" alt="" /></div>`
-          : `<div class="ck-today-thumb ck-today-thumb--placeholder"><i class="fa-solid ${dashTypeIcon(today.type)}"></i></div>`}
-        <div class="ck-today-info">
-          <h3 class="ck-today-name">${Utils.escapeHtml(today.name)}</h3>
-          <div class="ck-today-meta">
-            <span><i class="fa-solid fa-clock"></i> ${Utils.escapeHtml(hour)}</span>
-            <span><i class="fa-solid fa-location-dot"></i> ${Utils.escapeHtml(today.location)}</span>
-            <span class="badge badge--type-${Utils.escapeHtml(today.type)}">${Utils.escapeHtml(Utils.activityTypeLabel(today.type))}</span>
-          </div>
-        </div>
-        <div class="ck-today-progress">
-          <div class="ck-today-progress-num">${today.enrolledCount}<span>/${today.capacity}</span></div>
-          <div class="progress-track"><div class="progress-bar ${occ >= 80 ? 'progress-bar--hot' : ''}" style="width:${occ}%"></div></div>
-          <div class="progress-meta"><span>${occ}% de capacidad</span></div>
-        </div>
       </div>
     </div>`;
 }
@@ -3925,17 +3911,26 @@ function paintCheckinRecentChips() {
   const recents = _ckState.ctx.recentUsersToday;
   if (!recents || !recents.length) { el.innerHTML = ''; return; }
   el.innerHTML = `
-    <div class="ck-recent-chips-label">Recientes de hoy</div>
-    <div class="ck-recent-chips-list">
-      ${recents.map(u => {
-        const initials = ((u.firstName?.[0] || '') + (u.lastName?.[0] || '')).toUpperCase();
-        return `
-          <button type="button" class="ck-recent-chip" data-action="checkin-select" data-code="${Utils.escapeHtml(u.code)}" title="${Utils.escapeHtml(u.firstName + ' ' + u.lastName)} · ${u.visitCount} visita(s)">
-            <span class="ck-recent-chip-avatar">${Utils.escapeHtml(initials)}</span>
-            <span class="ck-recent-chip-name">${Utils.escapeHtml(u.firstName)}</span>
-          </button>`;
-      }).join('')}
-    </div>`;
+    <span class="ck-recent-chips__label">Ya entraron hoy:</span>
+    ${recents.map(u => {
+      const initials = ((u.firstName?.[0] || '') + (u.lastName?.[0] || '')).toUpperCase() || '?';
+      const bg = ckAvatarColor(u.code || u.email || u.firstName);
+      return `
+        <button type="button" class="ck-recent-chip" data-action="checkin-select" data-code="${Utils.escapeHtml(u.code)}" title="${Utils.escapeHtml((u.firstName||'') + ' ' + (u.lastName||''))} · re-checkear en otra actividad">
+          <span class="ck-recent-chip__avatar" style="background:${bg}">${Utils.escapeHtml(initials)}</span>
+          <span class="ck-recent-chip__name">${Utils.escapeHtml(u.firstName || u.code || '—')}</span>
+        </button>`;
+    }).join('')}`;
+}
+
+// Color HSL determinista derivado del string (email/código). Saturación y
+// luminosidad acotadas para que combine con el resto del UI sin chocar.
+function ckAvatarColor(seed) {
+  const s = String(seed || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xFFFFFFFF;
+  const hue = Math.abs(h) % 360;
+  return `hsl(${hue}, 45%, 42%)`;
 }
 
 function paintCheckinSuggestions(q) {
@@ -4031,84 +4026,156 @@ function paintCheckinSelected() {
 }
 
 function paintCheckinActivities() {
-  const meta = document.getElementById('ck-activities-meta');
   const el = document.getElementById('ck-activities');
   if (!el) return;
   const active = State.activities;
-  if (meta) meta.textContent = `${active.length} actividad(es) activa(s)`;
+  const countEl = document.getElementById('ck-activities-count');
+  const hintEl = document.getElementById('ck-activities-hint');
+  if (countEl) countEl.textContent = String(active.length);
   if (!active.length) {
-    el.innerHTML = `<div class="empty"><i class="fa-solid fa-calendar-xmark"></i><h3>Sin actividades activas</h3><p>Crea una para empezar a recibir asistencias.</p></div>`;
+    if (hintEl) hintEl.textContent = '';
+    el.innerHTML = `
+      <div class="empty">
+        <i class="fa-solid fa-calendar-xmark"></i>
+        <h3>Sin actividades activas</h3>
+        <p>Crea una actividad para empezar a recibir asistencias hoy.</p>
+        <a href="#/activities" class="btn btn--accent btn--sm" style="margin-top:8px;">
+          <i class="fa-solid fa-plus"></i> Crear actividad
+        </a>
+      </div>`;
     return;
   }
   const u = State.checkin?.selectedUser;
+  if (hintEl) {
+    hintEl.textContent = u
+      ? `Click una actividad para marcar a ${u.firstName} ${u.lastName}`
+      : 'Click una para marcar al visitante seleccionado';
+  }
   const todayMs = new Date(); todayMs.setHours(0, 0, 0, 0);
   const tomorrowMs = todayMs.getTime() + 86400000;
   el.innerHTML = active.map(a => {
-    const pct = a.capacity ? Math.round((a.enrolledCount / a.capacity) * 100) : 0;
-    const isFull = a.enrolledCount >= a.capacity;
-    const nearFull = pct >= 80;
+    const cap = a.capacity || 0;
+    const enrolled = a.enrolledCount || 0;
+    const pct = cap ? Math.round((enrolled / cap) * 100) : 0;
+    const isFull = cap > 0 && enrolled >= cap;
     const t = new Date(a.date).getTime();
     const isToday = t >= todayMs.getTime() && t < tomorrowMs;
     const checkedIn = a.checkedInCount ?? 0;
     const rsvpPending = a.rsvpPendingCount ?? 0;
     const anonCount = a.anonymousCount ?? 0;
+    const startHour = new Date(a.date).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    // Color band para el ring: low (<50) verde · normal (50-74) primary · high (75-94) amber · full rojo
+    let ringClass = '';
+    if (isFull) ringClass = 'ck-activity--full';
+    else if (pct >= 75) ringClass = 'ck-activity--high';
+    else if (pct < 50) ringClass = 'ck-activity--low';
+
+    // Pace: cuántos check-ins entraron en los últimos 10 min sobre esta actividad
+    const feed = _ckState.ctx?.recentFeed || [];
+    const cutoff = Date.now() - 10 * 60_000;
+    const pace = feed.filter(f => f.activityId === a.id && new Date(f.registeredAt).getTime() >= cutoff).length;
+
+    const primaryBtn = isFull
+      ? `<button class="btn btn--ghost btn--block" disabled><i class="fa-solid fa-ban"></i> Cupo lleno</button>`
+      : u
+        ? `<button class="btn btn--accent btn--block" data-action="checkin-register" data-user-code="${Utils.escapeHtml(u.code)}" data-activity-id="${Utils.escapeHtml(a.id)}">
+             <i class="fa-solid fa-check"></i> Registrar a ${Utils.escapeHtml(u.firstName)}
+           </button>`
+        : `<button class="btn btn--ghost btn--block" data-action="checkin-focus-search" data-activity-id="${Utils.escapeHtml(a.id)}">
+             <i class="fa-solid fa-user"></i> Selecciona un visitante
+           </button>`;
+
     return `
-      <div class="ck-activity ${isFull ? 'is-full' : ''} ${nearFull && !isFull ? 'is-hot' : ''} ${isToday ? 'is-today' : ''}" data-activity-id="${Utils.escapeHtml(a.id)}">
-        <div class="ck-activity-head">
-          <span class="badge badge--type-${a.type}">${Utils.escapeHtml(Utils.activityTypeLabel(a.type))}</span>
-          ${isToday ? '<span class="ck-activity-today-pill"><i class="fa-solid fa-circle"></i> HOY</span>' : ''}
-          <span class="cell-muted" style="font-size:11px;margin-left:auto">${Utils.escapeHtml(Utils.formatDate(a.date))}</span>
+      <article class="ck-activity ${ringClass} ${isToday ? 'is-today' : ''}" data-activity-id="${Utils.escapeHtml(a.id)}" style="--p: ${pct}">
+        <div class="ck-activity__top">
+          <div class="ck-activity__info">
+            <div class="ck-activity__name">${Utils.escapeHtml(a.name)}</div>
+            <div class="ck-activity__meta">
+              <span><i class="fa-solid fa-location-dot"></i> ${Utils.escapeHtml(a.location || '—')}</span>
+              <span class="ck-dot">·</span>
+              <span><i class="fa-regular fa-clock"></i> ${Utils.escapeHtml(startHour)}</span>
+              ${isToday ? '<span class="ck-dot">·</span><span class="ck-today-pill">HOY</span>' : ''}
+            </div>
+            ${pace > 0
+              ? `<div class="ck-activity__pace"><span class="ck-pulse"></span>+${pace} en últimos 10 min</div>`
+              : `<div class="ck-activity__pace ck-activity__pace--quiet">sin movimiento reciente</div>`}
+          </div>
+          <div class="ck-cap-ring" aria-label="${enrolled} de ${cap}, ${pct}%">
+            <div class="ck-cap-ring__inner">
+              <div class="ck-cap-ring__num">${enrolled}</div>
+              <div class="ck-cap-ring__total">de ${cap}</div>
+            </div>
+          </div>
         </div>
-        <h4>${Utils.escapeHtml(a.name)}</h4>
-        <div class="cell-muted ck-activity-loc"><i class="fa-solid fa-location-dot"></i> ${Utils.escapeHtml(a.location)}</div>
-        <div class="ck-activity-progress">
-          <div class="progress-track"><div class="progress-bar ${nearFull ? 'progress-bar--hot' : ''}" style="width:${pct}%"></div></div>
-          <div class="progress-meta"><span>${a.enrolledCount}/${a.capacity}</span><span>${pct}%</span></div>
-        </div>
-        <div class="ck-activity-breakdown" title="Check-in: gente físicamente presente. RSVP pendiente: reservaron online pero aún no llegan. Anónimos: walk-ins sin credencial.">
-          <span class="ck-bd-pill ck-bd-pill--in"><i class="fa-solid fa-check"></i> ${checkedIn} check-in</span>
-          ${rsvpPending > 0 ? `<span class="ck-bd-pill ck-bd-pill--rsvp"><i class="fa-regular fa-clock"></i> ${rsvpPending} RSVP</span>` : ''}
-          ${anonCount > 0 ? `<span class="ck-bd-pill ck-bd-pill--anon"><i class="fa-solid fa-user-secret"></i> ${anonCount} sin credencial</span>` : ''}
-        </div>
-        <div class="ck-activity-actions">
-          <button class="btn ${u && !isFull ? 'btn--accent' : 'btn--ghost'} btn--block" data-action="${u ? 'checkin-register' : 'checkin-focus-search'}" data-user-code="${Utils.escapeHtml(u?.code || '')}" data-activity-id="${Utils.escapeHtml(a.id)}" ${isFull ? 'disabled' : ''}>
-            ${isFull ? '<i class="fa-solid fa-ban"></i> Cupo lleno' : u ? '<i class="fa-solid fa-check"></i> Registrar asistencia' : '<i class="fa-solid fa-user"></i> Selecciona un visitante'}
-          </button>
-          <button class="btn btn--ghost btn--sm ck-activity-anon-btn" data-action="checkin-anonymous" data-activity-id="${Utils.escapeHtml(a.id)}" ${isFull ? 'disabled' : ''} title="Para visitantes que entran sin credencial">
+        ${(checkedIn || rsvpPending || anonCount) ? `
+          <div class="ck-activity__breakdown" title="Check-in: gente físicamente presente. RSVP pendiente: reservaron online pero aún no llegan. Anónimos: walk-ins sin credencial.">
+            <span class="ck-bd ck-bd--in"><i class="fa-solid fa-check"></i> ${checkedIn} check-in</span>
+            ${rsvpPending > 0 ? `<span class="ck-bd ck-bd--rsvp"><i class="fa-regular fa-clock"></i> ${rsvpPending} RSVP</span>` : ''}
+            ${anonCount > 0 ? `<span class="ck-bd ck-bd--anon"><i class="fa-solid fa-user-secret"></i> ${anonCount} sin credencial</span>` : ''}
+          </div>` : ''}
+        <div class="ck-activity__actions">
+          ${primaryBtn}
+          <button class="btn btn--ghost btn--sm" data-action="checkin-anonymous" data-activity-id="${Utils.escapeHtml(a.id)}" ${isFull ? 'disabled' : ''} title="Visitante sin credencial (acompañante, prensa)">
             <i class="fa-solid fa-plus"></i> +1 sin credencial
           </button>
         </div>
-      </div>`;
+      </article>`;
   }).join('');
 }
 
 function paintCheckinRecentFeed() {
   const el = document.getElementById('ck-feed');
+  const countEl = document.getElementById('ck-feed-count');
+  const footEl = document.getElementById('ck-feed-foot');
   if (!el || !_ckState.ctx) return;
-  const feed = _ckState.ctx.recentFeed;
-  if (!feed || feed.length === 0) {
-    el.innerHTML = `<div class="ck-feed-empty"><i class="fa-regular fa-clock"></i> Aún no hay check-ins hoy</div>`;
+  const feed = _ckState.ctx.recentFeed || [];
+  const total = _ckState.ctx.stats?.checkinsToday || 0;
+  if (countEl) countEl.textContent = `${total} hoy`;
+
+  if (feed.length === 0) {
+    el.innerHTML = `
+      <div class="ck-feed__empty">
+        <i class="fa-regular fa-clock"></i>
+        <p>Aún no hay check-ins hoy</p>
+        <small>Cuando alguien entre aparecerá aquí en tiempo real</small>
+      </div>`;
+    if (footEl) footEl.innerHTML = '';
     return;
   }
   const now = Date.now();
   el.innerHTML = feed.map(f => {
-    const initials = ((f.userName?.[0] || '') + (f.userName?.split(' ')[1]?.[0] || '')).toUpperCase() || '?';
+    const initials = f.anonymous
+      ? ''
+      : ((f.userName?.[0] || '') + (f.userName?.split(' ')[1]?.[0] || '')).toUpperCase() || '?';
     const secs = Math.max(0, Math.floor((now - new Date(f.registeredAt).getTime()) / 1000));
     const ago = secs < 60 ? `hace ${secs}s`
       : secs < 3600 ? `hace ${Math.floor(secs / 60)} min`
-      : `hace ${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
+      : `hace ${Math.floor(secs / 3600)} h`;
+    const isFresh = secs < 90;
+    const bg = ckAvatarColor(f.userCode || f.userEmail || f.userName);
+    const avatar = f.anonymous
+      ? `<div class="ck-feed__av ck-feed__av--anon"><i class="fa-solid fa-user-plus"></i></div>`
+      : `<div class="ck-feed__av" style="background:${bg}">${Utils.escapeHtml(initials)}</div>`;
     return `
-      <div class="ck-feed-item">
-        <div class="ck-feed-avatar">${Utils.escapeHtml(initials)}</div>
-        <div class="ck-feed-info">
-          <div class="ck-feed-name">${Utils.escapeHtml(f.userName)}</div>
-          <div class="ck-feed-meta">
-            ${f.activityName ? `<i class="fa-solid ${dashTypeIcon(f.activityType)}"></i> ${Utils.escapeHtml(f.activityName)}` : ''}
-          </div>
+      <div class="ck-feed-item ${isFresh ? 'is-fresh' : ''}">
+        ${avatar}
+        <div class="ck-feed-item__main">
+          <div class="ck-feed-item__name ${f.anonymous ? 'is-anon' : ''}">${Utils.escapeHtml(f.userName)}</div>
+          <div class="ck-feed-item__act">${f.activityName ? Utils.escapeHtml(f.activityName) : ''}${f.userCode && !f.anonymous ? ` <span class="ck-feed-item__code">${Utils.escapeHtml(f.userCode)}</span>` : ''}</div>
         </div>
-        <div class="ck-feed-time">${Utils.escapeHtml(ago)}</div>
+        <div class="ck-feed-item__time">${Utils.escapeHtml(ago)}</div>
       </div>`;
   }).join('');
+
+  // Footer con timestamp del más reciente
+  if (footEl && feed[0]) {
+    const lastSecs = Math.max(0, Math.floor((now - new Date(feed[0].registeredAt).getTime()) / 1000));
+    const lastAgo = lastSecs < 60 ? `${lastSecs} seg`
+      : lastSecs < 3600 ? `${Math.floor(lastSecs / 60)} min`
+      : `${Math.floor(lastSecs / 3600)} h`;
+    footEl.innerHTML = `Última entrada hace <strong>${Utils.escapeHtml(lastAgo)}</strong>`;
+  }
 }
 
 async function handleCheckinSelect(code) {
