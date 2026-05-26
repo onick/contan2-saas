@@ -2135,13 +2135,15 @@ function _credentialBankingCss() {
       display: grid; grid-template-columns: 1fr 22mm; grid-template-rows: auto 1fr auto; gap: 0 4mm;
     }
     .brand { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 2.4mm; }
-    .brand__mark { width: 10mm; height: 10mm; color: #fff; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
+    .brand__mark { width: 11.5mm; height: 11.5mm; color: #fff; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
     .brand__mark svg, .brand__mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
     .brand__mark img { filter: brightness(0) invert(1); }
     .brand__name { font-size: 5.6pt; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; line-height: 1.15; color: rgba(255,255,255,.96); }
     .brand__name small { display: block; font-weight: 400; font-size: 4.6pt; letter-spacing: .16em; color: rgba(255,255,255,.55); margin-top: .4mm; }
     .identity { grid-column: 1; grid-row: 2; align-self: end; padding-bottom: .5mm; }
-    .identity__label { font-family: 'JetBrains Mono', monospace; font-size: 5pt; letter-spacing: .22em; text-transform: uppercase; color: #ff6f00; font-weight: 600; margin-bottom: 1.6mm; }
+    /* "MEMBER" en burnt-amber (#9a3412): mantiene el calor del accent pero
+       no chilla como #ff6f00. Suficiente contraste sobre cyan oscuro. */
+    .identity__label { font-family: 'JetBrains Mono', monospace; font-size: 5pt; letter-spacing: .22em; text-transform: uppercase; color: #9a3412; font-weight: 700; margin-bottom: 1.6mm; }
     .identity__code { font-family: 'JetBrains Mono', monospace; font-size: 11pt; font-weight: 600; letter-spacing: .08em; color: #fff; line-height: 1; margin-bottom: 1.8mm; }
     .identity__name { font-family: 'Inter', sans-serif; font-size: 10pt; font-weight: 600; letter-spacing: -.005em; color: #fff; line-height: 1.1; }
     .footer { grid-column: 1; grid-row: 3; display: flex; justify-content: space-between; align-items: flex-end; font-size: 5.6pt; color: rgba(255,255,255,.72); letter-spacing: .04em; }
@@ -2240,7 +2242,7 @@ function _credentialPremiumCss() {
       display: grid; grid-template-columns: 1fr 22mm; grid-template-rows: auto 1fr auto; gap: 0 4mm;
     }
     .brand { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 2.4mm; }
-    .brand__mark { width: 11mm; height: 11mm; color: #c8a96a; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; filter: drop-shadow(0 0 .4mm rgba(200,169,106,.3)); }
+    .brand__mark { width: 12.7mm; height: 12.7mm; color: #c8a96a; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; filter: drop-shadow(0 0 .4mm rgba(200,169,106,.3)); }
     .brand__mark svg, .brand__mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
     /* Premium: tinte cobre sobre el PNG via filter chain (aprox a #c8a96a) */
     .brand__mark img { filter: brightness(0) saturate(100%) invert(80%) sepia(18%) saturate(580%) hue-rotate(355deg) brightness(92%); }
