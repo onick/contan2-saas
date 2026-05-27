@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { HttpError } from '../middleware/errorHandler.js';
+import { requireStaffSession } from '../middleware/requireStaffSession.js';
+import { requireRole } from '../middleware/requireRole.js';
 import {
   validateUserCreate,
   validateUserUpdate,
@@ -7,10 +9,19 @@ import {
 } from '../domain/schemas.js';
 import { sendCredentialEmail } from '../services/email.js';
 
+// Tier de autorización por endpoint (ver docs/migration-v2/05-authorization-matrix.md):
+//   POST   /                  → STAFF        (operator crea visitantes en recepción)
+//   POST   /bulk              → ADMIN/OWNER  (import masivo es operación de admin)
+//   GET    /                  → STAFF
+//   GET    /:code             → STAFF
+//   PATCH  /:code/visit       → STAFF        (incremento de visita durante check-in)
+//   PUT    /:code             → STAFF        (operator corrige typos)
+//   DELETE /:code             → ADMIN/OWNER  (destructivo)
+
 export function createUsersRouter() {
   const router = Router();
 
-  router.post('/', async (req, res, next) => {
+  router.post('/', requireStaffSession, async (req, res, next) => {
     try {
       const errors = validateUserCreate(req.body);
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
@@ -33,7 +44,7 @@ export function createUsersRouter() {
     }
   });
 
-  router.post('/bulk', async (req, res, next) => {
+  router.post('/bulk', requireStaffSession, requireRole(['owner', 'admin']), async (req, res, next) => {
     try {
       const list = Array.isArray(req.body?.users) ? req.body.users : null;
       if (!list) throw new HttpError(400, 'Body debe contener { users: [...] }');
@@ -106,7 +117,7 @@ export function createUsersRouter() {
     }
   });
 
-  router.get('/', async (req, res, next) => {
+  router.get('/', requireStaffSession, async (req, res, next) => {
     try {
       const users = await req.repos.users.findAll();
       users.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -149,7 +160,7 @@ export function createUsersRouter() {
     }
   });
 
-  router.get('/:code', async (req, res, next) => {
+  router.get('/:code', requireStaffSession, async (req, res, next) => {
     try {
       const user = await req.repos.users.findByCode(req.params.code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
@@ -159,7 +170,7 @@ export function createUsersRouter() {
     }
   });
 
-  router.patch('/:code/visit', async (req, res, next) => {
+  router.patch('/:code/visit', requireStaffSession, async (req, res, next) => {
     try {
       const user = await req.repos.users.incrementVisit(req.params.code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');
@@ -169,7 +180,7 @@ export function createUsersRouter() {
     }
   });
 
-  router.put('/:code', async (req, res, next) => {
+  router.put('/:code', requireStaffSession, async (req, res, next) => {
     try {
       const errors = validateUserUpdate(req.body);
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
@@ -187,7 +198,7 @@ export function createUsersRouter() {
     }
   });
 
-  router.delete('/:code', async (req, res, next) => {
+  router.delete('/:code', requireStaffSession, requireRole(['owner', 'admin']), async (req, res, next) => {
     try {
       const user = await req.repos.users.findByCode(req.params.code);
       if (!user) throw new HttpError(404, 'Usuario no encontrado');

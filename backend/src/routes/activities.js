@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { HttpError } from '../middleware/errorHandler.js';
+import { requireStaffSession } from '../middleware/requireStaffSession.js';
+import { requireRole } from '../middleware/requireRole.js';
 import {
   validateActivityCreate,
   validateActivityUpdate,
@@ -9,8 +11,22 @@ import { deleteUploadFile } from './uploads.js';
 import { notifyActivityCancelled } from '../services/activityCancellation.js';
 import { inviteUsersToActivity } from '../services/invitations.js';
 
+// Tier de autorización por endpoint (ver docs/migration-v2/05-authorization-matrix.md):
+//   POST   /                                    → STAFF        (operator crea actividades)
+//   GET    /                                    → STAFF
+//   GET    /:id                                 → STAFF
+//   GET    /:id/attendees                       → STAFF
+//   PUT    /:id                                 → STAFF
+//   DELETE /:id                                 → ADMIN/OWNER  (destructivo)
+//   GET    /:id/invitations                     → STAFF
+//   POST   /:id/invitations                     → STAFF        (operator invita)
+//   DELETE /:id/invitations/:invId              → STAFF        (revocar)
+
 export function createActivitiesRouter() {
   const router = Router();
+  // Aplicar requireStaffSession a TODO el router; los handlers que requieren
+  // ADMIN/OWNER suman requireRole inline.
+  router.use(requireStaffSession);
 
   router.post('/', async (req, res, next) => {
     try {
@@ -108,7 +124,7 @@ export function createActivitiesRouter() {
     }
   });
 
-  router.delete('/:id', async (req, res, next) => {
+  router.delete('/:id', requireRole(['owner', 'admin']), async (req, res, next) => {
     try {
       const activity = await req.repos.activities.findById(req.params.id);
       if (!activity) throw new HttpError(404, 'Actividad no encontrada');
