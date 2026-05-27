@@ -1,87 +1,166 @@
-# 06 · Runbook · cuarentena de SVG históricos
+# 06 · Runbook · cuarentena de SVG históricos (pre-deploy)
 
 > Procedimiento operacional **obligatorio antes de cada deploy** mientras la
 > política sea "uploads nuevos rechazan SVG, pero el path estático sigue
-> sirviendo los SVG ya escritos en `backend/data/uploads`".
+> sirviendo lo que ya hay en `data/uploads`".
 >
-> Este runbook se debe ejecutar en el ambiente target — typicamente prod —
-> sin acceso destructivo. El operador humano decide la cuarentena; el script
-> solo *inventaría*.
+> El operador humano decide la cuarentena; el script solo *inventa* — solo lee.
 
 ## Por qué existe este runbook
 
-El hardening commit `497f3c1` (security/p0-hardening) removió `image/svg+xml`
-del fileFilter de multer, así que **uploads nuevos** quedan bloqueados. Pero
-`backend/server.js` sigue exponiendo `/uploads/*` como contenido estático:
-cualquier SVG que se haya subido **antes** del hardening sigue siendo servido
-con su contenido tal cual.
+El hardening commit `497f3c1` removió `image/svg+xml` del `fileFilter` de
+multer, así que **uploads nuevos** quedan bloqueados. El commit `60dd781`
+añadió validación de contenido (sharp format whitelist + GIF magic byte)
+para rechazar SVG disfrazado de PNG/GIF/WebP en los uploads nuevos. Pero
+`/uploads/*` sigue siendo path estático: cualquier archivo ya escrito al
+volumen antes del hardening — incluyendo SVG renombrado como `.png` por un
+atacante en el pasado — sigue siendo servido tal cual.
 
-Esto deja una ventana residual de XSS si en el pasado se subió un SVG con
-`<script>`, `onload=`, `javascript:` o `<foreignObject>`. La regex de
-`sanitizeSvg` que tenemos no se aplicó retroactivamente al volumen.
+Este runbook produce evidencia firmada de que el volumen está limpio
+(o, si no lo está, qué archivos cuarentenar) **antes** de exponer la rama
+a producción.
 
-## Antes de cada deploy a producción
+## Pre-requisitos
 
-Pre-requisito: tener acceso SSH de solo lectura al volumen `/data/uploads`
-del contenedor en Coolify (ver `reference_production_infra.md`).
+- SSH al VPS Coolify con permiso de **lectura** sobre el volumen del
+  contenedor (`persistent_storage/<container>/data/uploads`).
+- El script `audit-historical-svg.mjs` NO está en producción todavía: vive
+  en esta rama. Se transfiere a `/tmp` en el host, se ejecuta una vez, y se
+  borra. NO se monta sobre el contenedor; el script lee el volumen desde el
+  host.
+- Tener `node` en el VPS (lo provee Coolify) o ejecutar el script dentro de
+  un contenedor base de Node 24 con bind-mount al volumen.
 
-1. **Inventariar.** En la máquina target, **el comando que se debe ejecutar
-   tal cual** (con `--dir` explícito para no depender del CWD):
+## Procedimiento (read-only, evidencia firmada)
 
+Las variables `$VPS`, `$VOLUME_PATH` y `$RUN_ID` se setean al inicio:
+
+```bash
+# Identificadores de esta corrida
+RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+VPS="ops@vps.contan2.example"                    # ajustar
+VOLUME_PATH="/var/lib/docker/volumes/contan2-saas_uploads/_data"  # ajustar
+LOCAL_SCRIPT="backend/scripts/audit-historical-svg.mjs"
+REMOTE_SCRIPT="/tmp/audit-historical-svg.${RUN_ID}.mjs"
+EVIDENCE_DIR="evidence/svg-audit/${RUN_ID}"
+mkdir -p "$EVIDENCE_DIR"
+```
+
+### Paso 1 · Calcular checksum local del script
+
+```bash
+shasum -a 256 "$LOCAL_SCRIPT" | tee "$EVIDENCE_DIR/checksum.local.txt"
+```
+
+Guarda el sha256 del script tal y como existe en la rama. Cualquier
+modificación posterior se detecta comparando con esta firma.
+
+### Paso 2 · Transferir el script al VPS
+
+```bash
+scp "$LOCAL_SCRIPT" "$VPS:$REMOTE_SCRIPT"
+```
+
+El destino es `/tmp/...` con `RUN_ID` en el nombre — no choca con runs
+previos, no toca `/app`, no toca el volumen.
+
+### Paso 3 · Verificar integridad del script en el VPS
+
+```bash
+ssh "$VPS" "shasum -a 256 $REMOTE_SCRIPT" | tee "$EVIDENCE_DIR/checksum.remote.txt"
+```
+
+Comparar manualmente `checksum.local.txt` y `checksum.remote.txt`: deben
+coincidir. Si difieren → abortar, investigar man-in-the-middle.
+
+```bash
+diff <(awk '{print $1}' "$EVIDENCE_DIR/checksum.local.txt") \
+     <(awk '{print $1}' "$EVIDENCE_DIR/checksum.remote.txt") \
+  && echo "✓ checksum match"
+```
+
+### Paso 4 · Ejecutar inventario (solo-lectura)
+
+```bash
+ssh "$VPS" "node $REMOTE_SCRIPT --dir $VOLUME_PATH --json" \
+  > "$EVIDENCE_DIR/audit.json"
+echo "$?" > "$EVIDENCE_DIR/exit.code"
+cat "$EVIDENCE_DIR/exit.code"
+```
+
+El script:
+- **NO** escribe en el volumen.
+- **NO** borra ningún archivo.
+- **NO** modifica metadata.
+- **SÍ** abre + lee bytes de cada archivo (sniff por contenido — necesario
+  para detectar SVG renombrado como `.png`/`.jpg`).
+- Emite JSON con el listado completo y exit code estable.
+
+### Paso 5 · Decisión sobre el exit code
+
+| Exit | Significado | Acción |
+|---|---|---|
+| `0` | Directorio legible + 0 SVG por contenido | **Autorizar deploy**. Adjuntar `audit.json` al ticket de release. |
+| `10` | SVG presentes pero sin flags automáticos de riesgo (todos extensión `.svg`, contenido limpio) | Revisión humana caso por caso (Paso 6). |
+| `20` | Al menos un archivo con flag (`script_tag`, `event_handler`, `javascript_uri`, `foreign_object`, `expression_css`, `wrong_extension`) | **Bloquear deploy** y aplicar cuarentena (Paso 6). |
+| `1`  | Directorio no existe / no es directorio / sin permisos / I/O / cualquier ambigüedad | **Bloquear deploy**. NO se asume "clean" — investigar path, permisos, y reintentar. |
+
+Exit `1` y exit `20` son indistinguibles para efectos de "puedo deployar":
+ambos bloquean.
+
+### Paso 6 · Cuarentena humana (solo si exit 10/20)
+
+Por cada archivo flaggeado en `audit.json`:
+
+a. Mover fuera del path estático (NO borrar — preservar para forensia):
    ```bash
-   node scripts/audit-historical-svg.mjs --dir /data/uploads --json > /tmp/svg-audit.json
-   echo "exit: $?"
+   ssh "$VPS" "sudo mkdir -p /data/svg-quarantine/${RUN_ID} && \
+               sudo mv $VOLUME_PATH/<archivo> /data/svg-quarantine/${RUN_ID}/<archivo>"
    ```
 
-   El script falla **cerrado** ante cualquier ambigüedad — sin acceso al
-   volumen NO devuelve "clean". Tabla de decisión:
+b. Identificar dueños de la URL en DB (solo SELECT, jamás UPDATE sin
+   confirmación del operador):
+   ```sql
+   SELECT id, slug, logo_url, email_logo_url
+     FROM organizations
+    WHERE logo_url LIKE '%<archivo>' OR email_logo_url LIKE '%<archivo>';
+   SELECT id, name, image_url
+     FROM activities
+    WHERE image_url LIKE '%<archivo>';
+   ```
 
-   | Exit | Significado | Acción |
-   |---|---|---|
-   | `0` | Directorio existe + es legible + 0 SVG | Continuar deploy normal |
-   | `10` | SVG presentes sin flags automáticos | Revisar JSON, decidir caso por caso (paso 2) |
-   | `20` | SVG con flags de riesgo (`script_tag`, `event_handler`, `javascript_uri`, `foreign_object`, `expression_css`) | **Bloquear deploy** y aplicar paso 2 |
-   | `1` | Directorio no existe / no es directorio / sin permisos / error I/O | **Bloquear deploy**. NO asumir clean; investigar el path y los permisos. |
+c. Confirmar con el operador si la imagen era legítima (entonces re-subir
+   versión sanitizada) o desconocida (vaciar el campo). Cualquier UPDATE va
+   solo después de explícita autorización; queda registrado.
 
-   El exit `1` NUNCA se interpreta como "probablemente está bien": es
-   "no pude verificar" y eso bloquea el deploy igual que `20`.
+d. Re-correr Paso 4 contra el volumen ya cuarentenado. El resultado debe
+   ser exit `0` antes de autorizar deploy.
 
-2. **Cuarentena humana del SVG sospechoso.** Para cada archivo flaggeado:
+### Paso 7 · Cleanup (solo del script temporal)
 
-   a. Copiar el archivo a un directorio *fuera* del path estático servido
-      por Express, conservando el path original como nota:
-      ```bash
-      mkdir -p /data/svg-quarantine
-      mv /data/uploads/<archivo>.svg /data/svg-quarantine/<archivo>.svg
-      ```
-      A partir de ese momento la URL pública `/uploads/<archivo>.svg`
-      devuelve 404 — los consumidores (tenant settings, branding) deben
-      apuntarse a una versión rasterizada (paso b) o a un placeholder.
+```bash
+ssh "$VPS" "rm -f $REMOTE_SCRIPT"
+```
 
-   b. Identificar qué fila de qué tabla referencia ese URL:
-      ```sql
-      -- En psql contra la DB de prod (solo SELECT, no UPDATE sin revisión):
-      SELECT id, slug, logo_url, email_logo_url
-        FROM organizations
-       WHERE logo_url LIKE '%<archivo>.svg' OR email_logo_url LIKE '%<archivo>.svg';
-      SELECT id, name, image_url
-        FROM activities
-       WHERE image_url LIKE '%<archivo>.svg';
-      ```
+**Solo se borra el script de `/tmp`.** Nunca se tocan `/data/uploads`,
+`/data/svg-quarantine`, ni ningún path productivo. Si el cleanup falla
+(VPS sin permisos al `/tmp` del usuario, lo que sería raro), no bloquea
+el deploy — `/tmp` se purga eventualmente, y el script no expone ningún
+secreto al estar en disco.
 
-   c. Si la organización dueña confirma la imagen es legítima, generar una
-      versión PNG sanitizada localmente (con `sharp` desde un script
-      auxiliar — no implementado en este sprint, se queda como TODO) y
-      reemplazar la URL en la fila correspondiente con `UPDATE ... SET
-      logo_url = '/uploads/<nuevo>.png'`. Si la organización confirma que
-      es desconocida o se subió por error, vaciar el campo (`SET logo_url
-      = NULL`) y notificar.
+### Paso 8 · Archivar evidencia
 
-3. **Re-inventariar después de cuarentena.** Repetir paso 1; el resultado
-   debe ser exit `0` para autorizar el deploy.
+```bash
+ls -la "$EVIDENCE_DIR/"
+# debe contener:
+#   checksum.local.txt
+#   checksum.remote.txt
+#   audit.json
+#   exit.code
+```
 
-4. **Guardar el reporte JSON** del paso 1 en el log del incidente — sirve
-   como evidencia de que se hizo la verificación antes del deploy.
+Adjuntar el directorio al ticket de release. La evidencia incluye qué
+archivos vivían en el volumen al momento del audit, sin tocar ninguno.
 
 ## Cuándo se puede retirar este runbook
 
@@ -89,8 +168,8 @@ Cuando una de estas dos condiciones se cumpla:
 
 - (a) Se integre un sanitizer SVG robusto (DOMPurify+jsdom o un sanitizer
   SVG dedicado), se aplique retroactivamente al volumen completo (un solo
-  pase) y el endpoint `/api/uploads/image` se re-habilite para `image/svg+xml`
-  con esa sanitización en el `optimizeImage` step.
+  pase) y el endpoint `/api/uploads/image` se re-habilite para
+  `image/svg+xml` con esa sanitización.
 - (b) Se decida que el sistema nunca aceptará SVG y se ejecute un pase único
   de conversión a PNG (o eliminación) para todos los SVG históricos, con
   audit log de cada cambio.
@@ -103,24 +182,39 @@ de deploy.
 | Ambiente | Path del volumen | Acceso |
 |---|---|---|
 | local (dev) | `backend/data/uploads/` | directo |
-| local (test) | `backend/data/uploads/` (compartido con dev) | directo |
-| docker-compose.test | `backend/data/uploads/` montado en el container app | docker exec |
-| producción Coolify | `persistent_storage/<container>/data/uploads` | SSH al VPS + acceso al volumen |
+| docker-compose.test | volumen efímero del contenedor de tests | (no aplica — datos descartables) |
+| producción Coolify | `persistent_storage/<container>/data/uploads` | SSH al VPS según los pasos arriba |
 
 ## Resultado del inventario en local (referencia para CI)
 
-Resultado de la última corrida en este checkout (ambiente local de
-desarrollo, no producción):
+Última corrida en este checkout (ambiente local de desarrollo, no producción):
 
 ```
-$ node backend/scripts/audit-historical-svg.mjs
-[audit-svg] directorio: backend/data/uploads
-[audit-svg] SVG encontrados: 0
-[audit-svg] ✓ sin SVG en el volumen — deploy permitido
+$ node backend/scripts/audit-historical-svg.mjs --json
+{
+  "dir": "/.../backend/data/uploads",
+  "scannedFiles": 7,
+  "svgByContent": 0,
+  "withRiskFlags": 0,
+  "entries": []
+}
 $ echo $?
 0
 ```
 
-Estado de producción: no inspeccionado en este sprint. Pendiente correr el
-script vía SSH contra el volumen `data/uploads` del contenedor en Coolify
-con autorización explícita del operador.
+Y como prueba de detección, plantando un SVG malicioso con extensión `.png`
+en un directorio temporal:
+
+```
+$ echo '<svg><script>alert(1)</script><foreignObject>...</foreignObject></svg>' > /tmp/fake/logo.png
+$ node backend/scripts/audit-historical-svg.mjs --dir /tmp/fake
+[audit-svg] SVG (por contenido) encontrados: 1
+  /tmp/fake/logo.png  ext=.png  ...  [script_tag,javascript_uri,foreign_object,wrong_extension]
+[audit-svg] ✗ BLOQUEAR DEPLOY
+$ echo $?
+20
+```
+
+Estado de producción: **no inspeccionado en este sprint**. Pendiente
+ejecutar el procedimiento de los pasos 1-8 vía SSH con autorización
+explícita del operador antes del merge/deploy.

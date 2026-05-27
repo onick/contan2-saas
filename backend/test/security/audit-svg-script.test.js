@@ -106,9 +106,92 @@ describe('audit-historical-svg.mjs · fail-closed', () => {
     expect(code).toBe(20);
     const report = JSON.parse(stdout);
     expect(report.dir).toBe(workdir);
-    expect(report.total).toBe(1);
+    expect(report.svgByContent).toBe(1);
     expect(report.withRiskFlags).toBe(1);
     expect(Array.isArray(report.entries)).toBe(true);
     expect(report.entries[0].flags).toContain('script_tag');
+  });
+
+  // ===========================================================================
+  // Detección por contenido (no por extensión)
+  // ===========================================================================
+  // Un SVG malicioso renombrado a `logo.png` se sirve igual con Content-Type
+  // image/png por el middleware estático; el sniffer del navegador puede
+  // re-interpretarlo. Defensa en profundidad: el inventario debe identificarlo.
+
+  it('detecta SVG con extensión .png (renombrado malicioso)', () => {
+    writeFileSync(
+      path.join(workdir, 'logo.png'),
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><circle r="1"/></svg>',
+    );
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(20);
+    const report = JSON.parse(stdout);
+    expect(report.svgByContent).toBe(1);
+    expect(report.entries[0].extension).toBe('.png');
+    expect(report.entries[0].flags).toContain('script_tag');
+    expect(report.entries[0].flags).toContain('wrong_extension');
+  });
+
+  it('detecta SVG con extensión .jpg (renombrado malicioso)', () => {
+    writeFileSync(
+      path.join(workdir, 'avatar.jpg'),
+      '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><iframe src="javascript:alert(1)"></iframe></foreignObject></svg>',
+    );
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(20);
+    const report = JSON.parse(stdout);
+    expect(report.svgByContent).toBe(1);
+    expect(report.entries[0].extension).toBe('.jpg');
+    expect(report.entries[0].flags).toEqual(
+      expect.arrayContaining(['foreign_object', 'javascript_uri', 'wrong_extension']),
+    );
+  });
+
+  it('detecta SVG precedido por declaración <?xml ?>', () => {
+    writeFileSync(
+      path.join(workdir, 'hero.png'),
+      '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg"><circle/></svg>',
+    );
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    // Sin payload malicioso pero igual SVG-por-contenido con extensión incorrecta
+    // → flag `wrong_extension` ⇒ exit 20.
+    expect(code).toBe(20);
+    const report = JSON.parse(stdout);
+    expect(report.svgByContent).toBe(1);
+    expect(report.entries[0].flags).toContain('wrong_extension');
+  });
+
+  it('NO marca como SVG un PNG real (8 bytes signature + IHDR)', () => {
+    // PNG signature: 89 50 4E 47 0D 0A 1A 0A + IHDR chunk header
+    const png = Buffer.from([
+      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+      0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+    ]);
+    writeFileSync(path.join(workdir, 'real.png'), png);
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(0);
+    const report = JSON.parse(stdout);
+    expect(report.scannedFiles).toBe(1);
+    expect(report.svgByContent).toBe(0);
+  });
+
+  it('NO marca como SVG un JPEG real (firma SOI)', () => {
+    // JPEG SOI: FF D8 FF E0
+    const jpeg = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46]);
+    writeFileSync(path.join(workdir, 'real.jpg'), jpeg);
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(0);
+    const report = JSON.parse(stdout);
+    expect(report.svgByContent).toBe(0);
+  });
+
+  it('SVG con extensión .svg sin payload → exit 10 sin wrong_extension', () => {
+    writeFileSync(path.join(workdir, 'ok.svg'), '<svg><circle r="1"/></svg>');
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(10);
+    const report = JSON.parse(stdout);
+    expect(report.svgByContent).toBe(1);
+    expect(report.entries[0].flags).not.toContain('wrong_extension');
   });
 });

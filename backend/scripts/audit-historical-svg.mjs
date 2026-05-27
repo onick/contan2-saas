@@ -1,50 +1,62 @@
 // =============================================================================
 // audit-historical-svg.mjs · INVENTARIO solo-lectura de SVG en uploads.
 // =============================================================================
-// Lista los .svg que viven en el directorio de uploads (`backend/data/uploads`
-// o el que se pase con --dir). NO borra nada. NO modifica nada.
+// Recorre TODOS los archivos del directorio de uploads (no solo `.svg`) y
+// detecta SVG por contenido. NO borra. NO modifica.
 //
-// Para cada SVG reporta:
+// Por qué inspeccionar por contenido y no solo por extensión:
+//   Un SVG malicioso renombrado a `logo.png` se sirve igual con Content-Type
+//   `image/png` por nuestro middleware estático, pero el navegador puede
+//   re-interpretarlo según el header X-Content-Type-Options. Aunque tenemos
+//   `nosniff` activo desde el commit 60dd781, defensa en profundidad exige
+//   detectar también renombres maliciosos en el volumen.
+//
+// Detección de SVG por contenido (en los primeros 4 KiB):
+//   - Empieza con `<?xml ...?>` seguido eventualmente por `<svg`
+//   - Empieza con `<!DOCTYPE svg`
+//   - Empieza con `<svg`
+//   - `<svg ` aparece después de whitespace/BOM/comentarios/declaraciones XML
+//
+// Para cada archivo identificado como SVG (por contenido) reporta:
 //   - ruta absoluta
-//   - tamaño en bytes
-//   - mtime
-//   - flags heurísticos de riesgo:
-//       script_tag      → contiene <script
-//       event_handler   → contiene atributo on* (onload, onclick, …)
-//       javascript_uri  → contiene 'javascript:' (con o sin entidades)
-//       foreign_object  → contiene <foreignObject> (vector típico de XSS SVG)
-//       expression_css  → contiene 'expression(' o url(javascript: en style
+//   - extensión "declarada" (la que tiene en disco) — útil para detectar renombres
+//   - tamaño + mtime
+//   - flags de riesgo:
+//       script_tag      → <script
+//       event_handler   → on* (onload, onclick, …)
+//       javascript_uri  → 'javascript:' (literal o con entidades)
+//       foreign_object  → <foreignObject>
+//       expression_css  → expression() o url(javascript:) en style
+//       wrong_extension → SVG detectado por contenido cuya extensión NO es .svg
+//                         (vector de bypass del header Content-Type estático)
 //
-// Uso:
+// Uso (CLI):
 //   node scripts/audit-historical-svg.mjs                       # default backend/data/uploads
-//   node scripts/audit-historical-svg.mjs --dir /path/to/uploads
-//   node scripts/audit-historical-svg.mjs --json                # output JSON puro
+//   node scripts/audit-historical-svg.mjs --dir /data/uploads   # producción
+//   node scripts/audit-historical-svg.mjs --json                # output JSON parseable
 //
-// Procedimiento pre-deploy obligatorio (ver docs/migration-v2/06-svg-quarantine-runbook.md):
-//   1. Ejecutar este script contra el volumen de uploads del ambiente target
-//      (prod via `ssh ... 'node scripts/audit-historical-svg.mjs --json'`
-//      sin acceso destructivo).
-//   2. Si retorna 0 archivos → continuar deploy normal.
-//   3. Si retorna archivos con flags de riesgo → cuarentena manual antes de
-//      seguir (mover a un directorio fuera del path estático servido por
-//      Express + convertir a PNG con un sanitizer o eliminar).
+// Procedimiento pre-deploy contra producción: ver
+// docs/migration-v2/06-svg-quarantine-runbook.md (transferencia SCP del
+// script a /tmp + ejecución solo-lectura + cleanup del script temporal).
 //
 // Exit codes (fail-closed):
-//   0  → directorio existe, es legible, sin SVG encontrados (clean)
-//   10 → SVG encontrados pero NINGUNO con flags de riesgo (revisar)
-//   20 → SVG con al menos un flag de riesgo (BLOQUEAR deploy hasta tratar)
-//   1  → cualquier error (directorio inexistente, no-directorio, sin permisos,
-//        argumento inválido, I/O failure). NUNCA se devuelve 0 cuando no se
-//        pudo verificar — un "no encontré nada" sin acceso al volumen es
-//        indistinguible de "no hay riesgo", así que falla cerrado.
+//   0  → directorio existe + legible + sin SVG por contenido (clean)
+//   10 → SVG detectados, NINGUNO con flags de riesgo (revisar manualmente)
+//   20 → al menos un SVG con flags de riesgo (BLOQUEA deploy)
+//   1  → cualquier error (dir inexistente / no-directorio / sin permisos / I/O)
+//        — NUNCA exit 0 cuando no se pudo verificar.
 // =============================================================================
 
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat, open } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DIR = path.resolve(__dirname, '..', 'data', 'uploads');
+
+// Cuánto leemos para decidir si es SVG. 4 KiB cubre cualquier header XML
+// realista (más una posible declaración DOCTYPE larga).
+const SNIFF_BYTES = 4096;
 
 function parseArgs(argv) {
   const args = { dir: DEFAULT_DIR, json: false };
@@ -61,10 +73,11 @@ function parseArgs(argv) {
 }
 
 const RISK_PATTERNS = {
-  // \b en vez de [\s>] cubre también <script/>, <SCRIPT >, <ScRiPt\n…
+  // \b cubre <script>, <script />, <SCRIPT >, <ScRiPt\n…
   script_tag: /<script\b/i,
   event_handler: /\son[a-z]+\s*=/i,
-  javascript_uri: /javascript\s*:|&#x?6[Aa];?\s*avascript/i,
+  // 'javascript:' literal o entidad &#x6A;avascript / &#106;avascript
+  javascript_uri: /javascript\s*:|&#x?6[Aa];?\s*avascript|&#106;\s*avascript/i,
   foreign_object: /<foreignObject\b/i,
   expression_css: /expression\s*\(|style\s*=\s*["'][^"']*url\s*\(\s*javascript/i,
 };
@@ -77,17 +90,56 @@ function flagsOf(content) {
   return flags;
 }
 
-async function walk(dir) {
-  // Solo el caller raíz hace la verificación de existencia con fail-closed;
-  // subdirectorios pueden no existir si fueron borrados durante el walk,
-  // pero el caso normal es que todo el subárbol exista.
+/**
+ * Sniffer de SVG por contenido sobre los primeros 4 KiB.
+ *
+ * Conservador: si el archivo no puede ser abierto/leído lo trataremos
+ * como "no-SVG" — pero el caller agrega un `read_error` aparte, así que
+ * archivos ilegibles aún se reportan.
+ *
+ * Devuelve `{ isSvg, head }` para que el caller reuse `head` en flagsOf.
+ */
+async function sniffSvgHead(filePath) {
+  let fd;
+  try {
+    fd = await open(filePath, 'r');
+  } catch {
+    return { isSvg: false, head: '', readError: true };
+  }
+  try {
+    const buf = Buffer.alloc(SNIFF_BYTES);
+    const { bytesRead } = await fd.read(buf, 0, SNIFF_BYTES, 0);
+    // utf8 decode + strip BOM y whitespace inicial.
+    const raw = buf.slice(0, bytesRead).toString('utf8');
+    const trimmed = raw.replace(/^﻿/, '').trimStart();
+
+    // Caso A: empieza con <?xml ...?> (con o sin attrs) y contiene <svg después.
+    if (/^<\?xml\b[\s\S]{0,500}?<svg\b/i.test(trimmed)) return { isSvg: true, head: raw };
+
+    // Caso B: empieza con <!DOCTYPE svg
+    if (/^<!DOCTYPE\s+svg\b/i.test(trimmed)) return { isSvg: true, head: raw };
+
+    // Caso C: empieza con <svg (con o sin xmlns).
+    if (/^<svg\b/i.test(trimmed)) return { isSvg: true, head: raw };
+
+    // Caso D: dentro del head hay <svg> tras comentarios/XML decl/whitespace.
+    // Sólo lo aceptamos si el trimmed empieza con '<' (i.e., no es binario).
+    if (trimmed.startsWith('<') && /<svg\b/i.test(trimmed)) return { isSvg: true, head: raw };
+
+    return { isSvg: false, head: raw };
+  } finally {
+    await fd.close();
+  }
+}
+
+async function walkAll(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const out = [];
   for (const e of entries) {
     const full = path.join(dir, e.name);
     if (e.isDirectory()) {
-      out.push(...await walk(full));
-    } else if (e.isFile() && /\.svg$/i.test(e.name)) {
+      out.push(...await walkAll(full));
+    } else if (e.isFile()) {
       out.push(full);
     }
   }
@@ -96,7 +148,7 @@ async function walk(dir) {
 
 /**
  * Fail-closed: el directorio raíz debe existir, ser directorio y ser legible.
- * Cualquier desviación → throws con un mensaje accionable que el caller
+ * Cualquier desviación → throws con mensaje accionable que el caller
  * convierte en exit 1.
  */
 async function assertRootDirReadable(dir) {
@@ -115,7 +167,6 @@ async function assertRootDirReadable(dir) {
   if (!st.isDirectory()) {
     throw new Error(`no es directorio: ${dir} — fail-closed (exit 1)`);
   }
-  // Verifica que efectivamente podemos leerlo (no solo statearlo).
   try {
     await readdir(dir);
   } catch (e) {
@@ -127,7 +178,6 @@ async function main() {
   const args = parseArgs(process.argv);
   const dir = args.dir;
 
-  // Fail-closed: verificamos el directorio raíz ANTES de declarar "clean".
   try {
     await assertRootDirReadable(dir);
   } catch (e) {
@@ -137,59 +187,91 @@ async function main() {
 
   let files;
   try {
-    files = await walk(dir);
+    files = await walkAll(dir);
   } catch (e) {
     console.error(`[audit-svg] error leyendo ${dir}: ${e.message}`);
     process.exit(1);
   }
 
+  // Pasada 1: sniff de cabeza para identificar SVG (por contenido, ignorando
+  // extensión). Sólo los archivos identificados como SVG entran al reporte.
+  // Files binarios (PNG/JPEG/WebP/GIF reales) se omiten silenciosamente.
   const report = [];
-  let anyRisk = false;
   for (const file of files) {
-    let content = '';
-    let size = 0;
-    let mtime = null;
+    let st;
     try {
-      const st = await stat(file);
-      size = st.size;
-      mtime = st.mtime.toISOString();
-      content = await readFile(file, 'utf8');
+      st = await stat(file);
     } catch (e) {
+      // No podemos leer la metadata — fail-closed: reportarlo como riesgo.
       report.push({ file, error: e.message, flags: ['read_error'] });
-      anyRisk = true;
       continue;
     }
-    const flags = flagsOf(content);
-    if (flags.length > 0) anyRisk = true;
-    report.push({ file, size, mtime, flags });
+
+    const { isSvg, head, readError } = await sniffSvgHead(file);
+    if (readError) {
+      report.push({
+        file, size: st.size, mtime: st.mtime.toISOString(),
+        flags: ['read_error'],
+      });
+      continue;
+    }
+    if (!isSvg) continue; // archivo binario "normal" — no es SVG, no entra al reporte
+
+    // Es SVG por contenido. Leemos el archivo completo para evaluar flags
+    // (porque vectores como <foreignObject> pueden estar fuera de los 4 KiB
+    // iniciales si el SVG es grande).
+    let fullContent = head;
+    if (st.size > SNIFF_BYTES) {
+      try { fullContent = await readFile(file, 'utf8'); }
+      catch (e) {
+        report.push({
+          file, size: st.size, mtime: st.mtime.toISOString(),
+          flags: ['read_error'], error: e.message,
+        });
+        continue;
+      }
+    }
+
+    const flags = flagsOf(fullContent);
+    // Renombre malicioso: SVG por contenido cuya extensión NO es .svg.
+    const ext = path.extname(file).toLowerCase();
+    if (ext !== '.svg') flags.push('wrong_extension');
+
+    report.push({
+      file, size: st.size, mtime: st.mtime.toISOString(),
+      extension: ext || '(none)',
+      flags,
+    });
   }
 
   if (args.json) {
     console.log(JSON.stringify({
       dir,
-      total: report.length,
+      scannedFiles: files.length,
+      svgByContent: report.length,
       withRiskFlags: report.filter(r => (r.flags || []).length > 0).length,
       entries: report,
     }, null, 2));
   } else {
     console.log(`[audit-svg] directorio: ${dir}`);
-    console.log(`[audit-svg] SVG encontrados: ${report.length}`);
+    console.log(`[audit-svg] archivos escaneados: ${files.length}`);
+    console.log(`[audit-svg] SVG (por contenido) encontrados: ${report.length}`);
     if (report.length === 0) {
-      console.log('[audit-svg] ✓ sin SVG en el volumen — deploy permitido');
+      console.log('[audit-svg] ✓ sin SVG por contenido — deploy permitido');
     } else {
       const withRisk = report.filter(r => (r.flags || []).length > 0);
       console.log(`[audit-svg] con flags de riesgo: ${withRisk.length}`);
       console.log('');
       for (const r of report) {
         const flag = (r.flags || []).length ? ` [${r.flags.join(',')}]` : '';
-        console.log(`  ${r.file}  ${r.size}B  ${r.mtime}${flag}`);
+        console.log(`  ${r.file}  ext=${r.extension || '?'}  ${r.size}B  ${r.mtime}${flag}`);
       }
       if (withRisk.length > 0) {
         console.log('');
         console.log('[audit-svg] ✗ BLOQUEAR DEPLOY — ver docs/migration-v2/06-svg-quarantine-runbook.md');
       } else {
         console.log('');
-        console.log('[audit-svg] ⚠ revisar manualmente — sin flags automáticos pero hay SVG presentes');
+        console.log('[audit-svg] ⚠ revisar manualmente — sin flags automáticos pero hay SVG por contenido');
       }
     }
   }
