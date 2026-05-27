@@ -5,28 +5,41 @@ import { sendCredentialEmail } from '../services/email.js';
 import { rateLimit } from '../utils/rateLimit.js';
 import { requireStaffSession } from '../middleware/requireStaffSession.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { recordAudit } from '../services/auth/auditService.js';
 
 // Tier de autorización (ver docs/migration-v2/05-authorization-matrix.md):
 //   GET    /:code.png    → PUBLIC bearer-style  (código actúa como token portador)
-//   POST   /:code/send   → STAFF                (V008b · antes sin auth con rate IP)
+//   POST   /:code/send   → STAFF + audit log    (V008b · antes sin auth)
 //   POST   /bulk-send    → ADMIN/OWNER          (operación masiva)
 //
-// El `GET /:code.png` queda público porque el visitante recibe el link por
-// email y descarga su credencial sin login. Mitigaciones: regex estricto del
-// código + rate limit por IP + respuesta solo con QR/nombre (sin PII extra).
+// Política del GET público:
+//   - Sin auth (el visitante descarga su credencial desde el link en su email)
+//   - PNG contiene solo: nombre del visitante + código CCB + QR + branding
+//   - NO contiene email (removido para limitar PII portable si el link se reenvía)
+//   - Rate limit por IP (60 req/min) — la regex estricta `[A-Z]{2,6}-[A-Z0-9]{6}`
+//     hace inviable brute-force, pero el limit corta enumeración por timing
+//   - Sin información que distinga "código no existe" de "error interno"
+//     más allá del status code (404 vs 500)
 
-// 3 envíos de credencial por minuto por IP — defensa adicional encima de la
-// sesión, ya que un staff comprometido podría intentar spam.
+// Rate limit para POST /:code/send — defensa contra spam aun con sesión.
 const credentialSendLimit = rateLimit({
   windowMs: 60_000,
   max: 5,
   message: 'Demasiados envíos de credencial. Espera un minuto.',
 });
 
+// Rate limit para GET /:code.png — corta enumeración masiva por timing.
+// El endpoint es público, así que es la única defensa de capa de red.
+const credentialPngLimit = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  message: 'Demasiadas descargas. Intenta en un momento.',
+});
+
 export function createCredentialsRouter() {
   const router = Router();
 
-  router.get('/:code.png', async (req, res, next) => {
+  router.get('/:code.png', credentialPngLimit, async (req, res, next) => {
     try {
       const code = String(req.params.code || '').toUpperCase();
       if (!/^[A-Z]{2,6}-[A-Z0-9]{6}$/.test(code)) {
@@ -70,6 +83,15 @@ export function createCredentialsRouter() {
       }
       // Marca el timestamp de credencial enviada (para que la UI sepa el estado)
       await req.repos.users.markCredentialSent(user.code).catch(() => {});
+      // Audit log de la acción (PII enmascarada).
+      recordAudit({
+        req,
+        action: 'credential.sent',
+        targetType: 'user',
+        targetId: user.id,
+        targetLabel: user.code,
+        metadata: { resendId: result.id || null, emailMasked: user.email ? user.email.replace(/^(.).+(@.+)$/, '$1***$2') : null },
+      }).catch(() => {});
       res.json({ ok: true, id: result.id, email: user.email });
     } catch (e) {
       next(e);

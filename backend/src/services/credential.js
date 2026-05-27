@@ -28,7 +28,11 @@ export async function generateCredentialPng(user, organization = null) {
 
   const fullName = `${user.firstName} ${user.lastName}`.trim();
   const displayName = fullName.length > 28 ? fullName.slice(0, 26) + '…' : fullName;
-  const email = user.email && user.email.length < 36 ? user.email : '';
+  // El email NO se incluye en el PNG. El visitante recibe el PNG por su
+  // propio correo cuando el staff dispara `POST /api/credentials/:code/send`,
+  // así que el email es contextual al destinatario y no aporta nada al
+  // PNG. Removerlo reduce la PII portable si alguien comparte el link
+  // público del PNG.
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560">
@@ -65,8 +69,6 @@ export async function generateCredentialPng(user, organization = null) {
     <rect x="0" y="0" width="320" height="70" rx="14" fill="url(#codebg)"/>
     <text x="160" y="48" text-anchor="middle" font-family="Menlo, Monaco, monospace" font-size="32" font-weight="700" fill="${tokens.onAccent}" letter-spacing="4">${escapeXml(user.code)}</text>
   </g>
-
-  ${email ? `<text x="50" y="410" font-family="Inter, Helvetica, Arial, sans-serif" font-size="16" fill="${tokens.onPrimary}" fill-opacity="0.75">${escapeXml(email)}</text>` : ''}
 
   <text x="50" y="500" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="${tokens.onPrimary}" fill-opacity="0.55" letter-spacing="2">PRESENTAR ESTE QR EN LA ENTRADA</text>
   <text x="50" y="520" font-family="Inter, Helvetica, Arial, sans-serif" font-size="11" fill="${tokens.onPrimary}" fill-opacity="0.45">${escapeXml(tokens.orgName)}</text>
