@@ -327,93 +327,188 @@ Esperar hasta:
 ##### A.5 · Verificación del SHA desplegado (obligatorio antes de B)
 
 Antes de probar nada o tocar datos, confirmar que el contenedor activo
-fue construido desde `$EXPECTED_SHA`. Hay dos mecanismos primarios y
-uno secundario.
+fue construido desde `$EXPECTED_SHA`. Se exigen **dos checks
+coincidentes**, no opcionales.
 
-Pre-requisito de build: Coolify (o el build manual) debe pasar el SHA
-como build arg. El Dockerfile en esta rama declara
-`ARG GIT_SHA=unknown`, lo propaga a
-`LABEL org.opencontainers.image.revision=$GIT_SHA` y a
-`ENV BUILD_SHA=$GIT_SHA`. Si el build NO recibió `--build-arg GIT_SHA=...`,
-todos los mecanismos van a reportar `unknown` y el operador debe
-abortar — un container no trazable no pasa A.5.
+Pre-requisito de build (configuración Coolify):
 
-**Configuración en Coolify**: en la app `f3xck8spocf0o377y9w0vq6n`,
-sección "Build Args", agregar:
+1. En la app `f3xck8spocf0o377y9w0vq6n`, **Application Settings → Build**,
+   activar la opción **"Include Source Commit in Build"**. Esto hace que
+   Coolify pase `SOURCE_COMMIT=<sha>` como build arg durante el `docker
+   build`.
 
-```
-GIT_SHA=${COOLIFY_GIT_COMMIT_SHA}
-```
+2. El Dockerfile en esta rama declara:
+   ```dockerfile
+   ARG SOURCE_COMMIT=unknown
+   LABEL org.opencontainers.image.revision="$SOURCE_COMMIT"
+   ENV BUILD_SHA="$SOURCE_COMMIT"
+   ```
+   Si la opción de Coolify no está activa, el build no recibe
+   `SOURCE_COMMIT` y los tres puntos quedan en `unknown` — el operador
+   debe abortar (no se puede certificar identidad).
 
-Coolify expone `COOLIFY_GIT_COMMIT_SHA` automáticamente para deployments
-git-based. Si la versión de Coolify no expone esa variable, alternativa
-manual:
+3. Build manual fuera de Coolify (debug o redeploy local):
+   ```bash
+   docker build --build-arg "SOURCE_COMMIT=$(git rev-parse HEAD)" \
+                -t contan2-saas:$(git rev-parse --short HEAD) .
+   ```
 
-```bash
-docker build --build-arg "GIT_SHA=$(git rev-parse HEAD)" -t contan2-saas:$(git rev-parse --short HEAD) .
-```
+Mecanismos de verificación obligatorios — **ambos deben coincidir con
+`$EXPECTED_SHA`**:
 
-Mecanismos de verificación (preferir el orden listado):
-
-1. **`/api/version`** (primario, implementado en el backend en esta rama):
+1. **`/api/version`** (endpoint público implementado en commit `f16ac12`):
    ```bash
    curl -s https://ccb.contan2.com/api/version | tee "$EVIDENCE_DIR/deploy/version-endpoint.json"
    # Esperado: {"buildSha":"<EXPECTED_SHA>","ts":"..."}
    ```
 
-2. **Label OCI del container**: `org.opencontainers.image.revision` está
-   en la imagen construida; visible vía `docker inspect`:
+2. **Label OCI del container**: `org.opencontainers.image.revision`
+   inyectado al build:
    ```bash
    APP_CONTAINER=$(ssh "$VPS" "docker ps --format '{{.Names}}' | grep ^f3xck8spocf" | head -1)
    ssh "$VPS" "docker inspect $APP_CONTAINER --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}'" \
      | tee "$EVIDENCE_DIR/deploy/container-revision-label.txt"
    ```
 
-3. **Deployment record en Coolify API** (secundario, depende de la versión
-   de Coolify):
-   ```bash
-   curl -s -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
-     "$COOLIFY_BASE_URL/api/v1/applications/f3xck8spocf0o377y9w0vq6n/deployments?limit=1" \
-     | tee "$EVIDENCE_DIR/deploy/coolify-deployments.json"
-   ```
+Verificación dura:
 
-Comparar los valores obtenidos contra `$EXPECTED_SHA`. Se exige que **el
-endpoint `/api/version` Y el label del container** coincidan con
-`$EXPECTED_SHA`. Si alguno devuelve `unknown` o un SHA distinto, abortar
-**antes** de probar el smoke de seguridad B o tocar el volumen/DB.
+```bash
+ENDPOINT_SHA=$(jq -r .buildSha "$EVIDENCE_DIR/deploy/version-endpoint.json")
+LABEL_SHA=$(cat "$EVIDENCE_DIR/deploy/container-revision-label.txt" | tr -d '[:space:]')
 
-El endpoint y el label fueron añadidos en commit `f16ac12` (`feat(deploy):
-identidad de build verificable · ARG GIT_SHA + /api/version`). Antes de
-ese commit no existen; cualquier deployment anterior reporta `unknown` y
-NO pasa A.5.
+[ "$ENDPOINT_SHA" = "$EXPECTED_SHA" ] || { echo "endpoint sha mismatch"; exit 1; }
+[ "$LABEL_SHA"    = "$EXPECTED_SHA" ] || { echo "label sha mismatch";    exit 1; }
+```
+
+Si **cualquiera** de los dos devuelve `unknown`, vacío, o un SHA distinto,
+abortar **antes** de probar el smoke de seguridad B o tocar el
+volumen/DB. Un container con SHA divergente no es certificable como el
+hardening verificado en CI.
+
+(Opcional, evidencia adicional, no bloqueante): el deployment record en
+la Coolify API:
+```bash
+curl -s -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+  "$COOLIFY_BASE_URL/api/v1/applications/f3xck8spocf0o377y9w0vq6n/deployments?limit=1" \
+  | tee "$EVIDENCE_DIR/deploy/coolify-deployments.json"
+```
+
+El endpoint y el label fueron añadidos en commits `f16ac12` y `780c0e7`
+(rename a `SOURCE_COMMIT`). Cualquier deployment anterior reporta
+`unknown` y NO pasa A.5.
 
 Durante este lapso el volumen sigue como en el preflight; los 4 SVG
 históricos siguen siendo servidos pero ya fueron clasificados como
 benignos en 6.A. La degradación visual sigue ausente porque el código
 viejo aún corre hasta que el container nuevo toma el tráfico.
 
+##### AUTH-SMOKE SESSION · Sesión owner para B.2/B.3/D/G (autorización SEPARADA)
+
+Antes de ejecutar B.2 (svg+xml autorizado → 400), B.3 (bytes SVG
+declarados png autorizado → 400), D (`PATCH /api/org/branding`), y la
+parte autenticada de G, se necesita una sesión owner del tenant. Crearla
+**NO es read-only**: el login:
+
+- Inserta una fila en `staff_auth_sessions` (token hash + expires_at + ua + ip).
+- Inserta una entrada `auth.login` en `tenant_audit_log` con el actor y la IP enmascarada.
+- Puede disparar notificación de "nueva IP" si el detector de IPs nuevas
+  está activo (depende de la config del tenant; revisar en
+  `Application Settings → Notifications` de Coolify si aplica).
+
+Procedimiento (autorización separada, **una sola** sesión reutilizable
+para B.2, B.3, D, y G autenticada):
+
+```bash
+# Crear el jar local efímero ANTES del login para que cookies y permisos
+# sean estrictos desde el principio.
+COOKIE_JAR="$EVIDENCE_DIR/cookies-owner.txt"
+( umask 077 && : > "$COOKIE_JAR" )   # 0600
+
+# Login owner del CCB. La sesión queda viva hasta logout o expiración (12h
+# por default si rememberMe=false).
+curl -s -c "$COOKIE_JAR" \
+     -X POST -H 'Content-Type: application/json' \
+     --data "{\"email\":\"$CCB_OWNER_EMAIL\",\"password\":\"$CCB_OWNER_PASSWORD\",\"rememberMe\":false}" \
+     https://ccb.contan2.com/api/auth/login \
+     | tee "$EVIDENCE_DIR/auth-smoke/login.json"
+# Esperado: 200, body.ok=true, body.staff.email = $CCB_OWNER_EMAIL.
+
+# Confirmar la sesión está viva y atribuida al tenant correcto.
+curl -s -b "$COOKIE_JAR" \
+     https://ccb.contan2.com/api/auth/me \
+     | tee "$EVIDENCE_DIR/auth-smoke/me.json"
+# Esperado: 200, body.staff.role='owner', body.staff.organizationId=<CCB UUID>.
+
+# Confirmar que el audit log registró el auth.login.
+curl -s -b "$COOKIE_JAR" \
+     'https://ccb.contan2.com/api/audit-log?action=auth.login&limit=3' \
+     | tee "$EVIDENCE_DIR/auth-smoke/audit-login.json"
+# Esperado: al menos una entry reciente con action='auth.login' y el
+# email enmascarado del owner.
+```
+
+Esta cookie se reutiliza en B.2, B.3, D, y G-auth. **No se hace login
+de nuevo dentro de la ventana** para no crear sesiones residuales.
+
+###### Cleanup post-ventana (después de G o tras abortar)
+
+```bash
+# Revocar la sesión en el server (deja audit auth.logout).
+curl -s -b "$COOKIE_JAR" -X POST \
+     https://ccb.contan2.com/api/auth/logout \
+     | tee "$EVIDENCE_DIR/auth-smoke/logout.json"
+
+# Borrar el jar local. La cookie es un secreto operacional efímero.
+rm -f "$COOKIE_JAR"
+ls -la "$EVIDENCE_DIR/cookies-owner.txt" 2>&1 || echo "✓ cookie jar removido"
+```
+
+El logout es obligatorio aún si la ventana abortó — una sesión owner
+viva con cookie en disco es riesgo operacional. El revoke server-side
+elimina la fila de `staff_auth_sessions`; la cookie local se borra para
+que no quede en `$EVIDENCE_DIR` archivable.
+
 ##### B · Smoke de seguridad inmediato post-deploy
 
 Antes de cualquier escritura intencional al volumen o a la DB, verificar
 que el hardening está vivo y bloquea los vectores principales. El smoke
-se parte en dos bloques porque **B.3 NO es read-only**.
+se parte en dos bloques porque **B.3 NO es read-only**. B.2 y B.3
+**requieren la cookie de AUTH-SMOKE SESSION**.
 
-###### B-read-only (B.1, B.2, B.4) — sin tocar volumen ni DB
+###### B-anon-read-only (B.1, B.4) — sin auth, sin tocar volumen ni DB
 
 | # | Test | Esperado |
 |---|---|---|
 | B.1 | `POST /api/uploads/image` **anónimo** (sin cookie) | `401`. La request muere en `requireStaffSession` antes de llegar a multer; el fileFilter no se ejecuta, no se abre archivo en el volumen. |
-| B.2 | `POST /api/uploads/image` con sesión autorizada + archivo declarado `image/svg+xml` | `400`. El `fileFilter` de multer rechaza por mimetype **antes** de cualquier escritura a disco. |
 | B.4 | `GET /uploads/<cualquier-existente>` | header `X-Content-Type-Options: nosniff` presente |
 
-Estos tres SÍ son read-only para el volumen y DB. Una autorización los
-cubre a todos.
+Estos dos son verdaderamente read-only y no requieren cookie. La
+autorización de B-anon-read-only es implícita en la autorización del
+post-deploy smoke (un solo bloque).
 
-###### B-destructive (B.3) — prueba con escritura temporal, requiere autorización separada
+###### B-auth-read-only (B.2) — usa cookie de AUTH-SMOKE SESSION
 
 | # | Test | Esperado |
 |---|---|---|
-| B.3 | `POST /api/uploads/image` con sesión autorizada + bytes SVG declarados `image/png` | `400`. Sharp detecta `format='svg'` en metadata, no está en el whitelist `{png,jpeg,jpg,webp}`, el archivo recién escrito por multer se borra (`deleteSilently`) y el handler responde `HttpError(400)`. |
+| B.2 | `POST /api/uploads/image` con cookie de owner del jar + archivo declarado `image/svg+xml` | `400`. El `fileFilter` de multer rechaza por mimetype **antes** de cualquier escritura a disco. |
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -b "$COOKIE_JAR" \
+  -X POST -F 'image=@/tmp/innocent.svg;type=image/svg+xml' \
+  https://ccb.contan2.com/api/uploads/image
+# Esperado: 400
+```
+
+B.2 NO escribe al volumen (fileFilter rechaza pre-write), pero SÍ
+consume la sesión owner — está cubierto por la autorización de
+AUTH-SMOKE SESSION, no requiere autorización adicional.
+
+###### B-destructive (B.3) — prueba con escritura temporal · AUTORIZACIÓN SEPARADA
+
+| # | Test | Esperado |
+|---|---|---|
+| B.3 | `POST /api/uploads/image` con cookie del jar + bytes SVG declarados `image/png` | `400`. Sharp detecta `format='svg'` en metadata, no está en el whitelist `{png,jpeg,jpg,webp}`, el archivo recién escrito por multer se borra (`deleteSilently`) y el handler responde `HttpError(400)`. |
 
 Por qué NO es read-only: el `fileFilter` mira solo el `Content-Type`
 declarado por el cliente. Como el cliente miente con `image/png`,
@@ -422,9 +517,10 @@ multer **escribe el archivo al volumen** con un nombre tipo
 del SVG ocurre en `optimizeImage` cuando sharp lee los bytes; ahí se
 borra el archivo. Pero entre el momento del write y el delete hay un
 estado intermedio en el FS — operacionalmente es una prueba destructiva
-controlada, no read-only.
+controlada.
 
-Procedimiento de B.3 con autorización separada:
+Procedimiento de B.3 con autorización separada (reusa el `$COOKIE_JAR`
+ya creado en AUTH-SMOKE SESSION):
 
 ```bash
 # B.3.pre — snapshot del listado de /data/contan2/uploads antes del test
@@ -432,7 +528,7 @@ ssh "$VPS" "ls /data/contan2/uploads | sort" > "$EVIDENCE_DIR/smoke/uploads-befo
 
 # B.3 — ejecutar el POST con bytes SVG + content-type image/png
 curl -s -o /dev/null -w '%{http_code}\n' \
-  -b "$EVIDENCE_DIR/cookies-owner.txt" \
+  -b "$COOKIE_JAR" \
   -X POST -F 'image=@/tmp/svg-disguised.png;type=image/png' \
   https://ccb.contan2.com/api/uploads/image \
   | tee "$EVIDENCE_DIR/smoke/B3-http-status.txt"
@@ -511,24 +607,18 @@ NO usar UPDATE SQL directo como ruta normal. Un UPDATE crudo NO invalida
 cache y NO deja entrada en `tenant_audit_log` — eran las dos razones
 para evitarlo en versiones anteriores del runbook.
 
-Mecánica:
+Mecánica (reusa el `$COOKIE_JAR` de AUTH-SMOKE SESSION; no se hace login
+de nuevo):
 
 ```bash
-# D.1 · Obtener cookie de sesión owner del tenant CCB.
-# Usar las credenciales del owner real (NO el seed de tests). La cookie
-# `contan2_session` se exporta para usar en los curl siguientes.
-curl -s -c "$EVIDENCE_DIR/review-6A/cookies-owner.txt" \
-     -X POST -H 'Content-Type: application/json' \
-     --data "{\"email\":\"$CCB_OWNER_EMAIL\",\"password\":\"$CCB_OWNER_PASSWORD\"}" \
-     https://ccb.contan2.com/api/auth/login \
-     | tee "$EVIDENCE_DIR/review-6A/login-owner.json"
-
-# D.2 · PATCH logoUrl + emailLogoUrl en UNA sola llamada (atomicidad).
-# Las credenciales del owner viajan en variables locales; el body se
-# guarda redactado de toda info sensible (la URL no es sensible).
+# D.1 · PATCH logoUrl + emailLogoUrl en UNA sola llamada (atomicidad).
+# Desde commit 9c15010 el handler envuelve UPDATE + INSERT audit en una
+# transacción única (BEGIN/COMMIT/ROLLBACK). Si el audit falla, el
+# UPDATE se revierte y la respuesta es 5xx — la DB nunca queda con
+# branding nuevo y audit faltante.
 HTTP_STATUS=$(curl -s -o "$EVIDENCE_DIR/review-6A/patch-branding.json" \
   -w '%{http_code}' \
-  -b "$EVIDENCE_DIR/review-6A/cookies-owner.txt" \
+  -b "$COOKIE_JAR" \
   -X PATCH -H 'Content-Type: application/json' \
   --data "{
     \"logoUrl\":      \"/uploads/$NEW_PRIMARY\",
@@ -539,30 +629,26 @@ echo "PATCH branding HTTP: $HTTP_STATUS" | tee -a "$EVIDENCE_DIR/review-6A/patch
 # Esperado: 200, body.ok=true, body.organization.logoUrl === '/uploads/<NEW_PRIMARY>',
 #                              body.organization.emailLogoUrl === '/uploads/<NEW_EMAIL>'.
 
-# D.3 · Confirmar entrada en audit log.
-curl -s -b "$EVIDENCE_DIR/review-6A/cookies-owner.txt" \
+# D.2 · Confirmar entrada en audit log (debe existir ya, no podemos
+# llegar a este punto con un 200 y sin audit gracias a la transacción).
+curl -s -b "$COOKIE_JAR" \
   'https://ccb.contan2.com/api/audit-log?action=branding.updated&limit=5' \
   | tee "$EVIDENCE_DIR/review-6A/audit-log-branding-updated.json"
-# Esperado: al menos 1 entry con targetType='organization', targetLabel='ccb',
+# Esperado: 1 entry con targetType='organization', targetLabel='ccb',
 # metadata.fields incluye 'logoUrl' + 'emailLogoUrl', metadata.diff.logoUrl.to
 # matchea '/uploads/<NEW_PRIMARY>'.
 ```
 
-Evidencia que queda archivada:
-- `login-owner.json` (response del login, sin password; mask del email).
-- `cookies-owner.txt` (jar local — **archivar fuera del repo y borrar
-  tras la ventana**).
+Evidencia archivada (la cookie sigue viva hasta el cleanup post-G):
 - `patch-branding.json` y `patch-branding.status` (response del PATCH).
 - `audit-log-branding-updated.json` (confirmación de auditoría).
+- El jar `$COOKIE_JAR` se borra en el cleanup de AUTH-SMOKE SESSION
+  después de G o tras abortar.
 
-**Cookies**: el jar `cookies-owner.txt` contiene una sesión viva. Al
-terminar la ventana hay que eliminarlo localmente (`rm -f`). El runbook
-lo trata como secreto operacional efímero, no como evidencia
-distribuible.
-
-Si el PATCH devuelve status ≠ 200, o el `audit-log` no muestra la
-entrada esperada, abortar antes de E. NO continuar con cuarentena
-mientras la DB no haya quedado actualizada.
+Si el PATCH devuelve status ≠ 200, abortar antes de E. NO continuar
+con cuarentena mientras la DB no haya quedado actualizada (la
+transacción garantiza "todo o nada", pero un 5xx significa que el
+estado final NO es el deseado).
 
 ##### E · Cuarentena de los 4 SVG conocidos
 
@@ -596,32 +682,63 @@ Si exit ≠ 0 → detenerse y reportar. **NO restaurar SVG desde
 cuarentena.** La presencia de un SVG inesperado en este punto indica
 una segunda mano sobre el volumen entre B y E y requiere investigación.
 
-##### G · Smoke funcional final (read-only)
+##### G · Smoke funcional final (mezcla de públicos + autenticados)
 
-Los pasos G.1–G.6 son read-only: cargan la app desde el browser del
-operador o disparan `curl` GET. NO envían email real, NO modifican datos.
+G se parte en dos sub-bloques porque la cobertura completa requiere
+endpoints públicos (no auth) **y** verificaciones autenticadas que
+reusen el `$COOKIE_JAR` ya creado.
+
+###### G-public (read-only sin sesión, sin efectos)
 
 | # | Test | Qué verifica | Esperado |
 |---|---|---|---|
-| G.1 | Login admin del tenant + ver sidebar | `logoUrl` (PRIMARY) renderea bien en el shell admin | Logo PRIMARY sin broken image |
-| G.2 | Cargar `/kiosko` y `/scanner` del tenant | `logoUrl` (PRIMARY) renderea en superficies públicas | Sin errores de carga |
-| G.3 | Generar **preview** de reporte PDF de actividad (endpoint que renderea sin enviar nada) | `logoUrl` (PRIMARY) aparece en el header del PDF | Logo PRIMARY presente |
-| G.4 | `GET /api/credentials/<code>.png` (público) | El PNG de credencial usa `services/credential.js → loadOrgLogoDataUri()`, que lee `organization.logoUrl` (**PRIMARY**, no `emailLogoUrl`). Por tanto este test verifica que la PRIMARY se incrusta correctamente en el PNG de credencial. **NO verifica el logo EMAIL**. | Imagen ≥ 1 KiB, content-type `image/png`, logo PRIMARY embebido (inspección visual offline) |
-| G.5 | `GET /uploads/<NEW_PRIMARY>` y `<NEW_EMAIL>` desde fuera del tenant | El path estático sirve ambos PNG con headers correctos | 200 + PNG + `X-Content-Type-Options: nosniff` |
+| G.4 | `GET /api/credentials/<code>.png` (público) | El PNG de credencial usa `services/credential.js → loadOrgLogoDataUri()`, que lee `organization.logoUrl` (**PRIMARY**, no `emailLogoUrl`). Verifica que el logo PRIMARY se incrusta correctamente. **NO verifica el logo EMAIL**. | Imagen ≥ 1 KiB, content-type `image/png`, logo PRIMARY embebido (inspección visual offline) |
+| G.5 | `GET /uploads/<NEW_PRIMARY>` y `<NEW_EMAIL>` | El path estático sirve ambos PNG con headers correctos | 200 + PNG + `X-Content-Type-Options: nosniff` |
 | G.6 | `GET /uploads/<OLD_BASENAME>.svg` (los 4 cuarentenados) | La cuarentena fue efectiva | 404 |
 
-Cobertura faltante en read-only: **el logo EMAIL** (asset B) NO se
-verifica end-to-end en G.1–G.6 porque ningún flujo público lo
-materializa sin enviar un email real. La única superficie que lo
-consume es `sendCredentialEmail()` cuando construye el HTML del cuerpo
-del email (vía `loadEmailLogoDataUri()`). Para verificarlo en vivo →
-ver `G-email` abajo, con autorización separada.
+G-public NO requiere autorización adicional — son GETs públicos sin
+auth ni efectos.
 
-Si todos los read-only pasan → autorizar `G-email` si se desea cobertura
-end-to-end de EMAIL, o cerrar la ventana con la cobertura read-only
-solamente. Archivar evidencia (incluye `audit.json` post-cuarentena con
-exit 0, response del PATCH branding + audit-log mostrando
-`branding.updated`, y la captura de `quarantine.ls.txt`).
+###### G-auth (reusa `$COOKIE_JAR` de AUTH-SMOKE SESSION)
+
+Estos tests usan la **misma cookie** que B.2/B.3/D, ya creada en
+AUTH-SMOKE SESSION. Eso significa:
+
+- **No requieren login adicional** (no se crean sesiones extra).
+- Sí están autenticados: cada GET deja `last_seen` actualizado en la
+  fila de `staff_auth_sessions`, pero NO crea fila nueva ni audit
+  entry adicional.
+- Quedan implícitamente autorizados por AUTH-SMOKE SESSION; no es una
+  nueva autorización separada.
+
+| # | Test | Qué verifica | Esperado |
+|---|---|---|---|
+| G.1 | `GET /api/auth/me` + `GET /api/org/branding` con `$COOKIE_JAR` | Sesión sigue válida; el endpoint refleja el nuevo `logoUrl`/`emailLogoUrl` después de D | 200 en ambos; `logoUrl === '/uploads/<NEW_PRIMARY>'`, `emailLogoUrl === '/uploads/<NEW_EMAIL>'`. La sesión owner sigue viva. |
+| G.2 | (Opcional) Carga browser real de `/kiosko/<tenant>` y `/scanner/<tenant>` con sesión browser independiente | Logo PRIMARY renderea en superficies públicas servidas por SSR | Sin broken image. **Atención**: abrir un browser logueado del tenant CREA otra sesión y otra entry `auth.login` en audit. Clasificarse como "autenticación browser adicional" si se ejecuta; no es read-only. |
+| G.3 | (Opcional) Browser real: Generar preview del reporte PDF | `logoUrl` (PRIMARY) aparece en header del PDF | Logo PRIMARY presente |
+
+G.1 es la verificación canónica via `$COOKIE_JAR` (sin sesiones nuevas).
+G.2 y G.3 son opcionales y, si se ejecutan, requieren login adicional
+del browser — clasificados como "browser-auth con efectos" en el
+checklist final, no parte del smoke automatizable.
+
+Cobertura faltante en G: **el logo EMAIL** (asset B) NO se verifica
+end-to-end en G-public ni G-auth porque ningún flujo lo materializa
+sin enviar email. La única superficie es `sendCredentialEmail()` vía
+`loadEmailLogoDataUri()`. Para verificarlo en vivo → `G-email` abajo,
+con autorización **explícita y separada**.
+
+Si todos los G-public + G.1 pasan → autorizar `G-email` si se desea
+cobertura end-to-end de EMAIL, o cerrar la ventana con la cobertura
+parcial.
+
+Inmediatamente después: ejecutar el **cleanup de AUTH-SMOKE SESSION**
+(logout + `rm -f $COOKIE_JAR`). Archivar evidencia:
+- `audit.json` post-cuarentena con exit 0.
+- Response del PATCH branding + audit-log mostrando `branding.updated`.
+- Captura de `quarantine.ls.txt`.
+- Login/me responses del bloque AUTH-SMOKE SESSION (sin la cookie).
+- Logout response.
 
 ##### G-email · Validación end-to-end del logo EMAIL (autorización SEPARADA)
 
