@@ -9,7 +9,7 @@
 // para skip condicional cuando no hay DATABASE_URL.
 // =============================================================================
 
-import { afterAll } from 'vitest';
+import { it, afterAll } from 'vitest';
 
 let appPromise;
 
@@ -28,11 +28,28 @@ export async function getTestApp() {
 }
 
 /**
- * Devuelve `it.skip` si no hay Postgres configurado, o el `it` normal si sí.
- * Uso: `runIfPostgres('test description', async () => { ... })`.
+ * Devuelve `true` si hay DATABASE_URL + DB_DRIVER=postgres configurados.
+ * Uso típico: `(isPostgresAvailable() ? it : it.skip)('...', async () => {})`
+ * o el helper `runIfPostgres` directamente.
  */
 export function isPostgresAvailable() {
   return Boolean(process.env.DATABASE_URL && process.env.DB_DRIVER === 'postgres');
+}
+
+/**
+ * Wrapper de `it` que se skipea automáticamente si no hay Postgres.
+ *
+ * Las suites de RBAC positivo (operator → 403, owner → 200, cross-tenant → 404)
+ * requieren sesiones reales en la tabla `staff_sessions` y staff_members con
+ * password hash + role. El memory driver no expone esa superficie.
+ *
+ * Uso: `runIfPostgres('operator no puede DELETE actividad', async () => { ... })`.
+ */
+export function runIfPostgres(name, fn, timeout) {
+  if (isPostgresAvailable()) {
+    return it(name, fn, timeout);
+  }
+  return it.skip(`[skip · no Postgres] ${name}`, fn);
 }
 
 afterAll(() => {
