@@ -67,7 +67,7 @@ Notas:
 | `/api/activities` | GET | STAFF | |
 | `/api/activities/:id` | GET | STAFF | |
 | `/api/activities/:id/attendees` | GET | STAFF | |
-| `/api/activities/:id` | PUT | STAFF | |
+| `/api/activities/:id` | PUT | ADMIN/OWNER | El PUT puede modificar `date`, `capacity`, `status` (incluyendo `cancelada` que dispara emails de cancelación masiva a inscritos), `location`. Blast radius alto → admin/owner. Operator que necesite corregir un typo material pide al admin. Aplicado en commit posterior a `security/p0-hardening` |
 | `/api/activities/:id` | DELETE | ADMIN/OWNER | Destructivo |
 | `/api/activities/:id/invitations` | GET | STAFF | |
 | `/api/activities/:id/invitations` | POST | STAFF | Operator invita |
@@ -199,6 +199,6 @@ Todos los endpoints PLATFORM ADMIN. ✅ ya protegidos con `requirePlatformAdmin`
 
 1. `POST /api/users` como STAFF (operator crea visitantes). Alternativa: ADMIN/OWNER si el operator solo debe usar `/api/public/checkin` desde kiosko. **Default propuesto**: STAFF.
 2. `POST /api/credentials/:code/send` como STAFF. Alternativa: PUBLIC con rate-limit estricto (visitante solicita reenvío de su credencial). **Default propuesto**: STAFF (más restrictivo por ahora).
-3. `PUT /api/activities/:id` (editar) como STAFF. ¿O ADMIN/OWNER? Coherente con "operator puede crear" → propuesto STAFF.
+3. ~~`PUT /api/activities/:id` (editar) como STAFF.~~ **Resuelto:** elevado a ADMIN/OWNER tras feedback. El PUT puede cambiar `status='cancelada'` (notifica a inscritos), `date`, `capacity`, `location` — todos campos con efectos colaterales sobre asistentes ya inscritos. Operator sigue creando vía POST e invitando vía POST /:id/invitations.
 
-Confirmar estos tres antes de aplicar el código de hardening.
+Confirmar el resto antes de aplicar el código de hardening.

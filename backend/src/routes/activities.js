@@ -16,11 +16,19 @@ import { inviteUsersToActivity } from '../services/invitations.js';
 //   GET    /                                    → STAFF
 //   GET    /:id                                 → STAFF
 //   GET    /:id/attendees                       → STAFF
-//   PUT    /:id                                 → STAFF
+//   PUT    /:id                                 → ADMIN/OWNER  (estado/fecha/cupo/cancelación)
 //   DELETE /:id                                 → ADMIN/OWNER  (destructivo)
 //   GET    /:id/invitations                     → STAFF
 //   POST   /:id/invitations                     → STAFF        (operator invita)
 //   DELETE /:id/invitations/:invId              → STAFF        (revocar)
+//
+// Razón PUT → ADMIN/OWNER (corrección post-feedback security/p0-hardening):
+//   El PUT actual permite cambiar `date`, `capacity`, `status` (incluido
+//   'cancelada' que dispara emails de cancelación masiva a inscritos),
+//   `location`, `enrolledCount`, etc. Estos campos tienen blast radius alto
+//   (notificación a usuarios, invalidación de check-ins, sobre-venta).
+//   Operator sigue pudiendo crear actividades (POST) e invitar (POST
+//   /:id/invitations), pero ediciones materiales requieren admin/owner.
 
 export function createActivitiesRouter() {
   const router = Router();
@@ -90,7 +98,7 @@ export function createActivitiesRouter() {
     }
   });
 
-  router.put('/:id', async (req, res, next) => {
+  router.put('/:id', requireRole(['owner', 'admin']), async (req, res, next) => {
     try {
       const errors = validateActivityUpdate(req.body);
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
