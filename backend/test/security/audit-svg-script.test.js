@@ -36,7 +36,7 @@ describe('audit-historical-svg.mjs · fail-closed', () => {
   it('exit 0 cuando el directorio existe y está vacío', () => {
     const { code, stdout } = runAudit(['--dir', workdir]);
     expect(code).toBe(0);
-    expect(stdout).toMatch(/sin SVG/);
+    expect(stdout).toMatch(/sin candidatos SVG/);
   });
 
   it('exit 1 cuando el directorio NO existe (fail-closed)', () => {
@@ -106,7 +106,7 @@ describe('audit-historical-svg.mjs · fail-closed', () => {
     expect(code).toBe(20);
     const report = JSON.parse(stdout);
     expect(report.dir).toBe(workdir);
-    expect(report.svgByContent).toBe(1);
+    expect(report.svgCandidates).toBe(1);
     expect(report.withRiskFlags).toBe(1);
     expect(Array.isArray(report.entries)).toBe(true);
     expect(report.entries[0].flags).toContain('script_tag');
@@ -127,7 +127,7 @@ describe('audit-historical-svg.mjs · fail-closed', () => {
     const { code, stdout } = runAudit(['--dir', workdir, '--json']);
     expect(code).toBe(20);
     const report = JSON.parse(stdout);
-    expect(report.svgByContent).toBe(1);
+    expect(report.svgCandidates).toBe(1);
     expect(report.entries[0].extension).toBe('.png');
     expect(report.entries[0].flags).toContain('script_tag');
     expect(report.entries[0].flags).toContain('wrong_extension');
@@ -141,7 +141,7 @@ describe('audit-historical-svg.mjs · fail-closed', () => {
     const { code, stdout } = runAudit(['--dir', workdir, '--json']);
     expect(code).toBe(20);
     const report = JSON.parse(stdout);
-    expect(report.svgByContent).toBe(1);
+    expect(report.svgCandidates).toBe(1);
     expect(report.entries[0].extension).toBe('.jpg');
     expect(report.entries[0].flags).toEqual(
       expect.arrayContaining(['foreign_object', 'javascript_uri', 'wrong_extension']),
@@ -158,7 +158,7 @@ describe('audit-historical-svg.mjs · fail-closed', () => {
     // → flag `wrong_extension` ⇒ exit 20.
     expect(code).toBe(20);
     const report = JSON.parse(stdout);
-    expect(report.svgByContent).toBe(1);
+    expect(report.svgCandidates).toBe(1);
     expect(report.entries[0].flags).toContain('wrong_extension');
   });
 
@@ -173,7 +173,7 @@ describe('audit-historical-svg.mjs · fail-closed', () => {
     expect(code).toBe(0);
     const report = JSON.parse(stdout);
     expect(report.scannedFiles).toBe(1);
-    expect(report.svgByContent).toBe(0);
+    expect(report.svgCandidates).toBe(0);
   });
 
   it('NO marca como SVG un JPEG real (firma SOI)', () => {
@@ -183,7 +183,7 @@ describe('audit-historical-svg.mjs · fail-closed', () => {
     const { code, stdout } = runAudit(['--dir', workdir, '--json']);
     expect(code).toBe(0);
     const report = JSON.parse(stdout);
-    expect(report.svgByContent).toBe(0);
+    expect(report.svgCandidates).toBe(0);
   });
 
   it('SVG con extensión .svg sin payload → exit 10 sin wrong_extension', () => {
@@ -191,7 +191,91 @@ describe('audit-historical-svg.mjs · fail-closed', () => {
     const { code, stdout } = runAudit(['--dir', workdir, '--json']);
     expect(code).toBe(10);
     const report = JSON.parse(stdout);
-    expect(report.svgByContent).toBe(1);
+    expect(report.svgCandidates).toBe(1);
     expect(report.entries[0].flags).not.toContain('wrong_extension');
+  });
+
+  // ===========================================================================
+  // Bypass del sniff de 4 KiB (reportado en feedback)
+  // ===========================================================================
+  // Un SVG puede tener whitespace, comentarios o prólogo XML arbitrariamente
+  // largos antes del elemento raíz. Si el detector solo lee los primeros
+  // 4 KiB, el atacante esconde el payload pasado ese offset y bypasea el
+  // inventario. Tests del fix: lectura completa con cap MAX_AUDIT_BYTES.
+
+  it('.svg con 5000 espacios antes de <svg><script> → exit 20', () => {
+    const padded = ' '.repeat(5000) + '<svg><script>alert(1)</script></svg>';
+    writeFileSync(path.join(workdir, 'hidden.svg'), padded);
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(20);
+    const report = JSON.parse(stdout);
+    expect(report.svgCandidates).toBe(1);
+    expect(report.entries[0].extension).toBe('.svg');
+    expect(report.entries[0].flags).toContain('script_tag');
+    // No es wrong_extension porque la extensión sí es .svg.
+    expect(report.entries[0].flags).not.toContain('wrong_extension');
+  });
+
+  it('.png con comentario XML > 4096 bytes antes de SVG malicioso → exit 20 + wrong_extension', () => {
+    const longComment = '<!-- ' + 'A'.repeat(4500) + ' -->';
+    const payload = '<svg><script>alert(1)</script></svg>';
+    writeFileSync(path.join(workdir, 'hidden.png'), longComment + payload);
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(20);
+    const report = JSON.parse(stdout);
+    expect(report.svgCandidates).toBe(1);
+    expect(report.entries[0].extension).toBe('.png');
+    expect(report.entries[0].flags).toEqual(
+      expect.arrayContaining(['script_tag', 'wrong_extension']),
+    );
+  });
+
+  it('.svg con prólogo XML/DOCTYPE largo pero sin payload → al menos exit 10', () => {
+    // Prólogo permitido pero gigante (whitespace + XML decl + DOCTYPE).
+    const prologue =
+      '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' +
+      '<!-- ' + 'comentario muy largo '.repeat(300) + ' -->\n' +
+      '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' +
+      ' '.repeat(2000) + '\n';
+    const body = '<svg xmlns="http://www.w3.org/2000/svg"><circle r="1"/></svg>';
+    writeFileSync(path.join(workdir, 'big-prologue.svg'), prologue + body);
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    // Sin flags de riesgo → exit 10 (NUNCA 0: el archivo está reportado).
+    expect(code).toBe(10);
+    const report = JSON.parse(stdout);
+    expect(report.svgCandidates).toBe(1);
+    expect(report.entries[0].flags).toEqual([]); // sin flags pero entró al reporte
+  });
+
+  it('archivo raster grande (PNG válido > 8 KiB) → no falso positivo', () => {
+    // Construimos un buffer que comience con PNG signature y contenga 16 KiB
+    // de bytes binarios pseudoaleatorios (sin secuencia <svg).
+    const sig = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    const filler = Buffer.alloc(16 * 1024);
+    for (let i = 0; i < filler.length; i++) filler[i] = (i * 31) & 0xff;
+    // Aseguramos que el byte literal '<svg' (0x3c 0x73 0x76 0x67) no aparece.
+    // Reemplazamos cualquier ocurrencia accidental con 0xff.
+    for (let i = 0; i < filler.length - 3; i++) {
+      if (filler[i] === 0x3c && filler[i+1] === 0x73 && filler[i+2] === 0x76 && filler[i+3] === 0x67) {
+        filler[i] = 0xff;
+      }
+    }
+    writeFileSync(path.join(workdir, 'big-real.png'), Buffer.concat([sig, filler]));
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(0);
+    const report = JSON.parse(stdout);
+    expect(report.scannedFiles).toBe(1);
+    expect(report.svgCandidates).toBe(0);
+  });
+
+  it('.svg vacío → exit 20 con svg_extension_unverified (nunca silencioso)', () => {
+    // El path estático sirve este archivo igual con Content-Type image/svg+xml;
+    // un humano debe verificarlo aunque el sniffer no encuentre <svg.
+    writeFileSync(path.join(workdir, 'empty.svg'), '');
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(20);
+    const report = JSON.parse(stdout);
+    expect(report.svgCandidates).toBe(1);
+    expect(report.entries[0].flags).toContain('svg_extension_unverified');
   });
 });

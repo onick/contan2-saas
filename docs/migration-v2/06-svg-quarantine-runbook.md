@@ -100,13 +100,27 @@ El script:
 
 | Exit | Significado | Acción |
 |---|---|---|
-| `0` | Directorio legible + 0 SVG por contenido | **Autorizar deploy**. Adjuntar `audit.json` al ticket de release. |
-| `10` | SVG presentes pero sin flags automáticos de riesgo (todos extensión `.svg`, contenido limpio) | Revisión humana caso por caso (Paso 6). |
-| `20` | Al menos un archivo con flag (`script_tag`, `event_handler`, `javascript_uri`, `foreign_object`, `expression_css`, `wrong_extension`) | **Bloquear deploy** y aplicar cuarentena (Paso 6). |
+| `0` | Directorio legible + 0 candidatos en `entries` | **Autorizar deploy**. Adjuntar `audit.json` al ticket de release. |
+| `10` | Candidatos SVG presentes pero `entries[].flags` vacío en todos | Revisión humana caso por caso (Paso 6). |
+| `20` | Al menos una entrada con algún flag (ver tabla abajo) | **Bloquear deploy** y aplicar cuarentena (Paso 6). |
 | `1`  | Directorio no existe / no es directorio / sin permisos / I/O / cualquier ambigüedad | **Bloquear deploy**. NO se asume "clean" — investigar path, permisos, y reintentar. |
 
 Exit `1` y exit `20` son indistinguibles para efectos de "puedo deployar":
 ambos bloquean.
+
+Flags reportados en `entries[].flags` (cualquiera dispara exit 20):
+
+| Flag | Significado |
+|---|---|
+| `script_tag` | `<script ...` literal en el archivo |
+| `event_handler` | atributo `onload=`, `onclick=`, etc. |
+| `javascript_uri` | `javascript:` literal o entidad codificada (`&#x6A;avascript`) |
+| `foreign_object` | `<foreignObject>` (vector típico de HTML embebido) |
+| `expression_css` | `expression(` o `url(javascript:)` en atributo `style` |
+| `wrong_extension` | SVG por contenido cuya extensión NO es `.svg` (renombre malicioso) |
+| `svg_extension_unverified` | archivo `.svg` sin `<svg\b` detectable — empty, binario disfrazado o estructura inválida; **siempre requiere revisión humana** |
+| `truncated_audit` | archivo > 16 MiB; el auditor leyó solo el prefijo. Revisar manualmente con `less <file>` |
+| `read_error` | no se pudo abrir/leer (permisos, FS corrupto). Investigar antes de seguir |
 
 ### Paso 6 · Cuarentena humana (solo si exit 10/20)
 
@@ -194,7 +208,7 @@ $ node backend/scripts/audit-historical-svg.mjs --json
 {
   "dir": "/.../backend/data/uploads",
   "scannedFiles": 7,
-  "svgByContent": 0,
+  "svgCandidates": 0,
   "withRiskFlags": 0,
   "entries": []
 }
@@ -208,12 +222,20 @@ en un directorio temporal:
 ```
 $ echo '<svg><script>alert(1)</script><foreignObject>...</foreignObject></svg>' > /tmp/fake/logo.png
 $ node backend/scripts/audit-historical-svg.mjs --dir /tmp/fake
-[audit-svg] SVG (por contenido) encontrados: 1
+[audit-svg] candidatos SVG: 1
   /tmp/fake/logo.png  ext=.png  ...  [script_tag,javascript_uri,foreign_object,wrong_extension]
 [audit-svg] ✗ BLOQUEAR DEPLOY
 $ echo $?
 20
 ```
+
+Bypass cubierto: SVG malicioso con prólogo > 4 KiB ya no se cuela. Tests
+correspondientes en `backend/test/security/audit-svg-script.test.js`:
+
+- `.svg` con 5000 espacios antes de `<svg><script>` → `script_tag` + exit 20
+- `.png` con `<!-- ` 4500 chars ` -->` antes de SVG → `script_tag` +
+  `wrong_extension` + exit 20
+- `.svg` vacío → `svg_extension_unverified` + exit 20 (jamás silencioso)
 
 Estado de producción: **no inspeccionado en este sprint**. Pendiente
 ejecutar el procedimiento de los pasos 1-8 vía SSH con autorización
