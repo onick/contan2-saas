@@ -7,11 +7,35 @@
 //
 // Tests RBAC / cross-tenant requieren Postgres real; usar `runIfPostgres()`
 // para skip condicional cuando no hay DATABASE_URL.
+//
+// Higiene: los tests NUNCA escriben al volumen real `backend/data/uploads`.
+// Se setea `UPLOADS_DIR=<tmp>` antes de cargar la app; el módulo
+// `routes/uploads.js` lo respeta. El directorio se borra recursivamente
+// al final de la suite.
 // =============================================================================
 
 import { it, afterAll } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 let appPromise;
+let testUploadsDir = null;
+
+export function getTestUploadsDir() {
+  if (!testUploadsDir) {
+    // Crear el directorio temporal lo antes posible (módulo top-level)
+    // para que el import de routes/uploads.js (que hace `await fs.mkdir`
+    // sobre UPLOADS_DIR) lo encuentre listo.
+    testUploadsDir = mkdtempSync(path.join(tmpdir(), 'contan2-test-uploads-'));
+  }
+  return testUploadsDir;
+}
+
+// Inicializamos inmediatamente: routes/uploads.js hace `await fs.mkdir`
+// en top-level import, así que UPLOADS_DIR debe estar seteado antes de
+// que cualquier test importe la app.
+process.env.UPLOADS_DIR = process.env.UPLOADS_DIR || getTestUploadsDir();
 
 export async function getTestApp() {
   if (appPromise) return appPromise;
@@ -53,5 +77,11 @@ export function runIfPostgres(name, fn, timeout) {
 }
 
 afterAll(() => {
-  // No abrimos sockets en el factory; nada que limpiar.
+  // Limpiar el directorio temporal de uploads. Usamos rmSync (síncrono)
+  // porque afterAll global puede ejecutar antes de que async settle si
+  // no awaiteamos — esto garantiza limpieza.
+  if (testUploadsDir) {
+    rmSync(testUploadsDir, { recursive: true, force: true });
+    testUploadsDir = null;
+  }
 });

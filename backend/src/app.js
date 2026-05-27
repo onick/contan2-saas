@@ -109,10 +109,16 @@ export async function createApp(opts = {}) {
     next();
   });
 
-  // Static uploads (no requieren tenant en URL)
+  // Static uploads (no requieren tenant en URL). `nosniff` evita que el
+  // navegador interprete bytes como un MIME distinto al declarado por el
+  // server (ej. si por error sirviéramos un SVG con content-type image/png
+  // — defensa en profundidad contra MIME confusion).
   app.use('/uploads', express.static(UPLOADS_DIR, {
     maxAge: '7d',
     immutable: true,
+    setHeaders: (res) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+    },
   }));
 
   // Platform admin endpoints — DEBEN ir antes del buildTenantRepos porque

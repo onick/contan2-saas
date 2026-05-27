@@ -43,8 +43,12 @@ describe('endpoints públicos legítimos siguen respondiendo', () => {
       } else if (allowedStatuses) {
         expect(allowedStatuses).toContain(res.status);
       }
-      // Lo importante: ningún público debe responder 401 (no autenticado).
-      expect(res.status).not.toBe(401);
+      // 401 como "credenciales/PIN incorrecto" es válido en endpoints de
+      // login; lo prohibimos solo cuando NO está en allowedStatuses (caso en
+      // que un público debería responder, p.ej., GET /api/_tenant).
+      if (!allowedStatuses || !allowedStatuses.includes(401)) {
+        expect(res.status).not.toBe(401);
+      }
     });
   });
 });
