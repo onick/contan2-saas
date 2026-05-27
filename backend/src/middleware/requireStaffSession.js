@@ -1,9 +1,18 @@
 // =============================================================================
 // requireStaffSession · middleware que valida la cookie de sesión nueva
-// (tenant staff). Reemplaza gradualmente al requireStaff legacy (PIN).
+// (tenant staff). ÚNICA fuente válida de identidad para tier STAFF/ADMIN/OWNER.
+// =============================================================================
+// El sistema PIN legacy (cookie `ccb_staff`) está estrictamente aislado en
+// los endpoints `/api/staff/*` (login/logout/me) y NO atraviesa este guard
+// bajo ninguna circunstancia. Antes existía un fallback "backward-compatible"
+// que aceptaba la cookie PIN cuando no había `contan2_session`; ese fallback
+// se removió porque permitía bypass de RBAC: una sesión PIN válida copiada
+// a una cookie `contan2_staff` autorizaba endpoints del tier nuevo, saltándose
+// el rol (operator/admin/owner) por completo.
 //
-// Modo backward-compatible: si NO hay cookie nueva pero SÍ existe la
-// cookie PIN, delega al middleware viejo (deprecation period).
+// La cookie aceptada es UNA SOLA: `contan2_session`. Ningún alias, ninguna
+// delegación. La sesión vive en `staff_auth_sessions` y está scoped por
+// organization vía StaffMemberRepository.
 // =============================================================================
 
 import { HttpError } from './errorHandler.js';
@@ -12,7 +21,6 @@ import { StaffSessionRepository } from '../db/postgres/platform/StaffSessionRepo
 import { StaffMemberRepository } from '../db/postgres/platform/StaffMemberRepository.js';
 import { initRepositories } from '../db/repositories.js';
 import { config } from '../config.js';
-import { requireStaff as legacyRequirePin } from './staffAuth.js';
 
 const SESSION_COOKIE = 'contan2_session';
 
@@ -22,22 +30,14 @@ export function getSessionCookieName() { return SESSION_COOKIE; }
  * Middleware Express: valida la sesión, popula `req.currentStaff` y
  * `req.currentSessionId`. 401 si no hay sesión.
  *
- * Si hay cookie del nuevo sistema, la usa.
- * Si NO la hay pero SÍ está la del PIN legacy, delega al middleware viejo
- * (solo durante el período de deprecación; se removerá después de T+7 días).
+ * El único origen de identidad aceptado es la cookie `contan2_session` con
+ * un token plano cuya hash sha256 coincide con una fila viva (no expirada,
+ * no revocada) en `staff_auth_sessions`.
  */
 export async function requireStaffSession(req, res, next) {
   try {
     const token = req.cookies?.[SESSION_COOKIE];
-
-    if (!token) {
-      // Fallback al PIN legacy si la otra cookie existe
-      if (req.cookies?.contan2_staff) {
-        console.log('[auth] usando PIN legacy (deprecated) para', req.method, req.path);
-        return legacyRequirePin(req, res, next);
-      }
-      return next(new HttpError(401, 'No autenticado'));
-    }
+    if (!token) return next(new HttpError(401, 'No autenticado'));
 
     if (config.DB_DRIVER !== 'postgres') {
       return next(new HttpError(503, 'Auth requiere DB_DRIVER=postgres'));

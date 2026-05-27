@@ -41,7 +41,12 @@ import { initRepositories } from '../src/db/repositories.js';
 import { OrganizationRepository } from '../src/db/postgres/platform/OrganizationRepository.js';
 import { StaffMemberRepository } from '../src/db/postgres/platform/StaffMemberRepository.js';
 import { hashPassword } from '../src/services/auth/passwordService.js';
+import { hashPin } from '../src/services/staffPin.js';
 import { config } from '../src/config.js';
+
+// PIN del scanner legacy del CCB. Lo necesitamos para el test que demuestra
+// que la cookie `ccb_staff` legítima NO autoriza endpoints del tier nuevo.
+const CCB_LEGACY_PIN = '4242';
 
 const CCB_ORG_ID = '00000000-0000-0000-0000-000000000001';
 const T2_ORG_ID  = '00000000-0000-0000-0000-00000000000a';
@@ -53,14 +58,15 @@ const STAFF_FIXTURES = [
   { orgId: T2_ORG_ID,  email: 't2-owner@test.local',     fullName: 'T2 Owner Test',     role: 'owner',    password: 'TestT2Owner!1234' },
 ];
 
-async function ensureOrg(pool, { id, slug, name, codePrefix }) {
+async function ensureOrg(pool, { id, slug, name, codePrefix, staffPinHash = null }) {
   await pool.query(
     `INSERT INTO organizations (id, slug, name, legal_name, country, timezone, locale,
-       primary_color, secondary_color, code_prefix, plan, status)
+       primary_color, secondary_color, code_prefix, plan, status, staff_pin_hash)
      VALUES ($1, $2, $3, $3, 'DO', 'America/Santo_Domingo', 'es',
-       '#1a237e', '#ff6f00', $4, 'free', 'active')
-     ON CONFLICT (id) DO NOTHING`,
-    [id, slug, name, codePrefix],
+       '#1a237e', '#ff6f00', $4, 'free', 'active', $5)
+     ON CONFLICT (id) DO UPDATE SET
+       staff_pin_hash = COALESCE(EXCLUDED.staff_pin_hash, organizations.staff_pin_hash)`,
+    [id, slug, name, codePrefix, staffPinHash],
   );
 }
 
@@ -138,7 +144,11 @@ async function main() {
 
   console.log(`[seed] DATABASE_URL=${config.DATABASE_URL.replace(/:[^:@]+@/, ':***@')}`);
   console.log('[seed] aplicando organizations…');
-  await ensureOrg(pool, { id: CCB_ORG_ID, slug: 'ccb',         name: 'Centro Cultural Banreservas', codePrefix: 'CCB' });
+  const ccbPinHash = await hashPin(CCB_LEGACY_PIN);
+  await ensureOrg(pool, {
+    id: CCB_ORG_ID, slug: 'ccb', name: 'Centro Cultural Banreservas',
+    codePrefix: 'CCB', staffPinHash: ccbPinHash,
+  });
   await ensureOrg(pool, { id: T2_ORG_ID,  slug: 'test-tenant', name: 'Test Tenant',                 codePrefix: 'TT' });
 
   console.log('[seed] aplicando staff_members…');
