@@ -3,12 +3,23 @@ import { HttpError } from '../middleware/errorHandler.js';
 import { generateCredentialPng } from '../services/credential.js';
 import { sendCredentialEmail } from '../services/email.js';
 import { rateLimit } from '../utils/rateLimit.js';
-import { requireStaff } from '../middleware/staffAuth.js';
+import { requireStaffSession } from '../middleware/requireStaffSession.js';
+import { requireRole } from '../middleware/requireRole.js';
 
-// 3 envíos de credencial por minuto por IP — previene spam de emails.
+// Tier de autorización (ver docs/migration-v2/05-authorization-matrix.md):
+//   GET    /:code.png    → PUBLIC bearer-style  (código actúa como token portador)
+//   POST   /:code/send   → STAFF                (V008b · antes sin auth con rate IP)
+//   POST   /bulk-send    → ADMIN/OWNER          (operación masiva)
+//
+// El `GET /:code.png` queda público porque el visitante recibe el link por
+// email y descarga su credencial sin login. Mitigaciones: regex estricto del
+// código + rate limit por IP + respuesta solo con QR/nombre (sin PII extra).
+
+// 3 envíos de credencial por minuto por IP — defensa adicional encima de la
+// sesión, ya que un staff comprometido podría intentar spam.
 const credentialSendLimit = rateLimit({
   windowMs: 60_000,
-  max: 3,
+  max: 5,
   message: 'Demasiados envíos de credencial. Espera un minuto.',
 });
 
@@ -33,7 +44,7 @@ export function createCredentialsRouter() {
     }
   });
 
-  router.post('/:code/send', credentialSendLimit, async (req, res, next) => {
+  router.post('/:code/send', requireStaffSession, credentialSendLimit, async (req, res, next) => {
     try {
       const code = String(req.params.code || '').toUpperCase();
       if (!/^[A-Z]{2,6}-[A-Z0-9]{6}$/.test(code)) {
@@ -70,7 +81,7 @@ export function createCredentialsRouter() {
   // interno para respetar el rate limit de Resend (~10 req/s). Devuelve
   // un summary + array detallado con resultado por código. No hereda el
   // rate limit del endpoint singular: la operación está auth-gated por staff.
-  router.post('/bulk-send', requireStaff, async (req, res, next) => {
+  router.post('/bulk-send', requireStaffSession, requireRole(['owner', 'admin']), async (req, res, next) => {
     try {
       const codes = Array.isArray(req.body?.codes) ? req.body.codes : null;
       if (!codes || codes.length === 0) {
