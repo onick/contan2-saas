@@ -13,8 +13,12 @@ export const UPLOADS_DIR = path.join(__dirname, '..', '..', 'data', 'uploads');
 
 await fs.mkdir(UPLOADS_DIR, { recursive: true });
 
+// SVG está deliberadamente EXCLUIDO de los MIME aceptados hasta que el
+// sanitizer sea robusto (ver `sanitizeSvg` abajo + comentarios al final).
+// Los SVG ya subidos a /uploads/* siguen sirviéndose como estáticos; lo
+// que bloqueamos son uploads NUEVOS.
 const ALLOWED_MIME = new Set([
-  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml',
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
 ]);
 const MAX_SIZE = 5 * 1024 * 1024;
 
@@ -22,7 +26,7 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
     const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
-    const safe = ext.match(/^\.(jpe?g|png|webp|gif|svg)$/) ? ext : '.jpg';
+    const safe = ext.match(/^\.(jpe?g|png|webp|gif)$/) ? ext : '.jpg';
     const name = `${Date.now()}-${randomBytes(6).toString('hex')}${safe}`;
     cb(null, name);
   },
@@ -33,25 +37,35 @@ const upload = multer({
   limits: { fileSize: MAX_SIZE },
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_MIME.has(file.mimetype)) {
-      return cb(new HttpError(400, 'Tipo de archivo no permitido. Usa JPG, PNG, WebP, GIF o SVG.'));
+      return cb(new HttpError(400, 'Tipo de archivo no permitido. Usa JPG, PNG, WebP o GIF. SVG temporalmente deshabilitado por seguridad.'));
     }
     cb(null, true);
   },
 });
 
 /**
- * Sanitización mínima de SVG: bloquea scripts y handlers de eventos.
- * No es un sanitizer industrial (eso requeriría una librería como DOMPurify),
- * pero cubre los vectores comunes de XSS en SVG subido por admin.
+ * Sanitizador best-effort de SVG. **NO se usa en uploads actualmente**:
+ * la versión regex no cubre vectores como entidades codificadas
+ * (`&#x6A;avascript:`), `<foreignObject>` con HTML embebido, atributos
+ * `style` con `expression()` legacy ni `<use href="#...">` malicioso.
+ *
+ * Exportado para:
+ *   1. Tests automatizados que documentan los vectores cubiertos y los no
+ *      cubiertos (`test/security/uploads-svg.test.js`).
+ *   2. Uso futuro cuando se implemente sanitización robusta (DOMPurify
+ *      en Node con jsdom, o un sanitizer SVG dedicado).
+ *
+ * Hasta entonces, el endpoint `POST /api/uploads/image` rechaza
+ * `image/svg+xml` directamente desde el `fileFilter` de multer.
  */
-function sanitizeSvg(content) {
+export function sanitizeSvg(content) {
   let s = String(content);
   // Eliminar bloques <script>...</script>
   s = s.replace(/<script[\s\S]*?<\/script>/gi, '');
   // Eliminar handlers on* (onclick, onload, onmouseover, etc.)
   s = s.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  // Eliminar URIs javascript: y data: (excepto image/*)
-  s = s.replace(/(href|xlink:href)\s*=\s*(["'])javascript:[^"']*\2/gi, '');
+  // Eliminar URIs javascript: en href/xlink:href
+  s = s.replace(/(href|xlink:href)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, '');
   return s;
 }
 
