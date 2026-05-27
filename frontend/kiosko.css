@@ -1555,6 +1555,38 @@ input { user-select: text; -webkit-user-select: text; }
   .k-ticket-eyebrow { font-size: 9px; }
   .k-ticket-label { font-size: 16px; }
   .k-ticket-arrow { padding-right: 18px; font-size: 28px; }
-  .k-welcome-logo { width: 160px; height: 160px; }
+  .k-welcome-logo { width: 168px; height: 168px; }
   .k-corner-marks span { width: 28px; height: 28px; }
+}
+
+/* Phones <= 640px — header time + fecha responsive en 1 línea, logo +5% */
+@media (max-width: 640px) {
+  .k-header { padding: 0 16px; }
+  .k-header-brand { gap: 10px; }
+  .k-header-logo-img { width: 36px; height: 36px; }
+  .k-header-subtitle {
+    display: none; /* gana espacio para que la hora quepa en 1 línea */
+  }
+  .k-header-org-name {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    max-width: 50vw;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .k-header-time {
+    font-size: 14px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .k-clock-date {
+    font-size: 12px;
+    letter-spacing: 0.16em; /* de 0.32em a 0.16em — entra en 1 línea */
+    white-space: nowrap;
+  }
+  .k-welcome-clock {
+    max-width: 100%;
+    overflow: hidden;
+  }
 }
