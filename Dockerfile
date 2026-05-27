@@ -3,6 +3,17 @@
 # puppeteer-core ≥24, pg ≥8.20 — todos publican binaries N-API para Node 24.
 FROM node:24-bookworm-slim AS base
 
+# Identidad de build (commit git). Coolify lo inyecta vía --build-arg
+# GIT_SHA=$(git rev-parse HEAD) automáticamente cuando configurás
+# "Inject build args" en la app, o se puede setear manualmente con
+#   docker build --build-arg GIT_SHA=$(git rev-parse HEAD) .
+# Si no se pasa, queda 'unknown' y el endpoint /api/version lo expone como
+# tal — eso señala al operador que el deploy no fue trazable y el runbook
+# 06 lo trata como "abortar antes de B" (ver Paso A.5).
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.revision="$GIT_SHA"
+ENV BUILD_SHA="$GIT_SHA"
+
 # Chromium + deps mínimos para PDF rendering vía puppeteer-core.
 # Debian gestiona los dependentes del paquete chromium automáticamente.
 RUN apt-get update && apt-get install -y --no-install-recommends \

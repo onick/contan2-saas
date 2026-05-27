@@ -91,6 +91,22 @@ export async function createApp(opts = {}) {
     res.json({ ok: true, ts: new Date().toISOString() });
   });
 
+  // Identidad de build verificable. El runbook 06 (Paso A.5) usa este
+  // endpoint para certificar que el contenedor desplegado contiene el SHA
+  // esperado del merge antes de ejecutar el smoke de seguridad o tocar
+  // datos. NO toca DB, NO requiere tenant, NO expone secretos.
+  //
+  // `buildSha` viene de la env var BUILD_SHA seteada por el Dockerfile a
+  // partir del ARG GIT_SHA. Si no se pasó al build, queda 'unknown' y el
+  // operador debe abortar el deploy (un container no trazable no pasa
+  // A.5).
+  app.get('/api/version', (_req, res) => {
+    res.json({
+      buildSha: process.env.BUILD_SHA || 'unknown',
+      ts: new Date().toISOString(),
+    });
+  });
+
   if (!quietLogs) {
     app.use((req, _res, next) => {
       if (req.path === '/healthz') return next();
