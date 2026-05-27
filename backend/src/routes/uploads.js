@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { randomBytes } from 'crypto';
 import sharp from 'sharp';
 import { HttpError } from '../middleware/errorHandler.js';
+import { requireStaffSession } from '../middleware/requireStaffSession.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const UPLOADS_DIR = path.join(__dirname, '..', '..', 'data', 'uploads');
@@ -54,8 +55,16 @@ function sanitizeSvg(content) {
   return s;
 }
 
+// Tier de autorización: POST /image → STAFF
+// (ver docs/migration-v2/05-authorization-matrix.md).
+// Razón: el endpoint se usa tanto para subir el logo del tenant (operación
+// admin que se controla en orgBranding) como para subir afiches de
+// actividades (operación de operator). El control granular vive en los
+// endpoints consumidores del resultado. Sanitización de SVG ya aplicada
+// arriba; queda cubrir con test automatizado (V007 P0).
 export function createUploadsRouter() {
   const router = Router();
+  router.use(requireStaffSession);
 
   router.post('/image', (req, res, next) => {
     upload.single('image')(req, res, async err => {

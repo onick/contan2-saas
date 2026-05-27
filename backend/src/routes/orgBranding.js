@@ -3,13 +3,19 @@ import { OrganizationRepository } from '../db/postgres/platform/OrganizationRepo
 import { initRepositories } from '../db/repositories.js';
 import { invalidateTenantCache } from '../middleware/resolveTenant.js';
 import { HttpError } from '../middleware/errorHandler.js';
+import { requireStaffSession } from '../middleware/requireStaffSession.js';
+import { requireRole } from '../middleware/requireRole.js';
 import { config } from '../config.js';
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const SIDEBAR_STYLES = new Set(['brand', 'dark', 'light']);
 
+// Tier de autorización (ver docs/migration-v2/05-authorization-matrix.md):
+//   GET   /  → STAFF        (lectura para mostrar setup actual)
+//   PATCH /  → ADMIN/OWNER  (cambia identidad del tenant)
 export function createOrgBrandingRouter() {
   const router = Router();
+  router.use(requireStaffSession);
 
   router.get('/', (req, res, next) => {
     if (!req.organization) return next(new HttpError(404, 'Sin organización'));
@@ -24,7 +30,7 @@ export function createOrgBrandingRouter() {
     });
   });
 
-  router.patch('/', async (req, res, next) => {
+  router.patch('/', requireRole(['owner', 'admin']), async (req, res, next) => {
     try {
       if (!req.organization) return next(new HttpError(404, 'Sin organización'));
       const partial = {};

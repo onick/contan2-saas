@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { HttpError } from '../middleware/errorHandler.js';
+import { requireStaffSession } from '../middleware/requireStaffSession.js';
+import { requireRole } from '../middleware/requireRole.js';
 import { buildActivityExcelReport, reportFilename } from '../services/reports/activityExcelReport.js';
 import { buildActivityPdfHtml, pdfHeaderFooter, pdfFilename } from '../services/reports/activityPdfTemplate.js';
 import { renderHtmlToPdf } from '../services/reports/pdfRenderer.js';
@@ -61,8 +63,14 @@ async function loadActivityReportData(req) {
   return { activity, attendances, users, affinities };
 }
 
+// Tier de autorización: TODOS los endpoints → ADMIN/OWNER
+// (ver docs/migration-v2/05-authorization-matrix.md).
+// Razón: exportan PII masivamente (nombre, email, teléfono, historial).
+// Migración a worker pendiente (V012) — por ahora síncronos en HTTP.
 export function createReportsRouter() {
   const router = Router();
+  router.use(requireStaffSession);
+  router.use(requireRole(['owner', 'admin']));
 
   // GET /api/reports/activity/:id.xlsx — informe Excel branded.
   router.get('/activity/:id.xlsx', async (req, res, next) => {
