@@ -284,27 +284,81 @@ analizamos en 6.A. Si algo cambió entre 6.A y este momento, abortar.
    procede con la ventana. Si cualquier condición falla, abortar,
    reportar, y re-abrir 6.A para el nuevo estado.
 
-##### A · Merge + deploy del hardening (PRIMERO)
+##### A · Merge + push + deploy del hardening (PRIMERO)
 
-Razón del orden: una vez deploya el hardening, `/api/uploads/image`
+Razón del orden: una vez desplegado el hardening, `/api/uploads/image`
 deja de aceptar SVG (ni de anónimos ni de sesiones autorizadas). El
-volumen no puede recibir SVG nuevos mientras hacemos la limpieza. Si
-empezáramos por el volumen, dejaríamos una ventana donde un atacante
-puede volver a contaminar lo recién limpiado y, si el deploy fallara,
-la contaminación quedaría sin remediación.
+volumen no puede recibir SVG nuevos durante la limpieza. Si empezáramos
+por el volumen, dejaríamos una ventana donde un atacante puede volver a
+contaminarlo y, si el deploy fallara, la contaminación quedaría sin
+remediación.
+
+Importante: Coolify deploya desde `origin/multitenant`, no desde el
+working tree local. **El push a origin es obligatorio** antes de
+disparar el deploy.
 
 ```bash
+# A.1 · Snapshot del SHA esperado (el HEAD de security/p0-hardening)
+EXPECTED_SHA="$(git rev-parse security/p0-hardening)"
+echo "EXPECTED_SHA=$EXPECTED_SHA" | tee "$EVIDENCE_DIR/deploy/expected_sha.txt"
+
+# A.2 · Merge + push
 git checkout multitenant
 git merge --ff-only security/p0-hardening
-# Trigger deploy en Coolify (manual o por webhook)
+git push origin multitenant
+
+# A.3 · Verificar que el remoto YA tiene el SHA esperado antes del deploy
+git ls-remote origin refs/heads/multitenant | awk '{print $1}' \
+  | tee "$EVIDENCE_DIR/deploy/remote_multitenant_sha.txt"
+# Debe matchear $EXPECTED_SHA; si no, abortar el deploy.
+
+# A.4 · Trigger deploy en Coolify (token desde backend/.env)
+export $(grep -E "^(COOLIFY_API_TOKEN|COOLIFY_BASE_URL)" backend/.env | tr -d '"' | xargs)
 curl -s -X POST -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
-  "$COOLIFY_BASE_URL/api/v1/deploy?uuid=f3xck8spocf0o377y9w0vq6n&force=false"
+  "$COOLIFY_BASE_URL/api/v1/deploy?uuid=f3xck8spocf0o377y9w0vq6n&force=false" \
+  | tee "$EVIDENCE_DIR/deploy/coolify-trigger.json"
 ```
 
 Esperar hasta:
-- Container nuevo arriba según `docker ps`.
+- Container nuevo en `docker ps` con timestamp posterior a `coolify-trigger.json`.
 - Healthcheck del contenedor en `running (healthy)`.
-- `GET /healthz` en el dominio público devuelve `{ ok: true }`.
+- `GET /healthz` desde el dominio público devuelve `{ ok: true }`.
+
+##### A.5 · Verificación del SHA desplegado (obligatorio antes de B)
+
+Antes de probar nada o tocar datos, confirmar que el contenedor activo
+fue construido desde `$EXPECTED_SHA`. Tres mecanismos, **se exige que al
+menos uno coincida**:
+
+1. **`/api/version` (si existe)** — endpoint público que devuelve el SHA
+   del build:
+   ```bash
+   curl -s https://ccb.contan2.com/api/version | tee "$EVIDENCE_DIR/deploy/version-endpoint.json"
+   ```
+   No siempre está disponible en la versión actual del backend; si
+   devuelve 404 usar los siguientes mecanismos.
+
+2. **Label del container vía Coolify API** — Coolify inyecta el git SHA
+   como label `org.opencontainers.image.revision` en la imagen construida:
+   ```bash
+   APP_CONTAINER=$(ssh "$VPS" "docker ps --format '{{.Names}}' | grep ^f3xck8spocf" | head -1)
+   ssh "$VPS" "docker inspect $APP_CONTAINER --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}'" \
+     | tee "$EVIDENCE_DIR/deploy/container-revision-label.txt"
+   ```
+
+3. **Deployment record en Coolify API** — para cada deployment Coolify
+   guarda el commit_sha:
+   ```bash
+   curl -s -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+     "$COOLIFY_BASE_URL/api/v1/applications/f3xck8spocf0o377y9w0vq6n/deployments?limit=1" \
+     | tee "$EVIDENCE_DIR/deploy/coolify-deployments.json"
+   # Buscar el campo `commit` / `git_commit_sha` del último deployment.
+   ```
+
+Comparar el valor obtenido contra `$EXPECTED_SHA`. Si **ninguno** de los
+tres mecanismos confirma el match, abortar **antes** de probar el smoke
+de seguridad B o tocar el volumen/DB. Un container con SHA desconocido
+no es certificable como el hardening verificado en CI.
 
 Durante este lapso el volumen sigue como en el preflight; los 4 SVG
 históricos siguen siendo servidos pero ya fueron clasificados como
@@ -357,38 +411,76 @@ Verificar:
 Si algún check falla → abortar antes de D. Los PNG copiados se pueden
 borrar del volumen si la verificación remota falla, sin tocar DB.
 
-##### D · UPDATE SQL acotado + evidencia manual
+##### D · Actualizar branding vía `PATCH /api/org/branding` (ruta canónica)
 
-Con los rasters servibles bajo `/uploads/<NEW_*>`, ejecutar UPDATE
-escópeado por **`id` del tenant** (nunca por LIKE permisivo). Volcar el
-SQL literal y el `RETURNING` a evidencia:
+Con el hardening desplegado, los handlers de branding ya están
+disponibles. Esta es la ruta canónica para actualizar `logoUrl` y
+`emailLogoUrl` porque:
 
-```sql
-UPDATE organizations
-   SET logo_url   = '/uploads/' || :new_primary,
-       updated_at = NOW()
- WHERE id          = :tenant_id::uuid
-   AND logo_url    LIKE '%' || :old_basename_primary
- RETURNING id, slug, logo_url, updated_at;
+- Es la única que invalida `resolveTenant` cache para el tenant y su
+  custom domain (vía `invalidateTenantCache(slug)` + `invalidateTenantCache(customDomain)`).
+- Desde commit `b191773` (`feat(security): branding · recordAudit en
+  PATCH /api/org/branding + tests`), el handler también escribe a
+  `tenant_audit_log` con `action='branding.updated'`, `targetId`,
+  `targetLabel`, y `metadata.diff` con el `from`/`to` de cada campo
+  cambiado. La pista de auditoría queda completa sin SQL externo.
+
+NO usar UPDATE SQL directo como ruta normal. Un UPDATE crudo NO invalida
+cache y NO deja entrada en `tenant_audit_log` — eran las dos razones
+para evitarlo en versiones anteriores del runbook.
+
+Mecánica:
+
+```bash
+# D.1 · Obtener cookie de sesión owner del tenant CCB.
+# Usar las credenciales del owner real (NO el seed de tests). La cookie
+# `contan2_session` se exporta para usar en los curl siguientes.
+curl -s -c "$EVIDENCE_DIR/review-6A/cookies-owner.txt" \
+     -X POST -H 'Content-Type: application/json' \
+     --data "{\"email\":\"$CCB_OWNER_EMAIL\",\"password\":\"$CCB_OWNER_PASSWORD\"}" \
+     https://ccb.contan2.com/api/auth/login \
+     | tee "$EVIDENCE_DIR/review-6A/login-owner.json"
+
+# D.2 · PATCH logoUrl + emailLogoUrl en UNA sola llamada (atomicidad).
+# Las credenciales del owner viajan en variables locales; el body se
+# guarda redactado de toda info sensible (la URL no es sensible).
+HTTP_STATUS=$(curl -s -o "$EVIDENCE_DIR/review-6A/patch-branding.json" \
+  -w '%{http_code}' \
+  -b "$EVIDENCE_DIR/review-6A/cookies-owner.txt" \
+  -X PATCH -H 'Content-Type: application/json' \
+  --data "{
+    \"logoUrl\":      \"/uploads/$NEW_PRIMARY\",
+    \"emailLogoUrl\": \"/uploads/$NEW_EMAIL\"
+  }" \
+  https://ccb.contan2.com/api/org/branding)
+echo "PATCH branding HTTP: $HTTP_STATUS" | tee -a "$EVIDENCE_DIR/review-6A/patch-branding.status"
+# Esperado: 200, body.ok=true, body.organization.logoUrl === '/uploads/<NEW_PRIMARY>',
+#                              body.organization.emailLogoUrl === '/uploads/<NEW_EMAIL>'.
+
+# D.3 · Confirmar entrada en audit log.
+curl -s -b "$EVIDENCE_DIR/review-6A/cookies-owner.txt" \
+  'https://ccb.contan2.com/api/audit-log?action=branding.updated&limit=5' \
+  | tee "$EVIDENCE_DIR/review-6A/audit-log-branding-updated.json"
+# Esperado: al menos 1 entry con targetType='organization', targetLabel='ccb',
+# metadata.fields incluye 'logoUrl' + 'emailLogoUrl', metadata.diff.logoUrl.to
+# matchea '/uploads/<NEW_PRIMARY>'.
 ```
 
-```sql
-UPDATE organizations
-   SET email_logo_url = '/uploads/' || :new_email,
-       updated_at     = NOW()
- WHERE id              = :tenant_id::uuid
-   AND email_logo_url  LIKE '%' || :old_basename_email
- RETURNING id, slug, email_logo_url, updated_at;
-```
+Evidencia que queda archivada:
+- `login-owner.json` (response del login, sin password; mask del email).
+- `cookies-owner.txt` (jar local — **archivar fuera del repo y borrar
+  tras la ventana**).
+- `patch-branding.json` y `patch-branding.status` (response del PATCH).
+- `audit-log-branding-updated.json` (confirmación de auditoría).
 
-Cada `RETURNING` debe devolver exactamente **1 fila**. 0 filas → el
-asset ya no estaba referenciado (abortar y reportar). >1 fila → query
-no acotada (abortar). Las salidas se guardan en
-`$EVIDENCE_DIR/review-6A/sql-update-{logo,email}.txt`.
+**Cookies**: el jar `cookies-owner.txt` contiene una sesión viva. Al
+terminar la ventana hay que eliminarlo localmente (`rm -f`). El runbook
+lo trata como secreto operacional efímero, no como evidencia
+distribuible.
 
-Esta es la única auditoría disponible en este momento porque
-`recordAudit()` requiere haber pasado por el endpoint, cosa que no se
-hace en este paso.
+Si el PATCH devuelve status ≠ 200, o el `audit-log` no muestra la
+entrada esperada, abortar antes de E. NO continuar con cuarentena
+mientras la DB no haya quedado actualizada.
 
 ##### E · Cuarentena de los 4 SVG conocidos
 
@@ -422,43 +514,86 @@ Si exit ≠ 0 → detenerse y reportar. **NO restaurar SVG desde
 cuarentena.** La presencia de un SVG inesperado en este punto indica
 una segunda mano sobre el volumen entre B y E y requiere investigación.
 
-##### G · Smoke funcional final
+##### G · Smoke funcional final (read-only)
+
+Los pasos G.1–G.5 son read-only: cargan la app desde el browser del
+operador o disparan `curl` GET. NO envían email, NO modifican datos.
 
 | # | Test | Esperado |
 |---|---|---|
 | G.1 | Login admin del tenant + ver sidebar | Logo PRIMARY renderiza, sin broken image |
 | G.2 | Cargar `/kiosko` y `/scanner` del tenant | Sin errores de carga del logo |
-| G.3 | Generar reporte PDF de actividad | Logo PRIMARY aparece en el header del PDF |
-| G.4 | Enviar email de prueba (resend a `mfranciscomartinez@gmail.com`) | Logo EMAIL aparece en el header del email |
-| G.5 | `GET /uploads/<NEW_PRIMARY>` desde fuera del tenant | 200 + PNG + nosniff |
-| G.6 | `GET /uploads/<OLD_BASENAME>.svg` | 404 (cuarentena efectiva) |
+| G.3 | Generar **preview** de reporte PDF de actividad (endpoint que renderea sin enviar nada) | Logo PRIMARY aparece en el header del PDF |
+| G.4 | Render local de credencial PNG vía `GET /api/credentials/<code>.png` (público, mismo flujo que el email) | Imagen contiene el logo EMAIL embebido correctamente |
+| G.5 | `GET /uploads/<NEW_PRIMARY>` y `<NEW_EMAIL>` desde fuera del tenant | 200 + PNG + `X-Content-Type-Options: nosniff` |
+| G.6 | `GET /uploads/<OLD_BASENAME>.svg` (los 4 cuarentenados) | 404 (cuarentena efectiva) |
 
 Si todos pasan → ventana cerrada con éxito. Archivar evidencia (incluye
-`audit.json` post-cuarentena con exit 0, los `RETURNING` de los UPDATEs,
-y la captura de `quarantine.ls.txt`).
+`audit.json` post-cuarentena con exit 0, response del PATCH branding +
+audit-log mostrando `branding.updated`, y la captura de `quarantine.ls.txt`).
+
+##### G-email · Validación de email en vivo (autorización SEPARADA)
+
+Enviar un email real a `mfranciscomartinez@gmail.com` para verificar
+que el logo EMAIL aparece correctamente en el cliente. Este paso **NO
+es read-only** (consume cuota de Resend, deja log de envío externo) y
+queda fuera del smoke automático.
+
+| # | Test | Esperado |
+|---|---|---|
+| GE.1 | `POST /api/credentials/<code-test>/send` autenticado como owner del CCB hacia `mfranciscomartinez@gmail.com` | 200 + `audit-log` con `credential.sent` + email recibido con logo EMAIL renderizado |
+
+Pre-condiciones:
+- Existe un usuario seed/visitante de prueba en el CCB con
+  `email = mfranciscomartinez@gmail.com` o equivalente operacional, para
+  no spammear a un usuario real del tenant.
+- La política de email del proyecto sigue siendo "solo
+  mfranciscomartinez@gmail.com como destino de pruebas".
+
+Autorización requerida: **separada de G.1–G.6**. Se ejecuta solo si los
+smokes read-only pasaron Y el operador autoriza explícitamente el envío
+real.
+
+Si GE.1 falla por problema visual (logo no aparece, layout roto) o por
+upstream Resend, **no se revierte nada**: G.4 ya verificó la generación
+del PNG a nivel del backend, y el rollback se restringe a investigar el
+problema del cliente de email sin tocar branding/cuarentena.
 
 ##### Rollback (orden corregido)
 
-Tres escenarios según en qué fase falle:
+La pregunta clave es **si el container hardenizado quedó activo**.
+Mientras ese container no haya pasado el healthcheck, todo es reversible
+sin tocar volumen/DB. Una vez activo, el hardening queda y se diagnostica
+hacia adelante.
 
-| Falla en | Estado de prod | Acción |
-|---|---|---|
-| Preflight, A (deploy) o B (smoke seguridad) | Volumen y DB **intactos** (todo era read-only o reverse-able vía Coolify rollback) | Coolify rollback al deployment anterior. Producción vuelve a `multitenant` original. Reportar y replanear. |
-| C (scp PNG) o D (UPDATE) | Hardening **desplegado** (no se revierte). PNG pueden estar en volumen sin reference, o reference parcialmente actualizada | **Mantener el hardening en producción.** No restaurar SVG ni revertir UPDATE parcial. Detener y reportar. La remediación se completa manualmente con autorización separada. |
-| E (cuarentena) o F (re-audit) | Hardening desplegado. PNG copiados. DB actualizada. Cuarentena parcial o re-audit divergente | **Mantener todo lo avanzado.** No restaurar SVG. El hardening bloquea uploads SVG nuevos, así que la ventana está cerrada incluso si la limpieza queda incompleta. Reportar y completar manualmente con autorización separada. |
+| Falla en | ¿Hardening activo? | Volumen / DB | Acción |
+|---|---|---|---|
+| Preflight read-only | n/a | intactos | Detener, reportar lo que cambió desde 6.A, reabrir 6.A para reanálisis. No tocar nada. |
+| A.1–A.4 (merge, push, trigger) | NO | intactos | `git push origin multitenant` no se revierte (es solo metadata). Si el trigger Coolify no llegó a publicar imagen, no hay container nuevo; el código viejo sigue sirviendo. Replanear deploy. |
+| A.5 (verificación de SHA desplegado) | NO certificable | intactos | Container con SHA incorrecto o no verificable → **NO probar B, NO tocar C–G**. Rollback Coolify al deployment anterior conocido. Investigar por qué el SHA no coincide con `$EXPECTED_SHA` (build cache, branch incorrecto, race en push). Replanear. |
+| B (smoke de seguridad) — el container hardenizado **ya tomó tráfico** | **SÍ** | intactos | **MANTENER el hardening en producción.** No revertir Coolify a `multitenant` vulnerable — un fallo parcial del smoke (ej. `nosniff` ausente por proxy intermedio) no justifica reabrir el vector de uploads SVG. Detener C–G, diagnosticar la divergencia entre CI y prod, preparar fix, re-mergear, re-pushear, re-deployar. Reintentar B contra el deploy corregido. |
+| C (scp PNG) o D (PATCH branding) | SÍ | escritura parcial: PNG puede estar en volumen sin referencia DB, o referencia parcialmente actualizada | **Mantener el hardening.** No restaurar SVG. No revertir el PATCH parcial (si solo se actualizó `logoUrl` y no `emailLogoUrl`, el `emailLogoUrl` viejo apunta al SVG histórico — sigue siendo benigno según 6.A). Detener y completar manualmente con autorización separada. |
+| E (cuarentena) o F (re-audit) | SÍ | branding actualizada, cuarentena parcial o re-audit divergente | **Mantener todo lo avanzado.** No restaurar SVG. El hardening bloquea uploads SVG nuevos, así que la ventana XSS queda cerrada incluso si la limpieza del volumen queda incompleta. Reportar y completar manualmente con autorización separada. |
+| G (smoke funcional read-only) | SÍ | todo escrito | Si G.1–G.6 muestran un problema visual (logo roto en sidebar, broken image), recoger evidencia y abrir autorización separada para investigar/revertir branding (solo el `PATCH` se puede revertir, NO restaurar el SVG). Si todo bien, ventana cerrada. |
+| G-email (envío real) | SÍ | todo escrito | Falla aquí solo afecta cliente de email externo. Recoger evidencia, replanear envío, no revertir nada. |
 
-Reglas duras del rollback:
-- **Nunca restaurar SVG al path público** (`/data/contan2/uploads/`).
-  Aunque sean los SVG benignos analizados en 6.A, la política
-  organizacional es "SVG deshabilitado en uploads".
-- **Nunca revertir el deploy del hardening** una vez que B pasó. El
-  hardening es seguridad necesaria; revertirlo reabre la ventana.
-- **Nunca revertir el UPDATE SQL** si los PNG copiados se sirven OK.
-  Los PNG son válidos bajo cualquier versión del código.
+Reglas duras del rollback (priorizadas):
 
-Solo el deploy del código es reversible (vía Coolify rollback) y solo
-si nada en C–F llegó a ejecutarse. Una vez que la ventana cruza C, todo
-es avance permanente.
+1. **Si el hardening pasó B exitoso → nunca revertir a `multitenant` vulnerable.**
+   Aun cuando una fase ulterior falle, revertir reabriría la ventana XSS
+   en `/api/uploads/image`. Cualquier defecto se diagnostica y se cubre
+   con un nuevo deploy hacia adelante.
+2. **Nunca restaurar SVG al path público** (`/data/contan2/uploads/`).
+   Aunque sean los benignos analizados en 6.A, la política organizacional
+   es "SVG deshabilitado en uploads".
+3. **Nunca revertir el PATCH de branding** si los PNG copiados se sirven
+   OK. Los PNG son válidos bajo cualquier versión del código; un revert
+   reapunta a un SVG que ya no debería existir.
+
+Solo el deploy del código es reversible (vía Coolify rollback) **y solo
+si A.5 no logró certificar el SHA o si B ni siquiera llegó a ejecutarse**.
+Apenas el hardening esté activo y B pase, todo es avance permanente —
+los problemas se resuelven con un nuevo deploy, no con un retroceso.
 
 Resumen de autorizaciones requeridas en este runbook:
 
