@@ -327,62 +327,144 @@ Esperar hasta:
 ##### A.5 · Verificación del SHA desplegado (obligatorio antes de B)
 
 Antes de probar nada o tocar datos, confirmar que el contenedor activo
-fue construido desde `$EXPECTED_SHA`. Tres mecanismos, **se exige que al
-menos uno coincida**:
+fue construido desde `$EXPECTED_SHA`. Hay dos mecanismos primarios y
+uno secundario.
 
-1. **`/api/version` (si existe)** — endpoint público que devuelve el SHA
-   del build:
+Pre-requisito de build: Coolify (o el build manual) debe pasar el SHA
+como build arg. El Dockerfile en esta rama declara
+`ARG GIT_SHA=unknown`, lo propaga a
+`LABEL org.opencontainers.image.revision=$GIT_SHA` y a
+`ENV BUILD_SHA=$GIT_SHA`. Si el build NO recibió `--build-arg GIT_SHA=...`,
+todos los mecanismos van a reportar `unknown` y el operador debe
+abortar — un container no trazable no pasa A.5.
+
+**Configuración en Coolify**: en la app `f3xck8spocf0o377y9w0vq6n`,
+sección "Build Args", agregar:
+
+```
+GIT_SHA=${COOLIFY_GIT_COMMIT_SHA}
+```
+
+Coolify expone `COOLIFY_GIT_COMMIT_SHA` automáticamente para deployments
+git-based. Si la versión de Coolify no expone esa variable, alternativa
+manual:
+
+```bash
+docker build --build-arg "GIT_SHA=$(git rev-parse HEAD)" -t contan2-saas:$(git rev-parse --short HEAD) .
+```
+
+Mecanismos de verificación (preferir el orden listado):
+
+1. **`/api/version`** (primario, implementado en el backend en esta rama):
    ```bash
    curl -s https://ccb.contan2.com/api/version | tee "$EVIDENCE_DIR/deploy/version-endpoint.json"
+   # Esperado: {"buildSha":"<EXPECTED_SHA>","ts":"..."}
    ```
-   No siempre está disponible en la versión actual del backend; si
-   devuelve 404 usar los siguientes mecanismos.
 
-2. **Label del container vía Coolify API** — Coolify inyecta el git SHA
-   como label `org.opencontainers.image.revision` en la imagen construida:
+2. **Label OCI del container**: `org.opencontainers.image.revision` está
+   en la imagen construida; visible vía `docker inspect`:
    ```bash
    APP_CONTAINER=$(ssh "$VPS" "docker ps --format '{{.Names}}' | grep ^f3xck8spocf" | head -1)
    ssh "$VPS" "docker inspect $APP_CONTAINER --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}'" \
      | tee "$EVIDENCE_DIR/deploy/container-revision-label.txt"
    ```
 
-3. **Deployment record en Coolify API** — para cada deployment Coolify
-   guarda el commit_sha:
+3. **Deployment record en Coolify API** (secundario, depende de la versión
+   de Coolify):
    ```bash
    curl -s -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
      "$COOLIFY_BASE_URL/api/v1/applications/f3xck8spocf0o377y9w0vq6n/deployments?limit=1" \
      | tee "$EVIDENCE_DIR/deploy/coolify-deployments.json"
-   # Buscar el campo `commit` / `git_commit_sha` del último deployment.
    ```
 
-Comparar el valor obtenido contra `$EXPECTED_SHA`. Si **ninguno** de los
-tres mecanismos confirma el match, abortar **antes** de probar el smoke
-de seguridad B o tocar el volumen/DB. Un container con SHA desconocido
-no es certificable como el hardening verificado en CI.
+Comparar los valores obtenidos contra `$EXPECTED_SHA`. Se exige que **el
+endpoint `/api/version` Y el label del container** coincidan con
+`$EXPECTED_SHA`. Si alguno devuelve `unknown` o un SHA distinto, abortar
+**antes** de probar el smoke de seguridad B o tocar el volumen/DB.
+
+El endpoint y el label fueron añadidos en commit `f16ac12` (`feat(deploy):
+identidad de build verificable · ARG GIT_SHA + /api/version`). Antes de
+ese commit no existen; cualquier deployment anterior reporta `unknown` y
+NO pasa A.5.
 
 Durante este lapso el volumen sigue como en el preflight; los 4 SVG
 históricos siguen siendo servidos pero ya fueron clasificados como
 benignos en 6.A. La degradación visual sigue ausente porque el código
 viejo aún corre hasta que el container nuevo toma el tráfico.
 
-##### B · Smoke de seguridad inmediato post-deploy (sin tocar volumen)
+##### B · Smoke de seguridad inmediato post-deploy
 
-Antes de cualquier escritura al volumen o a la DB, verificar que el
-hardening está vivo y bloquea los vectores principales:
+Antes de cualquier escritura intencional al volumen o a la DB, verificar
+que el hardening está vivo y bloquea los vectores principales. El smoke
+se parte en dos bloques porque **B.3 NO es read-only**.
+
+###### B-read-only (B.1, B.2, B.4) — sin tocar volumen ni DB
 
 | # | Test | Esperado |
 |---|---|---|
-| B.1 | `POST /api/uploads/image` **anónimo** (sin cookie) | `401` |
-| B.2 | `POST /api/uploads/image` con sesión autorizada + archivo `image/svg+xml` | `400` (fileFilter rechaza) |
-| B.3 | `POST /api/uploads/image` con sesión autorizada + bytes SVG declarados `image/png` | `400` (sharp format whitelist) |
+| B.1 | `POST /api/uploads/image` **anónimo** (sin cookie) | `401`. La request muere en `requireStaffSession` antes de llegar a multer; el fileFilter no se ejecuta, no se abre archivo en el volumen. |
+| B.2 | `POST /api/uploads/image` con sesión autorizada + archivo declarado `image/svg+xml` | `400`. El `fileFilter` de multer rechaza por mimetype **antes** de cualquier escritura a disco. |
 | B.4 | `GET /uploads/<cualquier-existente>` | header `X-Content-Type-Options: nosniff` presente |
 
-Si **CUALQUIER** smoke falla → abortar antes de C. **No retroceder el
-deploy** — el hardening sigue siendo necesario aunque el smoke marque
-un fallo parcial. Investigar la divergencia entre lo testeado en CI y
-lo observado en producción; fixear; redeployar; reintentar el smoke.
+Estos tres SÍ son read-only para el volumen y DB. Una autorización los
+cubre a todos.
 
-Solo cuando los 4 tests pasen verde, autorizar C.
+###### B-destructive (B.3) — prueba con escritura temporal, requiere autorización separada
+
+| # | Test | Esperado |
+|---|---|---|
+| B.3 | `POST /api/uploads/image` con sesión autorizada + bytes SVG declarados `image/png` | `400`. Sharp detecta `format='svg'` en metadata, no está en el whitelist `{png,jpeg,jpg,webp}`, el archivo recién escrito por multer se borra (`deleteSilently`) y el handler responde `HttpError(400)`. |
+
+Por qué NO es read-only: el `fileFilter` mira solo el `Content-Type`
+declarado por el cliente. Como el cliente miente con `image/png`,
+multer **escribe el archivo al volumen** con un nombre tipo
+`<Date.now()>-<randomBytes(6).toString('hex')>.png`. La detección real
+del SVG ocurre en `optimizeImage` cuando sharp lee los bytes; ahí se
+borra el archivo. Pero entre el momento del write y el delete hay un
+estado intermedio en el FS — operacionalmente es una prueba destructiva
+controlada, no read-only.
+
+Procedimiento de B.3 con autorización separada:
+
+```bash
+# B.3.pre — snapshot del listado de /data/contan2/uploads antes del test
+ssh "$VPS" "ls /data/contan2/uploads | sort" > "$EVIDENCE_DIR/smoke/uploads-before-B3.txt"
+
+# B.3 — ejecutar el POST con bytes SVG + content-type image/png
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -b "$EVIDENCE_DIR/cookies-owner.txt" \
+  -X POST -F 'image=@/tmp/svg-disguised.png;type=image/png' \
+  https://ccb.contan2.com/api/uploads/image \
+  | tee "$EVIDENCE_DIR/smoke/B3-http-status.txt"
+# Esperado: 400
+
+# B.3.post — confirmar que el listado del volumen está IDÉNTICO al pre
+ssh "$VPS" "ls /data/contan2/uploads | sort" > "$EVIDENCE_DIR/smoke/uploads-after-B3.txt"
+diff "$EVIDENCE_DIR/smoke/uploads-before-B3.txt" \
+     "$EVIDENCE_DIR/smoke/uploads-after-B3.txt"
+# Esperado: salida vacía. Si difiere, abortar y reportar — significa
+# que el archivo intermedio NO fue limpiado.
+```
+
+Si `diff` no es vacío → abortar: el handler no limpió el archivo
+temporal y el volumen tiene un asset huérfano que NO existía pre-deploy.
+
+Alternativa preferida cuando hay staging: ejecutar B.3 únicamente contra
+staging (mismo binario), y en producción aceptar B.1, B.2, B.4 más una
+verificación read-only del fileFilter vía test de integración en CI
+(que ya existe: `test/security/uploads-svg.test.js` cubre el camino con
+DB Postgres real).
+
+###### Resultado conjunto
+
+Si **CUALQUIER** test (B.1, B.2, B.3, B.4) falla → abortar antes de C.
+**No retroceder el deploy** — el hardening sigue siendo necesario aunque
+el smoke marque un fallo parcial (ver Rollback). Investigar la
+divergencia entre lo testeado en CI y lo observado en producción;
+preparar fix; re-mergear; re-pushear; re-deployar; reintentar.
+
+Solo cuando los 4 tests pasen verde y el `diff` de B.3 sea vacío,
+autorizar C.
 
 ##### C · Copiar los PNG offline al volumen productivo
 
@@ -516,37 +598,58 @@ una segunda mano sobre el volumen entre B y E y requiere investigación.
 
 ##### G · Smoke funcional final (read-only)
 
-Los pasos G.1–G.5 son read-only: cargan la app desde el browser del
-operador o disparan `curl` GET. NO envían email, NO modifican datos.
+Los pasos G.1–G.6 son read-only: cargan la app desde el browser del
+operador o disparan `curl` GET. NO envían email real, NO modifican datos.
+
+| # | Test | Qué verifica | Esperado |
+|---|---|---|---|
+| G.1 | Login admin del tenant + ver sidebar | `logoUrl` (PRIMARY) renderea bien en el shell admin | Logo PRIMARY sin broken image |
+| G.2 | Cargar `/kiosko` y `/scanner` del tenant | `logoUrl` (PRIMARY) renderea en superficies públicas | Sin errores de carga |
+| G.3 | Generar **preview** de reporte PDF de actividad (endpoint que renderea sin enviar nada) | `logoUrl` (PRIMARY) aparece en el header del PDF | Logo PRIMARY presente |
+| G.4 | `GET /api/credentials/<code>.png` (público) | El PNG de credencial usa `services/credential.js → loadOrgLogoDataUri()`, que lee `organization.logoUrl` (**PRIMARY**, no `emailLogoUrl`). Por tanto este test verifica que la PRIMARY se incrusta correctamente en el PNG de credencial. **NO verifica el logo EMAIL**. | Imagen ≥ 1 KiB, content-type `image/png`, logo PRIMARY embebido (inspección visual offline) |
+| G.5 | `GET /uploads/<NEW_PRIMARY>` y `<NEW_EMAIL>` desde fuera del tenant | El path estático sirve ambos PNG con headers correctos | 200 + PNG + `X-Content-Type-Options: nosniff` |
+| G.6 | `GET /uploads/<OLD_BASENAME>.svg` (los 4 cuarentenados) | La cuarentena fue efectiva | 404 |
+
+Cobertura faltante en read-only: **el logo EMAIL** (asset B) NO se
+verifica end-to-end en G.1–G.6 porque ningún flujo público lo
+materializa sin enviar un email real. La única superficie que lo
+consume es `sendCredentialEmail()` cuando construye el HTML del cuerpo
+del email (vía `loadEmailLogoDataUri()`). Para verificarlo en vivo →
+ver `G-email` abajo, con autorización separada.
+
+Si todos los read-only pasan → autorizar `G-email` si se desea cobertura
+end-to-end de EMAIL, o cerrar la ventana con la cobertura read-only
+solamente. Archivar evidencia (incluye `audit.json` post-cuarentena con
+exit 0, response del PATCH branding + audit-log mostrando
+`branding.updated`, y la captura de `quarantine.ls.txt`).
+
+##### G-email · Validación end-to-end del logo EMAIL (autorización SEPARADA)
+
+**Único camino para verificar el logo EMAIL en vivo.** G.4 verifica
+PRIMARY a través del PNG de credencial; el logo EMAIL solo se materializa
+en el HTML del email construido por `sendCredentialEmail()`, que llama a
+`loadEmailLogoDataUri(organization)` y prefiere `emailLogoUrl` sobre
+`logoUrl`.
+
+Este paso **NO es read-only** (consume cuota de Resend, deja log de
+envío externo, llega a un buzón real) y queda fuera del smoke
+automático.
 
 | # | Test | Esperado |
 |---|---|---|
-| G.1 | Login admin del tenant + ver sidebar | Logo PRIMARY renderiza, sin broken image |
-| G.2 | Cargar `/kiosko` y `/scanner` del tenant | Sin errores de carga del logo |
-| G.3 | Generar **preview** de reporte PDF de actividad (endpoint que renderea sin enviar nada) | Logo PRIMARY aparece en el header del PDF |
-| G.4 | Render local de credencial PNG vía `GET /api/credentials/<code>.png` (público, mismo flujo que el email) | Imagen contiene el logo EMAIL embebido correctamente |
-| G.5 | `GET /uploads/<NEW_PRIMARY>` y `<NEW_EMAIL>` desde fuera del tenant | 200 + PNG + `X-Content-Type-Options: nosniff` |
-| G.6 | `GET /uploads/<OLD_BASENAME>.svg` (los 4 cuarentenados) | 404 (cuarentena efectiva) |
+| GE.1 | `POST /api/credentials/<code-test>/send` autenticado como owner del CCB hacia un visitante seed cuyo `email = mfranciscomartinez@gmail.com` | 200 + entry `credential.sent` en `tenant_audit_log` + email recibido con logo EMAIL (asset B, color) renderizado en el header del HTML |
 
-Si todos pasan → ventana cerrada con éxito. Archivar evidencia (incluye
-`audit.json` post-cuarentena con exit 0, response del PATCH branding +
-audit-log mostrando `branding.updated`, y la captura de `quarantine.ls.txt`).
-
-##### G-email · Validación de email en vivo (autorización SEPARADA)
-
-Enviar un email real a `mfranciscomartinez@gmail.com` para verificar
-que el logo EMAIL aparece correctamente en el cliente. Este paso **NO
-es read-only** (consume cuota de Resend, deja log de envío externo) y
-queda fuera del smoke automático.
-
-| # | Test | Esperado |
-|---|---|---|
-| GE.1 | `POST /api/credentials/<code-test>/send` autenticado como owner del CCB hacia `mfranciscomartinez@gmail.com` | 200 + `audit-log` con `credential.sent` + email recibido con logo EMAIL renderizado |
+Inspección manual del email recibido:
+- Header del email: debe mostrar el **logo EMAIL** (variante color azul
+  + gris, ASSET B), NO el PRIMARY (blanco invisible sobre fondo claro).
+- El adjunto `credencial-<code>.png` muestra el logo PRIMARY (consistente
+  con G.4).
+- Subject: `Tu credencial · <code>`.
 
 Pre-condiciones:
-- Existe un usuario seed/visitante de prueba en el CCB con
-  `email = mfranciscomartinez@gmail.com` o equivalente operacional, para
-  no spammear a un usuario real del tenant.
+- Existe un usuario seed/visitante de prueba en el CCB cuyo `email` es
+  `mfranciscomartinez@gmail.com`, para no spammear a un usuario real del
+  tenant.
 - La política de email del proyecto sigue siendo "solo
   mfranciscomartinez@gmail.com como destino de pruebas".
 
@@ -554,10 +657,18 @@ Autorización requerida: **separada de G.1–G.6**. Se ejecuta solo si los
 smokes read-only pasaron Y el operador autoriza explícitamente el envío
 real.
 
-Si GE.1 falla por problema visual (logo no aparece, layout roto) o por
-upstream Resend, **no se revierte nada**: G.4 ya verificó la generación
-del PNG a nivel del backend, y el rollback se restringe a investigar el
-problema del cliente de email sin tocar branding/cuarentena.
+Si GE.1 falla por problema visual (logo email no aparece, layout roto)
+o por upstream Resend, **no se revierte nada**: G.5 ya verificó que el
+asset EMAIL es servible desde `/uploads/<NEW_EMAIL>`, y el rollback se
+restringe a investigar el problema del cliente de email sin tocar
+branding/cuarentena.
+
+Alternativa sin envío real (preview offline): no implementada en esta
+rama. Para incorporarla habría que exponer un endpoint
+`GET /api/admin/email-preview?type=credential` que renderiza el HTML
+con los tokens del tenant sin tocar Resend. Queda como mejora futura
+documentada; mientras tanto, GE.1 es la única verificación
+end-to-end del logo EMAIL y requiere autorización explícita.
 
 ##### Rollback (orden corregido)
 
