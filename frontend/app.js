@@ -3999,8 +3999,62 @@ function renderAttendeePickerList() {
   `;
 }
 
+// Normaliza nombre/email para comparación case+accent-insensitive
+function _normForDup(s) {
+  return String(s || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ').trim();
+}
+
+// Detecta posibles duplicados (mismo nombre OR email casi-igual) entre
+// el usuario a agregar y los asistentes ya inscritos en la actividad.
+// Retorna array de attendees sospechosos para que el operador decida.
+function _detectAttendeeDuplicates(user, attendees) {
+  if (!user || !attendees?.length) return [];
+  const userFull = _normForDup(`${user.firstName || ''} ${user.lastName || ''}`);
+  const userEmailLocal = (user.email || '').toLowerCase().split('@')[0].trim();
+  const suspects = [];
+  for (const a of attendees) {
+    if (a.code === user.code) continue; // ya estaba (no debería pasar pero por las dudas)
+    const aFull = _normForDup(`${a.firstName || ''} ${a.lastName || ''}`);
+    const aEmailLocal = (a.email || '').toLowerCase().split('@')[0].trim();
+    const sameName = userFull && aFull && userFull === aFull;
+    // Email local (antes del @) igual → mismo "alb.perdomo" en @gmail.com
+    // vs @gmail.clm es un signo clarísimo de typo
+    const sameEmailLocal = userEmailLocal && aEmailLocal && userEmailLocal === aEmailLocal;
+    if (sameName || sameEmailLocal) {
+      suspects.push({ ...a, reason: sameName && sameEmailLocal ? 'nombre+email' : sameName ? 'nombre' : 'email' });
+    }
+  }
+  return suspects;
+}
+
 async function assignAttendeeToActivity(userCode, activityId, btn) {
   if (!userCode || !activityId) return;
+
+  // Pre-check: duplicado por nombre o email-local antes de hacer el POST.
+  // Esto previene el caso "alb.perdomo@gmail.clm" (typo) creando un
+  // duplicate de "alb.perdomo@gmail.com" en la misma actividad.
+  const user = (_attendeePicker.users || []).find(u => u.code === userCode);
+  const attendees = _activityDetailCache.data?.attendees || [];
+  const suspects = _detectAttendeeDuplicates(user, attendees);
+  if (suspects.length) {
+    const lines = suspects.map(s =>
+      `• ${s.firstName} ${s.lastName} · ${s.code}${s.email ? ' · ' + s.email : ''} (coincide en ${s.reason})`,
+    ).join('\n');
+    const ok = confirm(
+      `Posible duplicado detectado.\n\n` +
+      `Vas a agregar a:\n• ${user?.firstName || ''} ${user?.lastName || ''} · ${userCode}${user?.email ? ' · ' + user.email : ''}\n\n` +
+      `Ya está inscrito en esta actividad:\n${lines}\n\n` +
+      `¿Estás seguro que es una persona diferente y NO un duplicado por typo en el email?\n\n` +
+      `Si dudas, cancela y revisa con el visitante — un código por persona evita asistencias dobles.`,
+    );
+    if (!ok) {
+      Toast.warning('Cancelado · revisa si el visitante ya tiene un código');
+      return;
+    }
+  }
+
   const orig = btn?.innerHTML;
   if (btn) {
     btn.disabled = true;
@@ -4016,9 +4070,8 @@ async function assignAttendeeToActivity(userCode, activityId, btn) {
     Toast.success(isRetro
       ? `${userCode} agregado (asistencia retroactiva)`
       : `${userCode} agregado a la actividad`);
-    // Refresca el modal completo: nueva attendance + sumario + contador.
     closeAttendeePicker();
-    _attendeePicker.users = null; // invalidar caché de usuarios (visitCount cambió)
+    _attendeePicker.users = null; // invalidar caché (visitCount cambió)
     await handleActivityDetail(activityId);
   } catch (e) {
     Toast.error(explainError(e));
