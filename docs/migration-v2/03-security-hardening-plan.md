@@ -77,14 +77,17 @@ Todos los handlers privados. Además, mover generación a worker (V012, en P1) p
 `GET /api/org/branding` (lectura) → `requireStaffSession` (tier STAFF).
 `PATCH /api/org/branding` (escritura, cambia identidad del tenant) → `requireStaffSession` + `requireRole(['admin', 'owner'])`.
 
-#### V008b · `routes/credentials.js` — `POST /:code/send`
-Endpoint actualmente sin auth, solo rate limit IP 3/min. Permite a anónimo disparar emails vía Resend con cualquier código válido + verificar existencia por timing.
+#### V008b · `routes/credentials.js` — `POST /:code/send` + público `GET /:code.png`
+Estado pre-hardening: el send estaba sin auth (solo rate limit IP 3/min), permitía a anónimo disparar emails vía Resend con cualquier código válido + enumerar existencia por timing. El PNG público incluía el email del visitante embebido en el SVG.
 
-Decisión: aplicar `requireStaffSession` (tier STAFF) + agregar rate limit por staff (5/min) + audit log.
-
-`GET /:code.png` se mantiene público bearer-style (el código actúa como token portador, el visitante recibe el link en su email de credencial). Mitigaciones obligatorias: regex estricto del código (ya aplicada), respuesta solo con QR + nombre, sin información adicional. Test obligatorio que verifique que no hay información sensible en la respuesta.
-
-`POST /bulk-send` ya tiene `requireStaff`. Verificar en hardening que sea `requireRole(['admin', 'owner'])` y no solo session.
+Aplicado en `security/p0-hardening`:
+- `POST /:code/send`: `requireStaffSession` (tier STAFF) + rate limit existente + **audit log** `credential.sent` con metadata `{ resendId, emailMasked }` tras envío exitoso (commit `ec98380`).
+- `POST /bulk-send`: `requireStaffSession + requireRole(['admin','owner'])` (commit `712e244`). Antes usaba el legacy `requireStaff` que no validaba role.
+- `GET /:code.png`: se mantiene público bearer-style (el visitante recibe el link en su email y debe abrirlo sin login), pero:
+  - **Email removido del SVG renderizado** (`services/credential.js`, commit `ec98380`). El PNG solo embebe nombre + código + QR.
+  - **Rate-limit explícito 60 req/min por IP** (`credentialPngLimit`) aplicado antes del handler.
+  - Regex estricto del código mantenido.
+- Tests: `test/security/credentials.test.js` cubre auth en send/bulk-send, rate-limit del GET (65 requests rápidos → al menos un 429), verificación de que `generateCredentialPng` no embebe email + lectura estática de `credential.js` que actúa como regression guard (`${email}` y `escapeXml(email)` no aparecen en código activo).
 
 #### V009 · `routes/staff.js` — LEGACY PIN (no aplicar `requireStaffSession`)
 Login PIN del scanner antiguo. `POST /login` debe permanecer PUBLIC (lógicamente, igual que cualquier login). `GET /me` y `POST /logout` usan el middleware `staffAuth.js` aislado con cookie `ccb_staff`, no `requireStaffSession`. Este sistema queda como está hasta que se confirme que ningún cliente lo invoca; entonces se retira en una migración separada.
@@ -121,13 +124,21 @@ Stack: Vitest + supertest. Postgres real (instancia local efímera o Testcontain
 
 ### Ventana de aplicación P0
 
-Aplicar **en rama `migration/saas-platform-v2-parallel`** primero:
-1. Cambios + tests pasando localmente.
-2. Smoke test contra Postgres dump de prod (no contra prod directo).
-3. Merge a `develop`.
-4. Deploy a staging (si hay) o canary deploy en horario bajo tráfico.
-5. Verificar que el frontend actual no se rompe (envía cookie correctamente).
-6. Merge a `multitenant` + deploy.
+Aplicar **en rama `security/p0-hardening`** (cortada desde `multitenant`) primero:
+1. Cambios + tests pasando localmente (`backend/test/security/*` con Vitest + supertest).
+2. Smoke test autenticado contra Postgres local (dump scrubbed de prod — sin datos reales del CCB).
+3. Code review + aprobación explícita del operador antes de merge.
+4. Merge a `multitenant` (rama estable actual de producción) bajo ventana baja de tráfico.
+5. Deploy a producción con observación de error rate + smoke autenticado post-deploy.
+
+Cada commit en `security/p0-hardening` está aislado por router para permitir revert individual:
+- `1f356d2` users + activities
+- `522f289` attendance + dashboard + insights
+- `c242b63` reports + uploads + orgBranding
+- `712e244` credentials + tenant payload
+- `abfa09f` orgDomain (hardening completo)
+- `ec98380` credentials público (PNG sin email + rate-limit + audit log)
+- `497f3c1` uploads SVG (rechazar SVG en filter + sanitizeSvg exportado)
 
 **Rollback**: revertir commit del router específico + redeploy. Cada router es revertible aislado.
 

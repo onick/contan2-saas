@@ -111,7 +111,7 @@ Notas:
 
 | Endpoint | Método | Tier | Notas |
 |---|---|---|---|
-| `/api/uploads/image` | POST | STAFF | Usado tanto para logo (admin) como para afiches de actividad (operator). El control de qué se hace con el upload va en el endpoint que consume el resultado (`/api/org/branding` o crear actividad). El upload en sí queda STAFF + sanitización SVG obligatoria |
+| `/api/uploads/image` | POST | STAFF | Usado tanto para logo (admin) como para afiches de actividad (operator). El control de qué se hace con el upload va en el endpoint que consume el resultado (`/api/org/branding` o crear actividad). **SVG deshabilitado**: en commit `497f3c1` se removió `image/svg+xml` del `ALLOWED_MIME` del fileFilter porque el sanitizer regex actual no cubre vectores como entidades codificadas (`&#x6A;avascript:`), `<foreignObject>` con HTML embebido ni `style="..."` con `expression()`/`url(javascript:)`. La función `sanitizeSvg` queda exportada como pura para tests y para uso futuro cuando se integre un sanitizer robusto (DOMPurify+jsdom). SVG ya servidos en `/uploads/*` siguen como estáticos |
 
 ### `routes/orgBranding.js` — branding del tenant
 
@@ -122,15 +122,22 @@ Notas:
 
 ### `routes/orgDomain.js` — custom domain self-service
 
-✅ Todos los endpoints ya protegidos con `requireStaffSession` + `requireRole`. Verificación en tests.
+| Endpoint | Método | Tier | Notas |
+|---|---|---|---|
+| `/api/org/domain` | GET | ADMIN/OWNER | Lee configuración de dominio custom |
+| `/api/org/domain` | PATCH | ADMIN/OWNER | Setea / cambia dominio |
+| `/api/org/domain/verify` | POST | ADMIN/OWNER | Verifica TXT DNS |
+| `/api/org/domain` | DELETE | ADMIN/OWNER | Remueve dominio |
+
+✅ Hardening aplicado en commit `abfa09f` de la rama `security/p0-hardening`: `router.use(requireStaffSession); router.use(requireRole(['owner','admin']))`. Antes usaba el legacy `requireStaff` (cookie `ccb_staff`), lo que dejaba la configuración institucional del dominio expuesta a sesiones de PIN scanner. Tests en `test/security/orgDomain-rbac.test.js`.
 
 ### `routes/credentials.js` — credenciales QR
 
 | Endpoint | Método | Tier | Notas |
 |---|---|---|---|
-| `/api/credentials/:code.png` | GET | PUBLIC bearer-style | El `code` actúa como token portador. **Decisión documentada:** se mantiene público porque el visitante recibe su credencial PNG vía link en su email. Mitigaciones obligatorias: el código es opaco (`CCB-XXXXXX` con 6 chars `[A-Z0-9]` ≈ 2.1B combinaciones), rate limit IP, sin información adicional en la respuesta más allá del QR + nombre. Sin enumeración masiva factible (regex estricto) |
-| `/api/credentials/:code/send` | POST | **STAFF + rate-limit estricto** | Corrección P0: actualmente sin auth. El endpoint dispara email. Política: requiere sesión staff + rate limit 5/min por staff + audit log entrada |
-| `/api/credentials/bulk-send` | POST | ADMIN/OWNER | ✅ ya protegido con `requireStaff`. Verificar que es `requireRole(['admin','owner'])` y no solo session |
+| `/api/credentials/:code.png` | GET | PUBLIC bearer-style | El `code` actúa como token portador. **Decisión documentada y aplicada en `security/p0-hardening`:** se mantiene público porque el visitante recibe su credencial PNG vía link en su email y debe abrirla sin login. Mitigaciones obligatorias **implementadas**: (a) el código es opaco (`CCB-XXXXXX` con 6 chars `[A-Z0-9]` ≈ 2.1B combinaciones); (b) rate-limit explícito 60 req/min por IP en `routes/credentials.js` (`credentialPngLimit`); (c) **el PNG NO incluye email del visitante** — el SVG renderizado por `services/credential.js` solo embebe nombre + código + QR; (d) el contenido portable (nombre + código + QR) se considera dato que el visitante mismo posee y comparte. **Limitación conocida**: quien posea el link de la credencial puede descargarla; mitigación futura sería un token de descarga single-use, evaluable si el modelo de amenaza lo justifica |
+| `/api/credentials/:code/send` | POST | STAFF | ✅ ya protegido en commit previo de `security/p0-hardening` con `requireStaffSession`. En commit `ec98380` se añade `recordAudit({ action: 'credential.sent', targetType: 'user', targetLabel: code, metadata: { resendId, emailMasked } })` tras envío exitoso |
+| `/api/credentials/bulk-send` | POST | ADMIN/OWNER | ✅ ya protegido en commit `712e244` con `requireStaffSession + requireRole(['admin','owner'])` (antes usaba el legacy `requireStaff`, que aceptaba cualquier cookie `ccb_staff`) |
 
 ### `routes/auditLog.js` — historial
 

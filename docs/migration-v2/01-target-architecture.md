@@ -133,7 +133,7 @@ Tooling: **pnpm workspaces** + **Turborepo**.
 Durante la migración v2, **ambos stacks coexisten**:
 
 - El Express + Vanilla JS actual sigue corriendo en producción (branch `multitenant`).
-- El nuevo monorepo se construye en paralelo en `migration/saas-platform-v2-parallel`.
+- El hardening P0 se aplica en `security/p0-hardening` (cortada desde `multitenant`). La migración estructural posterior (monorepo / Fastify / Next App Router / RLS) se construirá en una rama dedicada cuando se decida arrancarla; queda fuera del alcance de FASE 1.A.
 - Ambos comparten la misma DB Postgres.
 - El cutover (ver `04-cutover-and-rollback.md`) es por subdomain/route, no big-bang.
 
