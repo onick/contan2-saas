@@ -535,12 +535,12 @@
               <label class="btn btn--ghost btn--sm">
                 <i class="fa-solid fa-arrow-up-from-bracket"></i>
                 <span>${(s.pendingLogoPreview || s.logoUrl) ? 'Cambiar logo' : 'Subir logo'}</span>
-                <input type="file" id="b-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+                <input type="file" id="b-logo-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
               </label>
               ${(s.pendingLogoPreview || s.logoUrl)
                 ? `<button type="button" class="btn btn--ghost btn--sm" id="b-logo-remove"><i class="fa-solid fa-xmark"></i> Quitar</button>`
                 : ''}
-              <div class="form-hint">PNG con fondo transparente recomendado. Máx 5 MB.</div>
+              <div class="form-hint">PNG, JPG, WebP o GIF — máx 5 MB. PNG con fondo transparente recomendado. SVG deshabilitado temporalmente por seguridad.</div>
             </div>
           </div>
         </section>
@@ -592,12 +592,12 @@
                   <label class="btn btn--ghost btn--sm">
                     <i class="fa-solid fa-arrow-up-from-bracket"></i>
                     <span>${(s.pendingEmailLogoPreview || s.emailLogoUrl) ? 'Cambiar logo de email' : 'Subir logo de email'}</span>
-                    <input type="file" id="b-email-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+                    <input type="file" id="b-email-logo-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
                   </label>
                   ${(s.pendingEmailLogoPreview || s.emailLogoUrl)
                     ? `<button type="button" class="btn btn--ghost btn--sm" id="b-email-logo-remove"><i class="fa-solid fa-xmark"></i> Quitar</button>`
                     : ''}
-                  <div class="form-hint">PNG o JPG. Versión legible sobre fondo blanco. Máx 5 MB.</div>
+                  <div class="form-hint">PNG, JPG, WebP o GIF — máx 5 MB. Versión legible sobre fondo blanco. SVG deshabilitado temporalmente por seguridad.</div>
                 </div>
               </div>
             </section>
