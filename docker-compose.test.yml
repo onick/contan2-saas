@@ -1,0 +1,66 @@
+# =============================================================================
+# docker-compose.test.yml · Postgres para suite de integración local + CI
+# =============================================================================
+# Levanta un Postgres efímero en el puerto 5433 (NO 5432, para no chocar con
+# postgres de host) con datos sólo en volumen tmpfs en memoria — todo se
+# borra al hacer `docker compose -f docker-compose.test.yml down`.
+#
+# Uso típico:
+#
+#   # 1. Arranca Postgres
+#   docker compose -f docker-compose.test.yml up -d postgres-test
+#
+#   # 2. Espera a que esté healthy
+#   docker compose -f docker-compose.test.yml exec postgres-test \
+#     pg_isready -U test -d contan2_test
+#
+#   # 3. Aplica migraciones + seedea fixtures
+#   cd backend
+#   DB_DRIVER=postgres \
+#   DATABASE_URL=postgres://test:test@localhost:5433/contan2_test \
+#   SECRET_BASE=test-secret-base-32-bytes-min-aaaaaaaaaaaaaaaa \
+#   ROOT_DOMAIN=localhost \
+#   PUBLIC_URL=http://localhost:3457 \
+#     node scripts/seed-test-fixtures.mjs
+#
+#   # 4. Corre la suite completa (76 unit + 13 postgres-gated = 89 sin skips)
+#   DB_DRIVER=postgres \
+#   DATABASE_URL=postgres://test:test@localhost:5433/contan2_test \
+#   SECRET_BASE=test-secret-base-32-bytes-min-aaaaaaaaaaaaaaaa \
+#   ROOT_DOMAIN=localhost \
+#   PUBLIC_URL=http://localhost:3457 \
+#     npm test
+#
+#   # 5. Limpia
+#   docker compose -f docker-compose.test.yml down
+#
+# Para CI: `make test-postgres` (ver Makefile) encapsula los pasos.
+# =============================================================================
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: contan2-postgres-test
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: contan2_test
+      # Locale es-DO matchea producción.
+      LANG: es_DO.UTF-8
+      LC_ALL: es_DO.UTF-8
+    ports:
+      # NO usar 5432 para no chocar con postgres del host. CI puede mapear
+      # cualquiera, pero local default 5433.
+      - "127.0.0.1:5433:5432"
+    tmpfs:
+      # Datos sólo en tmpfs — la suite los crea/destruye en cada corrida.
+      # Esto NO toca producción ni dumps reales, y elimina el riesgo de
+      # quedarse con un volumen con datos reales por accidente.
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d contan2_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    # Sin restart policy — esto es para tests, no para servir.
+    restart: "no"
