@@ -3461,76 +3461,144 @@ async function handleActivityShareCopy(target) {
   }
 }
 
+// Mapeo: tipo de actividad → segmento sugerido para invitación
+// Si el operador crea un evento de cine, le pre-sugerimos invitar a
+// los "Fans de cine". El operador puede cambiar a otro segmento o a
+// "Todos" libremente.
+const _ACTIVITY_TYPE_TO_SEGMENT = {
+  cine: 'fans-cine',
+  concierto: 'fans-concierto',
+  taller: 'fans-taller',
+  teatro: 'fans-teatro',
+  conferencia: 'fans-conferencia',
+  exposicion: 'fans-exposicion',
+};
+
 async function handleActivityInvite(activityId) {
   const activity = _activityDetailCache.data?.activity || State.activities.find(a => a.id === activityId);
   if (!activity) return;
-  // Cargar usuarios si no están cacheados
-  if (!State.users || State.users.length === 0) {
-    try {
-      const r = await API.users.list();
-      State.users = r.users;
-    } catch (e) {
-      Toast.error(explainError(e));
-      return;
-    }
+
+  // Cargar en paralelo: users (si no están) + segments
+  let segmentsList = [];
+  try {
+    const [usersResp, segmentsResp] = await Promise.all([
+      State.users && State.users.length ? Promise.resolve({ users: State.users }) : API.users.list(),
+      API.insights.segments().catch(() => ({ segments: [] })),
+    ]);
+    State.users = usersResp.users;
+    segmentsList = segmentsResp.segments || [];
+  } catch (e) {
+    Toast.error(explainError(e));
+    return;
   }
+
   // Filtrar: solo usuarios con email + que no estén ya invitados/inscritos
   const invitedIds = new Set((_activityDetailCache.invitations?.invitations || []).map(i => i.user?.code).filter(Boolean));
   const enrolledIds = new Set((_activityDetailCache.data?.attendees || []).map(a => a.code));
   const candidates = State.users.filter(
     u => u.email && !invitedIds.has(u.code) && !enrolledIds.has(u.code),
   );
+  const candidatesById = new Map(candidates.map(u => [u.id, u]));
 
-  const listHtml = candidates.length
-    ? candidates.map(u => `
-        <label class="invite-row">
-          <input type="checkbox" name="userId" value="${Utils.escapeHtml(u.id)}" />
-          <div class="invite-row-info">
-            <div class="cell-strong">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</div>
-            <div class="cell-muted">${Utils.escapeHtml(u.email)} · ${Utils.escapeHtml(u.code)}</div>
-          </div>
-          <span class="badge badge--info">${u.visitCount}v</span>
-        </label>
-      `).join('')
-    : '<div class="empty"><i class="fa-solid fa-user-slash"></i><h3>Sin candidatos</h3><p>Todos los usuarios con email ya están invitados o inscritos.</p></div>';
+  // Audiencia sugerida según tipo de actividad (si el segmento existe en el tenant)
+  const suggestedId = _ACTIVITY_TYPE_TO_SEGMENT[activity.type] || '';
+  const suggestedExists = suggestedId && segmentsList.some(s => s.id === suggestedId && s.count > 0);
+  const initialSegmentId = suggestedExists ? suggestedId : '';
+
+  // Cache de userIds por segmento (se llena on-demand al cambiar el dropdown)
+  const segmentUsersCache = new Map();
+
+  // Estado local del modal
+  const stateModal = {
+    segmentId: initialSegmentId,
+    segmentUserIds: null, // null = sin filtro de segmento (todos los candidates)
+    search: '',
+    selected: new Set(),
+  };
+
+  // Opciones del dropdown: "Todos" + segmentos relevantes (con count > 0)
+  const orderedSegments = segmentsList
+    .filter(s => s.count > 0)
+    .sort((a, b) => {
+      // Prioridad: sugerido primero, luego fans-* por tipo de actividad,
+      // luego el resto por count desc
+      if (a.id === suggestedId) return -1;
+      if (b.id === suggestedId) return 1;
+      const aFan = a.id.startsWith('fans-');
+      const bFan = b.id.startsWith('fans-');
+      if (aFan && !bFan) return -1;
+      if (!aFan && bFan) return 1;
+      return b.count - a.count;
+    });
+
+  const segmentOptions = `
+    <option value="">Todos los candidatos (${candidates.length})</option>
+    ${orderedSegments.map(s => {
+      const isSuggested = s.id === suggestedId;
+      const label = `${s.label} · ${s.count}${isSuggested ? '  · sugerido' : ''}`;
+      return `<option value="${Utils.escapeHtml(s.id)}" ${s.id === initialSegmentId ? 'selected' : ''}>${Utils.escapeHtml(label)}</option>`;
+    }).join('')}
+  `;
+
+  const suggestedSegment = suggestedExists ? segmentsList.find(s => s.id === suggestedId) : null;
+  const suggestedBanner = suggestedSegment ? `
+    <div class="invite-suggested">
+      <i class="fa-solid fa-wand-magic-sparkles"></i>
+      <span><strong>Audiencia sugerida:</strong> ${Utils.escapeHtml(suggestedSegment.label)} · ${suggestedSegment.count} personas con esta afinidad</span>
+    </div>
+  ` : '';
 
   const body = `
-    <form class="form">
+    <form class="form invite-form">
       <div class="form-hint">
-        Selecciona los usuarios a invitar a <strong>${Utils.escapeHtml(activity.name)}</strong>.<br>
-        Se enviará un email con botones Sí/No. Quien confirme reservará una plaza automáticamente.
+        Se enviará un email con botones <strong>Sí/No</strong> a quienes selecciones.
+        Quien confirme, reservará su plaza automáticamente en <strong>${Utils.escapeHtml(activity.name)}</strong>.
       </div>
-      <div class="form-group">
-        <div class="search-input">
-          <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="text" id="invite-search" placeholder="Filtrar por nombre o email…" />
+      ${suggestedBanner}
+      <div class="invite-controls">
+        <div class="invite-control">
+          <label class="invite-control-label">Audiencia</label>
+          <select id="invite-segment" class="select-input">
+            ${segmentOptions}
+          </select>
+        </div>
+        <div class="invite-control invite-control--grow">
+          <label class="invite-control-label">Buscar</label>
+          <div class="search-input">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="invite-search" placeholder="Filtrar por nombre o email…" autocomplete="off" />
+          </div>
         </div>
       </div>
-      <div class="invite-list" id="invite-list" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:4px">
-        ${listHtml}
+      <div class="invite-toolbar">
+        <span class="invite-toolbar__visible" id="invite-visible-count">0 visibles</span>
+        <span class="invite-toolbar__sep">·</span>
+        <button type="button" class="link-btn" id="invite-select-all">Seleccionar todos los visibles</button>
+        <button type="button" class="link-btn link-btn--muted" id="invite-clear">Limpiar</button>
       </div>
-      <div class="form-hint" id="invite-count">0 seleccionados</div>
-      <div class="form-actions">
+      <div class="invite-list" id="invite-list"></div>
+      <div class="form-actions invite-actions">
+        <span class="invite-summary" id="invite-summary">0 seleccionados</span>
+        <span style="flex:1"></span>
         <button type="button" class="btn btn--ghost" data-close>Cancelar</button>
         <button type="submit" class="btn btn--accent" id="invite-submit" disabled>
           <i class="fa-solid fa-envelope"></i> Enviar invitaciones
         </button>
       </div>
     </form>`;
-  Modal.open(`Invitar a "${activity.name}"`, body, async form => {
-    const userIds = Array.from(form.querySelectorAll('input[name="userId"]:checked')).map(i => i.value);
-    if (userIds.length === 0) return;
+
+  Modal.open(`Invitar a "${activity.name}"`, body, async () => {
+    if (stateModal.selected.size === 0) return;
     const submitBtn = document.getElementById('invite-submit');
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando…';
     try {
-      const result = await API.activities.invite(activityId, userIds);
+      const result = await API.activities.invite(activityId, Array.from(stateModal.selected));
       Modal.close();
       Toast.success(`${result.summary.emailsSent} invitación(es) enviada(s)`);
       if (result.summary.emailsSkipped > 0) {
         Toast.warning(`${result.summary.emailsSkipped} sin email (saltadas)`);
       }
-      // Refresh detalle
       handleActivityDetail(activityId);
     } catch (e) {
       submitBtn.disabled = false;
@@ -3539,24 +3607,122 @@ async function handleActivityInvite(activityId) {
     }
   });
 
-  // Wire up: filter + count
-  const list = document.getElementById('invite-list');
-  const search = document.getElementById('invite-search');
-  const count = document.getElementById('invite-count');
-  const submit = document.getElementById('invite-submit');
-  const updateCount = () => {
-    const n = list.querySelectorAll('input[name="userId"]:checked').length;
-    count.textContent = `${n} seleccionado(s)`;
-    submit.disabled = n === 0;
-  };
-  list?.addEventListener('change', updateCount);
-  search?.addEventListener('input', () => {
-    const q = search.value.toLowerCase().trim();
-    list.querySelectorAll('.invite-row').forEach(row => {
-      const text = row.textContent.toLowerCase();
-      row.style.display = text.includes(q) ? 'flex' : 'none';
-    });
+  // Wire-up
+  const listEl = document.getElementById('invite-list');
+  const searchEl = document.getElementById('invite-search');
+  const segmentEl = document.getElementById('invite-segment');
+  const summaryEl = document.getElementById('invite-summary');
+  const visibleEl = document.getElementById('invite-visible-count');
+  const submitEl = document.getElementById('invite-submit');
+
+  function rowHtml(u) {
+    const checked = stateModal.selected.has(u.id) ? 'checked' : '';
+    return `
+      <label class="invite-row" data-uid="${Utils.escapeHtml(u.id)}">
+        <input type="checkbox" data-action="invite-toggle" data-uid="${Utils.escapeHtml(u.id)}" ${checked} />
+        <div class="invite-row-info">
+          <div class="invite-row-name">${Utils.escapeHtml(u.firstName + ' ' + u.lastName)}</div>
+          <div class="invite-row-meta">${Utils.escapeHtml(u.email)} · ${Utils.escapeHtml(u.code)}</div>
+        </div>
+        <span class="invite-row-visits">${u.visitCount}v</span>
+      </label>`;
+  }
+
+  function visibleCandidates() {
+    let arr = candidates;
+    if (stateModal.segmentUserIds) {
+      arr = arr.filter(u => stateModal.segmentUserIds.has(u.id));
+    }
+    if (stateModal.search) {
+      const q = stateModal.search.toLowerCase();
+      arr = arr.filter(u =>
+        (u.firstName + ' ' + u.lastName).toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        u.code.toLowerCase().includes(q),
+      );
+    }
+    return arr;
+  }
+
+  function repaintList() {
+    const list = visibleCandidates();
+    if (!list.length) {
+      listEl.innerHTML = `
+        <div class="empty empty--sm">
+          <i class="fa-solid fa-user-slash"></i>
+          <h3>Sin coincidencias</h3>
+          <p>${candidates.length === 0
+            ? 'Todos los usuarios con email ya están invitados o inscritos.'
+            : 'Ningún candidato coincide con el filtro actual.'}</p>
+        </div>`;
+    } else {
+      listEl.innerHTML = list.map(rowHtml).join('');
+    }
+    visibleEl.textContent = `${list.length} visible${list.length === 1 ? '' : 's'}`;
+    updateSummary();
+  }
+
+  function updateSummary() {
+    const n = stateModal.selected.size;
+    summaryEl.textContent = `${n} seleccionado${n === 1 ? '' : 's'}`;
+    submitEl.disabled = n === 0;
+  }
+
+  async function loadSegment(segmentId) {
+    if (!segmentId) {
+      stateModal.segmentUserIds = null;
+      return;
+    }
+    if (segmentUsersCache.has(segmentId)) {
+      stateModal.segmentUserIds = segmentUsersCache.get(segmentId);
+      return;
+    }
+    listEl.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+    try {
+      const resp = await API.insights.segment(segmentId);
+      const ids = new Set((resp.users || []).map(u => u.id));
+      segmentUsersCache.set(segmentId, ids);
+      stateModal.segmentUserIds = ids;
+    } catch (e) {
+      Toast.error('No se pudo cargar la audiencia');
+      stateModal.segmentUserIds = null;
+      segmentEl.value = '';
+    }
+  }
+
+  segmentEl.addEventListener('change', async e => {
+    stateModal.segmentId = e.target.value;
+    await loadSegment(stateModal.segmentId);
+    repaintList();
   });
+
+  searchEl.addEventListener('input', e => {
+    stateModal.search = e.target.value.trim();
+    repaintList();
+  });
+
+  listEl.addEventListener('change', e => {
+    const cb = e.target.closest('[data-action="invite-toggle"]');
+    if (!cb) return;
+    const uid = cb.dataset.uid;
+    if (cb.checked) stateModal.selected.add(uid);
+    else stateModal.selected.delete(uid);
+    updateSummary();
+  });
+
+  document.getElementById('invite-select-all').addEventListener('click', () => {
+    visibleCandidates().forEach(u => stateModal.selected.add(u.id));
+    repaintList();
+  });
+
+  document.getElementById('invite-clear').addEventListener('click', () => {
+    stateModal.selected.clear();
+    repaintList();
+  });
+
+  // Carga inicial: si hay sugerido, fetch su lista de userIds y repinta
+  if (initialSegmentId) await loadSegment(initialSegmentId);
+  repaintList();
 }
 
 function renderActivitySummary(payload) {
