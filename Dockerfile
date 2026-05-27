@@ -1,4 +1,7 @@
-FROM node:20-bookworm-slim AS base
+# Node 20 alcanzó EOL 2026-04-30 — usamos Node 24 (current LTS al cierre de
+# FASE 1.A). Compat verificada: sharp ≥0.34, @node-rs/argon2 ≥2.0.2,
+# puppeteer-core ≥24, pg ≥8.20 — todos publican binaries N-API para Node 24.
+FROM node:24-bookworm-slim AS base
 
 # Chromium + deps mínimos para PDF rendering vía puppeteer-core.
 # Debian gestiona los dependentes del paquete chromium automáticamente.
