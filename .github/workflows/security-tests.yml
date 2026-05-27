@@ -1,0 +1,112 @@
+# =============================================================================
+# .github/workflows/security-tests.yml
+# =============================================================================
+# Suite de seguridad de la rama security/p0-hardening:
+#   1. Unit tests (DB_DRIVER=memory) — corre primero, fail-fast.
+#   2. Postgres integration tests — sólo si el job unit pasa. Levanta
+#      postgres:16 como service container, aplica migraciones + seed,
+#      corre vitest contra DB real (npm test sin skips de Postgres).
+#   3. Auditoría de SVG históricos — verifica el repo (no producción).
+#
+# El workflow NO toca producción, NO deploya, NO publica artefactos sensibles.
+# Solo valida que las dos suites pasan limpio.
+# =============================================================================
+
+name: security/p0-hardening
+
+on:
+  push:
+    branches:
+      - security/p0-hardening
+      - main
+      - multitenant
+  pull_request:
+    branches:
+      - main
+      - multitenant
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Job 1: unit tests con DB_DRIVER=memory (rápido, sin servicios externos).
+  # -------------------------------------------------------------------------
+  unit:
+    name: unit tests (memory driver)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: vitest (memory driver)
+        run: npm test
+
+  # -------------------------------------------------------------------------
+  # Job 2: Postgres integration. Depende de unit (fail-fast).
+  # -------------------------------------------------------------------------
+  postgres:
+    name: integration (postgres-real)
+    runs-on: ubuntu-latest
+    needs: unit
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: contan2_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d contan2_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DB_DRIVER: postgres
+      DATABASE_URL: postgres://test:test@localhost:5433/contan2_test
+      SECRET_BASE: test-secret-base-32-bytes-min-aaaaaaaaaaaaaaaa
+      ROOT_DOMAIN: localhost
+      PUBLIC_URL: http://localhost:3457
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: seed test fixtures (idempotente; corre migraciones también)
+        run: node scripts/seed-test-fixtures.mjs
+      - name: vitest contra Postgres real (sin skips)
+        run: npm test
+
+  # -------------------------------------------------------------------------
+  # Job 3: Auditoría de SVG en el repo. No bloquea PR si no hay SVG.
+  # -------------------------------------------------------------------------
+  audit-svg:
+    name: SVG históricos en repo
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: inventario SVG (exit 0 sin SVG, 10 SVG sin riesgo, 20 con riesgo)
+        run: |
+          node backend/scripts/audit-historical-svg.mjs
+          # NOTA: el script vive en este repo. Para auditar el volumen real
+          # de prod hay que correrlo en producción contra /data/uploads
+          # (ver docs/migration-v2/06-svg-quarantine-runbook.md). CI sólo
+          # audita el directorio del checkout.
