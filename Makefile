@@ -48,12 +48,15 @@ test-postgres: postgres-seed
 	  ROOT_DOMAIN=$(ROOT_DOMAIN) PUBLIC_URL=$(PUBLIC_URL) \
 	  npm test
 
-# Mismo que test-postgres pero limpia al final. Útil para CI o cuando no
-# quieres dejar el container corriendo.
+# Mismo que test-postgres pero limpia al final SIEMPRE — incluso cuando
+# vitest falla. Usamos un trap: si la suite falla, capturamos el exit code,
+# tiramos el container, y propagamos el código original (para que CI vea
+# el fallo). Antes el `$(MAKE) postgres-down` solo corría en éxito.
 .PHONY: test-postgres-clean
 test-postgres-clean:
-	$(MAKE) test-postgres
-	$(MAKE) postgres-down
+	@( $(MAKE) test-postgres; rc=$$?; \
+	   $(MAKE) postgres-down; \
+	   exit $$rc )
 
 # --- Auditoría SVG ------------------------------------------------------------
 
