@@ -38,7 +38,7 @@
 ### Plan
 - [ ] Documento `04-cutover-and-rollback.md` revisado y aprobado
 - [ ] Runbook de rollback paso-a-paso ejecutado en staging
-- [ ] Ventana de despliegue acordada (horario bajo tráfico — para CCB: domingo madrugada)
+- [ ] Ventana de despliegue acordada (horario bajo tráfico observado del tenant, confirmar caso a caso)
 - [ ] Operador disponible durante ventana + 24h post
 
 ## Estrategia de cutover
@@ -166,13 +166,24 @@ Después:
 - Confirmación de éxito (o rollback) al equipo.
 - Métricas comparativas v1 vs v2 (latencia, errors, conversion en RSVP, etc.) a 7 días, 30 días.
 
-## Ventana sugerida (para CCB)
+## Ventana sugerida
 
-- **Día**: domingo (menor tráfico cultural).
-- **Hora**: 03:00 a 07:00 AM hora local Santo Domingo.
+- **Día**: el de menor tráfico observado en analítica del tenant (típicamente madrugada de fin de semana en centros culturales).
+- **Hora**: horario nocturno local del tenant — usar `organizations.timezone` como referencia.
 - **Duración esperada de Fase B**: 4h.
 - **Duración esperada de Fase C**: 24-48h (canary write).
 - **Total ventana de monitoreo activo**: 7 días post-cutover.
+
+## Retiro progresivo del PIN legacy (`routes/staff.js`)
+
+Plan separado del cutover principal:
+
+1. **Sprint actual** · agregar logging cada acceso a `/api/staff/*` (IP, user-agent, organization).
+2. **+7 días** · revisar logs. Si cero tráfico, proceder a paso 3. Si hay tráfico, identificar cliente y migrarlo a `/api/auth/login`.
+3. **Después de confirmar cero tráfico** · eliminar `routes/staff.js`, `middleware/staffAuth.js`, `services/staffPin.js` en un commit aislado y reversible. Documentar el retiro en este doc.
+4. **Tests** · suite de regresión que demuestra que el scanner ya migrado sigue funcionando contra `/api/auth/login` o que el flujo PIN ya no se usa en producción.
+
+Cookie legacy (`ccb_staff`) se elimina junto con el código que la setea. Confirmar antes que no haya frontend que dependa de su presencia.
 
 ## Quién aprueba qué
 

@@ -9,25 +9,27 @@
 |---|---|---|---|---|---|
 | V001 | `/api/users` sin auth | Crítico | 9.8 | **P0** | `backend/src/routes/users.js` — 0 refs `requireStaffSession` |
 | V002 | `/api/activities` sin auth | Crítico | 9.8 | **P0** | `backend/src/routes/activities.js` — 0 refs |
-| V003 | `/api/attendance` sin auth | Crítico | 9.8 | **P0** | `backend/src/routes/attendance.js` — 0 refs |
+| V003 | `/api/attendance` sin auth (incluye `/anonymous`) | Crítico | 9.8 | **P0** | `backend/src/routes/attendance.js` — 0 refs. Comentario del autor confirma que `/anonymous` es operación de staff |
 | V004 | `/api/dashboard` sin auth | Alto | 8.2 | **P0** | `backend/src/routes/dashboard.js` — 0 refs |
 | V005 | `/api/insights` sin auth | Alto | 8.2 | **P0** | `backend/src/routes/insights.js` — 0 refs |
 | V006 | `/api/reports` sin auth + DoS síncrono | Alto | 8.5 | **P0** | `backend/src/routes/reports.js` — 0 refs |
 | V007 | `/api/uploads/image` sin auth + SVG XSS | Alto | 7.5 | **P0** | `backend/src/routes/uploads.js` — 0 refs |
 | V008 | `/api/org/branding` sin auth | Alto | 7.8 | **P0** | `backend/src/routes/orgBranding.js` — 0 refs |
-| V009 | `staff.js` legacy PIN sin guard | Medio | 6.5 | **P1** | `backend/src/routes/staff.js` — 0 refs |
-| V010 | `tenant.js` `/api/_tenant` info | Medio | 5.0 | **P1** | Confirmar payload no expone secrets |
+| V008b | **`POST /api/credentials/:code/send` sin auth** | Alto | 7.5 | **P0** | Endpoint dispara email vía Resend; solo rate limit IP 3/min. Permite spam + enumeración de códigos válidos por timing |
+| V009 | Retiro progresivo del PIN legacy en `routes/staff.js` | Medio | 5.5 | **P1** | Sistema aislado con cookie `ccb_staff`. **NO** aplicar `requireStaffSession` al login/me/logout (rompería el flujo). Plan: medir uso real, deprecar progresivamente. Hasta entonces queda como sistema PUBLIC-with-PIN sin tier de la matriz nueva |
+| V010 | `/api/_tenant` payload allowlist | Bajo | 3.0 | **P1** | Endpoint **público por diseño** (branding pre-login). Confirmar que payload sólo expone metadata visual; excluir `plan`, `status`, hashes, secrets. Test snapshot obligatorio |
 | V011 | Sin RLS en Postgres | Medio | 7.2 | **P1** | 0 `CREATE POLICY` en migrations |
 | V012 | PDF/Excel síncronos en HTTP | Alto técnico | — | **P1** | `routes/reports.js` invoca Puppeteer en handler |
 | V013 | Emails síncronos | Medio técnico | — | **P1** | `services/email.js` desde HTTP request |
 | V014 | Uploads solo en disco local | Medio | 6.0 | **P1** | `backend/data/uploads/` único storage |
 | V015 | Cero tests automatizados | Crítico técnico | — | **P1** | 0 archivos `*.test.js` |
 | V016 | Cero CI/CD | Crítico técnico | — | **P1** | `.github/workflows/` inexistente |
-| V017 | Node 20 EOL próximo | Bajo | 4.0 | **P2** | `Dockerfile` `node:20-bookworm-slim` |
+| V017 | **Node.js 20 fuera de soporte (EOL 2026-04-30)** | Medio | 6.0 | **P1** | `Dockerfile` `node:20-bookworm-slim`. Migrar a 24 LTS |
 | V018 | Sin rate limit en privados | Medio | 5.5 | **P2** | Solo login/forgot tienen limit |
 | V019 | Sin observabilidad (Sentry/Pino) | Medio op | — | **P2** | Sin logger estructurado |
 | V020 | Race condition capacity attendance | Medio | 5.8 | **P2** | Confirmar atomicidad SQL |
 | V021 | Sin validación email TLD comunes | Bajo | 3.5 | **P2** | typo `.clm` crea duplicate user |
+| V022 | Dos sistemas de cookie coexistiendo sin tests de aislamiento | Bajo op | — | **P2** | `contan2_session` (nuevo) + `ccb_staff` (legacy). Sistemas aislados; sin bug funcional confirmado. Requiere tests que demuestren no-mezcla antes de retirar legacy |
 
 ## Plan P0 (bloqueadores)
 
@@ -57,7 +59,7 @@ Aplicar a TODOS los endpoints. No hay sub-paths públicos.
 Aplicar a TODOS. Las páginas públicas de eventos van por `routes/eventosPublic.js`, que es OK.
 
 #### V003 · `routes/attendance.js`
-**Excepción**: `POST /api/attendance/anonymous` debe permanecer público (kiosko anónimo). El resto, todos requieren auth.
+**Corrección al plan anterior**: el comentario del autor en `routes/attendance.js` indica que `/anonymous` es para uso del staff (grupos en pico, VIP, prensa). El kiosko público usa `/api/public/checkin`. Por tanto **todos los endpoints requieren `requireStaffSession`**, incluyendo `/anonymous`. Si se descubre evidencia de tráfico legítimo anónimo, se documenta excepción y se agrega rate-limit estricto antes de re-abrir.
 
 #### V004 · `routes/dashboard.js`
 Todos los handlers privados. Sin excepciones.
@@ -72,18 +74,50 @@ Todos los handlers privados. Además, mover generación a worker (V012, en P1) p
 `POST /api/uploads/image` requiere auth. Confirmar que la sanitización SVG actual está activa (función `sanitizeSvg` o similar) y agregar test que pruebe payload XSS.
 
 #### V008 · `routes/orgBranding.js`
-Cambiar branding del tenant = acción admin/owner. Aplicar `requireStaffSession` + `requireRole(['admin', 'owner'])`.
+`GET /api/org/branding` (lectura) → `requireStaffSession` (tier STAFF).
+`PATCH /api/org/branding` (escritura, cambia identidad del tenant) → `requireStaffSession` + `requireRole(['admin', 'owner'])`.
+
+#### V008b · `routes/credentials.js` — `POST /:code/send`
+Endpoint actualmente sin auth, solo rate limit IP 3/min. Permite a anónimo disparar emails vía Resend con cualquier código válido + verificar existencia por timing.
+
+Decisión: aplicar `requireStaffSession` (tier STAFF) + agregar rate limit por staff (5/min) + audit log.
+
+`GET /:code.png` se mantiene público bearer-style (el código actúa como token portador, el visitante recibe el link en su email de credencial). Mitigaciones obligatorias: regex estricto del código (ya aplicada), respuesta solo con QR + nombre, sin información adicional. Test obligatorio que verifique que no hay información sensible en la respuesta.
+
+`POST /bulk-send` ya tiene `requireStaff`. Verificar en hardening que sea `requireRole(['admin', 'owner'])` y no solo session.
+
+#### V009 · `routes/staff.js` — LEGACY PIN (no aplicar `requireStaffSession`)
+Login PIN del scanner antiguo. `POST /login` debe permanecer PUBLIC (lógicamente, igual que cualquier login). `GET /me` y `POST /logout` usan el middleware `staffAuth.js` aislado con cookie `ccb_staff`, no `requireStaffSession`. Este sistema queda como está hasta que se confirme que ningún cliente lo invoca; entonces se retira en una migración separada.
+
+Acción FASE 1.A: documentar en `04-cutover-and-rollback.md` un plan de retiro progresivo:
+1. Agregar logging cada vez que se acceda a `routes/staff.js` (qué IP, qué user-agent).
+2. Observar por 7 días. Si tráfico = 0, eliminar router + middleware + service.
+3. Si hay tráfico, identificar quién y migrar al sistema nuevo antes de retirar.
+
+#### V010 · `routes/tenant.js` — payload public allowlisted
+Endpoint público por diseño (necesario para que `branding.js` aplique paleta antes del login).
+
+Acción FASE 1.A: revisar campos retornados y mantener solo lo necesario para branding y kiosko. Excluir explícitamente: `staffPinHash`, `emailReplyTo`, configuración de billing, secretos. Considerar excluir `plan` y `status` (revelan info sobre el tenant que no aporta al branding).
+
+Test obligatorio: snapshot del payload garantiza que campos sensibles no aparecen aunque se agreguen al modelo de DB.
 
 ### Tests obligatorios para P0
 
-En `apps/api/test/security/` (o si seguimos en monolito, `backend/test/security/`):
+En `backend/test/security/` (suite Vitest + supertest). Cobertura mínima:
 
-1. `unauth.test.js` — 21 tests, uno por endpoint privado, anónimo → 401.
-2. `cross-tenant.test.js` — staff de tenant A intenta hit endpoint con datos de tenant B → 403 o 404 (no leak existence).
-3. `rbac.test.js` — operator intenta DELETE actividad → 403.
-4. `public-stays-public.test.js` — kiosko/RSVP/eventos siguen abiertos.
+1. `unauth.test.js` — anónimo recibe 401/403 en cada endpoint administrativo privado (lista derivada de doc 05).
+2. `rbac.test.js` — operator no puede borrar visitantes/actividades/asistencias, ni cambiar branding, ni exportar reportes con PII (a definir según matriz).
+3. `rbac-allowed.test.js` — owner/admin sí pueden ejecutar las operaciones permitidas (positivo).
+4. `cross-tenant.test.js` — sesión de tenant A no accede a recursos de tenant B (404 o 403, sin leak de existencia).
+5. `platform-isolation.test.js` — platform admin queda separado: sesión de platform admin no actúa como tenant staff y viceversa.
+6. `kiosko-public.test.js` — endpoints de `/api/public/*` siguen abiertos, retornan datos esperados, respetan rate limits.
+7. `legacy-pin.test.js` — scanner login PIN (`/api/staff/login`) sigue funcionando o, si se decide migrar, queda documentado.
+8. `rsvp-public.test.js` — endpoints públicos de RSVP/eventos siguen funcionando para invitados sin sesión.
+9. `credentials-send.test.js` — `POST /api/credentials/:code/send` requiere sesión staff; anónimo recibe 401; staff autenticado puede disparar; rate limit por staff aplica.
+10. `tenant-payload.test.js` — `GET /api/_tenant` snapshot: no expone hashes, tokens, billing ni configuración sensible.
+11. `uploads-svg.test.js` — payload SVG con `<script>` o `onload` queda sanitizado o bloqueado.
 
-Usar Vitest + supertest con Postgres real (Testcontainers o instancia local efímera). Falla en CI si alguno se rompe.
+Stack: Vitest + supertest. Postgres real (instancia local efímera o Testcontainers). Falla en CI si alguno se rompe.
 
 ### Ventana de aplicación P0
 

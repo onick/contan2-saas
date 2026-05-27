@@ -1,25 +1,26 @@
 # 00 · Auditoría del estado actual
 
 > Fecha: 2026-05-27
-> Branch: `migration/saas-platform-v2-parallel`
-> Alcance: snapshot del repo `contan2-saas` antes de cualquier cambio de migración v2.
+> Branch: `security/p0-hardening` (creada desde `multitenant`, branch desplegada)
+> Alcance: snapshot del repo `contan2-saas` antes de cualquier cambio de hardening P0.
 
 ## Resumen ejecutivo
 
-`contan2-saas` es un **MVP funcional pero con superficie de ataque crítica**:
+`contan2-saas` es un **MVP funcional con superficie de ataque crítica**:
 
-- ✅ Multi-tenancy a nivel de middleware (`resolveTenant` + `buildTenantRepos`) funciona.
-- ✅ Auth nueva (Argon2id + sesiones opacas en Postgres) instalada y probada.
-- ✅ Branding por tenant operativo (logoUrl, paleta SSR, sidebar style).
-- ✅ Producción estable; tenant CCB en uso real con 1,080 visitantes registrados.
-- ❌ **10 routers privados sin middleware de autenticación** — exponen PII y permiten escritura/borrado anónimo.
+- ✅ Multi-tenancy a nivel de middleware (`resolveTenant` + `buildTenantRepos`) implementado.
+- ✅ Auth nueva (Argon2id + sesiones opacas en Postgres) implementada en `routes/auth.js` + `middleware/requireStaffSession.js`. **Sin tests automatizados que demuestren su corrección**.
+- ✅ Branding por tenant implementado (logoUrl, paleta SSR, sidebar style).
+- ⚠️ Tenant ancla (CCB) en uso real. Volúmenes de datos no verificados en esta auditoría.
+- ❌ **8 routers privados sin middleware de autenticación** + **2 endpoints individuales críticos sin protección** (`POST /api/credentials/:code/send`, `POST /api/attendance/anonymous`) — exponen PII y permiten escritura/borrado anónimo + envío masivo de emails.
 - ❌ Sin Row-Level Security en Postgres — la única barrera es application-level.
 - ❌ Generación PDF/Excel/email síncrona en el proceso HTTP — riesgo DoS.
 - ❌ Uploads solo en disco local del container.
 - ❌ Cero tests automatizados, cero CI/CD configurado.
-- ❌ Node 20 (próximo EOL); upgrade a 24 LTS pendiente.
+- ❌ Node.js 20 corriendo en runtime; EOL oficial 2026-04-30 ya pasado.
+- ⚠️ Dos sistemas de cookie coexisten: nueva (`contan2_session`, usado por admin SPA y `requireStaffSession`) y legacy PIN (`ccb_staff`, usado por `routes/staff.js` con su middleware aislado `staffAuth.js`). Sistemas no se mezclan en runtime; sin bug funcional confirmado al momento de la auditoría.
 
-Readiness producción comercial (con tenants externos): **30-35%**. Bloqueadores P0 obligatorios antes de exponer a un segundo tenant.
+Bloqueadores P0 obligatorios antes de exponer a un segundo tenant comercial.
 
 ---
 
@@ -27,7 +28,7 @@ Readiness producción comercial (con tenants externos): **30-35%**. Bloqueadores
 
 | Capa | Tecnología | Versión | Notas |
 |---|---|---|---|
-| Runtime | Node.js | 20-bookworm-slim (Dockerfile) | `engines: ">=18"`. Target objetivo: 24 LTS |
+| Runtime | Node.js | 20-bookworm-slim (Dockerfile) | `engines: ">=18"`. **Node 20 EOL fue 2026-04-30 — ya fuera de soporte**. Target: 24 LTS |
 | API | Express | 4.x (ESM imports) | Sin Fastify, sin TypeScript |
 | Frontend | Vanilla JS + HTML/CSS | — | Múltiples SPAs (`frontend/*.html`) |
 | DB | PostgreSQL | — | 22 migrations aplicadas (`backend/src/db/postgres/migrations/`) |
@@ -49,25 +50,25 @@ Cada router en `backend/src/routes/*.js`. Las columnas indican cantidad de refer
 | `auth.js` | 6 | ✅ protegido | Login, logout, /me, reset, sessions |
 | `staffManagement.js` | 10 | ✅ protegido | Members, invitations · todos con guard |
 | `auditLog.js` | 2 | ✅ protegido | Solo admin/owner |
-| `credentials.js` | 2 | ✅ protegido | Bulk-send tiene guard; `/:code.png` no (público por diseño) |
+| `credentials.js` | 2 | 🟡 parcial | `bulk-send` tiene guard. **`POST /:code/send` SIN auth** (P0). `GET /:code.png` público por diseño bearer-style |
 | `orgDomain.js` | 5 | ✅ protegido | Self-service domain |
-| `platformAdmin.js` | 3 | ✅ protegido | Subdomain `admin.*` |
+| `platformAdmin.js` | 3 | ✅ protegido | Subdomain admin separado |
 | `platformAuth.js` | 6 | ✅ protegido | Sesión platform-side |
 | **`users.js`** | **0** | 🔴 **P0** | CRUD visitantes — POST/GET/PATCH/PUT/DELETE sin auth |
 | **`activities.js`** | **0** | 🔴 **P0** | CRUD actividades + invitations |
-| **`attendance.js`** | **0** | 🔴 **P0** | Registro asistencias + by-user / by-activity |
+| **`attendance.js`** | **0** | 🔴 **P0** | Incluye `POST /anonymous` (comentario del autor dice "el staff dispara este endpoint" — no público a pesar del nombre) |
 | **`dashboard.js`** | **0** | 🔴 **P0** | Métricas del tenant |
 | **`insights.js`** | **0** | 🔴 **P0** | Segmentos + analytics + user affinity |
 | **`reports.js`** | **0** | 🔴 **P0** | PDF/Excel con PII del tenant |
 | **`uploads.js`** | **0** | 🔴 **P0** | POST imagen — riesgo SVG XSS |
 | **`orgBranding.js`** | **0** | 🔴 **P0** | Cambiar branding del tenant |
-| **`staff.js`** | **0** | 🟡 P1 | Legacy PIN flow — debería estar tras feature flag |
-| **`tenant.js`** | **0** | 🟡 P1 | `/api/_tenant` info — verificar que no exponga secrets |
+| `staff.js` | 0 | 🟡 LEGACY | PIN scanner antiguo. Sistema aislado con cookie propia (`ccb_staff`). `POST /login`, `GET /me`, `POST /logout` **NO** deben protegerse con `requireStaffSession` (rompería el login). Documentar retiro progresivo |
+| `tenant.js` | 0 | ✓ PUBLIC | `/api/_tenant` es público por diseño (branding pre-login). Payload debe estar allowlisted: solo metadata visual, sin hashes/secretos/billing. Sujeto a test de no-leak |
 | `eventosPublic.js` | 0 | ✓ público OK | Open Graph compartibles (diseño) |
 | `landing.js` | 0 | ✓ público OK | Marketing root |
 | `public.js` | 0 | ✓ público OK | API del kiosko (RSVP, etc.) |
 
-**Impacto inmediato P0**: cualquiera con la URL puede listar/crear/borrar visitantes, actividades, asistencias y reportes del CCB (y de cualquier futuro tenant) sin autenticación. PII de 1,080 personas (nombre, email, teléfono, historial de visitas) expuesta.
+**Impacto inmediato P0**: cualquiera con la URL puede listar/crear/borrar visitantes, actividades, asistencias y reportes de cualquier tenant sin autenticación. PII (nombre, email, teléfono, historial de visitas) expuesta. Además, `POST /api/credentials/:code/send` permite disparar emails (Resend) desde anónimo con rate limit IP-only.
 
 ## 3. Modelo de datos y multi-tenancy
 
@@ -126,9 +127,10 @@ Cero garantías automatizadas de regresión. Cada deploy depende de smoke manual
 
 ## 8. Deploy
 
-- Dockerfile: `node:20-bookworm-slim AS base` (multi-stage simple).
-- Coolify v4 en VPS Contabo (`217.77.12.180`). Branch `multitenant` = producción. Branch `develop` = trabajo. Webhook GitHub → Coolify poco confiable (50% requiere trigger manual).
-- ENV vars críticas en Coolify (`COOLIFY_API_TOKEN`, `RESEND_API_KEY`, `DATABASE_URL`, etc.). Validación tipada de env: parcial (`src/config.js`), no Zod ni schema explícito.
+- Dockerfile: `node:20-bookworm-slim AS base` (multi-stage simple). **Node 20 EOL 2026-04-30 ya pasado**.
+- Coolify v4 en VPS externo. Branch `multitenant` = producción. Branch `develop` = trabajo. Webhook GitHub → Coolify reportado como poco confiable (requiere trigger manual ocasional).
+- Detalles operacionales (IPs, UUIDs de apps, tokens) viven en runbook privado fuera de este doc versionado.
+- ENV vars críticas configuradas en Coolify (`RESEND_API_KEY`, `DATABASE_URL`, etc.). Validación tipada de env: parcial (`src/config.js`), no Zod ni schema explícito.
 
 ## 9. Hardcoded CCB
 
@@ -139,10 +141,14 @@ Cero garantías automatizadas de regresión. Cada deploy depende de smoke manual
 
 ## 10. Hallazgos adicionales
 
-- **CORS**: `credentials: true` permitido (necesario para cookies cross-subdomain). Verificar que el `Access-Control-Allow-Origin` no sea `*` (no puede serlo con credentials, pero confirmar).
-- **PII en logs**: hay un patrón `maskEmail()` documentado, pero hay que auditar todos los `console.log` y `recordAudit` para confirmar uso consistente.
-- **SVG XSS**: `uploads.js` acepta SVG y los sanitiza (vi referencias en commits previos), pero la sanitización no está testeada.
-- **Race conditions**: registro de attendance con capacity check no es atómico (`incrementEnrolledIfRoom` aparenta serlo pero hay que confirmar a nivel SQL). Doble click → doble registro posible.
+- **Cookie del nuevo sistema** (`contan2_session`): definida en `middleware/requireStaffSession.js:17` y usada por `routes/auth.js:29` vía `getSessionCookieName()`. Lectura y escritura consistentes — el sistema NUEVO funciona end-to-end.
+- **Cookie legacy** (`ccb_staff`): definida en `middleware/staffAuth.js:6`. Usada exclusivamente por `routes/staff.js` (login PIN, logout, /me). Sistema aislado del nuevo. Sin tests que demuestren la separación.
+- **`POST /api/credentials/:code/send` sin auth**: confirmado P0. Rate limit IP 3/min ya aplicado, pero permite a anónimo disparar email del tenant (Resend). Mitigaciones requeridas: requerir sesión staff + audit log.
+- **`POST /api/attendance/anonymous` sin auth**: el comentario del autor en `routes/attendance.js` indica que es para uso del staff cuando entra un grupo sin escanear. El kiosko público usa `/api/public/checkin`. Confirmado: este endpoint debe requerir sesión staff.
+- **CORS**: `credentials: true` permitido para cookies cross-subdomain. Verificar que `Access-Control-Allow-Origin` esté explícitamente listado (no `*`, incompatible con credentials).
+- **PII en logs**: existe helper `maskEmail()`; falta auditar todos los `console.log` y `recordAudit` para confirmar uso consistente.
+- **SVG XSS**: `uploads.js` acepta SVG y los sanitiza (referencias en commits previos); la sanitización no está cubierta por tests automatizados.
+- **Race conditions**: registro de attendance con capacity check vía `incrementEnrolledIfRoom`; atomicidad a nivel SQL no verificada por tests.
 - **Sin rate limiting** en endpoints privados (solo en login, forgot, accept-invitation).
 - **Sin observabilidad**: ningún logger estructurado (Pino), sin Sentry, sin métricas, sin OpenTelemetry.
 
