@@ -41,30 +41,30 @@ vi.mock('../../../src/services/email.js', () => ({
   sendInvitationEmail: async () => ({ sent: true, id: 'mock-invitation-id' }),
 }));
 
-// Switch global para forzar el fallo del recordAudit del PATCH branding
-// en un test específico. `vi.hoisted` garantiza que la variable existe
-// antes de que la fábrica del `vi.mock` se ejecute (que también está
-// hoisted al top del módulo).
+// Switch global para forzar el fallo del INSERT del audit log dentro de
+// la transacción del PATCH branding. `vi.hoisted` garantiza que la
+// variable existe antes de que la fábrica del `vi.mock` se ejecute.
 const auditFailControl = vi.hoisted(() => ({
   forceBrandingFail: false,
 }));
 
-// Mock del auditService que delega al real, excepto cuando
-// `forceBrandingFail` está activo: en ese caso, simula que el repo
-// devuelve falsy y deja que `strict: true` lance.
-vi.mock('../../../src/services/auth/auditService.js', async (importOriginal) => {
+// Mock del AuditLogRepository: delega al real, excepto cuando el flag
+// está activo y el action es 'branding.updated' — entonces lanza para
+// forzar el ROLLBACK del UPDATE en la transacción del handler. Mockear
+// el repo directamente (en lugar del helper recordAudit) cubre la ruta
+// real que toma el handler: `auditRepo.record(entry, client)` dentro de
+// un BEGIN.
+vi.mock('../../../src/db/postgres/platform/AuditLogRepository.js', async (importOriginal) => {
   const actual = await importOriginal();
-  return {
-    ...actual,
-    recordAudit: async (opts) => {
-      if (auditFailControl.forceBrandingFail && opts?.action === 'branding.updated') {
-        const err = new Error('forced audit failure for test');
-        if (opts.strict) throw err;
-        return null;
+  class WrappedAuditLogRepository extends actual.AuditLogRepository {
+    async record(entry, client) {
+      if (auditFailControl.forceBrandingFail && entry?.action === 'branding.updated') {
+        throw new Error('forced audit insert failure for test');
       }
-      return actual.recordAudit(opts);
-    },
-  };
+      return super.record(entry, client);
+    }
+  }
+  return { ...actual, AuditLogRepository: WrappedAuditLogRepository };
 });
 
 // Helper: login y devolver cookie de sesión.
@@ -523,22 +523,36 @@ describe('postgres · audit log de branding.updated', () => {
     expect(after.body.entries.length).toBe(beforeCount);
   });
 
-  // === (c) Fallo de audit no se reporta como operación plenamente auditada ===
-  runIfPostgres('fallo forzado de recordAudit(strict) NO devuelve ok:true', async () => {
-    // Forzar que recordAudit lance cuando el handler intente auditar el
-    // PATCH. Con strict=true, el handler propaga el error al errorHandler
-    // y el cliente recibe 5xx — NO un 200 ok:true.
-    //
-    // Snapshot del estado de DB y del audit log antes del intento.
+  // === (c) Fallo de audit dispara ROLLBACK · branding NO cambia en DB ===
+  runIfPostgres('fallo de insert audit revierte el UPDATE en la misma transacción', async () => {
+    // Snapshot del estado completo de branding y del audit log antes
+    // del intento. El test asserta:
+    //   - status >= 500 (NO ok:true).
+    //   - audit log NO crece (el INSERT que falló no commiteó).
+    //   - branding en DB sigue IDÉNTICO al snapshot pre (el UPDATE
+    //     se revirtió por el ROLLBACK).
     const orgBefore = await request(app)
       .get('/api/org/branding')
       .set('Host', 'ccb.localhost')
       .set('Cookie', ownerCookie);
+    expect(orgBefore.status).toBe(200);
+    const before = {
+      logoUrl: orgBefore.body.logoUrl,
+      emailLogoUrl: orgBefore.body.emailLogoUrl,
+      primaryColor: orgBefore.body.primaryColor,
+      secondaryColor: orgBefore.body.secondaryColor,
+      sidebarStyle: orgBefore.body.sidebarStyle,
+    };
+
     const auditBefore = await request(app)
       .get('/api/audit-log?action=branding.updated')
       .set('Host', 'ccb.localhost')
       .set('Cookie', ownerCookie);
     const auditBeforeCount = auditBefore.body.entries.length;
+
+    // Color sentinela claramente distinto al actual, para que el handler
+    // entre en la rama de UPDATE (no en el noop por diff vacío).
+    const sentinel = before.primaryColor === '#deadbe' ? '#cafebe' : '#deadbe';
 
     auditFailControl.forceBrandingFail = true;
     let res;
@@ -547,24 +561,36 @@ describe('postgres · audit log de branding.updated', () => {
         .patch('/api/org/branding')
         .set('Host', 'ccb.localhost')
         .set('Cookie', ownerCookie)
-        .send({ primaryColor: '#deadbe' });
+        .send({ primaryColor: sentinel });
     } finally {
-      // Restaurar SIEMPRE para no contaminar tests siguientes.
       auditFailControl.forceBrandingFail = false;
     }
 
-    // Crítico: NO debe ser 200 con ok:true.
     expect(res.status).not.toBe(200);
     expect(res.body?.ok).not.toBe(true);
-    // El status debe estar en el rango 5xx (error del servidor).
     expect(res.status).toBeGreaterThanOrEqual(500);
 
-    // El audit log NO ganó una entrada (el strict abortó antes de
-    // que el insert real se completara).
+    // audit log no creció.
     const auditAfter = await request(app)
       .get('/api/audit-log?action=branding.updated')
       .set('Host', 'ccb.localhost')
       .set('Cookie', ownerCookie);
     expect(auditAfter.body.entries.length).toBe(auditBeforeCount);
+
+    // Branding en DB sigue idéntico al snapshot pre — el ROLLBACK
+    // deshizo el UPDATE. Esto es lo que la transacción garantiza:
+    // ni cambio aplicado ni audit faltante, todo o nada.
+    const orgAfter = await request(app)
+      .get('/api/org/branding')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    expect(orgAfter.status).toBe(200);
+    expect(orgAfter.body.primaryColor).toBe(before.primaryColor);
+    expect(orgAfter.body.logoUrl).toBe(before.logoUrl);
+    expect(orgAfter.body.emailLogoUrl).toBe(before.emailLogoUrl);
+    expect(orgAfter.body.secondaryColor).toBe(before.secondaryColor);
+    expect(orgAfter.body.sidebarStyle).toBe(before.sidebarStyle);
+    // Crítico: NO debe haber tomado el sentinela.
+    expect(orgAfter.body.primaryColor).not.toBe(sentinel);
   });
 });

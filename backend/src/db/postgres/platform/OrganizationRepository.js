@@ -78,7 +78,19 @@ export class OrganizationRepository {
     return deadRows.length === 0;
   }
 
-  async update(id, partial) {
+  /**
+   * UPDATE de organization con set parcial.
+   *
+   * @param id        UUID del tenant
+   * @param partial   { logoUrl?, emailLogoUrl?, primaryColor?, ... }
+   * @param client    opcional. Si se pasa un `pg.Client` (típicamente
+   *                  dentro de un BEGIN/COMMIT), el query corre sobre esa
+   *                  conexión y participa en la transacción del caller.
+   *                  Si no se pasa, usa el pool por defecto (modo
+   *                  autocommit, como antes).
+   */
+  async update(id, partial, client = null) {
+    const exec = client || this.pool;
     const fields = [];
     const values = [id];
     let idx = 2;
@@ -113,7 +125,7 @@ export class OrganizationRepository {
     }
     if (fields.length === 0) return this.findById(id);
     fields.push('updated_at = NOW()');
-    const { rows } = await this.pool.query(
+    const { rows } = await exec.query(
       `UPDATE organizations SET ${fields.join(', ')}
        WHERE id = $1 AND deleted_at IS NULL
        RETURNING *`,

@@ -1,11 +1,13 @@
+import { createHash } from 'node:crypto';
 import { Router } from 'express';
 import { OrganizationRepository } from '../db/postgres/platform/OrganizationRepository.js';
+import { AuditLogRepository } from '../db/postgres/platform/AuditLogRepository.js';
 import { initRepositories } from '../db/repositories.js';
 import { invalidateTenantCache } from '../middleware/resolveTenant.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { requireStaffSession } from '../middleware/requireStaffSession.js';
 import { requireRole } from '../middleware/requireRole.js';
-import { recordAudit } from '../services/auth/auditService.js';
+import { maskEmail } from '../utils/log.js';
 import { config } from '../config.js';
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -108,42 +110,77 @@ export function createOrgBrandingRouter() {
         return res.json({ ok: true, organization: { ...req.organization, ...partial } });
       }
 
-      // Fase 3 — UPDATE en DB. Si falla, el error sube por next() y el
-      // cliente recibe 5xx. Sin UPDATE no se intenta audit.
+      // Fase 3 — UPDATE + INSERT audit dentro de una transacción única.
+      //
+      // Antes: UPDATE → audit (strict). Si audit fallaba, la DB ya había
+      // cambiado y quedaba sin entrada en tenant_audit_log. Re-emitir el
+      // PATCH no resolvía: la fase 2 lo detectaría como noop y nunca
+      // recrearía el audit faltante.
+      //
+      // Ahora: BEGIN → UPDATE organizations RETURNING * → INSERT
+      // tenant_audit_log → COMMIT. Si CUALQUIER paso falla (UPDATE,
+      // INSERT, o la red entre ambos), ROLLBACK deshace todo y la
+      // organización queda exactamente como estaba. El cliente recibe
+      // 5xx y puede reintentar idempotentemente.
       const inst = await initRepositories();
-      const repo = new OrganizationRepository(inst.pool);
-      const updated = await repo.update(req.organization.id, partial);
+      const orgRepo = new OrganizationRepository(inst.pool);
+      const auditRepo = new AuditLogRepository(inst.pool);
+
+      const changed = Object.keys(partial);
+
+      const client = await inst.pool.connect();
+      let updated;
+      try {
+        await client.query('BEGIN');
+
+        // UPDATE compartiendo la conexión transaccional.
+        updated = await orgRepo.update(req.organization.id, partial, client);
+        if (!updated) {
+          throw new Error('orgRepo.update no devolvió fila (id no encontrado o deleted_at)');
+        }
+
+        // Diff calculado con el RETURNING para reflejar el estado final
+        // efectivamente persistido (no el proposed previo al cast).
+        const diff = {};
+        for (const k of changed) {
+          diff[k] = { from: current[k] ?? null, to: updated[k] ?? null };
+        }
+
+        // INSERT audit en la MISMA transacción. Si lanza (constraint,
+        // network, FK), el catch hace ROLLBACK y el UPDATE no commit-ea.
+        const actorStaff = req.currentStaff || null;
+        const ip = req.ip || req.socket?.remoteAddress || null;
+        const ua = req.headers?.['user-agent'] || null;
+        const auditRow = await auditRepo.record({
+          organizationId: updated.id,
+          actorStaffId: actorStaff?.id || null,
+          actorEmailMasked: actorStaff?.email ? maskEmail(actorStaff.email) : null,
+          actorRole: actorStaff?.role || null,
+          action: 'branding.updated',
+          targetType: 'organization',
+          targetId: updated.id,
+          targetLabel: updated.slug,
+          metadata: { fields: changed, diff },
+          ipHash: ip ? createHash('sha256').update(String(ip)).digest('hex') : null,
+          ua,
+        }, client);
+        if (!auditRow) {
+          throw new Error('auditRepo.record devolvió falsy dentro de transacción');
+        }
+
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw e;
+      } finally {
+        client.release();
+      }
+
+      // Invalidación de cache SOLO después de COMMIT exitoso. Si la
+      // transacción hubiera fallado, el cache sigue apuntando al estado
+      // viejo, que sigue siendo el estado real en DB → no hay drift.
       invalidateTenantCache(updated.slug);
       if (updated.customDomain) invalidateTenantCache(updated.customDomain);
-
-      // Fase 4 — Audit log en modo STRICT. Si recordAudit lanza, el
-      // handler lo propaga al errorHandler y responde 5xx. NO devolvemos
-      // 200 con ok:true a menos que el audit haya quedado escrito.
-      //
-      // Trade-off documentado: si la auditoría falla DESPUÉS del UPDATE,
-      // la DB queda con el nuevo branding pero sin entrada en
-      // tenant_audit_log. El cliente ve 5xx; el operador debe inspeccionar
-      // manualmente el estado de la fila (vía SELECT) y decidir si:
-      //   a) re-emitir el PATCH para forzar el camino feliz (idempotente:
-      //      la fase 2 detecta valores idénticos y sale como no-op);
-      //   b) registrar la auditoría manualmente con evidencia operacional.
-      // Esto es preferible a "tragarse" el fallo de audit y reportar
-      // ok:true al cliente — un cambio de identidad institucional sin
-      // audit log es violatorio del contrato.
-      const changed = Object.keys(partial);
-      const diff = {};
-      for (const k of changed) {
-        diff[k] = { from: current[k] ?? null, to: updated[k] ?? null };
-      }
-      await recordAudit({
-        req,
-        action: 'branding.updated',
-        targetType: 'organization',
-        targetId: updated.id,
-        targetLabel: updated.slug,
-        metadata: { fields: changed, diff },
-        strict: true,
-      });
 
       res.json({
         ok: true,

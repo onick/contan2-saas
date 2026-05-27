@@ -25,8 +25,18 @@ export class AuditLogRepository {
   constructor(pool) { this.pool = pool; }
 
   /**
-   * Inserta una entrada. Nunca lanza: cualquier error se loggea y devuelve
-   * null. Auditoría no debe tumbar requests.
+   * Inserta una entrada.
+   *
+   * Modo default (sin `client`): cualquier error de DB se loggea y se
+   * devuelve null. Auditoría best-effort no debe tumbar requests.
+   *
+   * Modo transaccional (`client` provisto): el INSERT corre sobre la
+   * conexión del caller (típicamente dentro de un BEGIN). Errores se
+   * propagan al caller para que pueda hacer ROLLBACK. NO se loggea
+   * silenciosamente — el caller decide qué hacer.
+   *
+   * @param entry  payload normalizado
+   * @param client opcional, `pg.Client` con BEGIN activo
    */
   async record({
     organizationId,
@@ -40,29 +50,35 @@ export class AuditLogRepository {
     metadata = {},
     ipHash = null,
     ua = null,
-  }) {
+  }, client = null) {
     if (!organizationId || !action) return null;
-    try {
-      const { rows } = await this.pool.query(
-        `INSERT INTO tenant_audit_log
+    const exec = client || this.pool;
+    const params = [
+      organizationId,
+      actorStaffId,
+      actorEmailMasked,
+      actorRole,
+      action,
+      targetType,
+      targetId ? String(targetId) : null,
+      targetLabel,
+      JSON.stringify(metadata || {}),
+      ipHash,
+      ua ? String(ua).slice(0, 500) : null,
+    ];
+    const sql = `INSERT INTO tenant_audit_log
           (organization_id, actor_staff_id, actor_email_masked, actor_role,
            action, target_type, target_id, target_label, metadata, ip_hash, ua)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)
-         RETURNING *`,
-        [
-          organizationId,
-          actorStaffId,
-          actorEmailMasked,
-          actorRole,
-          action,
-          targetType,
-          targetId ? String(targetId) : null,
-          targetLabel,
-          JSON.stringify(metadata || {}),
-          ipHash,
-          ua ? String(ua).slice(0, 500) : null,
-        ],
-      );
+         RETURNING *`;
+    if (client) {
+      // Modo transaccional: dejamos que el error suba para que el caller
+      // haga ROLLBACK. NO try/catch silencioso.
+      const { rows } = await exec.query(sql, params);
+      return rowToEntry(rows[0]);
+    }
+    try {
+      const { rows } = await exec.query(sql, params);
       return rowToEntry(rows[0]);
     } catch (e) {
       console.warn('[audit] no se pudo registrar entry:', e.message);
