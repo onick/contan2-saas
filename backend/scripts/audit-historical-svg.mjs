@@ -29,11 +29,14 @@
 //      seguir (mover a un directorio fuera del path estático servido por
 //      Express + convertir a PNG con un sanitizer o eliminar).
 //
-// Exit codes:
-//   0  → sin SVG encontrados (clean)
+// Exit codes (fail-closed):
+//   0  → directorio existe, es legible, sin SVG encontrados (clean)
 //   10 → SVG encontrados pero NINGUNO con flags de riesgo (revisar)
 //   20 → SVG con al menos un flag de riesgo (BLOQUEAR deploy hasta tratar)
-//   1  → error de I/O o argumentos
+//   1  → cualquier error (directorio inexistente, no-directorio, sin permisos,
+//        argumento inválido, I/O failure). NUNCA se devuelve 0 cuando no se
+//        pudo verificar — un "no encontré nada" sin acceso al volumen es
+//        indistinguible de "no hay riesgo", así que falla cerrado.
 // =============================================================================
 
 import { readdir, readFile, stat } from 'node:fs/promises';
@@ -58,10 +61,11 @@ function parseArgs(argv) {
 }
 
 const RISK_PATTERNS = {
-  script_tag: /<script[\s>]/i,
+  // \b en vez de [\s>] cubre también <script/>, <SCRIPT >, <ScRiPt\n…
+  script_tag: /<script\b/i,
   event_handler: /\son[a-z]+\s*=/i,
   javascript_uri: /javascript\s*:|&#x?6[Aa];?\s*avascript/i,
-  foreign_object: /<foreignObject/i,
+  foreign_object: /<foreignObject\b/i,
   expression_css: /expression\s*\(|style\s*=\s*["'][^"']*url\s*\(\s*javascript/i,
 };
 
@@ -74,13 +78,10 @@ function flagsOf(content) {
 }
 
 async function walk(dir) {
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (e) {
-    if (e.code === 'ENOENT') return [];
-    throw e;
-  }
+  // Solo el caller raíz hace la verificación de existencia con fail-closed;
+  // subdirectorios pueden no existir si fueron borrados durante el walk,
+  // pero el caso normal es que todo el subárbol exista.
+  const entries = await readdir(dir, { withFileTypes: true });
   const out = [];
   for (const e of entries) {
     const full = path.join(dir, e.name);
@@ -93,9 +94,47 @@ async function walk(dir) {
   return out;
 }
 
+/**
+ * Fail-closed: el directorio raíz debe existir, ser directorio y ser legible.
+ * Cualquier desviación → throws con un mensaje accionable que el caller
+ * convierte en exit 1.
+ */
+async function assertRootDirReadable(dir) {
+  let st;
+  try {
+    st = await stat(dir);
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      throw new Error(`directorio no existe: ${dir} — fail-closed (exit 1), no asumimos "sin SVG"`);
+    }
+    if (e.code === 'EACCES' || e.code === 'EPERM') {
+      throw new Error(`sin permiso de lectura sobre ${dir} — fail-closed (exit 1)`);
+    }
+    throw new Error(`stat falló sobre ${dir}: ${e.code || ''} ${e.message}`);
+  }
+  if (!st.isDirectory()) {
+    throw new Error(`no es directorio: ${dir} — fail-closed (exit 1)`);
+  }
+  // Verifica que efectivamente podemos leerlo (no solo statearlo).
+  try {
+    await readdir(dir);
+  } catch (e) {
+    throw new Error(`no se pudo leer ${dir}: ${e.code || ''} ${e.message}`);
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv);
   const dir = args.dir;
+
+  // Fail-closed: verificamos el directorio raíz ANTES de declarar "clean".
+  try {
+    await assertRootDirReadable(dir);
+  } catch (e) {
+    console.error(`[audit-svg] ${e.message}`);
+    process.exit(1);
+  }
+
   let files;
   try {
     files = await walk(dir);

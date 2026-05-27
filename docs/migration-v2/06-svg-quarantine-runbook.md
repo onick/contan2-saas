@@ -25,20 +25,26 @@ Esto deja una ventana residual de XSS si en el pasado se subió un SVG con
 Pre-requisito: tener acceso SSH de solo lectura al volumen `/data/uploads`
 del contenedor en Coolify (ver `reference_production_infra.md`).
 
-1. **Inventariar.** En la máquina target, dentro del contenedor o con un
-   bind-mount al volumen de uploads:
+1. **Inventariar.** En la máquina target, **el comando que se debe ejecutar
+   tal cual** (con `--dir` explícito para no depender del CWD):
+
    ```bash
-   cd /app/backend
-   node scripts/audit-historical-svg.mjs --json > /tmp/svg-audit.json
+   node scripts/audit-historical-svg.mjs --dir /data/uploads --json > /tmp/svg-audit.json
    echo "exit: $?"
    ```
-   - Exit `0` → sin SVG en el volumen. **Continuar deploy normal**.
-   - Exit `10` → SVG presentes pero sin flags automáticos de riesgo. Revisar
-     la lista (`cat /tmp/svg-audit.json`) y decidir caso por caso (paso 2).
-   - Exit `20` → SVG con flags de riesgo (`script_tag`, `event_handler`,
-     `javascript_uri`, `foreign_object`, `expression_css`). **Bloquear deploy
-     y aplicar paso 2**.
-   - Exit `1` → error de I/O. Investigar y reintentar.
+
+   El script falla **cerrado** ante cualquier ambigüedad — sin acceso al
+   volumen NO devuelve "clean". Tabla de decisión:
+
+   | Exit | Significado | Acción |
+   |---|---|---|
+   | `0` | Directorio existe + es legible + 0 SVG | Continuar deploy normal |
+   | `10` | SVG presentes sin flags automáticos | Revisar JSON, decidir caso por caso (paso 2) |
+   | `20` | SVG con flags de riesgo (`script_tag`, `event_handler`, `javascript_uri`, `foreign_object`, `expression_css`) | **Bloquear deploy** y aplicar paso 2 |
+   | `1` | Directorio no existe / no es directorio / sin permisos / error I/O | **Bloquear deploy**. NO asumir clean; investigar el path y los permisos. |
+
+   El exit `1` NUNCA se interpreta como "probablemente está bien": es
+   "no pude verificar" y eso bloquea el deploy igual que `20`.
 
 2. **Cuarentena humana del SVG sospechoso.** Para cada archivo flaggeado:
 
