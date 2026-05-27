@@ -5,6 +5,7 @@ import { invalidateTenantCache } from '../middleware/resolveTenant.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { requireStaffSession } from '../middleware/requireStaffSession.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { recordAudit } from '../services/auth/auditService.js';
 import { config } from '../config.js';
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -85,9 +86,34 @@ export function createOrgBrandingRouter() {
 
       const inst = await initRepositories();
       const repo = new OrganizationRepository(inst.pool);
+      const previous = {
+        logoUrl: req.organization.logoUrl,
+        emailLogoUrl: req.organization.emailLogoUrl,
+        primaryColor: req.organization.primaryColor,
+        secondaryColor: req.organization.secondaryColor,
+        sidebarStyle: req.organization.sidebarStyle,
+      };
       const updated = await repo.update(req.organization.id, partial);
       invalidateTenantCache(updated.slug);
       if (updated.customDomain) invalidateTenantCache(updated.customDomain);
+
+      // Audit log: cambio de identidad institucional. Solo entran los
+      // campos efectivamente tocados (Object.keys(partial)), con valor
+      // anterior y nuevo, para que el log permita reconstruir el cambio
+      // sin filtrar la fila completa.
+      const changed = Object.keys(partial);
+      const diff = {};
+      for (const k of changed) {
+        diff[k] = { from: previous[k] ?? null, to: updated[k] ?? null };
+      }
+      recordAudit({
+        req,
+        action: 'branding.updated',
+        targetType: 'organization',
+        targetId: updated.id,
+        targetLabel: updated.slug,
+        metadata: { fields: changed, diff },
+      }).catch(() => {});
 
       res.json({
         ok: true,

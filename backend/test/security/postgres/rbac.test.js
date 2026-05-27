@@ -364,3 +364,92 @@ describe('postgres · audit log de credential.sent (email mockeado)', () => {
     expect(wrongTenant.length).toBe(0);
   });
 });
+
+// ===========================================================================
+// PATCH /api/org/branding · audit log
+// ===========================================================================
+// El runbook 06 (Paso 6.B.D corregido) usa este endpoint para reemplazar
+// `logo_url` y `email_logo_url` durante la remediación de SVG históricos.
+// Es identidad institucional del tenant — todo cambio queda auditado.
+describe('postgres · audit log de branding.updated', () => {
+  let app;
+  let ownerCookie;
+
+  beforeAll(async () => {
+    if (!isPostgresAvailable()) return;
+    app = await getTestApp();
+    ownerCookie = await loginAs(app, {
+      host: 'ccb.localhost',
+      email: 'ccb-owner@test.local',
+      password: 'TestOwner!1234',
+    });
+  });
+
+  runIfPostgres('PATCH /api/org/branding deja entrada branding.updated con diff', async () => {
+    // Snapshot ANTES.
+    const before = await request(app)
+      .get('/api/audit-log?action=branding.updated')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    expect(before.status).toBe(200);
+    expect(Array.isArray(before.body.entries)).toBe(true);
+    const beforeIds = new Set(before.body.entries.map(e => e.id));
+
+    // Cambio de primaryColor + logoUrl (campos que el runbook 6.B.D toca).
+    const newLogo = '/uploads/audit-test-logo.png';
+    const newColor = '#3a86ff';
+    const patchRes = await request(app)
+      .patch('/api/org/branding')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie)
+      .send({ logoUrl: newLogo, primaryColor: newColor });
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.ok).toBe(true);
+    expect(patchRes.body.organization.logoUrl).toBe(newLogo);
+    expect(patchRes.body.organization.primaryColor).toBe(newColor);
+
+    // Snapshot DESPUÉS.
+    const after = await request(app)
+      .get('/api/audit-log?action=branding.updated')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    expect(after.status).toBe(200);
+    const newEntries = after.body.entries.filter(e => !beforeIds.has(e.id));
+    expect(newEntries.length).toBeGreaterThan(0);
+
+    const brandingEntry = newEntries.find(e => e.action === 'branding.updated');
+    expect(brandingEntry).toBeDefined();
+    expect(brandingEntry.targetType).toBe('organization');
+    expect(brandingEntry.organizationId).toBe(CCB_ORG_ID);
+    expect(brandingEntry.targetLabel).toBe('ccb');
+    // metadata.fields lista los campos tocados; metadata.diff trae from/to.
+    expect(brandingEntry.metadata.fields).toEqual(
+      expect.arrayContaining(['logoUrl', 'primaryColor']),
+    );
+    expect(brandingEntry.metadata.diff.logoUrl).toMatchObject({ to: newLogo });
+    expect(brandingEntry.metadata.diff.primaryColor).toMatchObject({ to: newColor });
+  });
+
+  runIfPostgres('PATCH sin cambios efectivos NO deja entrada (early return)', async () => {
+    const before = await request(app)
+      .get('/api/audit-log?action=branding.updated')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    const beforeCount = before.body.entries.length;
+
+    // Body vacío → el handler hace `if (Object.keys(partial).length === 0) return ok`
+    // sin tocar DB ni recordAudit.
+    const res = await request(app)
+      .patch('/api/org/branding')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie)
+      .send({});
+    expect(res.status).toBe(200);
+
+    const after = await request(app)
+      .get('/api/audit-log?action=branding.updated')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    expect(after.body.entries.length).toBe(beforeCount);
+  });
+});
