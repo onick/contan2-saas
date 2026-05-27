@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireStaffSession } from '../middleware/requireStaffSession.js';
 
 const PERIODS = {
   today: { days: 1, label: 'Hoy' },
@@ -40,8 +41,11 @@ function deltaPct(curr, prev) {
   return Math.round(((curr - prev) / prev) * 100);
 }
 
+// Tier de autorización: GET /stats y GET /checkin-context → STAFF
+// (ver docs/migration-v2/05-authorization-matrix.md).
 export function createDashboardRouter() {
   const router = Router();
+  router.use(requireStaffSession);
 
   router.get('/stats', async (req, res, next) => {
     try {

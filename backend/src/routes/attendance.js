@@ -1,9 +1,24 @@
 import { Router } from 'express';
 import { HttpError } from '../middleware/errorHandler.js';
+import { requireStaffSession } from '../middleware/requireStaffSession.js';
+import { requireRole } from '../middleware/requireRole.js';
 import { validateAttendanceCreate } from '../domain/schemas.js';
+
+// Tier de autorización por endpoint (ver docs/migration-v2/05-authorization-matrix.md):
+//   POST   /                          → STAFF
+//   POST   /anonymous                 → STAFF (operación interna, según comentario del autor)
+//   GET    /                          → STAFF
+//   GET    /by-user/:userCode         → STAFF
+//   GET    /by-activity/:activityId   → STAFF
+//   DELETE /:id                       → ADMIN/OWNER  (destructivo)
+//
+// El kiosko público utiliza /api/public/checkin (router separado), no estos
+// endpoints. Si hay evidencia de uso anónimo legítimo, abrir excepción
+// documentada con rate-limit estricto antes de reabrir.
 
 export function createAttendanceRouter() {
   const router = Router();
+  router.use(requireStaffSession);
 
   router.post('/', async (req, res, next) => {
     try {
@@ -154,7 +169,7 @@ export function createAttendanceRouter() {
     }
   });
 
-  router.delete('/:id', async (req, res, next) => {
+  router.delete('/:id', requireRole(['owner', 'admin']), async (req, res, next) => {
     try {
       const att = await req.repos.attendance.delete(req.params.id);
       if (!att) throw new HttpError(404, 'Registro no encontrado');

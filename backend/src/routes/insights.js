@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { HttpError } from '../middleware/errorHandler.js';
+import { requireStaffSession } from '../middleware/requireStaffSession.js';
 
 const DAY_MS = 86_400_000;
 const RECENT_WINDOW_MS = 90 * DAY_MS;
@@ -73,8 +74,12 @@ function computeScore(affinity, { type, location } = {}) {
   return score;
 }
 
+// Tier de autorización: TODOS los endpoints → STAFF
+// (ver docs/migration-v2/05-authorization-matrix.md).
+// Devuelve PII (emails, listas de visitantes por segmento) — requiere sesión.
 export function createInsightsRouter() {
   const router = Router();
+  router.use(requireStaffSession);
 
   router.get('/user-affinity/:code', async (req, res, next) => {
     try {
