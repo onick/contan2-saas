@@ -34,30 +34,32 @@ export function createOrgBrandingRouter() {
   router.patch('/', requireRole(['owner', 'admin']), async (req, res, next) => {
     try {
       if (!req.organization) return next(new HttpError(404, 'Sin organización'));
-      const partial = {};
+
+      // Fase 1 — Validar y normalizar el payload (sin tocar DB todavía).
+      const proposed = {};
       const errors = [];
 
       if ('primaryColor' in req.body) {
         const v = String(req.body.primaryColor || '').trim();
         if (!HEX_RE.test(v)) errors.push({ field: 'primaryColor', message: 'Debe ser hex #RRGGBB' });
-        else partial.primaryColor = v.toLowerCase();
+        else proposed.primaryColor = v.toLowerCase();
       }
       if ('secondaryColor' in req.body) {
         const v = String(req.body.secondaryColor || '').trim();
         if (!HEX_RE.test(v)) errors.push({ field: 'secondaryColor', message: 'Debe ser hex #RRGGBB' });
-        else partial.secondaryColor = v.toLowerCase();
+        else proposed.secondaryColor = v.toLowerCase();
       }
       if ('sidebarStyle' in req.body) {
         const v = String(req.body.sidebarStyle || '').trim();
         if (!SIDEBAR_STYLES.has(v)) errors.push({ field: 'sidebarStyle', message: 'brand | dark | light' });
-        else partial.sidebarStyle = v;
+        else proposed.sidebarStyle = v;
       }
       if ('logoUrl' in req.body) {
         const v = req.body.logoUrl;
         if (v === null || v === '') {
-          partial.logoUrl = null;
+          proposed.logoUrl = null;
         } else if (typeof v === 'string' && v.length <= 500) {
-          partial.logoUrl = v.trim();
+          proposed.logoUrl = v.trim();
         } else {
           errors.push({ field: 'logoUrl', message: 'logoUrl inválida' });
         }
@@ -65,55 +67,83 @@ export function createOrgBrandingRouter() {
       if ('emailLogoUrl' in req.body) {
         const v = req.body.emailLogoUrl;
         if (v === null || v === '') {
-          partial.emailLogoUrl = null;
+          proposed.emailLogoUrl = null;
         } else if (typeof v === 'string' && v.length <= 500) {
-          partial.emailLogoUrl = v.trim();
+          proposed.emailLogoUrl = v.trim();
         } else {
           errors.push({ field: 'emailLogoUrl', message: 'emailLogoUrl inválida' });
         }
       }
 
       if (errors.length) throw new HttpError(400, 'Datos inválidos', errors);
+
+      // Fase 2 — Calcular el diff REAL contra el estado actual.
+      // Solo se persiste y audita lo que efectivamente cambia. Un PATCH
+      // con valores idénticos a los actuales sale como no-op SIN tocar DB
+      // ni audit. Esto evita inflar el audit log con eventos sin contenido
+      // material (y evita un INSERT en tenant_audit_log sin justificación).
+      const current = {
+        logoUrl: req.organization.logoUrl ?? null,
+        emailLogoUrl: req.organization.emailLogoUrl ?? null,
+        primaryColor: req.organization.primaryColor ?? null,
+        secondaryColor: req.organization.secondaryColor ?? null,
+        sidebarStyle: req.organization.sidebarStyle ?? null,
+      };
+      const partial = {};
+      for (const [k, v] of Object.entries(proposed)) {
+        const before = current[k] ?? null;
+        const after = v ?? null;
+        if (before !== after) partial[k] = v;
+      }
+
       if (Object.keys(partial).length === 0) {
-        return res.json({ ok: true, organization: req.organization });
+        // No-op: el cliente envió valores idénticos a los actuales.
+        return res.json({ ok: true, organization: req.organization, noop: true });
       }
 
       if (config.DB_DRIVER !== 'postgres') {
         // En memory mode no persistimos: solo eco para que el frontend pueda
-        // probar visualmente sin Postgres (no útil en producción).
+        // probar visualmente sin Postgres (no útil en producción). No hay
+        // audit porque no hay DB donde escribirlo.
         return res.json({ ok: true, organization: { ...req.organization, ...partial } });
       }
 
+      // Fase 3 — UPDATE en DB. Si falla, el error sube por next() y el
+      // cliente recibe 5xx. Sin UPDATE no se intenta audit.
       const inst = await initRepositories();
       const repo = new OrganizationRepository(inst.pool);
-      const previous = {
-        logoUrl: req.organization.logoUrl,
-        emailLogoUrl: req.organization.emailLogoUrl,
-        primaryColor: req.organization.primaryColor,
-        secondaryColor: req.organization.secondaryColor,
-        sidebarStyle: req.organization.sidebarStyle,
-      };
       const updated = await repo.update(req.organization.id, partial);
       invalidateTenantCache(updated.slug);
       if (updated.customDomain) invalidateTenantCache(updated.customDomain);
 
-      // Audit log: cambio de identidad institucional. Solo entran los
-      // campos efectivamente tocados (Object.keys(partial)), con valor
-      // anterior y nuevo, para que el log permita reconstruir el cambio
-      // sin filtrar la fila completa.
+      // Fase 4 — Audit log en modo STRICT. Si recordAudit lanza, el
+      // handler lo propaga al errorHandler y responde 5xx. NO devolvemos
+      // 200 con ok:true a menos que el audit haya quedado escrito.
+      //
+      // Trade-off documentado: si la auditoría falla DESPUÉS del UPDATE,
+      // la DB queda con el nuevo branding pero sin entrada en
+      // tenant_audit_log. El cliente ve 5xx; el operador debe inspeccionar
+      // manualmente el estado de la fila (vía SELECT) y decidir si:
+      //   a) re-emitir el PATCH para forzar el camino feliz (idempotente:
+      //      la fase 2 detecta valores idénticos y sale como no-op);
+      //   b) registrar la auditoría manualmente con evidencia operacional.
+      // Esto es preferible a "tragarse" el fallo de audit y reportar
+      // ok:true al cliente — un cambio de identidad institucional sin
+      // audit log es violatorio del contrato.
       const changed = Object.keys(partial);
       const diff = {};
       for (const k of changed) {
-        diff[k] = { from: previous[k] ?? null, to: updated[k] ?? null };
+        diff[k] = { from: current[k] ?? null, to: updated[k] ?? null };
       }
-      recordAudit({
+      await recordAudit({
         req,
         action: 'branding.updated',
         targetType: 'organization',
         targetId: updated.id,
         targetLabel: updated.slug,
         metadata: { fields: changed, diff },
-      }).catch(() => {});
+        strict: true,
+      });
 
       res.json({
         ok: true,

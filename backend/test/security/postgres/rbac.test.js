@@ -41,6 +41,32 @@ vi.mock('../../../src/services/email.js', () => ({
   sendInvitationEmail: async () => ({ sent: true, id: 'mock-invitation-id' }),
 }));
 
+// Switch global para forzar el fallo del recordAudit del PATCH branding
+// en un test específico. `vi.hoisted` garantiza que la variable existe
+// antes de que la fábrica del `vi.mock` se ejecute (que también está
+// hoisted al top del módulo).
+const auditFailControl = vi.hoisted(() => ({
+  forceBrandingFail: false,
+}));
+
+// Mock del auditService que delega al real, excepto cuando
+// `forceBrandingFail` está activo: en ese caso, simula que el repo
+// devuelve falsy y deja que `strict: true` lance.
+vi.mock('../../../src/services/auth/auditService.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    recordAudit: async (opts) => {
+      if (auditFailControl.forceBrandingFail && opts?.action === 'branding.updated') {
+        const err = new Error('forced audit failure for test');
+        if (opts.strict) throw err;
+        return null;
+      }
+      return actual.recordAudit(opts);
+    },
+  };
+});
+
 // Helper: login y devolver cookie de sesión.
 async function loginAs(app, { host, email, password }) {
   const res = await request(app)
@@ -430,26 +456,115 @@ describe('postgres · audit log de branding.updated', () => {
     expect(brandingEntry.metadata.diff.primaryColor).toMatchObject({ to: newColor });
   });
 
-  runIfPostgres('PATCH sin cambios efectivos NO deja entrada (early return)', async () => {
+  runIfPostgres('PATCH con body vacío NO deja entrada (early return)', async () => {
     const before = await request(app)
       .get('/api/audit-log?action=branding.updated')
       .set('Host', 'ccb.localhost')
       .set('Cookie', ownerCookie);
     const beforeCount = before.body.entries.length;
 
-    // Body vacío → el handler hace `if (Object.keys(partial).length === 0) return ok`
-    // sin tocar DB ni recordAudit.
+    // Body vacío → el handler hace early return después del filtro de
+    // diff real. Sin UPDATE, sin recordAudit.
     const res = await request(app)
       .patch('/api/org/branding')
       .set('Host', 'ccb.localhost')
       .set('Cookie', ownerCookie)
       .send({});
     expect(res.status).toBe(200);
+    expect(res.body.noop).toBe(true);
 
     const after = await request(app)
       .get('/api/audit-log?action=branding.updated')
       .set('Host', 'ccb.localhost')
       .set('Cookie', ownerCookie);
     expect(after.body.entries.length).toBe(beforeCount);
+  });
+
+  // === (b) Diff real: PATCH con valores idénticos a los actuales no audita ===
+  runIfPostgres('PATCH con valores idénticos a los actuales NO deja entrada (diff real)', async () => {
+    // El test anterior dejó logoUrl='/uploads/audit-test-logo.png' y
+    // primaryColor='#3a86ff'. Re-PATCH con esos MISMOS valores no debe
+    // tocar DB ni audit, porque el handler filtra fields donde
+    // `from !== to` antes de hacer UPDATE.
+    //
+    // Para no depender del orden de tests, primero leemos el estado actual
+    // con GET y luego re-PATCH con esos mismos valores. Funciona aunque el
+    // test corra aislado.
+    const current = await request(app)
+      .get('/api/org/branding')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    expect(current.status).toBe(200);
+
+    const before = await request(app)
+      .get('/api/audit-log?action=branding.updated')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    const beforeCount = before.body.entries.length;
+
+    const res = await request(app)
+      .patch('/api/org/branding')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie)
+      .send({
+        logoUrl: current.body.logoUrl,
+        emailLogoUrl: current.body.emailLogoUrl,
+        primaryColor: current.body.primaryColor,
+        secondaryColor: current.body.secondaryColor,
+        sidebarStyle: current.body.sidebarStyle,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.noop).toBe(true);
+
+    const after = await request(app)
+      .get('/api/audit-log?action=branding.updated')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    expect(after.body.entries.length).toBe(beforeCount);
+  });
+
+  // === (c) Fallo de audit no se reporta como operación plenamente auditada ===
+  runIfPostgres('fallo forzado de recordAudit(strict) NO devuelve ok:true', async () => {
+    // Forzar que recordAudit lance cuando el handler intente auditar el
+    // PATCH. Con strict=true, el handler propaga el error al errorHandler
+    // y el cliente recibe 5xx — NO un 200 ok:true.
+    //
+    // Snapshot del estado de DB y del audit log antes del intento.
+    const orgBefore = await request(app)
+      .get('/api/org/branding')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    const auditBefore = await request(app)
+      .get('/api/audit-log?action=branding.updated')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    const auditBeforeCount = auditBefore.body.entries.length;
+
+    auditFailControl.forceBrandingFail = true;
+    let res;
+    try {
+      res = await request(app)
+        .patch('/api/org/branding')
+        .set('Host', 'ccb.localhost')
+        .set('Cookie', ownerCookie)
+        .send({ primaryColor: '#deadbe' });
+    } finally {
+      // Restaurar SIEMPRE para no contaminar tests siguientes.
+      auditFailControl.forceBrandingFail = false;
+    }
+
+    // Crítico: NO debe ser 200 con ok:true.
+    expect(res.status).not.toBe(200);
+    expect(res.body?.ok).not.toBe(true);
+    // El status debe estar en el rango 5xx (error del servidor).
+    expect(res.status).toBeGreaterThanOrEqual(500);
+
+    // El audit log NO ganó una entrada (el strict abortó antes de
+    // que el insert real se completara).
+    const auditAfter = await request(app)
+      .get('/api/audit-log?action=branding.updated')
+      .set('Host', 'ccb.localhost')
+      .set('Cookie', ownerCookie);
+    expect(auditAfter.body.entries.length).toBe(auditBeforeCount);
   });
 });
