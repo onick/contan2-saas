@@ -3,16 +3,23 @@
 # puppeteer-core ≥24, pg ≥8.20 — todos publican binaries N-API para Node 24.
 FROM node:24-bookworm-slim AS base
 
-# Identidad de build (commit git). Coolify lo inyecta vía --build-arg
-# GIT_SHA=$(git rev-parse HEAD) automáticamente cuando configurás
-# "Inject build args" en la app, o se puede setear manualmente con
-#   docker build --build-arg GIT_SHA=$(git rev-parse HEAD) .
-# Si no se pasa, queda 'unknown' y el endpoint /api/version lo expone como
-# tal — eso señala al operador que el deploy no fue trazable y el runbook
-# 06 lo trata como "abortar antes de B" (ver Paso A.5).
-ARG GIT_SHA=unknown
-LABEL org.opencontainers.image.revision="$GIT_SHA"
-ENV BUILD_SHA="$GIT_SHA"
+# Identidad de build (commit git).
+#
+# Coolify expone el commit del último deploy git-based como variable
+# `SOURCE_COMMIT` durante el build, **siempre que la app tenga activado
+# "Include Source Commit in Build"** (Application Settings → Build).
+# Sin esa opción, el build no recibe `SOURCE_COMMIT` y `BUILD_SHA` queda
+# en 'unknown' — eso señala al operador que el deploy no fue trazable y
+# el runbook 06 lo trata como "abortar antes de B" (ver Paso A.5).
+#
+# Build manual (fuera de Coolify):
+#   docker build --build-arg SOURCE_COMMIT=$(git rev-parse HEAD) .
+#
+# Mantenemos `BUILD_SHA` como nombre de la env var al runtime para que el
+# código Node no dependa de la nomenclatura del proveedor de CI/CD.
+ARG SOURCE_COMMIT=unknown
+LABEL org.opencontainers.image.revision="$SOURCE_COMMIT"
+ENV BUILD_SHA="$SOURCE_COMMIT"
 
 # Chromium + deps mínimos para PDF rendering vía puppeteer-core.
 # Debian gestiona los dependentes del paquete chromium automáticamente.
