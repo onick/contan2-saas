@@ -70,6 +70,20 @@ describe('postgres · RBAC operator vs admin/owner', () => {
   beforeAll(async () => {
     if (!isPostgresAvailable()) return;
     app = await getTestApp();
+
+    // Sanity: el tenant CCB debe estar seeded en la DB. Si esto falla, el
+    // resto de los asserts darían 404 (org no encontrada) en vez de 403/200.
+    // Falla temprana con mensaje claro.
+    const tenantRes = await request(app)
+      .get('/api/_tenant')
+      .set('Host', 'ccb.localhost');
+    if (tenantRes.status !== 200 || tenantRes.body?.slug !== 'ccb') {
+      throw new Error(
+        `seed inconsistente: GET /api/_tenant (ccb.localhost) → ${tenantRes.status} ${JSON.stringify(tenantRes.body)}.\n` +
+        'Esto causa 404 en cualquier ruta auth-gated. Verifica que docker-compose.test.yml está up y `node scripts/seed-test-fixtures.mjs` corrió ANTES de vitest.',
+      );
+    }
+
     operatorCookie = await loginAs(app, {
       host: 'ccb.localhost',
       email: 'ccb-operator@test.local',
@@ -136,6 +150,15 @@ describe('postgres · RBAC operator vs admin/owner', () => {
       .set('Host', 'ccb.localhost')
       .set('Cookie', operatorCookie)
       .send({ primaryColor: '#abcdef' });
+    // Aserción estricta. Si llega 404, es bug en resolveTenant (org no
+    // encontrada) o middleware reordering — NO un problema de RBAC; el
+    // diagnóstico de vitest mostrará el status real y el body.
+    if (res.status !== 403) {
+      throw new Error(
+        `esperado 403 (RBAC), recibido ${res.status}. Body: ${JSON.stringify(res.body)}. ` +
+        'Si es 404, el tenant no resolvió; revisar seed + Host. Si es 401, requireStaffSession no validó la cookie.',
+      );
+    }
     expect(res.status).toBe(403);
   });
 
