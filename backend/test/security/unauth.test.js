@@ -62,6 +62,11 @@ const PRIVATE_ENDPOINTS = [
   // credentials.js — V008b
   { method: 'POST',   path: '/api/credentials/CCB-XXXXXX/send' },
   { method: 'POST',   path: '/api/credentials/bulk-send', body: { codes: ['CCB-XXXXXX'] } },
+  // orgDomain.js — todos ADMIN/OWNER
+  { method: 'GET',    path: '/api/org/domain' },
+  { method: 'PATCH',  path: '/api/org/domain',          body: { domain: 'example.com' } },
+  { method: 'POST',   path: '/api/org/domain/verify' },
+  { method: 'DELETE', path: '/api/org/domain' },
 ];
 
 describe('P0 · endpoints privados rechazan requests anónimas', () => {

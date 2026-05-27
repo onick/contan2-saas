@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { promises as dns } from 'node:dns';
 import { randomBytes } from 'node:crypto';
 import { HttpError } from '../middleware/errorHandler.js';
-import { requireStaff } from '../middleware/staffAuth.js';
+import { requireStaffSession } from '../middleware/requireStaffSession.js';
+import { requireRole } from '../middleware/requireRole.js';
 import { OrganizationRepository } from '../db/postgres/platform/OrganizationRepository.js';
 import { initRepositories } from '../db/repositories.js';
 import { invalidateTenantCache } from '../middleware/resolveTenant.js';
@@ -63,11 +64,17 @@ function publicView(org, { baseDomain } = {}) {
   };
 }
 
+// Tier de autorización: TODOS los endpoints → ADMIN/OWNER.
+// Razón: el dominio personalizado es configuración institucional sensible
+// (apunta el branding y el tráfico del tenant). Operator y scanner PIN no
+// deben acceder ni modificarlo.
 export function createOrgDomainRouter() {
   const router = Router();
+  router.use(requireStaffSession);
+  router.use(requireRole(['owner', 'admin']));
 
   // GET /api/org/domain — estado actual del dominio personalizado del tenant.
-  router.get('/', requireStaff, async (req, res, next) => {
+  router.get('/', async (req, res, next) => {
     try {
       if (!req.organization) throw new HttpError(404, 'Sin organización');
       res.json(publicView(req.organization, { baseDomain: config.ROOT_DOMAIN }));
@@ -78,7 +85,7 @@ export function createOrgDomainRouter() {
 
   // PATCH /api/org/domain — solicitar/actualizar dominio personalizado.
   // Genera un token nuevo y deja el dominio en estado "pendiente de verificación".
-  router.patch('/', requireStaff, async (req, res, next) => {
+  router.patch('/', async (req, res, next) => {
     try {
       if (!req.organization) throw new HttpError(404, 'Sin organización');
       const domain = normalizeDomain(req.body?.domain);
@@ -120,7 +127,7 @@ export function createOrgDomainRouter() {
 
   // POST /api/org/domain/verify — el tenant pulsa "Verificar".
   // Hacemos lookup DNS TXT. Si encuentra el token correcto -> verifiedAt = NOW().
-  router.post('/verify', requireStaff, async (req, res, next) => {
+  router.post('/verify', async (req, res, next) => {
     try {
       if (!req.organization) throw new HttpError(404, 'Sin organización');
       const org = req.organization;
@@ -182,7 +189,7 @@ export function createOrgDomainRouter() {
   });
 
   // DELETE /api/org/domain — el tenant remueve su dominio personalizado.
-  router.delete('/', requireStaff, async (req, res, next) => {
+  router.delete('/', async (req, res, next) => {
     try {
       if (!req.organization) throw new HttpError(404, 'Sin organización');
       if (!req.organization.customDomain) {
