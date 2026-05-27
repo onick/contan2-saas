@@ -101,12 +101,16 @@ El script:
 | Exit | Significado | Acción |
 |---|---|---|
 | `0` | Directorio legible + 0 candidatos en `entries` | **Autorizar deploy**. Adjuntar `audit.json` al ticket de release. |
-| `10` | Candidatos SVG presentes pero `entries[].flags` vacío en todos | Revisión humana caso por caso (Paso 6). |
-| `20` | Al menos una entrada con algún flag (ver tabla abajo) | **Bloquear deploy** y aplicar cuarentena (Paso 6). |
+| `10` | Candidatos SVG presentes pero `entries[].flags` vacío en todos | **Bloquear deploy**. Procesar cada entrada (Paso 6). |
+| `20` | Al menos una entrada con algún flag | **Bloquear deploy**. Procesar cada entrada (Paso 6). |
 | `1`  | Directorio no existe / no es directorio / sin permisos / I/O / cualquier ambigüedad | **Bloquear deploy**. NO se asume "clean" — investigar path, permisos, y reintentar. |
 
-Exit `1` y exit `20` son indistinguibles para efectos de "puedo deployar":
-ambos bloquean.
+Exit `1`, `10` y `20` son **equivalentes para efectos de "puedo deployar":
+ninguno autoriza**. Mientras exista cualquier archivo en `audit.json.entries`
+— con o sin flags, con o sin contenido SVG verificado — el deploy queda
+bloqueado bajo la política actual de "SVG deshabilitado en uploads nuevos".
+La presencia de un solo SVG histórico servido desde `/uploads/*` mantiene
+la ventana XSS abierta que motivó este runbook.
 
 Flags reportados en `entries[].flags` (cualquiera dispara exit 20):
 
@@ -122,33 +126,110 @@ Flags reportados en `entries[].flags` (cualquiera dispara exit 20):
 | `truncated_audit` | archivo > 16 MiB; el auditor leyó solo el prefijo. **Aplica a cualquier extensión** (`.svg`, `.png`, `.jpg`, `.bin`, etc.) — un atacante puede esconder payload pasado el cap. Bloquea deploy aunque ningún otro flag esté presente: la decisión sobre el contenido es de un humano (`less <file>` / `hexdump`). |
 | `read_error` | no se pudo abrir/leer (permisos, FS corrupto). Investigar antes de seguir |
 
-### Paso 6 · Cuarentena humana (solo si exit 10/20)
+### Paso 6 · Procesamiento de candidatos (cuando exit es 10 o 20)
 
-Por cada archivo flaggeado en `audit.json`:
+**Regla de procesamiento (inequívoca):** se debe procesar **cada candidato
+listado en `audit.json.entries`**, tenga flags o no. Un candidato sin flags
+NO está exento; el script es heurístico y exit `10` significa "encontré
+SVG histórico", no "limpio". La distinción exit 10/20 solo determina la
+urgencia del análisis, no si se procesa.
 
-a. Mover fuera del path estático (NO borrar — preservar para forensia):
-   ```bash
-   ssh "$VPS" "sudo mkdir -p /data/svg-quarantine/${RUN_ID} && \
-               sudo mv $VOLUME_PATH/<archivo> /data/svg-quarantine/${RUN_ID}/<archivo>"
-   ```
+El Paso 6 se divide en dos sub-pasos con autorizaciones independientes:
 
-b. Identificar dueños de la URL en DB (solo SELECT, jamás UPDATE sin
-   confirmación del operador):
-   ```sql
-   SELECT id, slug, logo_url, email_logo_url
-     FROM organizations
-    WHERE logo_url LIKE '%<archivo>' OR email_logo_url LIKE '%<archivo>';
-   SELECT id, name, image_url
-     FROM activities
-    WHERE image_url LIKE '%<archivo>';
-   ```
+#### Paso 6.A · Revisión read-only (no requiere autorización para escritura)
 
-c. Confirmar con el operador si la imagen era legítima (entonces re-subir
-   versión sanitizada) o desconocida (vaciar el campo). Cualquier UPDATE va
-   solo después de explícita autorización; queda registrado.
+Para cada `entry` en `audit.json.entries` ejecutar, dejando producción
+intacta:
 
-d. Re-correr Paso 4 contra el volumen ya cuarentenado. El resultado debe
-   ser exit `0` antes de autorizar deploy.
+A1. **Copiar el archivo** del volumen productivo a evidencia local. El SVG
+    NO se mueve, NO se renombra; solo se copia por SCP/SSH `cat`:
+    ```bash
+    ssh "$VPS" "cat $VOLUME_PATH/<basename>" > "$EVIDENCE_DIR/files/<basename>"
+    ```
+
+A2. **Calcular SHA-256** local de cada copia y agrupar duplicados (mismo
+    hash ⇒ asset idéntico re-subido):
+    ```bash
+    shasum -a 256 "$EVIDENCE_DIR/files/"* > "$EVIDENCE_DIR/sha256.txt"
+    ```
+
+A3. **Inspeccionar el contenido como texto** — NUNCA abrir el SVG
+    productivo directamente en navegador (un `<script>` dispararía
+    payload). Inspección permitida: `cat`, `less`, `xmllint --noout`,
+    `grep -i 'script\|on[a-z]\+=\|javascript:\|foreignObject'`.
+
+A4. **SELECT read-only** en la DB de producción para localizar referencias.
+    Buscar el basename (no el path completo, porque las URLs en DB son
+    relativas tipo `/uploads/<basename>`):
+    ```sql
+    SELECT id, slug, logo_url, email_logo_url
+      FROM organizations
+     WHERE logo_url LIKE '%<basename>'
+        OR email_logo_url LIKE '%<basename>';
+
+    SELECT id, name, image_url
+      FROM activities
+     WHERE image_url LIKE '%<basename>';
+    ```
+    Identificadores sensibles (slugs reales, UUIDs) se redactan al
+    publicar el reporte.
+
+A5. **Clasificar** cada candidato según el resultado de A1–A4:
+    - **Asset legítimo referenciado**: el SVG está apuntado por alguna fila
+      en `organizations` o `activities`; el contenido es benigno (sin
+      `<script>`, sin `on*`, sin `javascript:`, sin `<foreignObject>`).
+    - **Asset legítimo no referenciado**: archivo presente en el volumen
+      sin ninguna fila apuntándolo; contenido benigno (probable upload
+      huérfano por flujo abortado).
+    - **Sospechoso**: cualquier flag de riesgo presente en el archivo, o
+      contenido que no parezca un SVG legítimo.
+
+El Paso 6.A NO requiere autorización para escritura. Solo lee del VPS
+(`cat`) y de la DB (`SELECT`). Su salida es un plan de remediación
+candidato a candidato.
+
+#### Paso 6.B · Remediación con escritura (REQUIERE AUTORIZACIÓN EXPLÍCITA)
+
+Solo después de que el operador apruebe el plan de 6.A:
+
+B1. **Asset legítimo referenciado → conversión a PNG/WebP off-prod.**
+    Tomar la copia local del archivo, rasterizar con `sharp` desde un
+    script local (no en prod), subir el PNG resultante vía
+    `POST /api/uploads/image` autenticado, y luego `UPDATE` la fila para
+    apuntar al nuevo URL:
+    ```sql
+    UPDATE organizations SET logo_url = '/uploads/<nuevo>.png' WHERE id = ...;
+    -- equivalentes para email_logo_url y activities.image_url
+    ```
+    Cada UPDATE queda registrado en `tenant_audit_log` por el mismo flujo
+    del endpoint que lo dispara. Reanudar inmediatamente con B3.
+
+B2. **Sin remediación viable o sospechoso → cuarentena.**
+    Mover el SVG fuera del path estático (NO borrar — preservar para
+    forensia), vaciar las referencias en DB si las hay:
+    ```bash
+    ssh "$VPS" "sudo mkdir -p /data/svg-quarantine/${RUN_ID} && \
+                sudo mv $VOLUME_PATH/<basename> /data/svg-quarantine/${RUN_ID}/<basename>"
+    ```
+    ```sql
+    UPDATE organizations SET logo_url = NULL WHERE id = ... AND logo_url LIKE '%<basename>';
+    ```
+    A partir de ese momento `/uploads/<basename>` devuelve 404 y los
+    consumidores ven el placeholder por defecto.
+
+B3. **Re-correr el inventario.** Repetir Pasos 1–5 contra el volumen ya
+    procesado. El resultado debe ser exit `0` (entries vacío) antes de
+    autorizar el merge/deploy. Si aún hay candidatos, volver a 6.A para
+    los restantes.
+
+Resumen de autorizaciones requeridas en este runbook:
+
+| Sub-paso | Tipo | ¿Autorización requerida? |
+|---|---|---|
+| 1–5 | Read-only (scp + ssh + node read-only) | Una vez (autoriza el inventario) |
+| 7–8 | Cleanup del script en `/tmp` + archivo de evidencia local | Implícita en la autorización del inventario |
+| 6.A | Read-only (scp cat + SELECT + análisis offline) | Una vez (autoriza la revisión de los candidatos) |
+| 6.B | Modificación de producción (`mv`, `UPDATE`) | **Separada y explícita**, archivo por archivo o por lote |
 
 ### Paso 7 · Cleanup (solo del script temporal)
 
