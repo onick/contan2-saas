@@ -190,37 +190,200 @@ candidato a candidato.
 
 #### Paso 6.B · Remediación con escritura (REQUIERE AUTORIZACIÓN EXPLÍCITA)
 
-Solo después de que el operador apruebe el plan de 6.A:
+**Contexto temporal del Paso 6.B en FASE 1.A.** Esta secuencia se ejecuta
+**antes** del primer deploy de la rama `security/p0-hardening`. Producción
+aún corre desde `multitenant`, donde:
 
-B1. **Asset legítimo referenciado → conversión a PNG/WebP off-prod.**
-    Tomar la copia local del archivo, rasterizar con `sharp` desde un
-    script local (no en prod), subir el PNG resultante vía
-    `POST /api/uploads/image` autenticado, y luego `UPDATE` la fila para
-    apuntar al nuevo URL:
-    ```sql
-    UPDATE organizations SET logo_url = '/uploads/<nuevo>.png' WHERE id = ...;
-    -- equivalentes para email_logo_url y activities.image_url
-    ```
-    Cada UPDATE queda registrado en `tenant_audit_log` por el mismo flujo
-    del endpoint que lo dispara. Reanudar inmediatamente con B3.
+- `/api/uploads/image` y `/api/org/branding` **no tienen el hardening
+  nuevo** (sin whitelist de `meta.format` de sharp, sin requireStaffSession
+  removiendo el fallback PIN, sin policy de email logo). No es válido
+  enrutar la remediación por esos endpoints.
+- Un `UPDATE` SQL directo **NO dispara** `recordAudit()` ni
+  `invalidateTenantCache()`. La pista de auditoría y la invalidación de
+  caché de tenant deben gestionarse manualmente (evidencia textual del
+  SQL + restart/deploy posterior).
 
-B2. **Sin remediación viable o sospechoso → cuarentena.**
-    Mover el SVG fuera del path estático (NO borrar — preservar para
-    forensia), vaciar las referencias en DB si las hay:
-    ```bash
-    ssh "$VPS" "sudo mkdir -p /data/svg-quarantine/${RUN_ID} && \
-                sudo mv $VOLUME_PATH/<basename> /data/svg-quarantine/${RUN_ID}/<basename>"
-    ```
-    ```sql
-    UPDATE organizations SET logo_url = NULL WHERE id = ... AND logo_url LIKE '%<basename>';
-    ```
-    A partir de ese momento `/uploads/<basename>` devuelve 404 y los
-    consumidores ven el placeholder por defecto.
+Por estas dos razones, la remediación es una **ventana coordinada** con
+ocho fases atómicas. Cualquier desviación obliga a abortar y reportar.
 
-B3. **Re-correr el inventario.** Repetir Pasos 1–5 contra el volumen ya
-    procesado. El resultado debe ser exit `0` (entries vacío) antes de
-    autorizar el merge/deploy. Si aún hay candidatos, volver a 6.A para
-    los restantes.
+##### B.a · Generar raster offline desde la copia local de evidencia
+
+Desde la copia en `$EVIDENCE_DIR/review-6A/files/<basename>.svg` ya
+verificada en 6.A, rasterizar a PNG (preferible PNG con alfa por
+compatibilidad universal; WebP opcional si el operador lo aprueba). Usar
+`sharp` desde un script local — **no** desde producción:
+
+```js
+sharp(svgPath, { density: 300 })
+  .resize({ width: 1080, fit: 'inside', withoutEnlargement: false })
+  .png({ compressionLevel: 9 })   // sin palette si hay alpha + colores
+  .toFile(outPath);
+```
+
+Tres notas:
+- `density: 300` oversamplea el rasterizado SVG para bordes nítidos.
+- `withoutEnlargement: false` permite escalar UP si el SVG es chico (los
+  logos suelen ser pequeños en viewBox).
+- Si el asset tiene `fill: #fff`, el PNG resultante necesita transparencia
+  o se verá invisible sobre el sidebar oscuro. Sharp preserva alpha
+  automáticamente cuando el SVG no tiene `<rect>` de fondo.
+
+##### B.b · Verificación local del raster
+
+Antes de tocar nada en producción, validar que el PNG generado:
+
+1. Tiene formato real `png` según `sharp(outPath).metadata()` —
+   defensa contra "sharp escribió algo raro".
+2. Dimensiones razonables (típico para logo: 800–1200 px de ancho).
+3. SHA-256 calculado y archivado en `$EVIDENCE_DIR/review-6A/raster/`.
+4. Tamaño coherente (típicamente 10–80 KiB para un logo simple).
+5. Sin canales/perfiles de color sospechosos.
+
+Cualquier verificación que falle → abortar 6.B, regenerar.
+
+##### B.c · Copiar raster al volumen productivo con nombre controlado
+
+Solo después de autorización explícita del operador, **copiar** (no mover
+desde local) el PNG al volumen, con un nombre productivo único elegido
+por adelantado:
+
+```bash
+# Nombres propuestos al inicio de la ventana, fijos durante toda 6.B.
+NEW_PRIMARY="<runid>-<tenant>-logo-primary.png"
+NEW_EMAIL="<runid>-<tenant>-logo-email.png"
+
+scp -i ~/.ssh/contabo_key \
+  "$EVIDENCE_DIR/review-6A/raster/$NEW_PRIMARY" \
+  "$VPS:$VOLUME_PATH/$NEW_PRIMARY"
+
+ssh "$VPS" "stat -c '%a %s %n' $VOLUME_PATH/$NEW_PRIMARY" \
+  | tee "$EVIDENCE_DIR/review-6A/raster/server-stat.txt"
+```
+
+Repetir para `$NEW_EMAIL`. **Crítico**: el `chown`/`chmod` debe coincidir
+con los demás archivos del volumen (Coolify monta como `root:root 644`
+típicamente); verificar con `stat` antes de continuar.
+
+##### B.d · UPDATE SQL acotado + evidencia manual
+
+Con los rasters ya servibles desde `/uploads/<NEW_*>`, ejecutar UPDATE
+escópeado por `id` del tenant (no por LIKE permisivo). Guardar la query
+literal, los UUIDs afectados, y el resultado en evidencia:
+
+```sql
+-- Guardar el SQL EJECUTADO y el RETURNING en evidencia:
+UPDATE organizations
+   SET logo_url = '/uploads/' || :new_primary,
+       updated_at = NOW()
+ WHERE id = :tenant_id
+   AND logo_url LIKE '%' || :old_basename_primary
+ RETURNING id, slug, logo_url, updated_at;
+```
+
+```sql
+UPDATE organizations
+   SET email_logo_url = '/uploads/' || :new_email,
+       updated_at = NOW()
+ WHERE id = :tenant_id
+   AND email_logo_url LIKE '%' || :old_basename_email
+ RETURNING id, slug, email_logo_url, updated_at;
+```
+
+Cada `RETURNING` se vuelca a `$EVIDENCE_DIR/review-6A/sql-update-*.txt`.
+**No se confía** en que el endpoint logueó nada: la evidencia textual es
+la única auditoría hasta que la rama hardenizada esté desplegada.
+
+##### B.e · Cuarentena de los SVG
+
+Con las referencias DB ya apuntando a los PNG nuevos, los SVG quedan
+desreferenciados. Moverlos al directorio de cuarentena, NO borrar:
+
+```bash
+ssh "$VPS" "sudo mkdir -p /data/svg-quarantine/${RUN_ID} && \
+            sudo mv $VOLUME_PATH/<basename> /data/svg-quarantine/${RUN_ID}/<basename>"
+```
+
+Repetir para los 4 archivos (los 2 referenciados + los 2 huérfanos). Listar
+el directorio de cuarentena post-move para confirmar el contenido:
+
+```bash
+ssh "$VPS" "ls -la /data/svg-quarantine/${RUN_ID}/" \
+  | tee "$EVIDENCE_DIR/review-6A/quarantine.ls.txt"
+```
+
+##### B.f · Re-auditar el volumen
+
+Re-correr Pasos 1–5 del runbook (scp del script, checksum, ejecutar,
+exit code). El resultado debe ser **exit 0**. Si exit ≠ 0, se preserva
+el volumen como está, se documenta y se aborta el deploy. NUNCA seguir
+con un exit residual.
+
+##### B.g · Desplegar la rama hardenizada inmediatamente
+
+Apenas el re-audit dé exit 0, hacer merge de `security/p0-hardening` a
+`multitenant` y disparar el deploy en Coolify. Esto es importante por
+**dos** razones:
+
+1. **Reinicio de cachés.** El nuevo `resolveTenant` invalida cualquier
+   cache stale del tenant que pueda seguir devolviendo URLs viejas. El
+   restart del contenedor también recicla los workers Node que tienen
+   `req.organization` cacheado.
+2. **Política consistente.** Producción debe correr con
+   `fileFilter` hardenizado + `optimizeImage` con whitelist de formato
+   antes de que ningún usuario pueda volver a subir un asset; en caso
+   contrario, un upload entre la cuarentena y el deploy podría
+   reintroducir el riesgo.
+
+##### B.h · Smoke post-deploy
+
+- `GET /uploads/<NEW_PRIMARY>` → 200 + `Content-Type: image/png` +
+  `X-Content-Type-Options: nosniff`.
+- `GET /uploads/<NEW_EMAIL>` → mismo contrato.
+- `GET /uploads/<OLD_BASENAME_*>.svg` → 404 (cuarentena efectiva).
+- Login admin del tenant → ver logo correcto en sidebar.
+- Render de un email de prueba (resend a mfranciscomartinez@gmail.com) →
+  ver logo email correcto.
+
+Si cualquiera de los smokes falla, ejecutar el **rollback** documentado
+abajo.
+
+##### Degradación visual aceptable entre B.e y B.g
+
+Entre el `mv` a cuarentena (B.e) y el deploy efectivo (B.g) puede haber
+unos segundos / minutos donde:
+- Los browsers que tengan en caché el HTML viejo con `<img src="/uploads/<old>.svg">`
+  recibirán 404 al renderearlo. Verán el placeholder por defecto del
+  componente (ícono de "imagen rota" o el fallback de branding).
+- Los emails ya enviados no se ven afectados (PNG ya viaja como
+  attachment data-URI en `sendCredentialEmail`).
+
+Esto es **degradación visual breve**, NO exposición de contenido: el SVG
+malicioso (en este caso, benigno) ya no se sirve. La ventana es aceptable
+porque la alternativa — exponer el SVG durante el deploy — es peor.
+
+##### Rollback si el deploy falla después de UPDATE/cuarentena
+
+Si el deploy en B.g falla por error de imagen / migration / health-check,
+el estado de prod queda con:
+- DB apuntando a `/uploads/<NEW_*>.png` (correcto, no se revierte).
+- SVGs en `/data/svg-quarantine/${RUN_ID}/` (correcto, no se revierte).
+- Container ejecutando código viejo (`multitenant` sin hardening).
+
+Acciones de rollback con autorización separada:
+
+1. Coolify rollback automático al deployment anterior — el container
+   vuelve a su imagen previa.
+2. **No** revertir UPDATE SQL: el PNG nuevo es válido y servible por el
+   código viejo igual (el endpoint estático no depende del hardening).
+3. **No** restaurar el SVG desde cuarentena: la ventana XSS sigue
+   queriendo cerrarse; el deploy fallido se debe analizar y reintentar
+   con un fix, no revirtiendo el work de B.a–B.f.
+4. Si el deploy fallido dejó la app DOWN: priorizar restaurar servicio
+   (rollback de container), luego analizar root cause, luego reintentar
+   merge + deploy con la rama corregida.
+
+Es decir: la cuarentena y el UPDATE son **avances permanentes**; solo el
+deploy del código es reversible. El SVG no vuelve a `/uploads/`.
 
 Resumen de autorizaciones requeridas en este runbook:
 
