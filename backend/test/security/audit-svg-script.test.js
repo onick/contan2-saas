@@ -278,4 +278,77 @@ describe('audit-historical-svg.mjs · fail-closed', () => {
     expect(report.svgCandidates).toBe(1);
     expect(report.entries[0].flags).toContain('svg_extension_unverified');
   });
+
+  // ===========================================================================
+  // Bypass del cap de 16 MiB (reportado en feedback)
+  // ===========================================================================
+  // Si el archivo es > MAX_AUDIT_BYTES, leemos solo el prefijo. Un atacante
+  // puede esconder el payload pasado el cap. La política fail-closed exige
+  // que CUALQUIER archivo truncado entre al reporte con `truncated_audit`,
+  // sin importar la extensión ni si encontramos <svg en el prefijo.
+  //
+  // Estas pruebas generan archivos > 16 MiB en memoria — son 20-50 MB de
+  // I/O cada una; total ~1-2 s para las tres. Está dentro del hookTimeout.
+
+  const CAP = 16 * 1024 * 1024;
+
+  it('.png > 16 MiB con SVG malicioso DESPUÉS del cap → exit 20 + truncated_audit', () => {
+    // Padding de espacios > CAP, luego el payload. La lectura corta antes
+    // del payload; truncated=true, hasSvgElement=false en lo leído.
+    const padding = Buffer.alloc(CAP + 1024, 0x20);
+    const payload = Buffer.from('<svg><script>alert(1)</script></svg>');
+    writeFileSync(path.join(workdir, 'large-hidden.png'), Buffer.concat([padding, payload]));
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(20);
+    const report = JSON.parse(stdout);
+    expect(report.svgCandidates).toBe(1);
+    expect(report.entries[0].extension).toBe('.png');
+    expect(report.entries[0].size).toBeGreaterThan(CAP);
+    expect(report.entries[0].flags).toContain('truncated_audit');
+    // Crítico: NO afirmamos wrong_extension — no pudimos ver el payload,
+    // así que no podemos confirmar que el archivo sea SVG. Solo "no se
+    // pudo auditar entero".
+    expect(report.entries[0].flags).not.toContain('wrong_extension');
+  });
+
+  it('raster/no-SVG > 16 MiB → exit 20 + truncated_audit (revisión manual)', () => {
+    // 16+ MiB de bytes que no contienen <svg en ningún lado. Aún así debe
+    // entrar al reporte porque no pudimos verificar el archivo completo.
+    const filler = Buffer.alloc(CAP + 4096);
+    for (let i = 0; i < filler.length; i++) filler[i] = (i * 31) & 0xff;
+    // Garantizar que la secuencia '<svg' (0x3c 0x73 0x76 0x67) no aparece
+    // dentro del prefijo leído por el auditor (los primeros CAP bytes).
+    for (let i = 0; i < CAP - 3; i++) {
+      if (filler[i] === 0x3c && filler[i+1] === 0x73 && filler[i+2] === 0x76 && filler[i+3] === 0x67) {
+        filler[i] = 0xff;
+      }
+    }
+    writeFileSync(path.join(workdir, 'large-binary.bin'), filler);
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(20);
+    const report = JSON.parse(stdout);
+    expect(report.svgCandidates).toBe(1);
+    expect(report.entries[0].flags).toEqual(['truncated_audit']);
+    // Sin svg_extension_unverified (no es .svg), sin wrong_extension
+    // (no detectamos <svg), solo truncated_audit.
+    expect(report.entries[0].flags).not.toContain('wrong_extension');
+    expect(report.entries[0].flags).not.toContain('svg_extension_unverified');
+  });
+
+  it('.svg > 16 MiB → exit 20 + truncated_audit', () => {
+    // SVG legítimo pero con prólogo > 16 MiB. La lectura corta antes de
+    // ver el <svg>; sin embargo, la política de extensión .svg lo incluye
+    // siempre. Combinado con truncado: ambos flags.
+    const padding = Buffer.alloc(CAP + 1024, 0x20);
+    const body = Buffer.from('<svg><circle r="1"/></svg>');
+    writeFileSync(path.join(workdir, 'huge.svg'), Buffer.concat([padding, body]));
+    const { code, stdout } = runAudit(['--dir', workdir, '--json']);
+    expect(code).toBe(20);
+    const report = JSON.parse(stdout);
+    expect(report.svgCandidates).toBe(1);
+    expect(report.entries[0].extension).toBe('.svg');
+    expect(report.entries[0].flags).toContain('truncated_audit');
+    // No vimos <svg en los primeros 16 MiB; flag de estructura no verificada.
+    expect(report.entries[0].flags).toContain('svg_extension_unverified');
+  });
 });

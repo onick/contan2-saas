@@ -117,9 +117,9 @@ Flags reportados en `entries[].flags` (cualquiera dispara exit 20):
 | `javascript_uri` | `javascript:` literal o entidad codificada (`&#x6A;avascript`) |
 | `foreign_object` | `<foreignObject>` (vector típico de HTML embebido) |
 | `expression_css` | `expression(` o `url(javascript:)` en atributo `style` |
-| `wrong_extension` | SVG por contenido cuya extensión NO es `.svg` (renombre malicioso) |
-| `svg_extension_unverified` | archivo `.svg` sin `<svg\b` detectable — empty, binario disfrazado o estructura inválida; **siempre requiere revisión humana** |
-| `truncated_audit` | archivo > 16 MiB; el auditor leyó solo el prefijo. Revisar manualmente con `less <file>` |
+| `wrong_extension` | SVG **detectado por contenido** cuya extensión NO es `.svg` (renombre malicioso confirmado). Si solo hubo `truncated_audit` sin detección positiva de `<svg`, este flag NO se agrega. |
+| `svg_extension_unverified` | archivo `.svg` sin `<svg\b` detectable en los primeros 16 MiB — vacío, binario disfrazado o estructura inválida; **siempre requiere revisión humana** |
+| `truncated_audit` | archivo > 16 MiB; el auditor leyó solo el prefijo. **Aplica a cualquier extensión** (`.svg`, `.png`, `.jpg`, `.bin`, etc.) — un atacante puede esconder payload pasado el cap. Bloquea deploy aunque ningún otro flag esté presente: la decisión sobre el contenido es de un humano (`less <file>` / `hexdump`). |
 | `read_error` | no se pudo abrir/leer (permisos, FS corrupto). Investigar antes de seguir |
 
 ### Paso 6 · Cuarentena humana (solo si exit 10/20)
@@ -236,6 +236,16 @@ correspondientes en `backend/test/security/audit-svg-script.test.js`:
 - `.png` con `<!-- ` 4500 chars ` -->` antes de SVG → `script_tag` +
   `wrong_extension` + exit 20
 - `.svg` vacío → `svg_extension_unverified` + exit 20 (jamás silencioso)
+
+Bypass del cap de 16 MiB también cerrado — cualquier archivo > 16 MiB
+entra al reporte con `truncated_audit` aunque ni siquiera tenga `<svg`
+en el prefijo leído. Tests:
+
+- `.png` > 16 MiB con SVG payload pasado el cap → exit 20 + `truncated_audit`
+  (sin `wrong_extension` — no se confirmó SVG, solo "no pudimos auditar")
+- archivo binario > 16 MiB sin `<svg` → exit 20 + `truncated_audit`
+  (requiere revisión manual igual)
+- `.svg` > 16 MiB → exit 20 + `truncated_audit` + `svg_extension_unverified`
 
 Estado de producción: **no inspeccionado en este sprint**. Pendiente
 ejecutar el procedimiento de los pasos 1-8 vía SSH con autorización

@@ -13,14 +13,22 @@
 //   inicio. Por eso ahora leemos hasta `MAX_AUDIT_BYTES` (16 MiB) por
 //   archivo y buscamos `<svg\b` en TODO ese contenido.
 //
-// Política por extensión:
-//   - `.svg` → SIEMPRE entra al reporte (es un candidato histórico aunque
-//     la estructura no se reconozca; el path estático lo servirá igual).
-//     Si no contiene `<svg\b` después de leer el archivo completo, se
-//     marca con flag `svg_extension_unverified` para revisión humana —
-//     nunca se omite silenciosamente.
-//   - cualquier otra extensión → entra al reporte solo si encontramos
-//     `<svg\b` en el contenido completo. Se añade flag `wrong_extension`.
+// Política de inclusión (fail-closed):
+//   - extensión `.svg` → SIEMPRE entra al reporte (es un candidato histórico
+//     aunque la estructura no se reconozca; el path estático lo servirá
+//     igual). Si no contiene `<svg\b` tras leer el archivo completo, flag
+//     `svg_extension_unverified` para revisión humana — jamás silencioso.
+//   - cualquier otra extensión entra cuando AL MENOS UNA de:
+//       (a) se encontró `<svg\b` en el contenido leído → flag `wrong_extension`
+//       (b) la lectura fue truncada (size > MAX_AUDIT_BYTES) → flag
+//           `truncated_audit`. No podemos descartar que un atacante escondió
+//           el payload pasado el cap; bloqueamos el deploy hasta revisión.
+//   - solo se omite cuando ext != `.svg` AND no hay `<svg\b` AND la lectura
+//     fue completa.
+//
+// `wrong_extension` requiere DETECCIÓN POSITIVA de `<svg\b`. Si solo se
+// triggereó por truncación, NO se añade `wrong_extension` — no sabemos si
+// es SVG, solo sabemos que no pudimos auditarlo entero.
 //
 // Flags de riesgo (búsqueda case-insensitive sobre el archivo completo):
 //     script_tag                 → <script\b
@@ -228,14 +236,18 @@ async function main() {
     const hasSvgElement = containsSvgElement(read.content);
     const riskFlags = flagsOf(read.content);
 
-    // Política de inclusión:
-    //  - extensión .svg → SIEMPRE entra al reporte
-    //  - cualquier otra extensión → solo si hay <svg\b en el contenido
-    if (!isSvgExt && !hasSvgElement) continue;
+    // Política de inclusión (fail-closed):
+    //  - extensión .svg → SIEMPRE entra
+    //  - otra extensión → entra si hay <svg\b en lo leído, O si la lectura
+    //    fue truncada (no podemos descartar payload pasado el cap)
+    if (!isSvgExt && !hasSvgElement && !read.truncated) continue;
 
     const flags = [...riskFlags];
     if (isSvgExt && !hasSvgElement) flags.push('svg_extension_unverified');
-    if (!isSvgExt) flags.push('wrong_extension');
+    // `wrong_extension` solo cuando confirmamos contenido SVG en una
+    // extensión != .svg. Si entró por truncación sin <svg detectado, NO
+    // afirmamos que es SVG — solo que no se pudo auditar.
+    if (!isSvgExt && hasSvgElement) flags.push('wrong_extension');
     if (read.truncated) flags.push('truncated_audit');
 
     report.push({
