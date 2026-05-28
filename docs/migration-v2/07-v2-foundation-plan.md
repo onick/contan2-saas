@@ -147,6 +147,31 @@ Borrador de alcance (no comprometer fecha):
 PR #2 todavía no introduce auth ni endpoints públicos reales. Eso es PR #3
 (`packages/auth` + cookie compartida con v1 + primer endpoint v2 con sesión).
 
+## Requisito transversal · Responsive (NO negociable para v2)
+
+Todo el frontend v2 (`apps/web`) debe ser responsive desde el diseño, no como
+parche posterior. Es criterio de aceptación de paridad — un módulo no se
+declara migrado si no pasa el smoke visual por viewport.
+
+Estrategia por superficie:
+
+| Superficie | Enfoque | Razón |
+|---|---|---|
+| **Scanner QR** | **mobile-first** | El staff escanea desde el teléfono en la puerta; es el caso primario |
+| **Kiosko / check-in** | **tablet-first** | Corre en tablets montadas en recepción (Cinema Marquee se diseñó para esa relación de aspecto) |
+| **Admin SPA** (panel del tenant) | **desktop/tablet** | Gestión: tablas, formularios, reportes; el operador usa laptop o tablet grande |
+| **Platform admin** (`admin.contan2.com`) | **responsive** | Super admin puede entrar desde cualquier device; no asumir desktop |
+
+Requisitos duros:
+- **Breakpoints documentados** en `packages/ui` (tokens compartidos), no
+  hardcodeados ad-hoc por componente. Un solo set de breakpoints para todo v2.
+- **Smoke visual por viewport antes de cutover**: cada superficie se verifica en
+  al menos mobile (~375px), tablet (~768px) y desktop (~1280px) — Playwright con
+  viewports fijos + screenshot diff. Sin ese smoke verde no se autoriza el
+  cutover de esa superficie (ver `04-cutover-and-rollback.md`).
+- La matriz de paridad (`02-functional-parity-matrix.md`) debe marcar cada
+  módulo como responsive-verified, no solo funcional-verified.
+
 ## Relacionado
 
 - [00 · Auditoría](./00-current-state-audit.md)
