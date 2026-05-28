@@ -21,3 +21,15 @@ backend/data/uploads/*
 backups/*
 !backups/.gitkeep
 _design-explorations/
+
+# Release script · secretos + evidencia local de deploys
+.env.release
+release-evidence/
+
+# Monorepo v2 build artifacts (mismas reglas que migration/saas-platform-v2-parallel,
+# acá también para que `git status` esté limpio cuando los artefactos viajan
+# entre branches en el mismo working tree)
+.turbo/
+**/.turbo/
+**/dist/
+**/*.tsbuildinfo
