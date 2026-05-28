@@ -12,5 +12,11 @@ export default defineConfig({
     // Cada test arranca con env limpio (sin sesiones residuales).
     isolate: true,
     fileParallelism: false, // memory driver es estado global, evitar carreras
+    // Auto-restore env/globals stubbed con vi.stubEnv/vi.stubGlobal entre
+    // tests. Previene leak de process.env entre archivos cuando un test
+    // muta variables (ej. ROOT_DOMAIN en platform-admin-ux.test.js) y
+    // contamina la app/config que otro archivo arma a partir de defaults.
+    unstubEnvs: true,
+    unstubGlobals: true,
   },
 });
