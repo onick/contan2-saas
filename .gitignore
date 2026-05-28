@@ -26,9 +26,7 @@ _design-explorations/
 .env.release
 release-evidence/
 
-# Monorepo v2 build artifacts (mismas reglas que migration/saas-platform-v2-parallel,
-# acá también para que `git status` esté limpio cuando los artefactos viajan
-# entre branches en el mismo working tree)
+# Monorepo v2 build artifacts
 .turbo/
 **/.turbo/
 **/dist/

@@ -1,0 +1,159 @@
+# .github/workflows/v2-foundation-ci.yml
+# CI del monorepo v2 (apps/api-v2 + packages/*). Paralelo al workflow v1
+# `security-tests.yml`, no lo reemplaza. Trigger solo en cambios que tocan
+# v2 — PRs que solo modifican backend/ o frontend/ no lo disparan.
+
+name: v2-foundation
+
+on:
+  push:
+    branches:
+      - migration/saas-platform-v2-parallel
+      - multitenant
+      - main
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'turbo.json'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.base.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/v2-foundation-ci.yml'
+  pull_request:
+    branches:
+      - migration/saas-platform-v2-parallel
+      - multitenant
+      - main
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'turbo.json'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.base.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  # Tests de integración contra Postgres real: db parity (drift guard),
+  # auth (validación de sesión) y api-v2 auth-me end-to-end. Aplica las
+  # migraciones v1 (v1 sigue dueño del schema durante la coexistencia) y
+  # corre el suite completo con DATABASE_URL seteado.
+  integration:
+    name: integration (db + auth · postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: contan2_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d contan2_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://test:test@localhost:5433/contan2_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      # Migraciones v1 → schema en la DB efímera. El runner npm de backend es
+      # independiente del workspace pnpm (backend/ no está en pnpm-workspace).
+      - name: aplicar migraciones v1 + fixtures
+        working-directory: backend
+        env:
+          DB_DRIVER: postgres
+          SECRET_BASE: test-secret-base-32-bytes-min-aaaaaaaaaaaaaaaa
+          ROOT_DOMAIN: localhost
+          PUBLIC_URL: http://localhost:3457
+        run: |
+          npm ci
+          node scripts/seed-test-fixtures.mjs
+      # Integration con DATABASE_URL. Se corre vitest DIRECTO por package (no
+      # `pnpm test`) porque turbo, en strict env mode, no propaga DATABASE_URL
+      # a las tasks salvo que se declare en turbo.json — y turbo.json queda
+      # fuera del scope de este PR. vitest directo hereda el env del job.
+      - name: install workspace + build + integration tests
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm --filter @contan2/db exec vitest run
+          pnpm --filter @contan2/auth exec vitest run
+          pnpm --filter @contan2/api-v2 exec vitest run
