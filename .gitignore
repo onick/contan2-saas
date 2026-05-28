@@ -22,6 +22,10 @@ backups/*
 !backups/.gitkeep
 _design-explorations/
 
+# Release script · secretos + evidencia local de deploys
+.env.release
+release-evidence/
+
 # Monorepo v2 build artifacts
 .turbo/
 **/.turbo/

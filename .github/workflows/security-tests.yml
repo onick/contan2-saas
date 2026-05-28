@@ -96,10 +96,17 @@ jobs:
         run: npm test
 
   # -------------------------------------------------------------------------
-  # Job 3: Auditoría de SVG en el repo. No bloquea PR si no hay SVG.
+  # Job 3: Auditoría de SVG accidentalmente commiteados al repo.
+  # NO valida el volumen de producción (eso vive sólo en el VPS y requiere
+  # SSH, ver docs/migration-v2/06-svg-quarantine-runbook.md). Este job sólo
+  # mira `backend/data/uploads/` del checkout — que en CI siempre debería
+  # estar vacío salvo `.gitkeep` por el .gitignore. Si algún PR mete un SVG
+  # ahí accidentalmente, este job lo atrapa con exit 10 ó 20.
   # -------------------------------------------------------------------------
+  # Job id preservado como `audit-svg` para no romper branch protection
+  # rules que requieran ese check name; solo cambia el `name:` visible.
   audit-svg:
-    name: SVG históricos en repo
+    name: SVG accidentalmente commiteados (NO valida prod)
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -109,10 +116,12 @@ jobs:
           # Node 20 EOL fue 2026-04-30 — usamos 24 (current LTS al cierre
           # de FASE 1.A, 2026-05-27).
           node-version: '24'
-      - name: inventario SVG (exit 0 sin SVG, 10 SVG sin riesgo, 20 con riesgo)
+      - name: inventario SVG en checkout (NO en volumen prod)
         run: |
           node backend/scripts/audit-historical-svg.mjs
-          # NOTA: el script vive en este repo. Para auditar el volumen real
-          # de prod hay que correrlo en producción contra /data/uploads
-          # (ver docs/migration-v2/06-svg-quarantine-runbook.md). CI sólo
-          # audita el directorio del checkout.
+          # IMPORTANTE: el dir default del script es backend/data/uploads/
+          # relativo al checkout, NO el volumen productivo /data/contan2/uploads.
+          # Para auditar prod hay que SSH al VPS y correrlo contra el bind mount
+          # — ver docs/migration-v2/06-svg-quarantine-runbook.md. Este job sólo
+          # bloquea si alguien commiteó un SVG al repo por accidente.
+          # Exit codes: 0 sin SVG, 10 SVG sin flags de riesgo, 20 SVG con flags.
