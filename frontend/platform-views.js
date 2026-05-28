@@ -436,8 +436,9 @@
         <a class="pf-popover__item" href="#/tenants/${escapeHtml(t.id)}">
           <i class="fa-solid fa-eye"></i> Ver detalle
         </a>
-        <a class="pf-popover__item" href="${escapeHtml(tenantUrl(t))}" target="_blank" rel="noopener">
-          <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir panel
+        <a class="pf-popover__item" href="${escapeHtml(tenantUrl(t))}" target="_blank" rel="noopener"
+           title="Requiere credencial staff del tenant. La sesión super admin no se comparte por seguridad.">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir panel del tenant
         </a>
         <button class="pf-popover__item" data-action="copy-url" data-url="${escapeHtml(tenantUrl(t))}">
           <i class="fa-solid fa-copy"></i> Copiar URL
@@ -775,8 +776,9 @@
           </div>
         </div>
         <div class="pf-detail-head__actions">
-          <a href="${escapeHtml(tenantUrl)}" target="_blank" rel="noopener" class="pf-btn pf-btn--ghost">
-            <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir panel
+          <a href="${escapeHtml(tenantUrl)}" target="_blank" rel="noopener" class="pf-btn pf-btn--ghost"
+             title="Requiere credencial staff del tenant. La sesión super admin no se comparte por seguridad.">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir panel del tenant
           </a>
           ${isActive
             ? `<button class="pf-btn pf-btn--danger" data-act="suspend">Suspender</button>`
