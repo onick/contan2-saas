@@ -8,6 +8,10 @@ import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
 import type { Database } from './schema.js';
 
+// Alias para que los consumidores (api-v2, worker) tipen el cliente sin
+// importar `kysely` directamente.
+export type DbClient = Kysely<Database>;
+
 let _db: Kysely<Database> | null = null;
 
 export function createDb(connectionString?: string): Kysely<Database> {

@@ -18,5 +18,6 @@ export type {
   StaffRole,
 } from './enums.js';
 
-export { createDb, getDb, closeDb, pingDb } from './pool.js';
+export { createDb, getDb, closeDb, pingDb, type DbClient } from './pool.js';
 export { withTenant } from './rls.js';
+export { findOrgBySlug, findOrgByCustomDomain, type TenantOrg } from './orgs.js';

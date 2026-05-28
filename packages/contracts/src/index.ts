@@ -33,3 +33,21 @@ export const StaffMeResponseSchema = z.object({
 });
 
 export type StaffMeResponse = z.infer<typeof StaffMeResponseSchema>;
+
+// Respuesta de GET /api/v2/org/branding. `sidebarTheme` mapea la columna
+// `sidebar_style` de v1; el resto es proyección de branding del tenant.
+export const OrgBrandingResponseSchema = z.object({
+  organization: z.object({
+    id: z.string(),
+    slug: z.string(),
+    name: z.string(),
+    logoUrl: z.string().nullable(),
+    emailLogoUrl: z.string().nullable(),
+    primaryColor: z.string(),
+    secondaryColor: z.string(),
+    sidebarTheme: z.enum(['brand', 'dark', 'light']),
+    status: z.enum(['active', 'suspended', 'trial_ended', 'deleted']),
+  }),
+});
+
+export type OrgBrandingResponse = z.infer<typeof OrgBrandingResponseSchema>;
