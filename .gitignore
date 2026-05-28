@@ -21,3 +21,9 @@ backend/data/uploads/*
 backups/*
 !backups/.gitkeep
 _design-explorations/
+
+# Monorepo v2 build artifacts
+.turbo/
+**/.turbo/
+**/dist/
+**/*.tsbuildinfo
