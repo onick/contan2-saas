@@ -1,9 +1,16 @@
 @import "tailwindcss";
 
 /* Tokens centralizados de v2 (provisional dentro de apps/web; se extraen a
-   packages/ui cuando haya un segundo consumidor). El theming por tenant —
-   sobreescribir estos valores desde /api/v2/org/branding — llega en un PR
-   posterior; por ahora son la paleta base de contan2.
+   packages/ui cuando haya un segundo consumidor). Estos valores son los
+   DEFAULTS / fallback (paleta base de contan2).
+
+   Theming por tenant: app/layout.tsx sobreescribe --color-brand y
+   --color-brand-accent en <body> con el branding del tenant (hoy desde config
+   local vía lib/branding; mañana desde /api/v2/org/branding). Como Tailwind v4
+   genera las utilidades bg-brand/text-brand resolviendo var(--color-brand),
+   overridear la var en un ancestro re-tematiza el subtree sin tocar este CSS.
+   --color-surface y --color-ink NO están en el contrato de branding → quedan
+   como base.
 
    Breakpoints: usamos los defaults de Tailwind v4, que YA matchean el
    contrato del producto:

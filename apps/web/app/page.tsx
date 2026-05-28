@@ -1,6 +1,8 @@
 import { Container } from '../components/Container';
 import { ResponsiveGrid } from '../components/ResponsiveGrid';
 import { DemoCard } from '../components/DemoCard';
+import { BrandHeader } from '../components/BrandHeader';
+import { getLocalBranding } from '../lib/branding/config';
 
 const CARDS: { title: string; body: string }[] = [
   { title: 'Tenant admin', body: 'Panel de gestión del tenant. Enfoque desktop/tablet.' },
@@ -12,21 +14,12 @@ const CARDS: { title: string; body: string }[] = [
 ];
 
 export default function Home() {
+  const branding = getLocalBranding();
+
   return (
     <main className="py-8 md:py-12 xl:py-16">
       <Container>
-        <header className="mb-6 md:mb-8 xl:mb-10">
-          <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
-            contan2 · plataforma
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900 md:text-3xl xl:text-4xl">
-            Contan2 v2
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">
-            Skeleton del frontend v2, responsive desde el día uno: 1 columna en
-            mobile, 2 en tablet, 3 en desktop.
-          </p>
-        </header>
+        <BrandHeader branding={branding} />
 
         <ResponsiveGrid>
           {CARDS.map((c) => (
