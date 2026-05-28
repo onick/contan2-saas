@@ -27,7 +27,7 @@
 // sólidas sobre la entrada (action, targetId, tenant).
 // =============================================================================
 
-import { describe, expect, beforeAll, vi } from 'vitest';
+import { describe, expect, beforeAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { getTestApp, runIfPostgres, isPostgresAvailable } from '../../helpers/app.js';
 
@@ -65,6 +65,14 @@ vi.mock('../../../src/db/postgres/platform/AuditLogRepository.js', async (import
     }
   }
   return { ...actual, AuditLogRepository: WrappedAuditLogRepository };
+});
+
+// Defensa en profundidad: el flag forceBrandingFail se setea/resetea en un
+// try/finally dentro de su test, así que NO es la causa del flake. Pero un
+// afterEach global garantiza que ningún test futuro herede el flag en true
+// si olvida el finally. Barato y a prueba de regresiones.
+afterEach(() => {
+  auditFailControl.forceBrandingFail = false;
 });
 
 // Helper: login y devolver cookie de sesión.
@@ -353,18 +361,33 @@ describe('postgres · audit log de credential.sent (email mockeado)', () => {
 
     // 3. Re-leer audit log: debe haber AL MENOS una entrada nueva con
     //    action=credential.sent, targetId=ownUserId, organization correcta.
-    const after = await request(app)
-      .get('/api/audit-log?action=credential.sent')
-      .set('Host', 'ccb.localhost')
-      .set('Cookie', adminCookie);
-    expect(after.status).toBe(200);
-    expect(Array.isArray(after.body.entries)).toBe(true);
+    //
+    //    NOTA: el handler escribe el audit de credential.sent fire-and-forget
+    //    (`recordAudit(...).catch(() => {})` sin await en routes/credentials.js),
+    //    así que el 200 puede volver ANTES de que el INSERT commitee. Hacemos
+    //    poll corto (~2s) para tolerar esa consistencia eventual — sin esto el
+    //    test es flaky (a veces lee 0 entradas nuevas). Si el equipo decide
+    //    que el audit debe ser síncrono/durable antes del 200, eso es un cambio
+    //    de runtime en credentials.js (PR aparte), no de este test.
+    let credentialSent;
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      const after = await request(app)
+        .get('/api/audit-log?action=credential.sent')
+        .set('Host', 'ccb.localhost')
+        .set('Cookie', adminCookie);
+      expect(after.status).toBe(200);
+      expect(Array.isArray(after.body.entries)).toBe(true);
+      const newEntries = after.body.entries.filter(e => !beforeIds.has(e.id));
+      credentialSent = newEntries.find(e => e.action === 'credential.sent');
+      if (credentialSent) break;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
 
-    const newEntries = after.body.entries.filter(e => !beforeIds.has(e.id));
-    expect(newEntries.length).toBeGreaterThan(0);
-
-    const credentialSent = newEntries.find(e => e.action === 'credential.sent');
-    expect(credentialSent).toBeDefined();
+    expect(
+      credentialSent,
+      'audit credential.sent no apareció en ~2s (fire-and-forget en el handler)',
+    ).toBeDefined();
     expect(credentialSent.action).toBe('credential.sent');
     expect(credentialSent.targetId).toBe(ownUserId);
     expect(credentialSent.targetType).toBe('user');
