@@ -86,6 +86,24 @@ export async function createApp(opts = {}) {
   app.use(cookieParser());
   app.use(express.json({ limit: '5mb' }));
 
+  // HSTS · solo se anuncia cuando el dominio NO es localhost (dev).
+  // En prod le decimos al browser que SIEMPRE use HTTPS para los próximos
+  // 365 días, aplicando a todos los subdominios. `preload` declara
+  // intención de inscribirse en la HSTS preload list de Chromium si
+  // alguna vez se quiere; no se envía en este commit pero el header lo
+  // permite. En dev se omite el header porque a) localhost no se sirve
+  // por HTTPS y b) Chrome/Firefox cachean HSTS y rompen el ciclo de
+  // desarrollo si un día por error se sirve un cert dev sobre 127.0.0.1.
+  if (config.ROOT_DOMAIN !== 'localhost') {
+    app.use((_req, res, next) => {
+      res.setHeader(
+        'Strict-Transport-Security',
+        'max-age=31536000; includeSubDomains; preload',
+      );
+      next();
+    });
+  }
+
   // Healthcheck liviano: NO toca DB, NO requiere tenant. Para liveness probes.
   app.get('/healthz', (_req, res) => {
     res.json({ ok: true, ts: new Date().toISOString() });
