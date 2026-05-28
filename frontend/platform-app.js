@@ -160,20 +160,13 @@ const PF = (function () {
     });
     document.querySelector('.pf-sidebar')?.classList.remove('is-open');
 
-    const view = (window.PFViews || {})[route];
-    if (!view) {
-      // Sub-rutas: ej "tenants/<id>"
-      if (route === 'tenants' && params[0]) {
-        return window.PFViews?.tenantDetail?.(params[0]);
-      }
-      return window.PFViews?.operacion?.();
-    }
-    try {
-      await view(...params);
-    } catch (e) {
-      console.error(e);
-      Toast.error(e.message || 'No se pudo cargar la vista');
-    }
+    // Despacho delegado a window.PFRouter (cargado por platform-router.js
+    // antes que este archivo en platform-dashboard.html). Sub-rutas como
+    // tenants/<uuid> tienen prioridad sobre el dispatch por route plano —
+    // antes este código llamaba a PFViews.tenants (lista) ignorando el id,
+    // por eso /#/tenants/<id> nunca cargaba el detalle.
+    const handler = window.PFRouter.pickHandler(window.PFViews, route, params);
+    await window.PFRouter.runHandlerSafely(handler, Toast, console.error);
   }
 
   function setPageTitle(title, subtitle) {
