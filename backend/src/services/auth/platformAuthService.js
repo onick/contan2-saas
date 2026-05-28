@@ -155,8 +155,10 @@ export async function forgotPassword({ repos, email, ip, userAgent }) {
     userAgent: userAgent ? String(userAgent).slice(0, 256) : null,
   });
 
-  const baseUrl = `https://admin.${config.ROOT_DOMAIN}`;
-  const resetUrl = `${baseUrl}/login/reset?token=${plain}`;
+  // PLATFORM_PUBLIC_URL aísla el host del super admin del PUBLIC_URL del
+  // tenant. Default deriva a https://admin.${ROOT_DOMAIN} en prod, y a
+  // http://localhost:PORT en dev (ROOT_DOMAIN=localhost). En config.js.
+  const resetUrl = `${config.PLATFORM_PUBLIC_URL}/login/reset?token=${plain}`;
 
   try {
     await sendPasswordResetEmail({

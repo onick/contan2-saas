@@ -31,7 +31,24 @@ export const config = {
   // ---- App ----
   NODE_ENV: str('NODE_ENV', 'development'),
   PORT: num('PORT', 3000),
+  // PUBLIC_URL: host del TENANT (links en emails de tenant: credencial,
+  // RSVP, cancelaciones, forgot-password de staff, etc.). Típico:
+  // https://ccb.contan2.com en prod, http://localhost:PORT en dev.
   PUBLIC_URL: str('PUBLIC_URL', `http://localhost:${num('PORT', 3000)}`),
+  // PLATFORM_PUBLIC_URL: host del super admin (links en emails de
+  // platform admin: forgot-password de platform). Típico:
+  // https://admin.contan2.com en prod. Si no se setea explícitamente,
+  // se deriva de ROOT_DOMAIN para forzar consistencia con el dominio
+  // institucional; en dev cae a localhost.
+  PLATFORM_PUBLIC_URL: (() => {
+    const explicit = process.env.PLATFORM_PUBLIC_URL;
+    if (explicit) return explicit;
+    const root = process.env.ROOT_DOMAIN || 'localhost';
+    if (root === 'localhost') {
+      return `http://localhost:${num('PORT', 3000)}`;
+    }
+    return `https://admin.${root}`;
+  })(),
   ROOT_DOMAIN: str('ROOT_DOMAIN', 'localhost'),
 
   // ---- DB ----
