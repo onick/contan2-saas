@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* Tokens centralizados de v2 (provisional dentro de apps/web; se extraen a
+   packages/ui cuando haya un segundo consumidor). El theming por tenant —
+   sobreescribir estos valores desde /api/v2/org/branding — llega en un PR
+   posterior; por ahora son la paleta base de contan2.
+
+   Breakpoints: usamos los defaults de Tailwind v4, que YA matchean el
+   contrato del producto:
+     base (sin prefijo) = mobile (~375px)
+     md:                = 768px (tablet)
+     xl:                = 1280px (desktop)
+   No los redefinimos para no divergir de Tailwind. Ver lib/breakpoints.ts. */
+@theme {
+  --color-brand: #1a237e;
+  --color-brand-accent: #ff6f00;
+  --color-surface: #f8fafc;
+  --color-ink: #0f172a;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+}
