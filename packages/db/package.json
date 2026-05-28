@@ -1,28 +1,30 @@
 {
-  "name": "@contan2/api-v2",
+  "name": "@contan2/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/server.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
     "build": "tsc -b",
-    "start": "node dist/server.js",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint placeholder (eslint config llega en PR siguiente)'"
   },
   "dependencies": {
-    "fastify": "^5.2.0",
-    "zod": "^3.24.0",
-    "@contan2/config": "workspace:*",
-    "@contan2/contracts": "workspace:*",
-    "@contan2/db": "workspace:*"
+    "kysely": "^0.27.4",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
-    "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0",
+    "@types/pg": "^8.11.10",
     "@types/node": "^22.10.0"
   }
 }

@@ -100,3 +100,53 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+
+  # @contan2/db · drift guard contra Postgres real. Aplica las migraciones
+  # v1 (v1 sigue siendo dueño del schema durante la coexistencia) y corre el
+  # parity test que compara information_schema vs los tipos declarados.
+  db:
+    name: db (kysely · schema parity)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: contan2_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d contan2_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://test:test@localhost:5433/contan2_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      # Migraciones v1 → schema en la DB efímera. El runner npm de backend es
+      # independiente del workspace pnpm (backend/ no está en pnpm-workspace).
+      - name: aplicar migraciones v1 + fixtures
+        working-directory: backend
+        env:
+          DB_DRIVER: postgres
+          SECRET_BASE: test-secret-base-32-bytes-min-aaaaaaaaaaaaaaaa
+          ROOT_DOMAIN: localhost
+          PUBLIC_URL: http://localhost:3457
+        run: |
+          npm ci
+          node scripts/seed-test-fixtures.mjs
+      - name: install workspace + build + parity test
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm --filter @contan2/db test
