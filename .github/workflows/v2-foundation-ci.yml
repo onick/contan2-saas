@@ -101,13 +101,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
-  # @contan2/db · drift guard contra Postgres real. Aplica las migraciones
-  # v1 (v1 sigue siendo dueño del schema durante la coexistencia) y corre el
-  # parity test que compara information_schema vs los tipos declarados.
-  db:
-    name: db (kysely · schema parity)
+  # Tests de integración contra Postgres real: db parity (drift guard),
+  # auth (validación de sesión) y api-v2 auth-me end-to-end. Aplica las
+  # migraciones v1 (v1 sigue dueño del schema durante la coexistencia) y
+  # corre el suite completo con DATABASE_URL seteado.
+  integration:
+    name: integration (db + auth · postgres)
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:16-alpine
@@ -145,8 +146,14 @@ jobs:
         run: |
           npm ci
           node scripts/seed-test-fixtures.mjs
-      - name: install workspace + build + parity test
+      # Integration con DATABASE_URL. Se corre vitest DIRECTO por package (no
+      # `pnpm test`) porque turbo, en strict env mode, no propaga DATABASE_URL
+      # a las tasks salvo que se declare en turbo.json — y turbo.json queda
+      # fuera del scope de este PR. vitest directo hereda el env del job.
+      - name: install workspace + build + integration tests
         run: |
           pnpm install --frozen-lockfile
           pnpm build
-          pnpm --filter @contan2/db test
+          pnpm --filter @contan2/db exec vitest run
+          pnpm --filter @contan2/auth exec vitest run
+          pnpm --filter @contan2/api-v2 exec vitest run

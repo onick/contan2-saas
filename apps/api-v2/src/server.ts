@@ -1,17 +1,27 @@
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
+import cookie from '@fastify/cookie';
 import { loadConfig } from '@contan2/config';
+import { closeDb } from '@contan2/db';
 import { healthzRoute } from './routes/healthz.js';
 import { dbCheckRoute } from './routes/db-check.js';
+import { authMeRoute } from './routes/auth-me.js';
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
     logger: true,
   });
 
+  app.register(cookie);
   app.register(healthzRoute, { prefix: '/api/v2' });
   // Gated por DB_CHECK_ENABLED; no registra ruta si está apagado.
   app.register(dbCheckRoute, { prefix: '/api/v2' });
+  app.register(authMeRoute, { prefix: '/api/v2' });
+
+  // Cierra el pool singleton de @contan2/db al apagar la app (tests + prod).
+  app.addHook('onClose', async () => {
+    await closeDb();
+  });
 
   return app;
 }

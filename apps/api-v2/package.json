@@ -14,10 +14,12 @@
   },
   "dependencies": {
     "fastify": "^5.2.0",
+    "@fastify/cookie": "^11.0.2",
     "zod": "^3.24.0",
     "@contan2/config": "workspace:*",
     "@contan2/contracts": "workspace:*",
-    "@contan2/db": "workspace:*"
+    "@contan2/db": "workspace:*",
+    "@contan2/auth": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

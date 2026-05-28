@@ -1,0 +1,31 @@
+{
+  "name": "@contan2/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint placeholder (eslint config llega en PR siguiente)'"
+  },
+  "dependencies": {
+    "kysely": "^0.27.4",
+    "@contan2/db": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "pg": "^8.13.1",
+    "@types/pg": "^8.11.10",
+    "@types/node": "^22.10.0"
+  }
+}
