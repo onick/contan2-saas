@@ -1,0 +1,69 @@
+# .github/workflows/release-tooling-ci.yml
+# CI mínima para el tooling de release (scripts/release/**). NO requiere
+# secretos, NO llama Coolify, NO hace SSH, NO deploya. Sólo valida que el
+# script parsea, arranca el --help, y falla correctamente ante input inválido.
+#
+# El script tiene cero deps externas (solo Node 24+ APIs), así que no hace
+# falta pnpm/npm install — corre con `node` directo.
+
+name: release-tooling
+
+on:
+  pull_request:
+    branches:
+      - multitenant
+    paths:
+      - 'scripts/release/**'
+      - '.env.release.example'
+      - '.gitignore'
+      - '.github/workflows/release-tooling-ci.yml'
+      - '.github/workflows/security-tests.yml'
+  push:
+    branches:
+      - release/local-deploy-script
+    paths:
+      - 'scripts/release/**'
+      - '.env.release.example'
+      - '.gitignore'
+      - '.github/workflows/release-tooling-ci.yml'
+      - '.github/workflows/security-tests.yml'
+
+jobs:
+  validate:
+    name: validate release script
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: syntax check · deploy-coolify.mjs
+        run: node --check scripts/release/deploy-coolify.mjs
+
+      - name: syntax check · lib/*.mjs
+        run: |
+          for f in scripts/release/lib/*.mjs; do
+            echo "checking $f"
+            node --check "$f"
+          done
+
+      - name: smoke · --help sale 0
+        run: node scripts/release/deploy-coolify.mjs --help
+
+      - name: smoke · --branch faltante sale != 0
+        run: |
+          if node scripts/release/deploy-coolify.mjs > /dev/null 2>&1; then
+            echo "✗ esperaba exit != 0 cuando falta --branch"
+            exit 1
+          fi
+          echo "✓ --branch faltante → exit != 0"
+
+      - name: smoke · --env inexistente sale != 0 (sin tocar red)
+        run: |
+          if node scripts/release/deploy-coolify.mjs --branch ci-smoke --env /tmp/does-not-exist.env > /dev/null 2>&1; then
+            echo "✗ esperaba exit != 0 con --env inexistente"
+            exit 1
+          fi
+          echo "✓ --env inexistente → exit != 0"
