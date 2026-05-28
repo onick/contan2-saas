@@ -31,3 +31,7 @@ release-evidence/
 **/.turbo/
 **/dist/
 **/*.tsbuildinfo
+
+# Next.js (apps/web)
+**/.next/
+next-env.d.ts
