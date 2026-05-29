@@ -37,18 +37,34 @@ pnpm --filter @contan2/web test    # vitest (component tests)
 Verificar responsive a mano: abrir dev tools, probar 375 / 768 / 1280 px y
 confirmar 1 / 2 / 3 columnas.
 
+## App shell (`/app`) · ruta PROVISIONAL
+
+`app/app/page.tsx` renderiza un **skeleton del tenant-admin** con el shell
+responsive (`components/shell/`): `Sidebar` (tablet/desktop) + `Topbar` +
+área de contenido. Usa `getLocalBranding()` y navegación **fake/local** (los
+items no navegan; el activo se marca estáticamente).
+
+> **`/app` NO es la URL final.** Es una ruta provisional para iterar el
+> skeleton. El path definitivo + los route groups reales (`(tenant)`/`(auth)`)
+> y la navegación interactiva + mobile drawer llegan junto al wiring de
+> `/api/v2/auth/me`.
+
+Responsive del shell: base (375) columna única con brand en el Topbar (sidebar
+oculto) · `md` (768) grid sidebar+contenido · `xl` (1280) sidebar amplio.
+
 ## Estructura prevista (futuros PRs temáticos)
 
 ```
 app/
-  page.tsx          ✅ home estática (este PR)
-  (tenant)/         ⏳ admin del tenant       · desktop/tablet
+  page.tsx          ✅ home estática
+  app/page.tsx      ✅ skeleton tenant-admin · ruta PROVISIONAL (este PR)
+  (tenant)/         ⏳ admin del tenant real  · desktop/tablet
   scanner/          ⏳ escaneo QR             · mobile-first
   kiosko/           ⏳ check-in recepción     · tablet-first
   (platform)/       ⏳ platform admin         · responsive
 ```
 
-Cada superficie se agrega en su propio PR. Hoy solo existe `/`.
+Cada superficie se agrega en su propio PR.
 
 ## NO incluido todavía
 
