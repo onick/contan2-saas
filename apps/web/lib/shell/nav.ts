@@ -38,7 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'checkin', label: 'Check-in', icon: QrCode, group: 'Principal', href: '/app/check-in' },
   // Audiencia
   { key: 'usuarios', label: 'Usuarios', icon: Users, group: 'Audiencia', href: '/app/usuarios' },
-  { key: 'registros', label: 'Registros', icon: ClipboardList, group: 'Audiencia', href: '#' },
+  { key: 'registros', label: 'Registros', icon: ClipboardList, group: 'Audiencia', href: '/app/registros' },
   { key: 'segmentos', label: 'Segmentos', icon: Layers, group: 'Audiencia', href: '#' },
   // Operación
   { key: 'reportes', label: 'Reportes', icon: BarChart3, group: 'Operación', href: '#', badge: 'Nuevo' },
