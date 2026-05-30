@@ -35,7 +35,7 @@ export const NAV_ITEMS: NavItem[] = [
   // Principal
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Principal', href: '/app' },
   { key: 'actividades', label: 'Actividades', icon: CalendarDays, group: 'Principal', href: '/app/actividades' },
-  { key: 'checkin', label: 'Check-in', icon: QrCode, group: 'Principal', href: '#' },
+  { key: 'checkin', label: 'Check-in', icon: QrCode, group: 'Principal', href: '/app/check-in' },
   // Audiencia
   { key: 'usuarios', label: 'Usuarios', icon: Users, group: 'Audiencia', href: '#' },
   { key: 'registros', label: 'Registros', icon: ClipboardList, group: 'Audiencia', href: '#' },
