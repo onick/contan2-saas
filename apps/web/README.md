@@ -37,27 +37,31 @@ pnpm --filter @contan2/web test    # vitest (component tests)
 Verificar responsive a mano: abrir dev tools, probar 375 / 768 / 1280 px y
 confirmar 1 / 2 / 3 columnas.
 
-## App shell (`/app`) · ruta PROVISIONAL
+## App shell + dashboard (`/app`) · ruta PROVISIONAL
 
-`app/app/page.tsx` renderiza un **skeleton del tenant-admin** con el shell
-responsive (`components/shell/`): `Sidebar` (tablet/desktop) + `Topbar` +
-área de contenido. Usa `getLocalBranding()` y navegación **fake/local** (los
-items no navegan; el activo se marca estáticamente).
+`app/app/page.tsx` renderiza un **dashboard tenant-admin estático** dentro del
+shell responsive (`components/shell/`: `Sidebar` tablet/desktop + `Topbar` +
+contenido). Navegación **fake/local** (los items no navegan; el activo es
+estático). El contenido del dashboard vive en `components/dashboard/`
+(`MetricCard`, `HighlightCard`, `AlertCard`, `ActivityList`) y los datos en
+`lib/dashboard/demoData.ts` — **métricas locales estáticas** inspiradas en la
+operación real del CCB, sin llamadas a `/api/v2`.
 
-> **`/app` NO es la URL final.** Es una ruta provisional para iterar el
-> skeleton. El path definitivo + los route groups reales (`(tenant)`/`(auth)`)
-> y la navegación interactiva + mobile drawer llegan junto al wiring de
-> `/api/v2/auth/me`.
+> **`/app` NO es la URL final.** Es una ruta provisional para iterar. El path
+> definitivo + los route groups reales (`(tenant)`/`(auth)`), la navegación
+> interactiva, el mobile drawer y los datos reales llegan junto al wiring de
+> `/api/v2/auth/me` + `/api/v2/org/branding`.
 
-Responsive del shell: base (375) columna única con brand en el Topbar (sidebar
+Responsive: shell base (375) columna única con brand en el Topbar (sidebar
 oculto) · `md` (768) grid sidebar+contenido · `xl` (1280) sidebar amplio.
+Métricas del dashboard: 375 = 1 col · 768 = 2 col · 1280 = 4 col.
 
 ## Estructura prevista (futuros PRs temáticos)
 
 ```
 app/
   page.tsx          ✅ home estática
-  app/page.tsx      ✅ skeleton tenant-admin · ruta PROVISIONAL (este PR)
+  app/page.tsx      ✅ dashboard tenant-admin estático · ruta PROVISIONAL
   (tenant)/         ⏳ admin del tenant real  · desktop/tablet
   scanner/          ⏳ escaneo QR             · mobile-first
   kiosko/           ⏳ check-in recepción     · tablet-first
