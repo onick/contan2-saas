@@ -14,20 +14,20 @@ describe('/app · dashboard tenant-admin', () => {
     expect(screen.getByText('27')).toBeInTheDocument();
   });
 
-  it('renderiza el destacado Los Congos con su ocupación', () => {
+  it('renderiza la actividad próxima y el destacado', () => {
     render(<TenantAdminDashboard />);
+    expect(screen.getByText('Visita Guiada CITLALLY MIRANDA')).toBeInTheDocument();
     expect(screen.getAllByText('Los Congos de Villa Mella').length).toBeGreaterThan(0);
     expect(screen.getByText('219')).toBeInTheDocument();
-    expect(screen.getByText(/250/)).toBeInTheDocument();
     expect(screen.getAllByText('88%').length).toBeGreaterThan(0);
   });
 
-  it('lista actividades recientes con estado y conteo gestionado', () => {
+  it('renderiza top actividades y últimos visitantes', () => {
     render(<TenantAdminDashboard />);
-    expect(screen.getByText('5to Ciclo de Cine Dominicano | CuCú')).toBeInTheDocument();
+    expect(screen.getByText('5to Ciclo de Cine Dominicano | Kacimiro')).toBeInTheDocument();
     expect(screen.getByText('Cine Clásico | Perdición')).toBeInTheDocument();
-    expect(screen.getByText('En curso')).toBeInTheDocument();
-    // "en gestión" aparece en el insight y en el encabezado de la tabla.
-    expect(screen.getAllByText(/en gestión/i).length).toBeGreaterThan(0);
+    expect(screen.getByText('Top actividades')).toBeInTheDocument();
+    expect(screen.getByText('Últimos visitantes')).toBeInTheDocument();
+    expect(screen.getByText('Sofía Méndez')).toBeInTheDocument();
   });
 });

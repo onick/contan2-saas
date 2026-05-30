@@ -22,7 +22,12 @@ export type IconName =
   | 'insight'
   | 'chevronRight'
   | 'expand'
-  | 'plus';
+  | 'plus'
+  | 'clock'
+  | 'mapPin'
+  | 'eye'
+  | 'mail'
+  | 'file';
 
 const PATHS: Record<IconName, React.ReactNode> = {
   dashboard: (
@@ -115,6 +120,36 @@ const PATHS: Record<IconName, React.ReactNode> = {
   chevronRight: <path d="m9 6 6 6-6 6" />,
   expand: <path d="m8 9 4-4 4 4M8 15l4 4 4-4" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  mapPin: (
+    <>
+      <path d="M20 10c0 5-8 11-8 11s-8-6-8-11a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="2.6" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m4 7 8 6 8-6" />
+    </>
+  ),
+  file: (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </>
+  ),
 };
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

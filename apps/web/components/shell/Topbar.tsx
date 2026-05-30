@@ -33,28 +33,34 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
         <span className="font-semibold text-ink" aria-current="page">{title}</span>
       </nav>
 
-      {/* Buscador */}
-      <div className="ml-1 hidden min-w-0 max-w-[420px] flex-1 items-center gap-2.5 rounded-full bg-surface-container px-4 py-2.5 text-[13px] text-faint md:flex">
+      {/* Buscador · flex-1 + min-w-0 para encoger sin desbordar; el grupo
+          derecho queda pinneado porque solo el buscador crece. */}
+      <div className="ml-2 hidden min-w-0 max-w-[420px] flex-1 items-center gap-2.5 rounded-full bg-surface-container px-4 py-2.5 text-[13px] text-faint md:flex">
         <Icon name="search" size={18} />
         <span className="truncate">Buscar actividad, persona o reporte…</span>
       </div>
 
-      <div className="flex-1 md:flex-none" />
+      {/* Grupo derecho · pinneado al borde con ml-auto */}
+      <div className="ml-auto flex items-center gap-1.5 md:gap-2">
+        {meta ? (
+          <span className="hidden rounded-full border border-line bg-surface px-3 py-1 text-xs tabular-nums text-muted md:inline">
+            {meta}
+          </span>
+        ) : null}
 
-      {meta ? (
-        <span className="hidden rounded-full border border-line bg-surface px-3 py-1 text-xs tabular-nums text-muted md:inline">
-          {meta}
+        <button
+          type="button"
+          aria-label="Notificaciones"
+          className="relative grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-surface-container"
+        >
+          <Icon name="bell" size={20} />
+          <span aria-hidden="true" className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brand-accent ring-2 ring-surface" />
+        </button>
+
+        <span className="ml-0.5 grid h-9 w-9 flex-none place-items-center rounded-full bg-brand text-xs font-semibold text-white">
+          {initials(branding.name)}
         </span>
-      ) : null}
-
-      <button type="button" aria-label="Notificaciones" className="relative grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-surface-container">
-        <Icon name="bell" size={20} />
-        <span aria-hidden="true" className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brand-accent ring-2 ring-surface" />
-      </button>
-
-      <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand text-xs font-semibold text-white">
-        {initials(branding.name)}
-      </span>
+      </div>
     </header>
   );
 }

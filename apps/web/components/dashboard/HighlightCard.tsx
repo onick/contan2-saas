@@ -15,7 +15,7 @@ export function HighlightCard({ activity }: HighlightCardProps) {
   const offset = CIRC * (1 - pct / 100);
 
   return (
-    <section className="flex flex-col rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
+    <section className="flex min-w-0 flex-col rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
       <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-accent">
         Actividad destacada
       </p>

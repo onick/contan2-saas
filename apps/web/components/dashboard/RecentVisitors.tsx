@@ -1,0 +1,48 @@
+import type { RecentVisitor } from '../../lib/dashboard/demoData';
+import { Icon } from '../icons';
+
+export interface RecentVisitorsProps {
+  visitors: RecentVisitor[];
+}
+
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
+}
+
+// Últimos visitantes registrados · lista con avatar (iniciales), código y
+// correo, y badge de visitas. DATOS DEMO ficticios (no PII real). Server
+// Component.
+export function RecentVisitors({ visitors }: RecentVisitorsProps) {
+  return (
+    <section className="min-w-0 rounded-2xl border border-line bg-surface shadow-sm">
+      <div className="flex items-center justify-between px-5 py-4 md:px-6">
+        <div>
+          <h3 className="text-[15px] font-semibold tracking-tight text-ink">Últimos visitantes</h3>
+          <p className="text-xs text-faint">Registrados recientemente</p>
+        </div>
+        <a href="#" className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand">
+          Ver todos <Icon name="chevronRight" size={16} />
+        </a>
+      </div>
+
+      <ul>
+        {visitors.map((v) => (
+          <li key={v.id} className="flex items-center gap-3 border-t border-line px-5 py-3 md:px-6">
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-primary-container text-[12px] font-semibold text-on-primary-container">
+              {initials(v.name)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium tracking-tight text-ink">{v.name}</p>
+              <p className="truncate text-xs text-faint">
+                <span className="tabular-nums">{v.code}</span> · {v.email}
+              </p>
+            </div>
+            <span className="flex-none rounded-full bg-surface-container px-2.5 py-1 text-[11px] font-semibold tabular-nums text-muted">
+              {v.visits} {v.visits === 1 ? 'visita' : 'visitas'}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

@@ -3,11 +3,14 @@
 // llamadas a /api/v2. Cuando llegue el wiring real, esta es la única pieza que
 // cambia de fuente (los componentes consumen estos tipos sin tocarse).
 //
-// REAL (de producción): los 4 valores de métrica + sus tendencias +100%, el
-// período, y el destacado Los Congos (219/250, 88%), y el conteo gestionado (7).
+// REAL: los 4 KPIs + tendencias +100%, el período, el destacado Los Congos
+// (219/250, 88%), la actividad próxima (Visita Guiada · 13/60 · 22%) y el top
+// de actividades por asistencia.
 // ILUSTRATIVO (placeholder de diseño hasta conectar histórico/serie real): la
-// curva del gráfico de asistencia, y los estados + ocupaciones de las otras 3
-// actividades. Marcado como tal para no mezclar real con placeholder.
+// curva del gráfico.
+// DATOS DEMO (NO PII real): la lista de "Últimos visitantes" usa nombres y
+// correos ficticios (@example.com). Los visitantes reales son PII y vienen de
+// la API enmascarados — nunca se hardcodean en el repo.
 
 export type TrendDir = 'up' | 'down';
 
@@ -19,16 +22,13 @@ export interface DashboardMetric {
   trend?: { dir: TrendDir; label: string };
 }
 
-export type ActivityStatus = 'done' | 'live' | 'soon';
-
-export interface ActivitySummary {
+export interface RankedActivity {
   id: string;
   title: string;
   category: string;
-  status: ActivityStatus;
-  statusLabel: string;
-  // null cuando no hay dato real de ocupación (placeholder honesto).
-  occupancyPct: number | null;
+  registered: number;
+  capacity: number;
+  occupancyPct: number;
 }
 
 export interface HighlightActivity {
@@ -40,17 +40,28 @@ export interface HighlightActivity {
   note: string;
 }
 
-export interface DashboardInsight {
-  key: string;
-  tone: 'warn' | 'info';
+export interface FeaturedActivity {
   title: string;
-  message: string;
+  category: string;
+  date: string;
+  location: string;
+  startsLabel: string;
+  registered: number;
+  capacity: number;
+  occupancyPct: number;
+}
+
+export interface RecentVisitor {
+  id: string;
+  name: string;
+  code: string;
+  email: string;
+  visits: number;
 }
 
 export const DASHBOARD_PERIOD = 'Últimos 30 días';
 
-// 4 métricas (REAL). El período se muestra una vez (chip del topbar), no por
-// card. El % de las tasas va como unidad aparte (estilo de la referencia).
+// 4 métricas (REAL).
 export const DASHBOARD_METRICS: DashboardMetric[] = [
   { key: 'asistencias', label: 'Asistencias', value: '510', trend: { dir: 'up', label: '+100%' } },
   { key: 'visitantes', label: 'Visitantes nuevos', value: '1,181', trend: { dir: 'up', label: '+100%' } },
@@ -60,8 +71,7 @@ export const DASHBOARD_METRICS: DashboardMetric[] = [
 
 export const ACTIVITIES_MANAGED = 7;
 
-// Serie ILUSTRATIVA de asistencia por semana (para el gráfico). 6 puntos
-// normalizados 0..100; la forma comunica tendencia, no es dato real todavía.
+// Serie ILUSTRATIVA de asistencia por semana (forma comunica tendencia).
 export const ATTENDANCE_SERIES = [38, 44, 52, 49, 68, 82];
 export const ATTENDANCE_LABELS = ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4', 'Sem 5', 'Sem 6'];
 
@@ -74,26 +84,32 @@ export const HIGHLIGHT: HighlightActivity = {
   note: 'La de mayor convocatoria del período',
 };
 
-// Solo Los Congos tiene cifras reales. Estados y ocupaciones del resto son
-// ILUSTRATIVOS (placeholder de diseño) hasta conectar datos reales.
-export const RECENT_ACTIVITIES: ActivitySummary[] = [
-  { id: 'congos', title: 'Los Congos de Villa Mella', category: 'Música y danza tradicional', status: 'done', statusLabel: 'Finalizada', occupancyPct: 88 },
-  { id: 'cucu', title: '5to Ciclo de Cine Dominicano | CuCú', category: 'Cine', status: 'live', statusLabel: 'En curso', occupancyPct: 64 },
-  { id: 'perdicion', title: 'Cine Clásico | Perdición', category: 'Cine', status: 'done', statusLabel: 'Finalizada', occupancyPct: 72 },
-  { id: 'tertulia-adha', title: 'Tertulia ADHA: «Interpretando universos con Manuel Montilla»', category: 'Tertulia', status: 'soon', statusLabel: 'Próxima', occupancyPct: 28 },
+// Actividad próxima destacada (REAL). El countdown vivo llega con el wiring;
+// acá es una etiqueta estática.
+export const FEATURED_ACTIVITY: FeaturedActivity = {
+  title: 'Visita Guiada CITLALLY MIRANDA',
+  category: 'Otro',
+  date: '29 may 2026 · 07:00 p.m.',
+  location: 'Centro Cultural Banreservas',
+  startsLabel: 'Próxima',
+  registered: 13,
+  capacity: 60,
+  occupancyPct: 22,
+};
+
+// Top actividades por asistencia (REAL para las 2 primeras; las siguientes son
+// ilustrativas hasta conectar el ranking real).
+export const TOP_ACTIVITIES: RankedActivity[] = [
+  { id: 'congos', title: 'Los Congos de Villa Mella', category: 'Concierto', registered: 219, capacity: 250, occupancyPct: 88 },
+  { id: 'perdicion', title: 'Cine Clásico | Perdición', category: 'Cine', registered: 108, capacity: 150, occupancyPct: 72 },
+  { id: 'kacimiro', title: '5to Ciclo de Cine Dominicano | Kacimiro', category: 'Cine', registered: 85, capacity: 150, occupancyPct: 57 },
+  { id: 'tertulia', title: 'Tertulia ADHA: «Interpretando universos con Manuel Montilla»', category: 'Tertulia', registered: 14, capacity: 50, occupancyPct: 28 },
 ];
 
-export const INSIGHTS: DashboardInsight[] = [
-  {
-    key: 'low-enrollment',
-    tone: 'warn',
-    title: 'Baja inscripción próxima',
-    message: 'Una actividad próxima va por debajo del 30% de su cupo. Conviene reforzar la difusión antes de la fecha.',
-  },
-  {
-    key: 'agenda',
-    tone: 'info',
-    title: '7 actividades en gestión',
-    message: 'El ciclo de cine concentra la mitad de la agenda del mes. Mirá el detalle en Actividades.',
-  },
+// Últimos visitantes · DATOS DEMO ficticios (NO PII real). Emails @example.com.
+export const RECENT_VISITORS: RecentVisitor[] = [
+  { id: 'v1', name: 'Sofía Méndez', code: 'CCB-7K2P9Q', email: 'sofia.m@example.com', visits: 2 },
+  { id: 'v2', name: 'Diego Ramírez', code: 'CCB-3H8L4M', email: 'diego.r@example.com', visits: 2 },
+  { id: 'v3', name: 'Valentina Cruz', code: 'CCB-9T1X6B', email: 'valentina.c@example.com', visits: 1 },
+  { id: 'v4', name: 'Andrés Polanco', code: 'CCB-5R2N7D', email: 'andres.p@example.com', visits: 1 },
 ];

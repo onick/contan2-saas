@@ -39,13 +39,23 @@ confirmar 1 / 2 / 3 columnas.
 
 ## App shell + dashboard (`/app`) · ruta PROVISIONAL
 
-`app/app/page.tsx` renderiza un **dashboard tenant-admin estático** dentro del
-shell responsive (`components/shell/`: `Sidebar` tablet/desktop + `Topbar` +
-contenido). Navegación **fake/local** (los items no navegan; el activo es
-estático). El contenido del dashboard vive en `components/dashboard/`
-(`MetricCard`, `HighlightCard`, `AlertCard`, `ActivityList`) y los datos en
-`lib/dashboard/demoData.ts` — **métricas locales estáticas** inspiradas en la
-operación real del CCB, sin llamadas a `/api/v2`.
+`app/app/page.tsx` renderiza un **dashboard tenant-admin estático** con estética
+**Google/Material** dentro del shell responsive (`components/shell/`: `Sidebar`
+navigation drawer con íconos + grupos + item activo tonal, `Topbar` con
+breadcrumb/buscador/avatar). Navegación **fake/local** (los items no navegan; el
+activo es estático). El contenido del dashboard vive en `components/dashboard/`
+(`MetricCard`, `FeaturedActivity`, `AttendanceChart`, `HighlightCard`,
+`TopActivities`, `RecentVisitors`), los íconos en `components/icons.tsx`
+(**SVG inline**, sin font ni dep externa) y los datos en
+`lib/dashboard/demoData.ts`.
+
+**Datos:** los 4 KPIs (510 · 1,181 · 57% · 27%, tendencia +100%), el destacado
+Los Congos (219/250, 88%), la actividad próxima (Visita Guiada · 13/60) y el top
+de actividades por asistencia son **reales**. La curva del gráfico de asistencia
+es **ilustrativa** hasta conectar el histórico real. La lista de "Últimos
+visitantes" usa **datos demo ficticios** (emails `@example.com`): los visitantes
+reales son PII y vienen de la API enmascarados, **nunca** se hardcodean en el
+repo. Sin llamadas a `/api/v2`.
 
 > **`/app` NO es la URL final.** Es una ruta provisional para iterar. El path
 > definitivo + los route groups reales (`(tenant)`/`(auth)`), la navegación

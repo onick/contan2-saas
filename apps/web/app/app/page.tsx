@@ -1,24 +1,24 @@
 import type { Metadata } from 'next';
 import { AppShell } from '../../components/shell/AppShell';
-import { Container } from '../../components/Container';
 import { MetricCard } from '../../components/dashboard/MetricCard';
+import { FeaturedActivity } from '../../components/dashboard/FeaturedActivity';
 import { AttendanceChart } from '../../components/dashboard/AttendanceChart';
 import { HighlightCard } from '../../components/dashboard/HighlightCard';
-import { InsightCard } from '../../components/dashboard/InsightCard';
-import { ActivityTable } from '../../components/dashboard/ActivityTable';
+import { TopActivities } from '../../components/dashboard/TopActivities';
+import { RecentVisitors } from '../../components/dashboard/RecentVisitors';
 import { Icon } from '../../components/icons';
 import { getLocalBranding } from '../../lib/branding/config';
 import {
   DASHBOARD_METRICS,
   DASHBOARD_PERIOD,
+  FEATURED_ACTIVITY,
   HIGHLIGHT,
-  RECENT_ACTIVITIES,
-  ACTIVITIES_MANAGED,
-  INSIGHTS,
+  TOP_ACTIVITIES,
+  RECENT_VISITORS,
 } from '../../lib/dashboard/demoData';
 
 // RUTA PROVISIONAL del tenant-admin — NO es la URL final. Dashboard ESTÁTICO
-// con métricas locales (lib/dashboard/demoData). Auth, datos reales y el
+// con datos locales (lib/dashboard/demoData). Auth, datos reales y el
 // path/route-groups definitivos llegan con el wiring a /api/v2/*.
 export const metadata: Metadata = {
   title: 'Contan2 v2 · tenant admin · dashboard',
@@ -30,7 +30,7 @@ export default function TenantAdminDashboard() {
 
   return (
     <AppShell branding={branding} title="Dashboard" meta={DASHBOARD_PERIOD}>
-      <Container>
+      <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado de la vista + acción primaria */}
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -57,24 +57,23 @@ export default function TenantAdminDashboard() {
           ))}
         </div>
 
-        {/* Gráfico (ancho) + destacado */}
+        {/* Actividad próxima destacada (ancho completo) */}
+        <div className="mt-4">
+          <FeaturedActivity activity={FEATURED_ACTIVITY} />
+        </div>
+
+        {/* Gráfico (ancho) + destacado del período */}
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
           <AttendanceChart />
           <HighlightCard activity={HIGHLIGHT} />
         </div>
 
-        {/* Insights */}
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {INSIGHTS.map((i) => (
-            <InsightCard key={i.key} insight={i} />
-          ))}
+        {/* Top actividades + últimos visitantes */}
+        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
+          <TopActivities activities={TOP_ACTIVITIES} />
+          <RecentVisitors visitors={RECENT_VISITORS} />
         </div>
-
-        {/* Actividades recientes */}
-        <div className="mt-4">
-          <ActivityTable activities={RECENT_ACTIVITIES} managedCount={ACTIVITIES_MANAGED} />
-        </div>
-      </Container>
+      </div>
     </AppShell>
   );
 }

@@ -33,7 +33,7 @@ export function AttendanceChart() {
   const { line, area, last } = buildPaths(ATTENDANCE_SERIES);
 
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
+    <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-[15px] font-semibold tracking-tight text-ink">Asistencia por semana</h3>
