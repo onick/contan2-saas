@@ -10,7 +10,10 @@ export interface DashboardMetric {
   key: string;
   label: string;
   value: string;
-  hint?: string;
+  // Contexto corto bajo el valor (qué representa), distinto por métrica.
+  unit?: string;
+  // Métrica ancla: lleva el acento naranja sutil (top-accent).
+  anchor?: boolean;
 }
 
 export interface ActivitySummary {
@@ -35,13 +38,15 @@ export interface DashboardAlert {
 
 export const DASHBOARD_PERIOD = 'Últimos 30 días';
 
-// 4 métricas en el grid superior (decisión: "7 actividades administradas" NO
-// va acá — vive en el encabezado de la sección de actividades).
+// 4 métricas en el grid superior (decisión: "7 actividades" NO va acá — vive
+// en el encabezado de la sección de actividades). El período se muestra una
+// sola vez (chip del topbar + título de sección), no repetido por card; cada
+// card lleva su propia unidad/contexto.
 export const DASHBOARD_METRICS: DashboardMetric[] = [
-  { key: 'asistencias', label: 'Asistencias', value: '510', hint: DASHBOARD_PERIOD },
-  { key: 'visitantes', label: 'Visitantes nuevos', value: '1,137', hint: DASHBOARD_PERIOD },
-  { key: 'ocupacion', label: 'Ocupación promedio', value: '57%', hint: DASHBOARD_PERIOD },
-  { key: 'retorno', label: 'Tasa de retorno', value: '23%', hint: DASHBOARD_PERIOD },
+  { key: 'asistencias', label: 'Asistencias', value: '510', unit: 'personas', anchor: true },
+  { key: 'visitantes', label: 'Visitantes nuevos', value: '1,137', unit: 'primera visita' },
+  { key: 'ocupacion', label: 'Ocupación promedio', value: '57%', unit: 'del cupo por actividad' },
+  { key: 'retorno', label: 'Tasa de retorno', value: '23%', unit: 'vuelven a asistir' },
 ];
 
 // Cantidad de actividades gestionadas — se muestra en el encabezado de la

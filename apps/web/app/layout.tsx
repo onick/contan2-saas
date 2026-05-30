@@ -1,8 +1,15 @@
 import type { Metadata, Viewport } from 'next';
 import type { CSSProperties, ReactNode } from 'react';
+import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { getLocalBranding } from '../lib/branding/config';
 import { brandingToCssVars } from '../lib/branding/theme';
+
+// Tipografía Vercel-style: Geist Sans (texto) + Geist Mono (números). next/font
+// self-hostea las fuentes en build (sin dep nueva; built-in de Next). Exponen
+// CSS vars que globals.css mapea a --font-sans / --font-mono de Tailwind.
+const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans', display: 'swap' });
+const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'Contan2 v2',
@@ -24,8 +31,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const themeVars = brandingToCssVars(branding) as CSSProperties;
 
   return (
-    <html lang="es">
-      <body style={themeVars}>{children}</body>
+    <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body style={themeVars} className="font-sans">
+        {children}
+      </body>
     </html>
   );
 }

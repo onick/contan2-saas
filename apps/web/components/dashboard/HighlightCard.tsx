@@ -4,24 +4,27 @@ export interface HighlightCardProps {
   activity: HighlightActivity;
 }
 
-// Caso destacado del período. La barra de ocupación es un <div> simple (no
-// librería de charts) con width inline = occupancyPct. Server Component.
+// Caso destacado del período · estilo editorial Geist/Vercel. El ratio va en
+// Geist Mono; la barra de ocupación es un <div> simple (sin librería de
+// charts) en color de marca. Server Component.
 export function HighlightCard({ activity }: HighlightCardProps) {
   const pct = Math.max(0, Math.min(100, activity.occupancyPct));
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-      <p className="text-sm font-medium uppercase tracking-wide text-slate-500">Destacado</p>
-      <h3 className="mt-1 text-lg font-semibold text-slate-900 md:text-xl">{activity.title}</h3>
-
-      <p className="mt-3 text-2xl font-bold tabular-nums text-brand">
-        {activity.registered}
-        <span className="text-base font-medium text-slate-400"> / {activity.capacity}</span>
+    <section className="rounded-xl border border-line bg-white p-5 md:p-6">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
+        Actividad destacada
       </p>
-      <p className="text-sm text-slate-600">{pct}% de ocupación</p>
+      <h3 className="mt-1.5 text-lg font-semibold tracking-tight text-ink">{activity.title}</h3>
+
+      <p className="mt-4 font-mono text-3xl font-semibold tracking-tight tabular-nums text-ink">
+        {activity.registered}
+        <span className="text-lg font-normal text-faint"> / {activity.capacity}</span>
+      </p>
+      <p className="mt-1 text-sm text-muted">{pct}% de ocupación</p>
 
       <div
-        className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100"
+        className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100"
         role="progressbar"
         aria-valuenow={pct}
         aria-valuemin={0}

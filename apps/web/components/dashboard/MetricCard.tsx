@@ -4,16 +4,20 @@ export interface MetricCardProps {
   metric: DashboardMetric;
 }
 
-// Card de una métrica del dashboard. El valor usa text-brand → hereda el
-// theming por tenant. Server Component (sin estado).
+// Card de métrica · estilo Geist/Vercel: hairline, mucho aire, valor grande en
+// Geist Mono (tabular). La métrica ancla lleva un top-accent naranja sutil.
+// Server Component.
 export function MetricCard({ metric }: MetricCardProps) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-      <p className="text-sm font-medium text-slate-500">{metric.label}</p>
-      <p className="mt-2 text-3xl font-bold tabular-nums text-brand md:text-4xl">
+    <article className="relative overflow-hidden rounded-xl border border-line bg-white p-5 md:p-6">
+      {metric.anchor ? (
+        <span aria-hidden="true" className="absolute inset-x-0 top-0 h-0.5 bg-brand-accent" />
+      ) : null}
+      <p className="text-sm font-medium text-muted">{metric.label}</p>
+      <p className="mt-2.5 font-mono text-[34px] font-medium leading-none tracking-tight tabular-nums text-ink md:text-[38px]">
         {metric.value}
       </p>
-      {metric.hint ? <p className="mt-1 text-xs text-slate-400">{metric.hint}</p> : null}
+      {metric.unit ? <p className="mt-2 text-xs text-faint">{metric.unit}</p> : null}
     </article>
   );
 }

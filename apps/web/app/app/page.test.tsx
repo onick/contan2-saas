@@ -27,6 +27,6 @@ describe('/app · dashboard tenant-admin', () => {
     render(<TenantAdminDashboard />);
     expect(screen.getByText('5to Ciclo de Cine Dominicano | CuCú')).toBeInTheDocument();
     expect(screen.getByText('Cine Clásico | Perdición')).toBeInTheDocument();
-    expect(screen.getByText(/actividades administradas/i)).toBeInTheDocument();
+    expect(screen.getByText(/en gestión/i)).toBeInTheDocument();
   });
 });

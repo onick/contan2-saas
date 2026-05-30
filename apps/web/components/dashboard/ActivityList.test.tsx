@@ -14,9 +14,9 @@ describe('ActivityList', () => {
     }
   });
 
-  it('muestra el conteo de actividades administradas en el encabezado', () => {
+  it('muestra el conteo gestionado en el encabezado', () => {
     render(<ActivityList activities={RECENT_ACTIVITIES} managedCount={ACTIVITIES_MANAGED} />);
     expect(screen.getByText(String(ACTIVITIES_MANAGED))).toBeInTheDocument();
-    expect(screen.getByText(/actividades administradas/i)).toBeInTheDocument();
+    expect(screen.getByText(/en gestión/i)).toBeInTheDocument();
   });
 });
