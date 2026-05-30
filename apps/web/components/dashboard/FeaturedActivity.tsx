@@ -17,7 +17,7 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
       {/* Miniatura (placeholder hasta tener el póster real) */}
       <div
         aria-hidden="true"
-        className="grid h-36 w-full flex-none place-items-center rounded-xl bg-gradient-to-br from-brand to-[#3949ab] text-white md:h-24 md:w-40"
+        className="grid h-36 w-full flex-none place-items-center rounded-xl bg-gradient-to-br from-brand-accent to-brand text-white md:h-24 md:w-40"
       >
         <CalendarDays size={30} strokeWidth={1.75} aria-hidden="true" />
       </div>

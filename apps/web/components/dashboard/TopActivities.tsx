@@ -27,7 +27,7 @@ export function TopActivities({ activities }: TopActivitiesProps) {
             <span className="w-4 flex-none text-center text-sm font-bold tabular-nums text-faint">{i + 1}</span>
             <span
               aria-hidden="true"
-              className="grid h-10 w-10 flex-none place-items-center rounded-lg bg-gradient-to-br from-brand to-[#3949ab] text-white"
+              className="grid h-10 w-10 flex-none place-items-center rounded-lg bg-gradient-to-br from-brand-accent to-brand text-white"
             >
               <CalendarDays size={16} strokeWidth={1.75} aria-hidden="true" />
             </span>
