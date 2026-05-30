@@ -1,4 +1,4 @@
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, ChevronDown } from 'lucide-react';
 import type { UserRow, UserStatus } from '../../lib/usuarios/demoData';
 
 function initials(name: string): string {
@@ -31,11 +31,16 @@ export function UsersTable({ users }: UsersTableProps) {
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[680px] border-collapse">
+        <table className="w-full min-w-[820px] border-collapse">
           <thead>
             <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
               <th className="px-5 py-3 md:px-6">Usuario</th>
-              <th className="hidden px-4 py-3 lg:table-cell">Código</th>
+              <th className="hidden px-4 py-3 xl:table-cell">Código</th>
+              <th className="hidden px-4 py-3 lg:table-cell">
+                <span className="inline-flex items-center gap-1">
+                  Registro <ChevronDown size={13} strokeWidth={2} aria-hidden="true" className="text-brand" />
+                </span>
+              </th>
               <th className="px-4 py-3">Visitas</th>
               <th className="hidden px-4 py-3 md:table-cell">Última visita</th>
               <th className="px-4 py-3">Estado</th>
@@ -59,7 +64,11 @@ export function UsersTable({ users }: UsersTableProps) {
                       </div>
                     </div>
                   </td>
-                  <td className="hidden whitespace-nowrap px-4 py-4 text-[13px] tabular-nums text-muted lg:table-cell">{u.code}</td>
+                  <td className="hidden whitespace-nowrap px-4 py-4 text-[13px] tabular-nums text-muted xl:table-cell">{u.code}</td>
+                  <td className="hidden whitespace-nowrap px-4 py-4 lg:table-cell">
+                    <span className="block text-[13px] text-ink">{u.registeredAt}</span>
+                    <span className="block text-xs text-faint">{u.registeredAgo}</span>
+                  </td>
                   <td className="px-4 py-4">
                     <span className="inline-flex min-w-[28px] justify-center rounded-full bg-surface-container px-2 py-0.5 text-xs font-semibold tabular-nums text-muted">
                       {u.visits}
