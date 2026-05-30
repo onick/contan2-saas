@@ -1,5 +1,6 @@
 import { CalendarDays, Clock, MapPin, Eye, Mail, FileText } from 'lucide-react';
 import type { FeaturedActivity as FeaturedActivityData } from '../../lib/dashboard/demoData';
+import { CategoryChip } from '../CategoryChip';
 
 export interface FeaturedActivityProps {
   activity: FeaturedActivityData;
@@ -36,7 +37,7 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
           <span className="inline-flex items-center gap-1.5">
             <MapPin size={15} strokeWidth={1.75} aria-hidden="true" className="text-faint" /> {activity.location}
           </span>
-          <span className="rounded-md bg-surface-container px-2 py-0.5 text-xs">{activity.category}</span>
+          <CategoryChip category={activity.category} />
         </div>
 
         {/* Inscripción */}

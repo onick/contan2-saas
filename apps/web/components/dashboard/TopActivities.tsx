@@ -1,5 +1,6 @@
 import { CalendarDays, ChevronRight } from 'lucide-react';
 import type { RankedActivity } from '../../lib/dashboard/demoData';
+import { CategoryChip } from '../CategoryChip';
 
 export interface TopActivitiesProps {
   activities: RankedActivity[];
@@ -32,9 +33,7 @@ export function TopActivities({ activities }: TopActivitiesProps) {
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium tracking-tight text-ink">{a.title}</p>
-              <span className="mt-0.5 inline-flex rounded-md bg-surface-container px-2 py-0.5 text-[11px] text-muted">
-                {a.category}
-              </span>
+              <CategoryChip category={a.category} className="mt-0.5" />
             </div>
             <div className="hidden w-28 flex-none sm:block">
               <div className="flex items-center justify-between text-[11px] text-muted">
