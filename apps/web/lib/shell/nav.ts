@@ -39,7 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   // Audiencia
   { key: 'usuarios', label: 'Usuarios', icon: Users, group: 'Audiencia', href: '/app/usuarios' },
   { key: 'registros', label: 'Registros', icon: ClipboardList, group: 'Audiencia', href: '/app/registros' },
-  { key: 'segmentos', label: 'Segmentos', icon: Layers, group: 'Audiencia', href: '#' },
+  { key: 'segmentos', label: 'Segmentos', icon: Layers, group: 'Audiencia', href: '/app/segmentos' },
   // Operación
   { key: 'reportes', label: 'Reportes', icon: BarChart3, group: 'Operación', href: '#', badge: 'Nuevo' },
   { key: 'identidad', label: 'Identidad', icon: Palette, group: 'Operación', href: '#' },
