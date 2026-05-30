@@ -1,5 +1,5 @@
+import { CalendarDays, Clock, MapPin, Eye, Mail, FileText } from 'lucide-react';
 import type { FeaturedActivity as FeaturedActivityData } from '../../lib/dashboard/demoData';
-import { Icon } from '../icons';
 
 export interface FeaturedActivityProps {
   activity: FeaturedActivityData;
@@ -18,23 +18,23 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
         aria-hidden="true"
         className="grid h-36 w-full flex-none place-items-center rounded-xl bg-gradient-to-br from-brand to-[#3949ab] text-white md:h-24 md:w-40"
       >
-        <Icon name="calendar" size={30} />
+        <CalendarDays size={30} strokeWidth={1.75} aria-hidden="true" />
       </div>
 
       {/* Detalle */}
       <div className="min-w-0 flex-1">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#b35400]">
-          <Icon name="clock" size={14} /> {activity.startsLabel}
+          <Clock size={14} strokeWidth={2} aria-hidden="true" /> {activity.startsLabel}
         </span>
         <h3 className="mt-2 truncate text-[18px] font-semibold tracking-tight text-ink">
           {activity.title}
         </h3>
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
           <span className="inline-flex items-center gap-1.5">
-            <Icon name="calendar" size={15} className="text-faint" /> {activity.date}
+            <CalendarDays size={15} strokeWidth={1.75} aria-hidden="true" className="text-faint" /> {activity.date}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <Icon name="mapPin" size={15} className="text-faint" /> {activity.location}
+            <MapPin size={15} strokeWidth={1.75} aria-hidden="true" className="text-faint" /> {activity.location}
           </span>
           <span className="rounded-md bg-surface-container px-2 py-0.5 text-xs">{activity.category}</span>
         </div>
@@ -54,13 +54,13 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
       {/* Acciones */}
       <div className="flex flex-none flex-col gap-2 md:w-40">
         <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-brand px-4 py-2 text-[13px] font-semibold text-white shadow-sm">
-          <Icon name="eye" size={16} /> Ver detalle
+          <Eye size={16} strokeWidth={2} aria-hidden="true" /> Ver detalle
         </button>
         <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-muted">
-          <Icon name="mail" size={16} /> Invitar
+          <Mail size={16} strokeWidth={2} aria-hidden="true" /> Invitar
         </button>
         <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-muted">
-          <Icon name="file" size={16} /> Reporte
+          <FileText size={16} strokeWidth={2} aria-hidden="true" /> Reporte
         </button>
       </div>
     </section>

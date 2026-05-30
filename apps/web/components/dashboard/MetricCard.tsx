@@ -1,5 +1,5 @@
+import { HelpCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import type { DashboardMetric } from '../../lib/dashboard/demoData';
-import { Icon } from '../icons';
 
 export interface MetricCardProps {
   metric: DashboardMetric;
@@ -14,7 +14,7 @@ export function MetricCard({ metric }: MetricCardProps) {
     <article className="flex flex-col items-start rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
       <p className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">
         {metric.label}
-        <Icon name="help" size={15} className="text-faint" />
+        <HelpCircle size={14} strokeWidth={1.75} aria-hidden="true" className="text-faint" />
       </p>
 
       <p className="mt-4 text-[40px] font-bold leading-none tracking-tight tabular-nums text-ink">
@@ -31,7 +31,11 @@ export function MetricCard({ metric }: MetricCardProps) {
               : 'bg-danger-bg text-danger-fg')
           }
         >
-          <Icon name={trend.dir === 'up' ? 'arrowUp' : 'arrowDown'} size={15} />
+          {trend.dir === 'up' ? (
+            <ArrowUp size={15} strokeWidth={2.25} aria-hidden="true" />
+          ) : (
+            <ArrowDown size={15} strokeWidth={2.25} aria-hidden="true" />
+          )}
           {trend.label}
         </span>
       ) : null}

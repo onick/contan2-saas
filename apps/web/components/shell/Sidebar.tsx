@@ -1,6 +1,6 @@
+import { ChevronsUpDown } from 'lucide-react';
 import type { BrandingOrg } from '../../lib/branding/theme';
 import { NAV_ITEMS, NAV_GROUPS } from '../../lib/shell/nav';
-import { Icon } from '../icons';
 
 export interface SidebarProps {
   branding: BrandingOrg;
@@ -47,37 +47,40 @@ export function Sidebar({ branding }: SidebarProps) {
               {group}
             </p>
             <div className="flex flex-col gap-0.5">
-              {NAV_ITEMS.filter((i) => i.group === group).map((item) => (
-                <a
-                  key={item.key}
-                  href="#"
-                  aria-label={item.label}
-                  aria-current={item.active ? 'page' : undefined}
-                  className={
-                    'relative flex items-center gap-3.5 rounded-full px-3.5 py-2.5 text-sm transition-colors ' +
-                    (item.active
-                      ? 'bg-primary-container font-semibold text-on-primary-container'
-                      : 'font-medium text-muted hover:bg-surface-container hover:text-ink')
-                  }
-                >
-                  {item.active ? (
-                    <span
-                      aria-hidden="true"
-                      className="absolute inset-y-2.5 left-0 w-[3px] rounded-full bg-brand-accent"
-                    />
-                  ) : null}
-                  <Icon name={item.icon} size={21} />
-                  <span>{item.label}</span>
-                  {item.badge ? (
-                    <span
-                      aria-hidden="true"
-                      className="ml-auto rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-[#b35400]"
-                    >
-                      {item.badge}
-                    </span>
-                  ) : null}
-                </a>
-              ))}
+              {NAV_ITEMS.filter((i) => i.group === group).map((item) => {
+                const ItemIcon = item.icon;
+                return (
+                  <a
+                    key={item.key}
+                    href="#"
+                    aria-label={item.label}
+                    aria-current={item.active ? 'page' : undefined}
+                    className={
+                      'relative flex items-center gap-3.5 rounded-full px-3.5 py-2 text-sm transition-colors ' +
+                      (item.active
+                        ? 'bg-primary-container font-semibold text-on-primary-container'
+                        : 'font-medium text-muted hover:bg-surface-container hover:text-ink')
+                    }
+                  >
+                    {item.active ? (
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-brand-accent"
+                      />
+                    ) : null}
+                    <ItemIcon size={20} strokeWidth={1.75} aria-hidden="true" />
+                    <span>{item.label}</span>
+                    {item.badge ? (
+                      <span
+                        aria-hidden="true"
+                        className="ml-auto rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-[#b35400]"
+                      >
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </a>
+                );
+              })}
             </div>
           </div>
         ))}
@@ -92,7 +95,7 @@ export function Sidebar({ branding }: SidebarProps) {
           <span className="block truncate text-[13px] font-semibold text-ink">Administración</span>
           <span className="block text-xs text-muted">Tenant</span>
         </span>
-        <Icon name="expand" size={18} className="ml-auto text-faint" />
+        <ChevronsUpDown size={18} strokeWidth={1.75} aria-hidden="true" className="ml-auto text-faint" />
       </div>
     </aside>
   );

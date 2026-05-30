@@ -1,31 +1,51 @@
-import type { IconName } from '../../components/icons';
+import type { LucideIcon } from 'lucide-react';
+import {
+  LayoutDashboard,
+  CalendarDays,
+  QrCode,
+  Users,
+  ClipboardList,
+  Layers,
+  BarChart3,
+  Palette,
+  Globe,
+  UserCog,
+  History,
+} from 'lucide-react';
 
-// Navegación del shell tenant-admin. Datos LOCALES y fake: no hay routing real
-// todavía (los items no navegan). El item activo se marca estáticamente; el
-// estado interactivo (click → route/highlight), los route groups reales y el
-// mobile drawer llegan junto al wiring de auth.
-//
-// "Mi equipo" se alinea con la nomenclatura de v1 (gestión de staff del tenant).
+// Navegación del shell tenant-admin · refleja el menú real de v1, mejorado:
+// nombres más claros ("Historial" en vez de "Bitácora", "Reportes" en vez de
+// "Reportería", "Identidad" en vez de "Branding") e íconos coherentes (lucide).
+// Datos LOCALES y fake: los items no navegan todavía; el activo es estático.
+// El routing real + route groups llegan con el wiring de auth.
 
-export type NavGroup = 'Principal' | 'Gestión';
+export type NavGroup = 'Principal' | 'Audiencia' | 'Operación' | 'Equipo';
 
 export interface NavItem {
   key: string;
   label: string;
-  icon: IconName;
+  icon: LucideIcon;
   group: NavGroup;
   active?: boolean;
   badge?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', group: 'Principal', active: true },
-  { key: 'actividades', label: 'Actividades', icon: 'calendar', group: 'Principal' },
-  { key: 'checkin', label: 'Check-in', icon: 'scan', group: 'Principal' },
-  { key: 'equipo', label: 'Mi equipo', icon: 'users', group: 'Principal' },
-  { key: 'bitacora', label: 'Bitácora', icon: 'log', group: 'Gestión' },
-  { key: 'branding', label: 'Branding', icon: 'palette', group: 'Gestión' },
-  { key: 'reporteria', label: 'Reportería', icon: 'report', group: 'Gestión', badge: 'Nuevo' },
+  // Principal
+  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Principal', active: true },
+  { key: 'actividades', label: 'Actividades', icon: CalendarDays, group: 'Principal' },
+  { key: 'checkin', label: 'Check-in', icon: QrCode, group: 'Principal' },
+  // Audiencia
+  { key: 'usuarios', label: 'Usuarios', icon: Users, group: 'Audiencia' },
+  { key: 'registros', label: 'Registros', icon: ClipboardList, group: 'Audiencia' },
+  { key: 'segmentos', label: 'Segmentos', icon: Layers, group: 'Audiencia' },
+  // Operación
+  { key: 'reportes', label: 'Reportes', icon: BarChart3, group: 'Operación', badge: 'Nuevo' },
+  { key: 'identidad', label: 'Identidad', icon: Palette, group: 'Operación' },
+  { key: 'modo-publico', label: 'Modo público', icon: Globe, group: 'Operación' },
+  // Equipo
+  { key: 'equipo', label: 'Mi equipo', icon: UserCog, group: 'Equipo' },
+  { key: 'historial', label: 'Historial', icon: History, group: 'Equipo' },
 ];
 
-export const NAV_GROUPS: NavGroup[] = ['Principal', 'Gestión'];
+export const NAV_GROUPS: NavGroup[] = ['Principal', 'Audiencia', 'Operación', 'Equipo'];

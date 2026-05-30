@@ -6,7 +6,7 @@ import { AttendanceChart } from '../../components/dashboard/AttendanceChart';
 import { HighlightCard } from '../../components/dashboard/HighlightCard';
 import { TopActivities } from '../../components/dashboard/TopActivities';
 import { RecentVisitors } from '../../components/dashboard/RecentVisitors';
-import { Icon } from '../../components/icons';
+import { Plus } from 'lucide-react';
 import { getLocalBranding } from '../../lib/branding/config';
 import {
   DASHBOARD_METRICS,
@@ -46,7 +46,7 @@ export default function TenantAdminDashboard() {
             type="button"
             className="inline-flex items-center gap-2 rounded-[10px] bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
           >
-            <Icon name="plus" size={18} /> Nueva actividad
+            <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nueva actividad
           </button>
         </header>
 

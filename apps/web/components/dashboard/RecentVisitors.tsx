@@ -1,5 +1,5 @@
+import { ChevronRight } from 'lucide-react';
 import type { RecentVisitor } from '../../lib/dashboard/demoData';
-import { Icon } from '../icons';
 
 export interface RecentVisitorsProps {
   visitors: RecentVisitor[];
@@ -21,7 +21,7 @@ export function RecentVisitors({ visitors }: RecentVisitorsProps) {
           <p className="text-xs text-faint">Registrados recientemente</p>
         </div>
         <a href="#" className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand">
-          Ver todos <Icon name="chevronRight" size={16} />
+          Ver todos <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
         </a>
       </div>
 

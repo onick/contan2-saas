@@ -1,5 +1,5 @@
+import { TrendingUp } from 'lucide-react';
 import type { HighlightActivity } from '../../lib/dashboard/demoData';
-import { Icon } from '../icons';
 
 export interface HighlightCardProps {
   activity: HighlightActivity;
@@ -44,7 +44,7 @@ export function HighlightCard({ activity }: HighlightCardProps) {
       </div>
 
       <div className="mt-5 flex items-center gap-2 border-t border-line pt-4 text-[13px] text-muted">
-        <Icon name="trendingUp" size={18} className="text-brand-accent" />
+        <TrendingUp size={18} strokeWidth={2} aria-hidden="true" className="text-brand-accent" />
         {activity.note}
       </div>
     </section>

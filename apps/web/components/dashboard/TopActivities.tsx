@@ -1,5 +1,5 @@
+import { CalendarDays, ChevronRight } from 'lucide-react';
 import type { RankedActivity } from '../../lib/dashboard/demoData';
-import { Icon } from '../icons';
 
 export interface TopActivitiesProps {
   activities: RankedActivity[];
@@ -16,7 +16,7 @@ export function TopActivities({ activities }: TopActivitiesProps) {
           <p className="text-xs text-faint">Las de mayor asistencia del período</p>
         </div>
         <a href="#" className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand">
-          Ver todas <Icon name="chevronRight" size={16} />
+          Ver todas <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
         </a>
       </div>
 
@@ -28,7 +28,7 @@ export function TopActivities({ activities }: TopActivitiesProps) {
               aria-hidden="true"
               className="grid h-10 w-10 flex-none place-items-center rounded-lg bg-gradient-to-br from-brand to-[#3949ab] text-white"
             >
-              <Icon name="calendar" size={16} />
+              <CalendarDays size={16} strokeWidth={1.75} aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium tracking-tight text-ink">{a.title}</p>
