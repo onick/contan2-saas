@@ -11,7 +11,7 @@ afterEach(cleanup);
 
 describe('Sidebar', () => {
   it('renderiza todos los nav items, incluido "Mi equipo" (no "Staff")', () => {
-    render(<Sidebar branding={DEFAULT_BRANDING} />);
+    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" />);
     for (const item of NAV_ITEMS) {
       expect(screen.getByRole('link', { name: item.label })).toBeInTheDocument();
     }
@@ -19,17 +19,20 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('link', { name: 'Staff' })).not.toBeInTheDocument();
   });
 
-  it('marca el item activo con aria-current="page"', () => {
-    render(<Sidebar branding={DEFAULT_BRANDING} />);
-    const active = NAV_ITEMS.find((i) => i.active)!;
-    expect(screen.getByRole('link', { name: active.label })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+  it('marca el item activo (según activeKey) con aria-current="page"', () => {
+    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="actividades" />);
+    expect(screen.getByRole('link', { name: 'Actividades' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('usa hrefs reales para Dashboard y Actividades', () => {
+    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" />);
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/app');
+    expect(screen.getByRole('link', { name: 'Actividades' })).toHaveAttribute('href', '/app/actividades');
   });
 
   it('muestra el nombre de la organización como brand-mark cuando no hay logo', () => {
-    render(<Sidebar branding={{ ...DEFAULT_BRANDING, logoUrl: null }} />);
+    render(<Sidebar branding={{ ...DEFAULT_BRANDING, logoUrl: null }} activeKey="dashboard" />);
     expect(screen.getByText(DEFAULT_BRANDING.name)).toBeInTheDocument();
   });
 });

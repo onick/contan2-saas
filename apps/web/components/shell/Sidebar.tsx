@@ -4,6 +4,8 @@ import { NAV_ITEMS, NAV_GROUPS } from '../../lib/shell/nav';
 
 export interface SidebarProps {
   branding: BrandingOrg;
+  // key del ítem activo (según la ruta actual).
+  activeKey?: string;
 }
 
 function initials(name: string): string {
@@ -19,7 +21,7 @@ function initials(name: string): string {
 // agrupada con íconos, item activo con pill tonal (primary-container) + barra
 // naranja, bloque de cuenta abajo. Visible en tablet/desktop (oculto en mobile).
 // Server Component (sin estado): la navegación es fake/local todavía.
-export function Sidebar({ branding }: SidebarProps) {
+export function Sidebar({ branding, activeKey }: SidebarProps) {
   return (
     <aside className="hidden bg-surface md:sticky md:top-0 md:flex md:h-screen md:flex-col md:border-r md:border-line">
       {/* Marca */}
@@ -49,20 +51,21 @@ export function Sidebar({ branding }: SidebarProps) {
             <div className="flex flex-col gap-0.5">
               {NAV_ITEMS.filter((i) => i.group === group).map((item) => {
                 const ItemIcon = item.icon;
+                const active = item.key === activeKey;
                 return (
                   <a
                     key={item.key}
-                    href="#"
+                    href={item.href}
                     aria-label={item.label}
-                    aria-current={item.active ? 'page' : undefined}
+                    aria-current={active ? 'page' : undefined}
                     className={
                       'relative flex items-center gap-3.5 rounded-full px-3.5 py-2 text-sm transition-colors ' +
-                      (item.active
+                      (active
                         ? 'bg-primary-container font-semibold text-on-primary-container'
                         : 'font-medium text-muted hover:bg-surface-container hover:text-ink')
                     }
                   >
-                    {item.active ? (
+                    {active ? (
                       <span
                         aria-hidden="true"
                         className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-brand-accent"

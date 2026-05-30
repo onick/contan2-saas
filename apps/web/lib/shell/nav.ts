@@ -26,26 +26,27 @@ export interface NavItem {
   label: string;
   icon: LucideIcon;
   group: NavGroup;
-  active?: boolean;
+  // Ruta real cuando la pantalla existe; '#' para las que aún no se construyen.
+  href: string;
   badge?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
   // Principal
-  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Principal', active: true },
-  { key: 'actividades', label: 'Actividades', icon: CalendarDays, group: 'Principal' },
-  { key: 'checkin', label: 'Check-in', icon: QrCode, group: 'Principal' },
+  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Principal', href: '/app' },
+  { key: 'actividades', label: 'Actividades', icon: CalendarDays, group: 'Principal', href: '/app/actividades' },
+  { key: 'checkin', label: 'Check-in', icon: QrCode, group: 'Principal', href: '#' },
   // Audiencia
-  { key: 'usuarios', label: 'Usuarios', icon: Users, group: 'Audiencia' },
-  { key: 'registros', label: 'Registros', icon: ClipboardList, group: 'Audiencia' },
-  { key: 'segmentos', label: 'Segmentos', icon: Layers, group: 'Audiencia' },
+  { key: 'usuarios', label: 'Usuarios', icon: Users, group: 'Audiencia', href: '#' },
+  { key: 'registros', label: 'Registros', icon: ClipboardList, group: 'Audiencia', href: '#' },
+  { key: 'segmentos', label: 'Segmentos', icon: Layers, group: 'Audiencia', href: '#' },
   // Operación
-  { key: 'reportes', label: 'Reportes', icon: BarChart3, group: 'Operación', badge: 'Nuevo' },
-  { key: 'identidad', label: 'Identidad', icon: Palette, group: 'Operación' },
-  { key: 'modo-publico', label: 'Modo público', icon: Globe, group: 'Operación' },
+  { key: 'reportes', label: 'Reportes', icon: BarChart3, group: 'Operación', href: '#', badge: 'Nuevo' },
+  { key: 'identidad', label: 'Identidad', icon: Palette, group: 'Operación', href: '#' },
+  { key: 'modo-publico', label: 'Modo público', icon: Globe, group: 'Operación', href: '#' },
   // Equipo
-  { key: 'equipo', label: 'Mi equipo', icon: UserCog, group: 'Equipo' },
-  { key: 'historial', label: 'Historial', icon: History, group: 'Equipo' },
+  { key: 'equipo', label: 'Mi equipo', icon: UserCog, group: 'Equipo', href: '#' },
+  { key: 'historial', label: 'Historial', icon: History, group: 'Equipo', href: '#' },
 ];
 
 export const NAV_GROUPS: NavGroup[] = ['Principal', 'Audiencia', 'Operación', 'Equipo'];

@@ -29,7 +29,7 @@ export default function TenantAdminDashboard() {
   const branding = getLocalBranding();
 
   return (
-    <AppShell branding={branding} title="Dashboard" meta={DASHBOARD_PERIOD}>
+    <AppShell branding={branding} title="Dashboard" activeKey="dashboard" meta={DASHBOARD_PERIOD}>
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado de la vista + acción primaria */}
         <header className="flex flex-wrap items-start justify-between gap-4">
