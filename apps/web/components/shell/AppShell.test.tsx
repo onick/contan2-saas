@@ -7,7 +7,7 @@ import { DEFAULT_BRANDING } from '../../lib/branding/config';
 afterEach(cleanup);
 
 describe('AppShell', () => {
-  it('renderiza sidebar (nav principal), topbar con título y el contenido en <main>', () => {
+  it('renderiza sidebar (nav principal), topbar (breadcrumb) y el contenido en <main>', () => {
     render(
       <AppShell branding={DEFAULT_BRANDING} title="Dashboard">
         <p>contenido hijo</p>
@@ -16,8 +16,10 @@ describe('AppShell', () => {
 
     // Sidebar: la nav principal está presente.
     expect(screen.getByRole('navigation', { name: 'Navegación principal' })).toBeInTheDocument();
-    // Topbar: el título de sección (desktop) está en el DOM.
-    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    // Topbar: el breadcrumb (nav "Ruta") está presente.
+    expect(screen.getByRole('navigation', { name: 'Ruta' })).toBeInTheDocument();
+    // El título aparece (en el sidebar como link activo y en el breadcrumb).
+    expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0);
     // Main: el contenido hijo se renderiza dentro de <main>.
     const main = screen.getByRole('main');
     expect(main).toBeInTheDocument();

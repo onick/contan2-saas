@@ -1,37 +1,51 @@
 import type { HighlightActivity } from '../../lib/dashboard/demoData';
+import { Icon } from '../icons';
 
 export interface HighlightCardProps {
   activity: HighlightActivity;
 }
 
-// Caso destacado del período · estilo editorial Geist/Vercel. El ratio va en
-// Geist Mono; la barra de ocupación es un <div> simple (sin librería de
-// charts) en color de marca. Server Component.
+const R = 34;
+const CIRC = 2 * Math.PI * R;
+
+// Caso destacado · anillo de ocupación (SVG inline) en color de acento. Server
+// Component.
 export function HighlightCard({ activity }: HighlightCardProps) {
   const pct = Math.max(0, Math.min(100, activity.occupancyPct));
+  const offset = CIRC * (1 - pct / 100);
 
   return (
-    <section className="rounded-xl border border-line bg-white p-5 md:p-6">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
+    <section className="flex flex-col rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
+      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-accent">
         Actividad destacada
       </p>
-      <h3 className="mt-1.5 text-lg font-semibold tracking-tight text-ink">{activity.title}</h3>
+      <h3 className="mt-2 text-[18px] font-semibold tracking-tight text-ink">{activity.title}</h3>
+      <p className="text-[13px] text-muted">{activity.category}</p>
 
-      <p className="mt-4 font-mono text-3xl font-semibold tracking-tight tabular-nums text-ink">
-        {activity.registered}
-        <span className="text-lg font-normal text-faint"> / {activity.capacity}</span>
-      </p>
-      <p className="mt-1 text-sm text-muted">{pct}% de ocupación</p>
+      <div className="mt-5 flex items-center gap-5">
+        <svg viewBox="0 0 80 80" className="h-[88px] w-[88px] flex-none" role="img" aria-label={`${pct}% de ocupación`}>
+          <circle cx="40" cy="40" r={R} fill="none" stroke="var(--color-surface-container)" strokeWidth="9" />
+          <circle
+            cx="40" cy="40" r={R} fill="none" stroke="var(--color-brand-accent)" strokeWidth="9"
+            strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={offset}
+            transform="rotate(-90 40 40)"
+          />
+          <text x="40" y="40" textAnchor="middle" dominantBaseline="central" className="fill-ink text-[18px] font-bold">
+            {pct}%
+          </text>
+        </svg>
+        <div>
+          <p className="text-[24px] font-bold tracking-tight tabular-nums text-ink">
+            {activity.registered}
+            <span className="text-[16px] font-normal text-faint"> / {activity.capacity}</span>
+          </p>
+          <p className="text-[13px] text-muted">inscripciones confirmadas</p>
+        </div>
+      </div>
 
-      <div
-        className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100"
-        role="progressbar"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`Ocupación de ${activity.title}`}
-      >
-        <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+      <div className="mt-5 flex items-center gap-2 border-t border-line pt-4 text-[13px] text-muted">
+        <Icon name="trendingUp" size={18} className="text-brand-accent" />
+        {activity.note}
       </div>
     </section>
   );

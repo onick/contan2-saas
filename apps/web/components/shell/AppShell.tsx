@@ -19,12 +19,12 @@ export interface AppShellProps {
 // Server Component (sin estado): el home y esta ruta permanecen estáticos.
 export function AppShell({ branding, title, meta, children }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-surface md:grid md:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
+    <div className="min-h-screen bg-page md:grid md:grid-cols-[16rem_minmax(0,1fr)] xl:grid-cols-[17.5rem_minmax(0,1fr)]">
       <Sidebar branding={branding} />
 
       <div className="flex min-w-0 flex-col">
         <Topbar branding={branding} title={title} meta={meta} />
-        <main className="flex-1 p-5 md:p-7 xl:p-10">{children}</main>
+        <main className="flex-1 p-5 md:p-7 xl:p-8">{children}</main>
       </div>
     </div>
   );

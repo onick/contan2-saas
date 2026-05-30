@@ -6,18 +6,22 @@ import { MetricCard } from './MetricCard';
 afterEach(cleanup);
 
 describe('MetricCard', () => {
-  it('renderiza label, valor y unidad', () => {
+  it('renderiza label, valor, unidad y tendencia', () => {
     render(
-      <MetricCard metric={{ key: 'asistencias', label: 'Asistencias', value: '510', unit: 'personas' }} />,
+      <MetricCard
+        metric={{ key: 'ocupacion', label: 'Ocupación promedio', value: '57', unit: '%', trend: { dir: 'up', label: '+100%' } }}
+      />,
     );
-    expect(screen.getByText('Asistencias')).toBeInTheDocument();
-    expect(screen.getByText('510')).toBeInTheDocument();
-    expect(screen.getByText('personas')).toBeInTheDocument();
+    expect(screen.getByText('Ocupación promedio')).toBeInTheDocument();
+    expect(screen.getByText('57')).toBeInTheDocument();
+    expect(screen.getByText('%')).toBeInTheDocument();
+    expect(screen.getByText('+100%')).toBeInTheDocument();
   });
 
-  it('omite la unidad cuando no se provee', () => {
-    render(<MetricCard metric={{ key: 'retorno', label: 'Tasa de retorno', value: '23%' }} />);
-    expect(screen.getByText('Tasa de retorno')).toBeInTheDocument();
-    expect(screen.getByText('23%')).toBeInTheDocument();
+  it('omite unidad y tendencia cuando no se proveen', () => {
+    render(<MetricCard metric={{ key: 'asistencias', label: 'Asistencias', value: '510' }} />);
+    expect(screen.getByText('Asistencias')).toBeInTheDocument();
+    expect(screen.getByText('510')).toBeInTheDocument();
+    expect(screen.queryByText('%')).not.toBeInTheDocument();
   });
 });
