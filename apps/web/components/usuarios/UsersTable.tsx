@@ -1,0 +1,89 @@
+import { MoreHorizontal } from 'lucide-react';
+import type { UserRow, UserStatus } from '../../lib/usuarios/demoData';
+
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
+}
+
+// Paleta de avatares (tintes suaves) por índice → da vida sin romper coherencia.
+const AVATAR_COLORS = [
+  'bg-[#ffe6d2] text-[#7a3300]',
+  'bg-[#e3f4f1] text-[#0f7a6b]',
+  'bg-[#efe9fb] text-[#6b3fb8]',
+  'bg-[#e8f0fe] text-[#1a56b0]',
+  'bg-[#fdeaf0] text-[#b03060]',
+];
+
+const STATUS_STYLE: Record<UserStatus, { chip: string; dot: string }> = {
+  activo: { chip: 'bg-success-bg text-success-fg', dot: 'bg-success-fg' },
+  nuevo: { chip: 'bg-accent-soft text-[#b35400]', dot: 'bg-brand-accent' },
+  inactivo: { chip: 'bg-surface-container text-faint', dot: 'bg-[#9aa0ad]' },
+};
+
+export interface UsersTableProps {
+  users: UserRow[];
+}
+
+// Tabla de usuarios · estilo Google/Material: avatar con iniciales (color por
+// índice), código, visitas, última visita y chip de estado con punto. En mobile
+// se ocultan Código y Última visita. Server Component. Datos demo (no PII).
+export function UsersTable({ users }: UsersTableProps) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[680px] border-collapse">
+          <thead>
+            <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
+              <th className="px-5 py-3 md:px-6">Usuario</th>
+              <th className="hidden px-4 py-3 lg:table-cell">Código</th>
+              <th className="px-4 py-3">Visitas</th>
+              <th className="hidden px-4 py-3 md:table-cell">Última visita</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u, i) => {
+              const st = STATUS_STYLE[u.status];
+              const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
+              return (
+                <tr key={u.id} className="border-t border-line align-middle hover:bg-page">
+                  <td className="px-5 py-4 md:px-6">
+                    <div className="flex items-center gap-3">
+                      <span className={`grid h-10 w-10 flex-none place-items-center rounded-full text-[12px] font-semibold ${avatar}`}>
+                        {initials(u.name)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium tracking-tight text-ink">{u.name}</p>
+                        <p className="truncate text-xs text-faint">{u.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="hidden whitespace-nowrap px-4 py-4 text-[13px] tabular-nums text-muted lg:table-cell">{u.code}</td>
+                  <td className="px-4 py-4">
+                    <span className="inline-flex min-w-[28px] justify-center rounded-full bg-surface-container px-2 py-0.5 text-xs font-semibold tabular-nums text-muted">
+                      {u.visits}
+                    </span>
+                  </td>
+                  <td className="hidden whitespace-nowrap px-4 py-4 text-[13px] text-muted md:table-cell">{u.lastVisit}</td>
+                  <td className="px-4 py-4">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.chip}`}>
+                      <span className={`h-[7px] w-[7px] rounded-full ${st.dot}`} />
+                      {u.statusLabel}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-4 text-right">
+                    <a href="#" className="text-[13px] font-semibold text-brand">Ver</a>
+                    <button type="button" aria-label="Más acciones" className="ml-2 align-middle text-faint hover:text-muted">
+                      <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
