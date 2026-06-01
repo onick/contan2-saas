@@ -1,6 +1,7 @@
-import { Download } from 'lucide-react';
+import { Download, FileX2 } from 'lucide-react';
 import type { RecentReport, ReportFormat } from '../../lib/reportes/demoData';
 import { FORMAT_ICON } from '../../lib/reportes/demoData';
+import { Card, EmptyState, cn, focusRing } from '../ui';
 
 const FORMAT_STYLE: Record<ReportFormat, string> = {
   PDF: 'bg-[#fdeaea] text-[#c5221f]',
@@ -14,11 +15,18 @@ export interface RecentReportsProps {
 // Lista de reportes recientes · estilo Google/Material. Server Component. Datos
 // demo (operador genérico, sin PII).
 export function RecentReports({ reports }: RecentReportsProps) {
+  if (reports.length === 0) {
+    return (
+      <EmptyState
+        icon={FileX2}
+        title="Sin reportes recientes"
+        description="Generá un reporte desde el panel o una plantilla y aparecerá acá."
+      />
+    );
+  }
+
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
-      <div className="px-5 py-4 md:px-6">
-        <h3 className="text-[15px] font-semibold tracking-tight text-ink">Reportes recientes</h3>
-      </div>
+    <Card padding="none" className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse">
           <thead>
@@ -52,7 +60,13 @@ export function RecentReports({ reports }: RecentReportsProps) {
                   </td>
                   <td className="hidden whitespace-nowrap px-4 py-4 text-[13px] tabular-nums text-muted sm:table-cell">{r.size}</td>
                   <td className="whitespace-nowrap px-4 py-4 text-right">
-                    <a href="#" className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand">
+                    <a
+                      href="#"
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded px-1 text-[13px] font-semibold text-brand',
+                        focusRing,
+                      )}
+                    >
                       <Download size={15} strokeWidth={2} aria-hidden="true" /> Descargar
                     </a>
                   </td>
@@ -62,6 +76,6 @@ export function RecentReports({ reports }: RecentReportsProps) {
           </tbody>
         </table>
       </div>
-    </section>
+    </Card>
   );
 }
