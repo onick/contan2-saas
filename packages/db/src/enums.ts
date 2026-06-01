@@ -10,3 +10,9 @@ export type SidebarStyle = 'brand' | 'dark' | 'light';
 export type AccountStatus = 'active' | 'suspended' | 'deleted';
 
 export type StaffRole = 'owner' | 'admin' | 'operator';
+
+// activities.status CHECK (migración 001_initial.sql).
+export type ActivityStatus = 'activa' | 'finalizada' | 'cancelada';
+
+// invitations.status CHECK (migración 006_invitations_and_checkin.sql).
+export type InvitationStatus = 'pending' | 'confirmed' | 'declined' | 'expired' | 'canceled';

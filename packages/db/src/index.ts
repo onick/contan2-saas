@@ -8,6 +8,10 @@ export type {
   PlatformAdminsTable,
   PlatformSessionsTable,
   TenantAuditLogTable,
+  UsersTable,
+  ActivitiesTable,
+  AttendanceTable,
+  InvitationsTable,
 } from './schema.js';
 
 export type {
@@ -16,6 +20,8 @@ export type {
   SidebarStyle,
   AccountStatus,
   StaffRole,
+  ActivityStatus,
+  InvitationStatus,
 } from './enums.js';
 
 export { createDb, getDb, closeDb, pingDb, type DbClient } from './pool.js';
