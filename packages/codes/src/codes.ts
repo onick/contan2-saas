@@ -7,7 +7,10 @@
 // REGLA DE PARIDAD (no improvisar):
 //  - mismo alfabeto, mismo formato <PREFIX>-XXXXXX (6 chars),
 //  - mismo ts2 (base36 de Date.now(), últimos 2) + 4 chars de randomBytes(4),
-//  - mismo prefijo por organización (organizations.code_prefix), default 'CCB',
+//  - prefijo por organización: organizations.code_prefix (default 'MEM' en la
+//    DB, migración 002). DEFAULT_PREFIX='CCB' es SOLO el fallback del generador
+//    (igual que v1 codeGenerator.js) cuando no se pasa prefijo; las escrituras
+//    deben pasar el code_prefix REAL del tenant, no confiar en el fallback.
 //  - misma validación de prefijo (2-6 letras A-Z).
 // Si esto cambia, se rompen credenciales, QR y continuidad histórica.
 
