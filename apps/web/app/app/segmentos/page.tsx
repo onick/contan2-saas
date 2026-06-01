@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
-import { Plus, Search, LayoutGrid, List } from 'lucide-react';
+import { Plus, Search, LayoutGrid, List, Layers } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { SegmentCard } from '../../../components/segmentos/SegmentCard';
+import { SectionHeader, Button, Card, EmptyState, cn, focusRing } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { SEGMENTS, SEGMENT_KPIS } from '../../../lib/segmentos/demoData';
 
@@ -19,48 +20,88 @@ export default function SegmentosPage() {
     <AppShell branding={branding} title="Segmentos" activeKey="segmentos">
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado */}
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[26px] font-bold tracking-tight text-ink xl:text-[30px]">Segmentos</h1>
-            <p className="mt-1 text-muted">Agrupá tu audiencia para invitar y analizar</p>
-          </div>
-          <button type="button" className="inline-flex items-center gap-2 rounded-[10px] bg-brand-strong px-4 py-2.5 text-sm font-semibold text-white shadow-sm">
-            <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nuevo segmento
-          </button>
-        </header>
+        <SectionHeader
+          level={1}
+          title="Segmentos"
+          subtitle="Agrupá tu audiencia para invitar y analizar"
+          actions={
+            <Button>
+              <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nuevo segmento
+            </Button>
+          }
+        />
 
         {/* KPIs */}
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {SEGMENT_KPIS.map((k) => (
-            <div key={k.key} className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
+            <Card key={k.key} padding="md">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{k.label}</p>
               <p className="mt-2 text-3xl font-bold tabular-nums text-ink">{k.value}</p>
-            </div>
+            </Card>
           ))}
         </div>
 
         {/* Buscar + vista */}
         <div className="mt-6 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 max-w-md flex-1 items-center gap-2.5 rounded-full border border-line bg-surface px-4 py-2.5 text-[13px] text-faint">
-            <Search size={16} strokeWidth={1.75} aria-hidden="true" />
-            <span className="truncate">Buscar segmento…</span>
-          </div>
+          {/* Búsqueda: input real focusable (uncontrolled hasta el wiring) */}
+          <label className="relative min-w-0 max-w-md flex-1">
+            <span className="sr-only">Buscar segmento</span>
+            <Search
+              size={16}
+              strokeWidth={1.75}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint"
+            />
+            <input
+              type="search"
+              placeholder="Buscar segmento…"
+              className={cn(
+                'h-10 w-full rounded-full border border-line bg-surface pl-10 pr-4 text-[13px] text-ink placeholder:text-faint',
+                focusRing,
+              )}
+            />
+          </label>
+          {/* Toggle de vista (segmentado · botones reales con foco) */}
           <div className="flex flex-none items-center rounded-lg border border-line bg-surface p-0.5">
-            <span className="grid h-8 w-8 place-items-center rounded-md bg-surface-container text-ink" aria-label="Vista cuadrícula">
+            <button
+              type="button"
+              aria-label="Vista cuadrícula"
+              aria-pressed={true}
+              className={cn('grid h-8 w-8 place-items-center rounded-md bg-surface-container text-ink', focusRing)}
+            >
               <LayoutGrid size={17} strokeWidth={1.75} aria-hidden="true" />
-            </span>
-            <span className="grid h-8 w-8 place-items-center rounded-md text-faint" aria-label="Vista lista">
+            </button>
+            <button
+              type="button"
+              aria-label="Vista lista"
+              aria-pressed={false}
+              className={cn('grid h-8 w-8 place-items-center rounded-md text-faint hover:text-muted', focusRing)}
+            >
               <List size={17} strokeWidth={1.75} aria-hidden="true" />
-            </span>
+            </button>
           </div>
         </div>
 
         {/* Grid de segmentos */}
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {SEGMENTS.map((s) => (
-            <SegmentCard key={s.id} segment={s} />
-          ))}
-        </div>
+        {SEGMENTS.length === 0 ? (
+          <EmptyState
+            className="mt-4"
+            icon={Layers}
+            title="Sin segmentos"
+            description="Creá tu primer segmento para agrupar visitantes e invitarlos."
+            action={
+              <Button>
+                <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nuevo segmento
+              </Button>
+            }
+          />
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {SEGMENTS.map((s) => (
+              <SegmentCard key={s.id} segment={s} />
+            ))}
+          </div>
+        )}
       </div>
     </AppShell>
   );

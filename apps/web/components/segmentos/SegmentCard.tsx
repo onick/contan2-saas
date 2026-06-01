@@ -1,5 +1,6 @@
 import { MoreHorizontal } from 'lucide-react';
 import type { Segment } from '../../lib/segmentos/demoData';
+import { Card, IconButton, cn, focusRing } from '../ui';
 
 export interface SegmentCardProps {
   segment: Segment;
@@ -14,7 +15,7 @@ export function SegmentCard({ segment }: SegmentCardProps) {
   const dynamic = segment.type === 'dinamico';
 
   return (
-    <section className="flex flex-col rounded-2xl border border-line bg-surface p-5 shadow-sm">
+    <Card as="article" padding="md" className="flex flex-col">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-accent-soft text-[#b35400]">
@@ -54,13 +55,13 @@ export function SegmentCard({ segment }: SegmentCardProps) {
 
       <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
         <span className="text-[11px] text-faint">{segment.updated}</span>
-        <span className="flex items-center gap-2">
-          <a href="#" className="text-[13px] font-semibold text-brand">Invitar</a>
-          <button type="button" aria-label="Más acciones" className="text-faint hover:text-muted">
+        <div className="flex items-center gap-1">
+          <a href="#" className={cn('rounded px-1 text-[13px] font-semibold text-brand', focusRing)}>Invitar</a>
+          <IconButton label="Más acciones" variant="ghost" size="sm">
             <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
-          </button>
-        </span>
+          </IconButton>
+        </div>
       </div>
-    </section>
+    </Card>
   );
 }
