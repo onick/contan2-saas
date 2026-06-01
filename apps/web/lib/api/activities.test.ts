@@ -2,58 +2,50 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 
 vi.mock('./client', () => ({ apiGet: vi.fn() }));
 import { apiGet } from './client';
-import { getActivities } from './activities';
+import { getActivitiesView } from './activities';
 
 afterEach(() => vi.clearAllMocks());
 
-describe('getActivities', () => {
-  it('mapea ActivityListItem → Activity (status, ocupación, registrados)', async () => {
+const item = (over: Record<string, unknown> = {}) => ({
+  id: 'congos',
+  name: 'Los Congos de Villa Mella',
+  type: 'Concierto',
+  location: 'CCB',
+  date: '2026-05-12T00:00:00.000Z',
+  capacity: 250,
+  enrolledCount: 219,
+  status: 'finalizada',
+  category: 'Concierto',
+  ...over,
+});
+
+describe('getActivitiesView', () => {
+  it('mapea la tabla + deriva KPIs/conteos (total real, resto sobre el set)', async () => {
     vi.mocked(apiGet).mockResolvedValue({
       items: [
-        {
-          id: 'congos',
-          name: 'Los Congos de Villa Mella',
-          type: 'Concierto',
-          location: 'CCB',
-          date: '2026-05-12T00:00:00.000Z',
-          capacity: 250,
-          enrolledCount: 219,
-          status: 'finalizada',
-          category: 'Concierto',
-        },
+        item(),
+        item({ id: 'a2', name: 'Cine Foro', status: 'activa', capacity: 100, enrolledCount: 50, category: null }),
+        item({ id: 'a3', name: 'Taller', status: 'cancelada', capacity: 10, enrolledCount: 1 }),
       ],
-      total: 1,
-      limit: 20,
+      total: 7, // real (puede ser mayor que items)
+      limit: 100,
       offset: 0,
     });
-    const acts = await getActivities();
-    expect(acts).not.toBeNull();
-    const a = acts![0]!;
+    const v = (await getActivitiesView())!;
+    expect(v.total).toBe(7); // real
+    expect(v.activas).toBe(1);
+    expect(v.finalizadas).toBe(1);
+    expect(v.canceladas).toBe(1);
+    // ocupación promedio sobre el set: (88 + 50 + 10)/3 = 49.33 → 49
+    expect(v.avgOccupancyPct).toBe(49);
+    const a = v.activities[0]!;
     expect(a.title).toBe('Los Congos de Villa Mella');
-    expect(a.status).toBe('done');
     expect(a.statusLabel).toBe('Finalizada');
-    expect(a.registered).toBe(219);
-    expect(a.occupancyPct).toBe(88); // 219/250
-    expect(a.category).toBe('Concierto');
+    expect(v.activities[1]!.category).toBe('Otro'); // null → Otro
   });
 
-  it('category null → "Otro"', async () => {
-    vi.mocked(apiGet).mockResolvedValue({
-      items: [
-        { id: 'x', name: 'X', type: 'T', location: 'L', date: '2026-05-01T00:00:00.000Z', capacity: 10, enrolledCount: 1, status: 'activa', category: null },
-      ],
-      total: 1,
-      limit: 20,
-      offset: 0,
-    });
-    const acts = await getActivities();
-    const a = acts![0]!;
-    expect(a.category).toBe('Otro');
-    expect(a.status).toBe('live');
-  });
-
-  it('devuelve null si la API falla → fallback demo', async () => {
+  it('devuelve null si la API falla → la página cae a demo (KPIs+pills+tabla)', async () => {
     vi.mocked(apiGet).mockRejectedValue(new Error('401'));
-    expect(await getActivities()).toBeNull();
+    expect(await getActivitiesView()).toBeNull();
   });
 });
