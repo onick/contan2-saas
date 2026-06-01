@@ -1,10 +1,38 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Download, ArrowUp, ChevronDown, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { AttendanceTable } from '../../../components/registros/AttendanceTable';
-import { SectionHeader, Button, IconButton, Card, cn, focusRing } from '../../../components/ui';
+import { SectionHeader, Button, IconButton, Card, Skeleton, cn, focusRing } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
+import { getAttendance } from '../../../lib/api/attendance';
 import { ATTENDANCE_RECORDS, ATTENDANCE_KPIS, ATTENDANCE_TABS, TOTAL_RECORDS } from '../../../lib/registros/demoData';
+
+// Tabla async (toca cookies()/fetch → dinámica). Streamea en <Suspense>;
+// soporta asistencia anónima; cae a demoData si no hay datos reales.
+async function AttendanceTableData() {
+  const records = (await getAttendance()) ?? ATTENDANCE_RECORDS;
+  return <AttendanceTable records={records} />;
+}
+
+function AttendanceTableSkeleton() {
+  return (
+    <Card padding="none" className="overflow-hidden">
+      <div className="px-5 py-4 md:px-6">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 border-t border-line py-4 first:border-t-0">
+            <Skeleton className="h-10 w-10 flex-none rounded-full" />
+            <div className="flex-1">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="mt-1.5 h-3 w-24" />
+            </div>
+            <Skeleton className="ml-auto hidden h-6 w-24 rounded-full sm:block" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 // RUTA PROVISIONAL del tenant-admin. Registros de asistencia ESTÁTICA con datos
 // demo (no PII). Filtros/exportar son afordancias visuales hasta el wiring.
@@ -87,7 +115,9 @@ export default function RegistrosPage() {
 
         {/* Tabla */}
         <div className="mt-4">
-          <AttendanceTable records={ATTENDANCE_RECORDS} />
+          <Suspense fallback={<AttendanceTableSkeleton />}>
+            <AttendanceTableData />
+          </Suspense>
         </div>
 
         {/* Paginación */}
