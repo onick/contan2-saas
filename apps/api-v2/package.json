@@ -19,7 +19,8 @@
     "@contan2/config": "workspace:*",
     "@contan2/contracts": "workspace:*",
     "@contan2/db": "workspace:*",
-    "@contan2/auth": "workspace:*"
+    "@contan2/auth": "workspace:*",
+    "@contan2/codes": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.0",
