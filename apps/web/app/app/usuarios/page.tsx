@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import {
   Download,
   UserPlus,
@@ -12,16 +13,44 @@ import {
 } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { UsersTable } from '../../../components/usuarios/UsersTable';
-import { SectionHeader, Button, IconButton, Card, cn, focusRing } from '../../../components/ui';
+import { SectionHeader, Button, IconButton, Card, Skeleton, cn, focusRing } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
+import { getUsers } from '../../../lib/api/users';
 import { USERS, USER_KPIS, USER_TABS, TOTAL_USERS } from '../../../lib/usuarios/demoData';
 
-// RUTA PROVISIONAL del tenant-admin. Usuarios ESTÁTICA con datos demo (no PII).
-// Filtros/búsqueda/exportar son afordancias visuales hasta el wiring de /api/v2.
+// RUTA PROVISIONAL del tenant-admin. La TABLA se cablea read-only a
+// GET /api/v2/users (PII real al staff autenticado del mismo tenant); si no hay
+// datos reales (sin sesión / api-v2 caído) cae a demoData. KPIs/filtros/búsqueda
+// siguen demo en esta fase.
 export const metadata: Metadata = {
   title: 'Contan2 v2 · Usuarios',
   description: 'Visitantes registrados del centro cultural',
 };
+
+// Tabla async (toca cookies()/fetch → dinámica). Streamea en <Suspense>.
+async function UsersTableData() {
+  const users = (await getUsers()) ?? USERS;
+  return <UsersTable users={users} />;
+}
+
+function UsersTableSkeleton() {
+  return (
+    <Card padding="none" className="overflow-hidden">
+      <div className="px-5 py-4 md:px-6">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 border-t border-line py-4 first:border-t-0">
+            <Skeleton className="h-10 w-10 flex-none rounded-full" />
+            <div className="flex-1">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="mt-1.5 h-3 w-28" />
+            </div>
+            <Skeleton className="ml-auto hidden h-6 w-20 rounded-full sm:block" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 export default function UsuariosPage() {
   const branding = getLocalBranding();
@@ -123,7 +152,9 @@ export default function UsuariosPage() {
 
         {/* Tabla */}
         <div className="mt-4">
-          <UsersTable users={USERS} />
+          <Suspense fallback={<UsersTableSkeleton />}>
+            <UsersTableData />
+          </Suspense>
         </div>
 
         {/* Paginación */}
