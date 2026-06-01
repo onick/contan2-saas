@@ -47,10 +47,35 @@ function toUserRow(u: User): UserRow {
   };
 }
 
-export async function getUsers(): Promise<UserRow[] | null> {
+// Vista completa de Usuarios: un fetch deriva tabla + KPIs + conteos de pills
+// (todo-real o todo-demo). `total` es real (response.total); el resto (nuevos/
+// recurrentes/retorno y los conteos por estado) es sobre el SET CARGADO
+// (limit 100) — exacto para tenants con <100 usuarios, estimación si hay más.
+export interface UsersView {
+  users: UserRow[];
+  total: number;
+  nuevos: number;
+  recurrentes: number;
+  retornoPct: number;
+  activos: number;
+  inactivos: number;
+}
+
+export async function getUsersView(): Promise<UsersView | null> {
   try {
-    const { items } = await apiGet('/api/v2/users', UsersListResponseSchema);
-    return items.map(toUserRow);
+    const { items, total } = await apiGet('/api/v2/users?limit=100', UsersListResponseSchema);
+    const users = items.map(toUserRow);
+    const setSize = users.length || 1;
+    const recurrentes = users.filter((u) => u.visits > 1).length;
+    return {
+      users,
+      total,
+      nuevos: users.filter((u) => u.status === 'nuevo').length,
+      recurrentes,
+      retornoPct: Math.round((recurrentes / setSize) * 100),
+      activos: users.filter((u) => u.status === 'activo').length,
+      inactivos: users.filter((u) => u.status === 'inactivo').length,
+    };
   } catch {
     return null;
   }
