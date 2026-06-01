@@ -1,6 +1,7 @@
 import { CalendarDays, Clock, MapPin, Eye, Mail, FileText } from 'lucide-react';
 import type { FeaturedActivity as FeaturedActivityData } from '../../lib/dashboard/demoData';
 import { CategoryChip } from '../CategoryChip';
+import { Card, Button } from '../ui';
 
 export interface FeaturedActivityProps {
   activity: FeaturedActivityData;
@@ -13,7 +14,7 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
   const pct = Math.max(0, Math.min(100, activity.occupancyPct));
 
   return (
-    <section className="flex flex-col gap-5 rounded-2xl border border-line bg-surface p-4 shadow-sm md:flex-row md:items-center md:p-5">
+    <Card padding="none" className="flex flex-col gap-5 p-4 md:flex-row md:items-center md:p-5">
       {/* Miniatura (placeholder hasta tener el póster real) */}
       <div
         aria-hidden="true"
@@ -54,16 +55,16 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
 
       {/* Acciones */}
       <div className="flex flex-none flex-col gap-2 md:w-40">
-        <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-brand-strong px-4 py-2 text-[13px] font-semibold text-white shadow-sm">
+        <Button size="sm" className="w-full">
           <Eye size={16} strokeWidth={2} aria-hidden="true" /> Ver detalle
-        </button>
-        <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-muted">
+        </Button>
+        <Button variant="secondary" size="sm" className="w-full">
           <Mail size={16} strokeWidth={2} aria-hidden="true" /> Invitar
-        </button>
-        <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-muted">
+        </Button>
+        <Button variant="secondary" size="sm" className="w-full">
           <FileText size={16} strokeWidth={2} aria-hidden="true" /> Reporte
-        </button>
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }

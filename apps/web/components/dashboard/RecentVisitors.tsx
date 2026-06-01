@@ -1,5 +1,6 @@
 import { ChevronRight } from 'lucide-react';
 import type { RecentVisitor } from '../../lib/dashboard/demoData';
+import { Card, Chip, cn, focusRing } from '../ui';
 
 export interface RecentVisitorsProps {
   visitors: RecentVisitor[];
@@ -14,13 +15,13 @@ function initials(name: string): string {
 // Component.
 export function RecentVisitors({ visitors }: RecentVisitorsProps) {
   return (
-    <section className="min-w-0 rounded-2xl border border-line bg-surface shadow-sm">
+    <Card padding="none" className="min-w-0">
       <div className="flex items-center justify-between px-5 py-4 md:px-6">
         <div>
           <h3 className="text-[15px] font-semibold tracking-tight text-ink">Últimos visitantes</h3>
           <p className="text-xs text-faint">Registrados recientemente</p>
         </div>
-        <a href="#" className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand">
+        <a href="#" className={cn('inline-flex items-center gap-1 rounded text-[13px] font-semibold text-brand', focusRing)}>
           Ver todos <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
         </a>
       </div>
@@ -37,12 +38,12 @@ export function RecentVisitors({ visitors }: RecentVisitorsProps) {
                 <span className="tabular-nums">{v.code}</span> · {v.email}
               </p>
             </div>
-            <span className="flex-none rounded-full bg-surface-container px-2.5 py-1 text-[11px] font-semibold tabular-nums text-muted">
+            <Chip tone="neutral" className="flex-none tabular-nums">
               {v.visits} {v.visits === 1 ? 'visita' : 'visitas'}
-            </span>
+            </Chip>
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }

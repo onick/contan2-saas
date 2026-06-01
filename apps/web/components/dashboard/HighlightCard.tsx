@@ -1,5 +1,6 @@
 import { TrendingUp } from 'lucide-react';
 import type { HighlightActivity } from '../../lib/dashboard/demoData';
+import { Card } from '../ui';
 
 export interface HighlightCardProps {
   activity: HighlightActivity;
@@ -15,7 +16,7 @@ export function HighlightCard({ activity }: HighlightCardProps) {
   const offset = CIRC * (1 - pct / 100);
 
   return (
-    <section className="flex min-w-0 flex-col rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
+    <Card padding="lg" className="flex min-w-0 flex-col">
       <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-accent">
         Actividad destacada
       </p>
@@ -47,6 +48,6 @@ export function HighlightCard({ activity }: HighlightCardProps) {
         <TrendingUp size={18} strokeWidth={2} aria-hidden="true" className="text-brand-accent" />
         {activity.note}
       </div>
-    </section>
+    </Card>
   );
 }

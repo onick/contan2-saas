@@ -1,4 +1,5 @@
 import { ATTENDANCE_SERIES, ATTENDANCE_LABELS } from '../../lib/dashboard/demoData';
+import { Card } from '../ui';
 
 // Gráfico de asistencia por semana · SVG inline (sin librería de charts). La
 // curva es ILUSTRATIVA hasta conectar la serie real. Server Component.
@@ -33,7 +34,7 @@ export function AttendanceChart() {
   const { line, area, last } = buildPaths(ATTENDANCE_SERIES);
 
   return (
-    <section className="min-w-0 rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
+    <Card padding="lg" className="min-w-0">
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-[15px] font-semibold tracking-tight text-ink">Asistencia por semana</h3>
@@ -66,6 +67,6 @@ export function AttendanceChart() {
           <span key={l}>{l}</span>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }

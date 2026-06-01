@@ -1,12 +1,13 @@
 import type { ComponentProps } from 'react';
 import { cn, focusRing } from './cn';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'pill';
 export type ButtonSize = 'md' | 'sm';
 
 // primary usa brand-strong (texto blanco AA); el acento brand queda para
-// links/íconos. secondary y ghost para acciones de menor jerarquía.
-const VARIANTS: Record<ButtonVariant, string> = {
+// links/íconos. secondary y ghost para acciones de menor jerarquía. `pill` es
+// para filtros toggle (usar con `selected`).
+const VARIANTS: Record<Exclude<ButtonVariant, 'pill'>, string> = {
   primary: 'bg-brand-strong text-white shadow-sm hover:opacity-90',
   secondary: 'border border-line bg-surface text-muted hover:bg-page hover:text-ink',
   ghost: 'text-muted hover:bg-surface-container hover:text-ink',
@@ -22,24 +23,35 @@ const SIZES: Record<ButtonSize, string> = {
 export interface ButtonProps extends ComponentProps<'button'> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  // Solo para variant="pill": estado activo del filtro (fija aria-pressed).
+  selected?: boolean;
 }
 
 export function Button({
   variant = 'primary',
   size = 'md',
+  selected = false,
   className,
   type = 'button',
   ...rest
 }: ButtonProps) {
+  const isPill = variant === 'pill';
+  const variantCls = isPill
+    ? selected
+      ? 'bg-brand-strong text-white'
+      : 'bg-surface-container text-muted hover:text-ink'
+    : VARIANTS[variant];
   return (
     <button
       type={type}
+      aria-pressed={isPill ? selected : undefined}
       className={cn(
-        'inline-flex items-center justify-center rounded-[10px] font-semibold transition-colors',
+        'inline-flex items-center justify-center font-semibold transition-colors',
+        isPill ? 'rounded-full' : 'rounded-[10px]',
         'disabled:pointer-events-none disabled:opacity-50',
         focusRing,
         SIZES[size],
-        VARIANTS[variant],
+        variantCls,
         className,
       )}
       {...rest}

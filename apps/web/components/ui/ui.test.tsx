@@ -25,6 +25,13 @@ describe('Button', () => {
     expect(b).toHaveClass('border', 'bg-surface', 'disabled:opacity-50');
     expect(b).toBeDisabled();
   });
+
+  it('pill: rounded-full + aria-pressed según selected', () => {
+    render(<Button variant="pill" selected>Todos</Button>);
+    const b = screen.getByRole('button', { name: 'Todos' });
+    expect(b).toHaveClass('rounded-full', 'bg-brand-strong');
+    expect(b).toHaveAttribute('aria-pressed', 'true');
+  });
 });
 
 describe('IconButton', () => {

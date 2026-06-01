@@ -1,6 +1,7 @@
 import { CalendarDays, ChevronRight } from 'lucide-react';
 import type { RankedActivity } from '../../lib/dashboard/demoData';
 import { CategoryChip } from '../CategoryChip';
+import { Card, cn, focusRing } from '../ui';
 
 export interface TopActivitiesProps {
   activities: RankedActivity[];
@@ -10,13 +11,13 @@ export interface TopActivitiesProps {
 // categoría y barra de ocupación. Server Component.
 export function TopActivities({ activities }: TopActivitiesProps) {
   return (
-    <section className="min-w-0 rounded-2xl border border-line bg-surface shadow-sm">
+    <Card padding="none" className="min-w-0">
       <div className="flex items-center justify-between px-5 py-4 md:px-6">
         <div>
           <h3 className="text-[15px] font-semibold tracking-tight text-ink">Top actividades</h3>
           <p className="text-xs text-faint">Las de mayor asistencia del período</p>
         </div>
-        <a href="#" className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand">
+        <a href="#" className={cn('inline-flex items-center gap-1 rounded text-[13px] font-semibold text-brand', focusRing)}>
           Ver todas <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
         </a>
       </div>
@@ -48,6 +49,6 @@ export function TopActivities({ activities }: TopActivitiesProps) {
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }
