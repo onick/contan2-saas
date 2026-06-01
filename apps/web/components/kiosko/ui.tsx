@@ -2,7 +2,8 @@
 // touch targets grandes (≥56px). Separadas de components/ui (que son claras y
 // para el admin). Aquí no se usa el shell admin ni sus tokens de superficie.
 
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
+import { Ticket } from 'lucide-react';
 
 // Paleta oscura del kiosko (constante local; no contamina @theme). El naranja
 // de marca (#e65100/#ff6f00) se mantiene como único acento.
@@ -21,6 +22,11 @@ export const KIOSK = {
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
 }
+
+// Estilo mono (eyebrows/fechas/etiquetas). La var la inyecta el layout del kiosko.
+export const kioskMono: CSSProperties = {
+  fontFamily: 'var(--font-roboto-mono), ui-monospace, "SF Mono", Menlo, monospace',
+};
 
 // Anillo de foco visible sobre fondo oscuro (WCAG 1.4.11).
 export const kioskFocus =
@@ -67,6 +73,45 @@ export function KioskButton({
       {...props}
     >
       {children}
+    </button>
+  );
+}
+
+// CTA "ticket" del welcome (stub perforado + cuerpo + flecha), en naranja de
+// marca, con muescas laterales (círculos del color del fondo) y pulso suave.
+// Es la pieza de mayor "nivel" del kiosko, inspirada en el ticket de v1.
+export function TicketButton({ label, eyebrow = 'Admit one', onClick }: { label: string; eyebrow?: string; onClick?: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={cx(
+        'kiosk-pulse group relative inline-flex h-[96px] w-full max-w-[520px] items-stretch overflow-hidden rounded-xl',
+        'bg-[linear-gradient(180deg,#ff6f00_0%,#e65100_100%)] text-white',
+        'ring-1 ring-inset ring-white/15 transition-transform active:scale-[0.99]',
+        kioskFocus,
+      )}
+    >
+      {/* Muescas laterales (color del fondo) — efecto ticket recortado */}
+      <span aria-hidden="true" className="absolute -left-[11px] top-1/2 h-[22px] w-[22px] -translate-y-1/2 rounded-full bg-[#0b0e14]" />
+      <span aria-hidden="true" className="absolute -right-[11px] top-1/2 h-[22px] w-[22px] -translate-y-1/2 rounded-full bg-[#0b0e14]" />
+
+      {/* Stub: ícono + número, con perforación dashed a la derecha */}
+      <span className="relative flex w-[96px] flex-none flex-col items-center justify-center gap-1 bg-white/10">
+        <Ticket size={34} strokeWidth={1.6} aria-hidden="true" className="text-white/90" />
+        <span style={kioskMono} className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/60">01</span>
+        <span aria-hidden="true" className="absolute right-0 top-4 bottom-4 border-r-2 border-dashed border-white/30" />
+      </span>
+
+      {/* Cuerpo: eyebrow + label */}
+      <span className="flex flex-1 flex-col items-start justify-center gap-1 px-7 text-left">
+        <span style={kioskMono} className="text-[10px] font-semibold uppercase tracking-[0.32em] text-white/60">{eyebrow}</span>
+        <span className="text-lg font-extrabold uppercase tracking-[0.06em] sm:text-xl">{label}</span>
+      </span>
+
+      {/* Flecha */}
+      <span aria-hidden="true" className="flex flex-none items-center pr-7 text-3xl font-light text-white/90 transition-transform group-hover:translate-x-1">→</span>
     </button>
   );
 }

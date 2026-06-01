@@ -61,3 +61,13 @@ body {
   background-color: var(--color-page);
   color: var(--color-ink);
 }
+
+/* Kiosko · pulso suave del CTA (respira el glow). Scope: .kiosk-pulse. */
+@keyframes kiosk-pulse {
+  0%, 100% { box-shadow: 0 18px 40px -16px rgba(230, 81, 0, 0.55), 0 0 0 0 rgba(255, 111, 0, 0.28); }
+  50%      { box-shadow: 0 18px 40px -16px rgba(230, 81, 0, 0.55), 0 0 0 14px rgba(255, 111, 0, 0); }
+}
+.kiosk-pulse { animation: kiosk-pulse 2.6s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .kiosk-pulse { animation: none; }
+}

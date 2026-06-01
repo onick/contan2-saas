@@ -9,7 +9,7 @@ import {
   ArrowLeft, Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
   Baby, Info, Minus, Plus,
 } from 'lucide-react';
-import { KioskButton, FauxQr, cx, kioskFocus } from './ui';
+import { KioskButton, TicketButton, FauxQr, cx, kioskFocus, kioskMono } from './ui';
 import { KioskClock } from './KioskClock';
 import { partySize, type KioskActivity, type KioskVisitor } from '../../lib/kiosko/demoData';
 
@@ -78,23 +78,37 @@ const inputCls = cx(
 );
 
 // ── 1 · Welcome ────────────────────────────────────────────────────────────
-export function WelcomeScreen({ brandName, onStart }: { brandName: string; onStart: () => void }) {
+export function WelcomeScreen({
+  brandName, logoUrl, onStart,
+}: { brandName: string; logoUrl: string | null; onStart: () => void }) {
   return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-10 px-6 text-center">
-      <div className="flex flex-col items-center gap-4">
-        <span className="grid h-20 w-20 place-items-center rounded-3xl bg-[#e65100] text-2xl font-bold text-white">
-          {initials(brandName)}
-        </span>
-        <p className="text-xl font-medium text-[#f4f5f8] md:text-2xl">{brandName}</p>
+    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col items-center justify-between gap-10 px-6 py-12 text-center md:py-16">
+      {/* Logo real del tenant (a todo color sobre el fondo oscuro) con glow cálido */}
+      <div className="flex flex-col items-center">
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt={brandName}
+            width={300}
+            height={222}
+            className="h-auto w-[clamp(180px,38vw,300px)] object-contain"
+            style={{ filter: 'drop-shadow(0 12px 36px rgba(255,111,0,0.22))' }}
+          />
+        ) : (
+          <span className="grid h-24 w-24 place-items-center rounded-3xl bg-[#e65100] text-3xl font-bold text-white">
+            {initials(brandName)}
+          </span>
+        )}
       </div>
 
       <KioskClock />
 
-      <div className="flex flex-col items-center gap-4">
-        <KioskButton size="xl" onClick={onStart} className="px-12">
-          Toca para registrarte
-        </KioskButton>
-        <p className="text-sm text-[#71748a]">Registra tu asistencia en segundos</p>
+      <div className="flex w-full flex-col items-center gap-7">
+        <TicketButton label="Toca para registrarte" onClick={onStart} />
+        <p style={kioskMono} className="text-[11px] font-medium uppercase tracking-[0.28em] text-[#71748a] md:text-[13px]">
+          Asistencia · Cine · Concierto · Taller · Exposición
+        </p>
       </div>
     </div>
   );

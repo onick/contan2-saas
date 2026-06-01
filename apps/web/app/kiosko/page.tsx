@@ -29,7 +29,10 @@ function demoLookup(query: string): KioskVisitor | null {
 }
 
 export default function KioskPage() {
-  const brandName = getLocalBranding().name;
+  const branding = getLocalBranding();
+  const brandName = branding.name;
+  // Logo del tenant; en el demo cae al asset local. En real → branding.logoUrl.
+  const logoUrl = branding.logoUrl ?? '/kiosko/logo.png';
   const [screen, setScreen] = useState<KioskScreen>('welcome');
   const [activity, setActivity] = useState<KioskActivity | null>(null);
   const [visitor, setVisitor] = useState<KioskVisitor | null>(null);
@@ -72,7 +75,7 @@ export default function KioskPage() {
   return (
     <>
       {screen === 'welcome' && (
-        <WelcomeScreen brandName={brandName} onStart={() => setScreen('activities')} />
+        <WelcomeScreen brandName={brandName} logoUrl={logoUrl} onStart={() => setScreen('activities')} />
       )}
 
       {screen === 'activities' && (
