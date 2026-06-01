@@ -26,6 +26,9 @@ importers:
       '@contan2/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@contan2/codes':
+        specifier: workspace:*
+        version: link:../../packages/codes
       '@contan2/config':
         specifier: workspace:*
         version: link:../../packages/config

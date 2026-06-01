@@ -7,6 +7,10 @@ import { healthzRoute } from './routes/healthz.js';
 import { dbCheckRoute } from './routes/db-check.js';
 import { authMeRoute } from './routes/auth-me.js';
 import { orgBrandingRoute } from './routes/org-branding.js';
+import { dashboardMetricsRoute } from './routes/dashboard-metrics.js';
+import { activitiesRoute } from './routes/activities.js';
+import { usersRoute } from './routes/users.js';
+import { attendanceRoute } from './routes/attendance.js';
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
@@ -19,6 +23,11 @@ export function buildApp(): FastifyInstance {
   app.register(dbCheckRoute, { prefix: '/api/v2' });
   app.register(authMeRoute, { prefix: '/api/v2' });
   app.register(orgBrandingRoute, { prefix: '/api/v2' });
+  // Endpoints read-only de negocio (tenant-scoped, sesión staff requerida).
+  app.register(dashboardMetricsRoute, { prefix: '/api/v2' });
+  app.register(activitiesRoute, { prefix: '/api/v2' });
+  app.register(usersRoute, { prefix: '/api/v2' });
+  app.register(attendanceRoute, { prefix: '/api/v2' });
 
   // Cierra el pool singleton de @contan2/db al apagar la app (tests + prod).
   app.addHook('onClose', async () => {
