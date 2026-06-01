@@ -1,5 +1,6 @@
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, UsersRound } from 'lucide-react';
 import type { StaffMember, StaffStatus, RoleKey } from '../../lib/equipo/demoData';
+import { Card, Chip, IconButton, EmptyState, cn, focusRing, type ChipTone } from '../ui';
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -14,7 +15,8 @@ const AVATAR_COLORS = [
   'bg-[#fdeaf0] text-[#b03060]',
 ];
 
-// Chip de rol tonal. Propietario lleva el acento de marca (jerarquía visual).
+// Chip de rol con color propio por rol (5 tonos distintos, fuera de la paleta
+// de Chip) → se mantiene inline, análogo a CategoryChip.
 const ROLE_STYLE: Record<RoleKey, string> = {
   propietario: 'bg-accent-soft text-[#b35400]',
   administrador: 'bg-[#e8f0fe] text-[#1a56b0]',
@@ -23,10 +25,11 @@ const ROLE_STYLE: Record<RoleKey, string> = {
   lectura: 'bg-surface-container text-muted',
 };
 
-const STATUS_STYLE: Record<StaffStatus, { chip: string; dot: string }> = {
-  activo: { chip: 'bg-success-bg text-success-fg', dot: 'bg-success-fg' },
-  pendiente: { chip: 'bg-accent-soft text-[#b35400]', dot: 'bg-brand-accent' },
-  inactivo: { chip: 'bg-surface-container text-faint', dot: 'bg-[#9aa0ad]' },
+// Estado → tono de Chip (activo=verde, pendiente=naranja, inactivo=neutral).
+const STATUS_TONE: Record<StaffStatus, ChipTone> = {
+  activo: 'success',
+  pendiente: 'warning',
+  inactivo: 'neutral',
 };
 
 export interface StaffTableProps {
@@ -37,8 +40,18 @@ export interface StaffTableProps {
 // y último acceso. En mobile se oculta el último acceso. Server Component, datos
 // demo (no PII real).
 export function StaffTable({ members }: StaffTableProps) {
+  if (members.length === 0) {
+    return (
+      <EmptyState
+        icon={UsersRound}
+        title="Sin miembros"
+        description="Invitá a tu equipo para que pueda gestionar la organización."
+      />
+    );
+  }
+
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+    <Card padding="none" className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse">
           <thead>
@@ -52,7 +65,6 @@ export function StaffTable({ members }: StaffTableProps) {
           </thead>
           <tbody>
             {members.map((m, i) => {
-              const st = STATUS_STYLE[m.status];
               const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
               return (
                 <tr key={m.id} className="border-t border-line align-middle hover:bg-page">
@@ -73,17 +85,16 @@ export function StaffTable({ members }: StaffTableProps) {
                     </span>
                   </td>
                   <td className="px-4 py-4">
-                    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.chip}`}>
-                      <span className={`h-[7px] w-[7px] rounded-full ${st.dot}`} />
-                      {m.statusLabel}
-                    </span>
+                    <Chip tone={STATUS_TONE[m.status]} dot>{m.statusLabel}</Chip>
                   </td>
                   <td className="hidden whitespace-nowrap px-4 py-4 text-[13px] text-muted md:table-cell">{m.lastActive}</td>
-                  <td className="whitespace-nowrap px-4 py-4 text-right">
-                    <a href="#" className="text-[13px] font-semibold text-brand">Gestionar</a>
-                    <button type="button" aria-label="Más acciones" className="ml-2 align-middle text-faint hover:text-muted">
-                      <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
-                    </button>
+                  <td className="whitespace-nowrap px-4 py-4">
+                    <div className="flex items-center justify-end gap-1">
+                      <a href="#" className={cn('rounded px-1 text-[13px] font-semibold text-brand', focusRing)}>Gestionar</a>
+                      <IconButton label="Más acciones" variant="ghost" size="sm">
+                        <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
+                      </IconButton>
+                    </div>
                   </td>
                 </tr>
               );
@@ -91,6 +102,6 @@ export function StaffTable({ members }: StaffTableProps) {
           </tbody>
         </table>
       </div>
-    </section>
+    </Card>
   );
 }

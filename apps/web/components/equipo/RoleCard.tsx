@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react';
 import type { Role } from '../../lib/equipo/demoData';
+import { Card, Chip, cn, focusRing } from '../ui';
 
 export interface RoleCardProps {
   role: Role;
@@ -10,7 +11,7 @@ export interface RoleCardProps {
 export function RoleCard({ role }: RoleCardProps) {
   const RoleIcon = role.icon;
   return (
-    <section className="flex flex-col rounded-2xl border border-line bg-surface p-5 shadow-sm">
+    <Card as="article" padding="md" className="flex flex-col">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-accent-soft text-[#b35400]">
@@ -18,9 +19,9 @@ export function RoleCard({ role }: RoleCardProps) {
           </span>
           <h3 className="truncate text-[15px] font-semibold tracking-tight text-ink">{role.label}</h3>
         </div>
-        <span className="flex-none rounded-full bg-surface-container px-2.5 py-1 text-[11px] font-semibold tabular-nums text-muted">
+        <Chip tone="neutral" className="flex-none tabular-nums">
           {role.members} {role.members === 1 ? 'miembro' : 'miembros'}
-        </span>
+        </Chip>
       </div>
 
       <p className="mt-3 text-[13px] text-muted">{role.description}</p>
@@ -36,8 +37,8 @@ export function RoleCard({ role }: RoleCardProps) {
 
       <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
         <span className="text-[11px] text-faint">Permisos predefinidos</span>
-        <a href="#" className="text-[13px] font-semibold text-brand">Ver detalle</a>
+        <a href="#" className={cn('rounded px-1 text-[13px] font-semibold text-brand', focusRing)}>Ver detalle</a>
       </div>
-    </section>
+    </Card>
   );
 }
