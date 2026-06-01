@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { ActivitiesTable } from '../../../components/activities/ActivitiesTable';
+import { SectionHeader, Button, IconButton, Card, cn, focusRing } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { ACTIVITIES, STATUS_TABS, ACTIVITIES_KPIS } from '../../../lib/activities/demoData';
 
@@ -37,25 +38,23 @@ export default function ActividadesPage() {
     <AppShell branding={branding} title="Actividades" activeKey="actividades">
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado + acción */}
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[26px] font-bold tracking-tight text-ink xl:text-[30px]">Actividades</h1>
-            <p className="mt-1 text-muted">Gestioná los eventos del centro cultural</p>
-          </div>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-[10px] bg-brand-strong px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
-          >
-            <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nueva actividad
-          </button>
-        </header>
+        <SectionHeader
+          level={1}
+          title="Actividades"
+          subtitle="Gestioná los eventos del centro cultural"
+          actions={
+            <Button>
+              <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nueva actividad
+            </Button>
+          }
+        />
 
         {/* Mini-KPIs */}
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {KPIS.map((k) => {
             const KIcon = k.icon;
             return (
-              <div key={k.key} className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-5 shadow-sm">
+              <Card key={k.key} padding="md" className="flex items-center gap-4">
                 <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-primary-container text-on-primary-container">
                   <KIcon size={20} strokeWidth={1.75} aria-hidden="true" />
                 </span>
@@ -63,56 +62,58 @@ export default function ActividadesPage() {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{k.label}</p>
                   <p className="text-2xl font-bold tabular-nums text-ink">{k.value}</p>
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>
 
         {/* Barra de filtros */}
-        <div className="mt-6 rounded-2xl border border-line bg-surface p-4 shadow-sm">
-          {/* Tabs de estado */}
+        <Card padding="none" className="mt-6 p-4">
+          {/* Tabs de estado (pills toggle) */}
           <div className="flex flex-wrap gap-2">
             {STATUS_TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                aria-pressed={t.key === 'todas'}
-                className={
-                  'rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ' +
-                  (t.key === 'todas'
-                    ? 'bg-brand-strong text-white'
-                    : 'bg-surface-container text-muted hover:text-ink')
-                }
-              >
+              <Button key={t.key} variant="pill" size="sm" selected={t.key === 'todas'}>
                 {t.label} <span className="tabular-nums opacity-70">({t.count})</span>
-              </button>
+              </Button>
             ))}
           </div>
 
           {/* Filtros secundarios */}
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-            <button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-medium text-muted">
+            <Button variant="secondary" size="sm">
               Categoría: Todas <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
-            </button>
-            <button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-medium text-muted">
-              <CalendarDays size={15} strokeWidth={1.75} aria-hidden="true" /> Fecha <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
-            </button>
+            </Button>
+            <Button variant="secondary" size="sm">
+              <CalendarDays size={15} strokeWidth={1.75} aria-hidden="true" /> Fecha{' '}
+              <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
+            </Button>
             <div className="ml-auto flex items-center gap-2">
               <div className="hidden items-center gap-2 rounded-full bg-surface-container px-3.5 py-2 text-[13px] text-faint sm:flex">
                 <Search size={16} strokeWidth={1.75} aria-hidden="true" />
                 <span>Buscar actividad…</span>
               </div>
+              {/* Toggle de vista (segmentado · botones reales con foco) */}
               <div className="flex items-center rounded-lg border border-line bg-surface p-0.5">
-                <span className="grid h-8 w-8 place-items-center rounded-md bg-surface-container text-ink" aria-label="Vista lista">
+                <button
+                  type="button"
+                  aria-label="Vista lista"
+                  aria-pressed={true}
+                  className={cn('grid h-8 w-8 place-items-center rounded-md bg-surface-container text-ink', focusRing)}
+                >
                   <List size={17} strokeWidth={1.75} aria-hidden="true" />
-                </span>
-                <span className="grid h-8 w-8 place-items-center rounded-md text-faint" aria-label="Vista cuadrícula">
+                </button>
+                <button
+                  type="button"
+                  aria-label="Vista cuadrícula"
+                  aria-pressed={false}
+                  className={cn('grid h-8 w-8 place-items-center rounded-md text-faint hover:text-muted', focusRing)}
+                >
                   <LayoutGrid size={17} strokeWidth={1.75} aria-hidden="true" />
-                </span>
+                </button>
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Tabla */}
         <div className="mt-4">
@@ -123,19 +124,19 @@ export default function ActividadesPage() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[13px] text-muted">
           <div className="inline-flex items-center gap-2">
             <span>Filas por página</span>
-            <span className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 font-medium text-ink">
+            <Button variant="secondary" size="sm">
               10 <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
-            </span>
+            </Button>
           </div>
           <div className="inline-flex items-center gap-3">
             <span className="tabular-nums">1–{ACTIVITIES.length} de {ACTIVITIES.length}</span>
             <span className="inline-flex gap-1">
-              <span className="grid h-8 w-8 place-items-center rounded-lg border border-line text-faint" aria-label="Anterior">
+              <IconButton label="Anterior" variant="outline" size="sm">
                 <ChevronLeft size={16} strokeWidth={2} aria-hidden="true" />
-              </span>
-              <span className="grid h-8 w-8 place-items-center rounded-lg border border-line text-faint" aria-label="Siguiente">
+              </IconButton>
+              <IconButton label="Siguiente" variant="outline" size="sm">
                 <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
-              </span>
+              </IconButton>
             </span>
           </div>
         </div>

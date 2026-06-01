@@ -1,8 +1,9 @@
-import { CalendarDays, MessagesSquare, Film, Music, Image, Wrench, MoreHorizontal } from 'lucide-react';
+import { CalendarDays, MessagesSquare, Film, Music, Image, Wrench, MoreHorizontal, CalendarSearch } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Activity, ActivityStatus } from '../../lib/activities/demoData';
 import { StatusBadge } from './StatusBadge';
 import { CategoryChip } from '../CategoryChip';
+import { Card, IconButton, EmptyState, cn, focusRing } from '../ui';
 
 // Ícono por categoría (coherente con lucide).
 const CATEGORY_ICON: Record<string, LucideIcon> = {
@@ -27,8 +28,18 @@ export interface ActivitiesTableProps {
 // categoría, chip de estado, barra de ocupación, acciones. En mobile se ocultan
 // Fecha/Lugar/Estado (queda Actividad + Ocupación). Server Component.
 export function ActivitiesTable({ activities }: ActivitiesTableProps) {
+  if (activities.length === 0) {
+    return (
+      <EmptyState
+        icon={CalendarSearch}
+        title="Sin actividades"
+        description="No hay actividades que coincidan con los filtros aplicados."
+      />
+    );
+  }
+
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+    <Card padding="none" className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[680px] border-collapse">
           <thead>
@@ -83,11 +94,13 @@ export function ActivitiesTable({ activities }: ActivitiesTableProps) {
                     )}
                   </td>
                   {/* Acciones */}
-                  <td className="whitespace-nowrap px-4 py-4 text-right">
-                    <a href="#" className="text-[13px] font-semibold text-brand">Ver</a>
-                    <button type="button" aria-label="Más acciones" className="ml-2 align-middle text-faint hover:text-muted">
-                      <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
-                    </button>
+                  <td className="whitespace-nowrap px-4 py-4">
+                    <div className="flex items-center justify-end gap-1">
+                      <a href="#" className={cn('rounded px-1 text-[13px] font-semibold text-brand', focusRing)}>Ver</a>
+                      <IconButton label="Más acciones" variant="ghost" size="sm">
+                        <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
+                      </IconButton>
+                    </div>
                   </td>
                 </tr>
               );
@@ -95,6 +108,6 @@ export function ActivitiesTable({ activities }: ActivitiesTableProps) {
           </tbody>
         </table>
       </div>
-    </section>
+    </Card>
   );
 }
