@@ -54,7 +54,7 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
 
       {/* Acciones */}
       <div className="flex flex-none flex-col gap-2 md:w-40">
-        <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-brand px-4 py-2 text-[13px] font-semibold text-white shadow-sm">
+        <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-brand-strong px-4 py-2 text-[13px] font-semibold text-white shadow-sm">
           <Eye size={16} strokeWidth={2} aria-hidden="true" /> Ver detalle
         </button>
         <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-line bg-surface px-4 py-2 text-[13px] font-semibold text-muted">

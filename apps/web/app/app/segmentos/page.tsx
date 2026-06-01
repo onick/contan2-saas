@@ -24,7 +24,7 @@ export default function SegmentosPage() {
             <h1 className="text-[26px] font-bold tracking-tight text-ink xl:text-[30px]">Segmentos</h1>
             <p className="mt-1 text-muted">Agrupá tu audiencia para invitar y analizar</p>
           </div>
-          <button type="button" className="inline-flex items-center gap-2 rounded-[10px] bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm">
+          <button type="button" className="inline-flex items-center gap-2 rounded-[10px] bg-brand-strong px-4 py-2.5 text-sm font-semibold text-white shadow-sm">
             <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nuevo segmento
           </button>
         </header>

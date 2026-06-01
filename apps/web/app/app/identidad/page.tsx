@@ -57,12 +57,12 @@ export default function IdentidadPage() {
             <Section title="Logo e imagen">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-4">
-                  <span className="grid h-16 w-16 flex-none place-items-center rounded-xl bg-brand text-lg font-bold text-white">CC</span>
+                  <span className="grid h-16 w-16 flex-none place-items-center rounded-xl bg-brand-strong text-lg font-bold text-white">CC</span>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-ink">Logo principal</p>
                     <p className="text-xs text-faint">PNG/SVG, fondo transparente, mín. 256px</p>
                     <div className="mt-2 flex gap-2">
-                      <button type="button" className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-[13px] font-semibold text-white"><Upload size={14} strokeWidth={2} aria-hidden="true" /> Subir</button>
+                      <button type="button" className="inline-flex items-center gap-1.5 rounded-lg bg-brand-strong px-3 py-1.5 text-[13px] font-semibold text-white"><Upload size={14} strokeWidth={2} aria-hidden="true" /> Subir</button>
                       <button type="button" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold text-muted">Quitar</button>
                     </div>
                   </div>
@@ -204,7 +204,7 @@ export default function IdentidadPage() {
       <div className="sticky bottom-0 -mx-5 mt-4 flex items-center justify-end gap-3 border-t border-line bg-surface/90 px-5 py-3 backdrop-blur md:-mx-7 md:px-7 xl:-mx-8 xl:px-8">
         <span className="mr-auto text-[12px] text-faint">Los cambios se aplican al guardar.</span>
         <button type="button" className="rounded-[10px] border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-muted">Descartar</button>
-        <button type="button" className="inline-flex items-center gap-2 rounded-[10px] bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm">
+        <button type="button" className="inline-flex items-center gap-2 rounded-[10px] bg-brand-strong px-5 py-2.5 text-sm font-semibold text-white shadow-sm">
           <CheckCircle2 size={17} strokeWidth={2} aria-hidden="true" /> Guardar cambios
         </button>
       </div>

@@ -56,7 +56,7 @@ export default function RegistrosPage() {
                 aria-pressed={i === 0}
                 className={
                   'rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ' +
-                  (i === 0 ? 'bg-brand text-white' : 'bg-surface-container text-muted hover:text-ink')
+                  (i === 0 ? 'bg-brand-strong text-white' : 'bg-surface-container text-muted hover:text-ink')
                 }
               >
                 {t}

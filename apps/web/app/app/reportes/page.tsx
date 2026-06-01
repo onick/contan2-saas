@@ -60,7 +60,7 @@ export default function ReportesPage() {
                 <ChevronDown size={15} strokeWidth={2} aria-hidden="true" className="flex-none text-faint" />
               </span>
             </label>
-            <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm lg:flex-none">
+            <button type="button" className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-brand-strong px-5 py-2.5 text-sm font-semibold text-white shadow-sm lg:flex-none">
               <Play size={16} strokeWidth={2.25} aria-hidden="true" /> Generar
             </button>
           </div>

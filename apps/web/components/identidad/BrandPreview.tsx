@@ -48,7 +48,7 @@ export function BrandPreview({ name }: BrandPreviewProps) {
                 <span className="block h-full w-[78%] rounded-full bg-brand-accent" />
               </span>
             </div>
-            <span className="mt-2 inline-flex rounded-md bg-brand px-2.5 py-1 text-[10px] font-semibold text-white">
+            <span className="mt-2 inline-flex rounded-md bg-brand-strong px-2.5 py-1 text-[10px] font-semibold text-white">
               + Nueva actividad
             </span>
           </div>

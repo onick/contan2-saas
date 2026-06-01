@@ -31,7 +31,7 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
           <img src={branding.logoUrl} alt={branding.name} className="h-9 w-auto" />
         ) : (
           <>
-            <span className="grid h-9 w-9 flex-none place-items-center rounded-[11px] bg-brand text-sm font-bold text-white shadow-sm">
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-[11px] bg-brand-strong text-sm font-bold text-white shadow-sm">
               {initials(branding.name)}
             </span>
             <span className="truncate text-[15px] font-semibold tracking-tight text-ink">
@@ -91,7 +91,7 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
 
       {/* Cuenta (placeholder hasta el wiring de auth) */}
       <div className="m-2 flex items-center gap-3 rounded-2xl bg-surface-container px-4 py-3">
-        <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand text-sm font-semibold text-white">
+        <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand-strong text-sm font-semibold text-white">
           {initials(branding.name)}
         </span>
         <span className="min-w-0">

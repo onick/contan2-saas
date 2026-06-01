@@ -21,7 +21,7 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur md:px-7">
       {/* Brand compacto (mobile, drawer oculto) */}
       <span className="flex items-center gap-2 text-sm font-semibold tracking-tight text-brand md:hidden">
-        <span className="grid h-8 w-8 flex-none place-items-center rounded-[9px] bg-brand text-xs font-bold text-white">
+        <span className="grid h-8 w-8 flex-none place-items-center rounded-[9px] bg-brand-strong text-xs font-bold text-white">
           {initials(branding.name)}
         </span>
       </span>
@@ -57,7 +57,7 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
           <span aria-hidden="true" className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brand-accent ring-2 ring-surface" />
         </button>
 
-        <span className="ml-0.5 grid h-9 w-9 flex-none place-items-center rounded-full bg-brand text-xs font-semibold text-white">
+        <span className="ml-0.5 grid h-9 w-9 flex-none place-items-center rounded-full bg-brand-strong text-xs font-semibold text-white">
           {initials(branding.name)}
         </span>
       </div>

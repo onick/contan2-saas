@@ -44,7 +44,7 @@ export default function TenantAdminDashboard() {
           </div>
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-[10px] bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+            className="inline-flex items-center gap-2 rounded-[10px] bg-brand-strong px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
           >
             <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nueva actividad
           </button>

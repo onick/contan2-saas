@@ -30,7 +30,7 @@ export default function EquipoPage() {
             <button type="button" className="inline-flex items-center gap-2 rounded-[10px] border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-muted">
               <ShieldCheck size={17} strokeWidth={2} aria-hidden="true" /> Gestionar roles
             </button>
-            <button type="button" className="inline-flex items-center gap-2 rounded-[10px] bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm">
+            <button type="button" className="inline-flex items-center gap-2 rounded-[10px] bg-brand-strong px-4 py-2.5 text-sm font-semibold text-white shadow-sm">
               <UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Invitar miembro
             </button>
           </div>

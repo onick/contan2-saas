@@ -44,7 +44,7 @@ export default function ActividadesPage() {
           </div>
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-[10px] bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
+            className="inline-flex items-center gap-2 rounded-[10px] bg-brand-strong px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
           >
             <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nueva actividad
           </button>
@@ -80,7 +80,7 @@ export default function ActividadesPage() {
                 className={
                   'rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ' +
                   (t.key === 'todas'
-                    ? 'bg-brand text-white'
+                    ? 'bg-brand-strong text-white'
                     : 'bg-surface-container text-muted hover:text-ink')
                 }
               >

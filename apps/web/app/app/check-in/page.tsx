@@ -57,7 +57,7 @@ export default function CheckinPage() {
                   <button type="button" className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-semibold text-muted">
                     <QrCode size={18} strokeWidth={1.75} aria-hidden="true" /> Escanear
                   </button>
-                  <button type="button" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-sm">
+                  <button type="button" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-strong px-4 py-3 text-sm font-semibold text-white shadow-sm">
                     <UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Nuevo visitante
                   </button>
                 </div>
