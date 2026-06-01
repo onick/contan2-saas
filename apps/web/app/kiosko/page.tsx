@@ -65,6 +65,7 @@ export default function KioskPage() {
       code: mintDemoCode('CCB'), // prefijo del tenant en real; 'CCB' en demo
       visitCount: 1,
       isNew: true,
+      companionsChildren: f.children,
     });
   };
 

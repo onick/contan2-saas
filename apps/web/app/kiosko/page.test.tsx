@@ -41,6 +41,21 @@ describe('/kiosko · flujo del visitante', () => {
     expect(screen.getByText(/^CCB-[0-9A-Z]{6}$/)).toBeInTheDocument();
   });
 
+  it('visitante con niños: suma acompañantes y muestra cupos ocupados', () => {
+    render(<KioskPage />);
+    fireEvent.click(screen.getByText('Toca para registrarte'));
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getByText('Soy nuevo aquí'));
+    fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: 'Ana' } });
+    fireEvent.change(screen.getByLabelText(/Apellido/), { target: { value: 'Gómez' } });
+    // Agrega 2 niños.
+    const addKids = screen.getByRole('button', { name: 'Agregar niños' });
+    fireEvent.click(addKids); fireEvent.click(addKids);
+    fireEvent.click(screen.getByRole('button', { name: /Registrarme y asistir/ }));
+    expect(screen.getAllByText(/\+ 2 niños/).length).toBeGreaterThan(0);
+    expect(screen.getByText('Ocupa 3 cupos')).toBeInTheDocument(); // 1 visitante + 2 niños
+  });
+
   it('código desconocido → ofrece registro de nuevo', () => {
     render(<KioskPage />);
     fireEvent.click(screen.getByText('Toca para registrarte'));

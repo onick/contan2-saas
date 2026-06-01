@@ -7,13 +7,62 @@
 import { useState, type FormEvent } from 'react';
 import {
   ArrowLeft, Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
+  Baby, Info, Minus, Plus,
 } from 'lucide-react';
 import { KioskButton, FauxQr, cx, kioskFocus } from './ui';
 import { KioskClock } from './KioskClock';
-import type { KioskActivity, KioskVisitor } from '../../lib/kiosko/demoData';
+import { partySize, type KioskActivity, type KioskVisitor } from '../../lib/kiosko/demoData';
+
+const MAX_CHILDREN = 6;
+
+// Control de niños acompañantes. Regla de producto: SÓLO niños van como
+// acompañantes (asociados al adulto responsable, sin credencial propia pero
+// cuentan para el aforo). Cada ADULTO se registra con identidad propia.
+function CompanionsControl({
+  children, onChildren,
+}: { children: number; onChildren: (n: number) => void }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#191b22] p-5">
+      <p className="text-sm font-medium text-[#f4f5f8]">¿Vienes con niños?</p>
+      <p className="mt-0.5 text-xs text-[#71748a]">Opcional · ocupan cupo, sin credencial propia</p>
+      <div className="mt-4">
+        <StepperRow icon={<Baby size={20} aria-hidden="true" />} label="Niños" value={children} onChange={onChildren} />
+      </div>
+      <p className="mt-4 flex items-center gap-2 border-t border-white/10 pt-3 text-xs text-[#a2a5b4]">
+        <Info size={14} aria-hidden="true" className="flex-none text-[#ff8a3d]" />
+        Cada adulto debe registrarse por separado.
+      </p>
+    </div>
+  );
+}
+
+function StepperRow({ icon, label, value, onChange }: { icon: React.ReactNode; label: string; value: number; onChange: (n: number) => void }) {
+  const stepBtn = cx('grid h-11 w-11 place-items-center rounded-xl bg-[#22242e] text-[#f4f5f8] disabled:opacity-40', kioskFocus);
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-[#e65100]/15 text-[#ff8a3d]">{icon}</span>
+      <span className="flex-1 text-[#f4f5f8]">{label}</span>
+      <div className="flex items-center gap-3">
+        <button type="button" aria-label={`Quitar ${label.toLowerCase()}`} disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))} className={stepBtn}>
+          <Minus size={18} aria-hidden="true" />
+        </button>
+        <span className="w-6 text-center text-lg font-semibold tabular-nums text-[#f4f5f8]" aria-live="polite">{value}</span>
+        <button type="button" aria-label={`Agregar ${label.toLowerCase()}`} disabled={value >= MAX_CHILDREN} onClick={() => onChange(Math.min(MAX_CHILDREN, value + 1))} className={stepBtn}>
+          <Plus size={18} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
+}
+
+// "+ 2 niños", "+ 1 niño", "" si va solo.
+function companionsLabel(v: KioskVisitor): string {
+  if (v.companionsChildren <= 0) return '';
+  return `+ ${v.companionsChildren} ${v.companionsChildren === 1 ? 'niño' : 'niños'}`;
 }
 
 // Acento por categoría (dato categórico → color), tenue sobre fondo oscuro.
@@ -149,6 +198,7 @@ export function CodeScreen({
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<KioskVisitor | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [kids, setKids] = useState(0);
 
   const search = (e: FormEvent) => {
     e.preventDefault();
@@ -189,11 +239,14 @@ export function CodeScreen({
               <p className="text-sm text-[#a2a5b4]">{result.code} · {result.visitCount} visitas</p>
             </div>
           </div>
+          <div className="mt-4">
+            <CompanionsControl children={kids} onChildren={setKids} />
+          </div>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-            <KioskButton onClick={() => onFound(result)} className="flex-1">
+            <KioskButton onClick={() => onFound({ ...result, companionsChildren: kids })} className="flex-1">
               <Check size={20} aria-hidden="true" /> Sí, confirmar asistencia
             </KioskButton>
-            <KioskButton variant="secondary" onClick={() => { setResult(null); setQuery(''); }}>
+            <KioskButton variant="secondary" onClick={() => { setResult(null); setQuery(''); setKids(0); }}>
               <X size={20} aria-hidden="true" /> No soy yo
             </KioskButton>
           </div>
@@ -214,19 +267,28 @@ export function CodeScreen({
 }
 
 // ── 4b · Registro rápido (nuevo visitante) ─────────────────────────────────
-export interface NewVisitorForm { firstName: string; lastName: string; email: string; phone: string }
+export interface NewVisitorForm {
+  firstName: string; lastName: string; email: string; phone: string;
+  children: number;
+}
+type NewVisitorFields = Pick<NewVisitorForm, 'firstName' | 'lastName' | 'email' | 'phone'>;
 
 export function NewVisitorScreen({
   onSubmit, onBack,
 }: { onSubmit: (f: NewVisitorForm) => void; onBack: () => void }) {
-  const [form, setForm] = useState<NewVisitorForm>({ firstName: '', lastName: '', email: '', phone: '' });
+  const [form, setForm] = useState<NewVisitorFields>({ firstName: '', lastName: '', email: '', phone: '' });
+  const [kids, setKids] = useState(0);
   const valid = form.firstName.trim().length >= 2 && form.lastName.trim().length >= 2;
-  const set = (k: keyof NewVisitorForm) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: keyof NewVisitorFields) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!valid) return;
-    onSubmit({ firstName: form.firstName.trim(), lastName: form.lastName.trim(), email: form.email.trim(), phone: form.phone.trim() });
+    onSubmit({
+      firstName: form.firstName.trim(), lastName: form.lastName.trim(),
+      email: form.email.trim(), phone: form.phone.trim(),
+      children: kids,
+    });
   };
 
   return (
@@ -243,6 +305,7 @@ export function NewVisitorScreen({
         <KField label="Teléfono" hint="Opcional">
           <input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" className={inputCls} />
         </KField>
+        <CompanionsControl children={kids} onChildren={setKids} />
         <KioskButton type="submit" size="xl" disabled={!valid} className="mt-2">
           <Check size={22} aria-hidden="true" /> Registrarme y asistir
         </KioskButton>
@@ -267,6 +330,8 @@ function KField({ label, hint, required, children }: { label: string; hint?: str
 export function ConfirmationScreen({
   visitor, activityName, secondsLeft, onHome,
 }: { visitor: KioskVisitor; activityName: string; secondsLeft: number; onHome: () => void }) {
+  const party = partySize(visitor);
+  const companions = companionsLabel(visitor);
   return (
     <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center gap-7 px-6 py-10 text-center">
       <span className="grid h-16 w-16 place-items-center rounded-full bg-emerald-400/20 text-emerald-300">
@@ -278,18 +343,31 @@ export function ConfirmationScreen({
           {visitor.isNew ? `¡Bienvenida, ${visitor.firstName}!` : `¡Hola de nuevo, ${visitor.firstName}!`}
         </h1>
         <p className="mt-2 text-[#a2a5b4]">
-          Tu asistencia a <span className="font-medium text-[#f4f5f8]">{activityName}</span> quedó registrada.
+          {companions ? <>Registrados <span className="font-medium text-[#f4f5f8]">{visitor.firstName} {companions}</span> en </> : <>Tu asistencia a </>}
+          <span className="font-medium text-[#f4f5f8]">{activityName}</span>{companions ? '.' : ' quedó registrada.'}
         </p>
       </div>
 
       <FauxQr code={visitor.code} />
 
-      <div>
+      <div className="flex flex-col items-center gap-2">
         <p className="text-2xl font-bold tracking-[0.08em] tabular-nums text-[#f4f5f8]">{visitor.code}</p>
-        <span className="mt-2 inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-sm text-[#a2a5b4]">
-          {visitor.isNew ? 'Tu primera visita' : `Visita número ${visitor.visitCount}`}
-        </span>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-sm text-[#a2a5b4]">
+            {visitor.isNew ? 'Tu primera visita' : `Visita número ${visitor.visitCount}`}
+          </span>
+          {party > 1 ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#e65100]/15 px-3 py-1 text-sm font-medium text-[#ff8a3d]">
+              Ocupa {party} cupos
+            </span>
+          ) : null}
+        </div>
       </div>
+
+      <p className="flex max-w-md items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2.5 text-sm text-[#a2a5b4]">
+        <UserPlus size={16} aria-hidden="true" className="flex-none text-[#ff8a3d]" />
+        ¿Viene otro adulto? Puede registrarse al finalizar este proceso.
+      </p>
 
       <p className="max-w-md text-xs text-[#71748a]">
         Vista previa. El código y el QR definitivos los emite el servidor con la misma

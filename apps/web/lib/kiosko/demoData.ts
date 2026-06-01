@@ -28,6 +28,19 @@ export interface KioskVisitor {
   code: string;
   visitCount: number;
   isNew: boolean;
+  // Niños acompañantes asociados al ADULTO responsable (este visitante). Un solo
+  // código/QR cubre al grupo; los menores NO reciben credencial propia
+  // (privacidad/consentimiento) pero SÍ cuentan para el aforo. Regla de producto:
+  // todo ADULTO se registra con identidad propia (su código/correo); sólo los
+  // niños van como acompañantes. En la DB real (PR de escrituras) →
+  // attendance.companions_children (SMALLINT DEFAULT 0, aditivo: v1 lo ignora).
+  companionsChildren: number;
+}
+
+// Cabezas que ocupa este registro (el adulto responsable + sus niños). Es lo que
+// descuenta del cupo. partySize = 1 + companions_children (no hay adultos acomp.).
+export function partySize(v: Pick<KioskVisitor, 'companionsChildren'>): number {
+  return 1 + v.companionsChildren;
 }
 
 // Actividades disponibles (status activo, con cupo) como las vería el visitante.
@@ -46,6 +59,7 @@ export const KIOSK_KNOWN_VISITOR: KioskVisitor = {
   code: 'CCB-7F3K2P',
   visitCount: 4,
   isNew: false,
+  companionsChildren: 0,
 };
 
 export const KIOSK_KNOWN_EMAIL = 'maria.reyes@example.com';
