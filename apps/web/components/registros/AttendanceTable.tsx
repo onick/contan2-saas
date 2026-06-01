@@ -1,5 +1,7 @@
+import { CalendarX2 } from 'lucide-react';
 import type { AttendanceRecord, AttendanceStatus } from '../../lib/registros/demoData';
 import { CategoryChip } from '../CategoryChip';
+import { Card, Chip, EmptyState, type ChipTone } from '../ui';
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -13,10 +15,11 @@ const AVATAR_COLORS = [
   'bg-[#fdeaf0] text-[#b03060]',
 ];
 
-const STATUS_STYLE: Record<AttendanceStatus, { chip: string; dot: string }> = {
-  presente: { chip: 'bg-success-bg text-success-fg', dot: 'bg-success-fg' },
-  registrado: { chip: 'bg-accent-soft text-[#b35400]', dot: 'bg-brand-accent' },
-  noshow: { chip: 'bg-surface-container text-faint', dot: 'bg-[#9aa0ad]' },
+// Estado → tono de Chip (presente=verde, registrado=naranja, no-show=neutral).
+const STATUS_TONE: Record<AttendanceStatus, ChipTone> = {
+  presente: 'success',
+  registrado: 'warning',
+  noshow: 'neutral',
 };
 
 export interface AttendanceTableProps {
@@ -26,8 +29,18 @@ export interface AttendanceTableProps {
 // Tabla de registros de asistencia · estilo Google/Material. Server Component.
 // Datos demo (no PII). En mobile se ocultan Canal y Fecha.
 export function AttendanceTable({ records }: AttendanceTableProps) {
+  if (records.length === 0) {
+    return (
+      <EmptyState
+        icon={CalendarX2}
+        title="Sin registros"
+        description="No hay asistencias que coincidan con los filtros aplicados."
+      />
+    );
+  }
+
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+    <Card padding="none" className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[820px] border-collapse">
           <thead>
@@ -41,7 +54,6 @@ export function AttendanceTable({ records }: AttendanceTableProps) {
           </thead>
           <tbody>
             {records.map((r, i) => {
-              const st = STATUS_STYLE[r.status];
               const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
               return (
                 <tr key={r.id} className="border-t border-line align-middle hover:bg-page">
@@ -65,10 +77,7 @@ export function AttendanceTable({ records }: AttendanceTableProps) {
                     <span className="inline-flex rounded-md bg-surface-container px-2.5 py-1 text-xs text-muted">{r.channel}</span>
                   </td>
                   <td className="px-4 py-4">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.chip}`}>
-                      <span className={`h-[7px] w-[7px] rounded-full ${st.dot}`} />
-                      {r.statusLabel}
-                    </span>
+                    <Chip tone={STATUS_TONE[r.status]} dot>{r.statusLabel}</Chip>
                   </td>
                 </tr>
               );
@@ -76,6 +85,6 @@ export function AttendanceTable({ records }: AttendanceTableProps) {
           </tbody>
         </table>
       </div>
-    </section>
+    </Card>
   );
 }
