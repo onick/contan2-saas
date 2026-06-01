@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react';
 import { cn, focusRing } from './cn';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'pill';
-export type ButtonSize = 'md' | 'sm';
+export type ButtonSize = 'md' | 'sm' | 'lg';
 
 // primary usa brand-strong (texto blanco AA); el acento brand queda para
 // links/íconos. secondary y ghost para acciones de menor jerarquía. `pill` es
@@ -14,10 +14,12 @@ const VARIANTS: Record<Exclude<ButtonVariant, 'pill'>, string> = {
 };
 
 // md = 44px de alto (touch target). sm (36px) es para toolbars densas de
-// DESKTOP (pointer primario); no usar en superficies táctiles.
+// DESKTOP (pointer primario); no usar en superficies táctiles. lg (48px) para
+// acciones principales en superficies táctiles (check-in/kiosko, tablet-first).
 const SIZES: Record<ButtonSize, string> = {
   md: 'min-h-11 gap-2 px-4 text-sm',
   sm: 'min-h-9 gap-1.5 px-3 text-[13px]',
+  lg: 'min-h-12 gap-2 px-5 text-sm',
 };
 
 export interface ButtonProps extends ComponentProps<'button'> {

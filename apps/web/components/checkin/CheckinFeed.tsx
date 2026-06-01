@@ -1,5 +1,6 @@
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Radio } from 'lucide-react';
 import type { CheckinEntry } from '../../lib/checkin/demoData';
+import { Card, EmptyState } from '../ui';
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -14,8 +15,18 @@ export interface CheckinFeedProps {
 // fila: avatar, nombre, código + actividad, tiempo y check verde. Server
 // Component (el tiempo real se cablea luego).
 export function CheckinFeed({ entries, todayCount }: CheckinFeedProps) {
+  if (entries.length === 0) {
+    return (
+      <EmptyState
+        icon={Radio}
+        title="Sin movimiento"
+        description="Aún no se registraron check-ins. Las validaciones aparecerán acá en vivo."
+      />
+    );
+  }
+
   return (
-    <section className="min-w-0 rounded-2xl border border-line bg-surface shadow-sm">
+    <Card padding="none" className="min-w-0">
       <div className="flex items-center justify-between px-5 py-4 md:px-6">
         <div className="flex items-center gap-2">
           <h3 className="text-[15px] font-semibold tracking-tight text-ink">Movimiento</h3>
@@ -47,6 +58,6 @@ export function CheckinFeed({ entries, todayCount }: CheckinFeedProps) {
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }

@@ -3,6 +3,7 @@ import { Search, QrCode, UserPlus, ChevronRight } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { CheckinFeed } from '../../../components/checkin/CheckinFeed';
 import { CategoryChip } from '../../../components/CategoryChip';
+import { SectionHeader, Button, Card, Chip, cn, focusRing } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { CHECKIN_STATS, ACTIVE_ACTIVITIES, LIVE_FEED } from '../../../lib/checkin/demoData';
 
@@ -21,23 +22,24 @@ export default function CheckinPage() {
     <AppShell branding={branding} title="Check-in" activeKey="checkin">
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado */}
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-[26px] font-bold tracking-tight text-ink xl:text-[30px]">Check-in</h1>
-            <p className="mt-1 text-muted">Registrá asistencias en puerta, en tiempo real</p>
-          </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-success-bg px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-success-fg">
-            <span className="h-2 w-2 rounded-full bg-success-fg" /> En vivo
-          </span>
-        </header>
+        <SectionHeader
+          level={1}
+          title="Check-in"
+          subtitle="Registrá asistencias en puerta, en tiempo real"
+          actions={
+            <Chip tone="success" dot className="uppercase tracking-[0.04em]">
+              En vivo
+            </Chip>
+          }
+        />
 
         {/* Stats en vivo */}
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {CHECKIN_STATS.map((s) => (
-            <div key={s.key} className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
+            <Card key={s.key} padding="md">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{s.label}</p>
               <p className="mt-2 text-3xl font-bold tabular-nums text-ink">{s.value}</p>
-            </div>
+            </Card>
           ))}
         </div>
 
@@ -46,34 +48,46 @@ export default function CheckinPage() {
           {/* Columna principal */}
           <div className="flex min-w-0 flex-col gap-4">
             {/* Encontrar visitante */}
-            <section className="rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
+            <Card padding="lg">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Encontrar visitante</p>
               <div className="mt-3 flex flex-col gap-3 md:flex-row">
-                <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-line bg-page px-4 py-3 text-[14px] text-faint">
-                  <Search size={18} strokeWidth={1.75} aria-hidden="true" />
-                  <span className="truncate">CCB-XXXXXX, nombre, email o teléfono…</span>
-                </div>
+                {/* Búsqueda: input real focusable, alto cómodo para tablet (48px) */}
+                <label className="relative min-w-0 flex-1">
+                  <span className="sr-only">Buscar visitante por código, nombre, email o teléfono</span>
+                  <Search
+                    size={18}
+                    strokeWidth={1.75}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint"
+                  />
+                  <input
+                    type="search"
+                    placeholder="CCB-XXXXXX, nombre, email o teléfono…"
+                    className={cn(
+                      'h-12 w-full rounded-xl border border-line bg-page pl-11 pr-4 text-[14px] text-ink placeholder:text-faint',
+                      focusRing,
+                    )}
+                  />
+                </label>
                 <div className="flex gap-2">
-                  <button type="button" className="inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-semibold text-muted">
+                  <Button variant="secondary" size="lg">
                     <QrCode size={18} strokeWidth={1.75} aria-hidden="true" /> Escanear
-                  </button>
-                  <button type="button" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-strong px-4 py-3 text-sm font-semibold text-white shadow-sm">
+                  </Button>
+                  <Button size="lg">
                     <UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Nuevo visitante
-                  </button>
+                  </Button>
                 </div>
               </div>
               <p className="mt-3 text-[13px] text-muted">
                 Buscá por código o datos del visitante para validar su entrada.
               </p>
-            </section>
+            </Card>
 
             {/* Actividades activas */}
-            <section className="rounded-2xl border border-line bg-surface shadow-sm">
+            <Card padding="none">
               <div className="flex items-center justify-between px-5 py-4 md:px-6">
                 <h3 className="text-[15px] font-semibold tracking-tight text-ink">Actividades activas</h3>
-                <span className="rounded-full bg-surface-container px-2.5 py-1 text-[11px] font-semibold tabular-nums text-muted">
-                  {ACTIVE_ACTIVITIES.length}
-                </span>
+                <Chip tone="neutral" className="tabular-nums">{ACTIVE_ACTIVITIES.length}</Chip>
               </div>
               <ul>
                 {ACTIVE_ACTIVITIES.map((a) => (
@@ -96,13 +110,19 @@ export default function CheckinPage() {
                         <div className="h-full rounded-full bg-brand" style={{ width: `${a.occupancyPct}%` }} />
                       </div>
                     </div>
-                    <a href="#" className="inline-flex flex-none items-center gap-1 text-[13px] font-semibold text-brand">
+                    <a
+                      href="#"
+                      className={cn(
+                        'inline-flex flex-none items-center gap-1 rounded px-1 text-[13px] font-semibold text-brand',
+                        focusRing,
+                      )}
+                    >
                       Abrir <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
                     </a>
                   </li>
                 ))}
               </ul>
-            </section>
+            </Card>
           </div>
 
           {/* Feed en vivo */}
