@@ -16,6 +16,8 @@ import type {
   SidebarStyle,
   AccountStatus,
   StaffRole,
+  ActivityStatus,
+  InvitationStatus,
 } from './enums.js';
 
 // created_at TIMESTAMPTZ DEFAULT NOW(): select Date, insert opcional, nunca update.
@@ -146,6 +148,77 @@ export interface TenantAuditLogTable {
   created_at: CreatedAt;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Tablas operativas de negocio (PR v2/db-business-schema-and-code-contract).
+// Transcripción manual de las migraciones v1 (mismas tablas, mismos datos);
+// v2 las LEE durante la coexistencia, v1 sigue siendo dueño del schema. Las
+// escrituras (crear usuario, check-in, inscripción) llegan en PRs posteriores
+// y deben respetar el contrato de @contan2/codes para users.code / QR.
+// id es TEXT generado por la app en v1 (randomUUID), NO por la DB → string
+// requerido al insertar (a diferencia de invitations.id, UUID con default).
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface UsersTable {
+  id: string;
+  code: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  visit_count: DefaultedInt;
+  organization_id: string;
+  credential_sent_at: NullableTs;
+  created_at: CreatedAt;
+  updated_at: UpdatedAt;
+}
+
+export interface ActivitiesTable {
+  id: string;
+  name: string;
+  type: string;
+  location: string;
+  // TIMESTAMPTZ NOT NULL sin default → requerido al insertar.
+  date: RequiredTs;
+  // INTEGER NOT NULL CHECK (capacity >= 1) sin default → requerido.
+  capacity: number;
+  description: DefaultedText;
+  image_url: string | null;
+  enrolled_count: DefaultedInt;
+  status: DefaultedEnum<ActivityStatus>;
+  organization_id: string;
+  category: string | null;
+  created_at: CreatedAt;
+  updated_at: UpdatedAt;
+}
+
+export interface AttendanceTable {
+  id: string;
+  // user_id / user_code son nullable desde 010 (asistencia anónima).
+  user_id: string | null;
+  user_code: string | null;
+  activity_id: string;
+  activity_name: string;
+  organization_id: string;
+  checked_in_at: NullableTs;
+  anonymous: DefaultedBool;
+  // TIMESTAMPTZ NOT NULL DEFAULT NOW(): default, se setea al registrar.
+  registered_at: CreatedAt;
+}
+
+export interface InvitationsTable {
+  // UUID PRIMARY KEY DEFAULT gen_random_uuid() → generado por la DB.
+  id: Generated<string>;
+  organization_id: string;
+  activity_id: string;
+  user_id: string;
+  token: string;
+  status: DefaultedEnum<InvitationStatus>;
+  sent_at: NullableTs;
+  responded_at: NullableTs;
+  expires_at: RequiredTs;
+  created_at: CreatedAt;
+}
+
 export interface Database {
   organizations: OrganizationsTable;
   staff_members: StaffMembersTable;
@@ -153,4 +226,8 @@ export interface Database {
   platform_admins: PlatformAdminsTable;
   platform_sessions: PlatformSessionsTable;
   tenant_audit_log: TenantAuditLogTable;
+  users: UsersTable;
+  activities: ActivitiesTable;
+  attendance: AttendanceTable;
+  invitations: InvitationsTable;
 }

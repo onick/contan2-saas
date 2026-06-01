@@ -51,6 +51,23 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'actor_role', 'action', 'target_type', 'target_id', 'target_label',
     'metadata', 'ip_hash', 'ua', 'created_at',
   ],
+  users: [
+    'id', 'code', 'first_name', 'last_name', 'email', 'phone', 'visit_count',
+    'organization_id', 'credential_sent_at', 'created_at', 'updated_at',
+  ],
+  activities: [
+    'id', 'name', 'type', 'location', 'date', 'capacity', 'description',
+    'image_url', 'enrolled_count', 'status', 'organization_id', 'category',
+    'created_at', 'updated_at',
+  ],
+  attendance: [
+    'id', 'user_id', 'user_code', 'activity_id', 'activity_name',
+    'organization_id', 'checked_in_at', 'anonymous', 'registered_at',
+  ],
+  invitations: [
+    'id', 'organization_id', 'activity_id', 'user_id', 'token', 'status',
+    'sent_at', 'responded_at', 'expires_at', 'created_at',
+  ],
 };
 
 run('schema parity · información_schema vs tipos declarados', () => {
@@ -81,6 +98,24 @@ run('schema parity · información_schema vs tipos declarados', () => {
         .limit(1)
         .execute();
       expect(Array.isArray(rows)).toBe(true);
+
+      // Ejercita los tipos de las tablas de negocio (users/activities/
+      // attendance/invitations) + el join de check-in tenant-scoped.
+      const att = await db
+        .selectFrom('attendance')
+        .innerJoin('users', 'users.id', 'attendance.user_id')
+        .innerJoin('activities', 'activities.id', 'attendance.activity_id')
+        .select([
+          'attendance.id',
+          'users.code',
+          'activities.name',
+          'activities.status',
+          'attendance.checked_in_at',
+        ])
+        .where('attendance.organization_id', '=', '00000000-0000-0000-0000-000000000000')
+        .limit(1)
+        .execute();
+      expect(Array.isArray(att)).toBe(true);
     } finally {
       await db.destroy();
     }
