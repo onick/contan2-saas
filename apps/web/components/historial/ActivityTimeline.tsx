@@ -1,9 +1,7 @@
+import { History } from 'lucide-react';
 import { CATEGORY_META } from '../../lib/historial/demoData';
 import type { EventGroup } from '../../lib/historial/demoData';
-
-function initials(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
-}
+import { Card, EmptyState } from '../ui';
 
 export interface ActivityTimelineProps {
   groups: EventGroup[];
@@ -13,8 +11,19 @@ export interface ActivityTimelineProps {
 // categoría (ícono tonal). Cada evento: actor + acción + objetivo + hora.
 // Server Component. Datos demo (no PII real).
 export function ActivityTimeline({ groups }: ActivityTimelineProps) {
+  const totalEvents = groups.reduce((n, g) => n + g.events.length, 0);
+  if (totalEvents === 0) {
+    return (
+      <EmptyState
+        icon={History}
+        title="Sin eventos"
+        description="No hay actividad registrada para el período o los filtros aplicados."
+      />
+    );
+  }
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+    <Card padding="none" className="overflow-hidden">
       {groups.map((group) => (
         <section key={group.key} className="border-t border-line first:border-t-0">
           {/* Encabezado de día */}
@@ -52,6 +61,6 @@ export function ActivityTimeline({ groups }: ActivityTimelineProps) {
           </ol>
         </section>
       ))}
-    </div>
+    </Card>
   );
 }

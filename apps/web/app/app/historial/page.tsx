@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Download, Search, ChevronDown } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { ActivityTimeline } from '../../../components/historial/ActivityTimeline';
+import { SectionHeader, Button, Card, cn, focusRing } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { EVENT_GROUPS, HISTORY_KPIS, HISTORY_FILTERS, TOTAL_EVENTS } from '../../../lib/historial/demoData';
 
@@ -20,53 +21,60 @@ export default function HistorialPage() {
     <AppShell branding={branding} title="Historial" activeKey="historial">
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado + acciones */}
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[26px] font-bold tracking-tight text-ink xl:text-[30px]">Historial</h1>
-            <p className="mt-1 text-muted">Registro de actividad y auditoría de la organización</p>
-          </div>
-          <button type="button" className="inline-flex items-center gap-2 rounded-[10px] border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-muted">
-            <Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar
-          </button>
-        </header>
+        <SectionHeader
+          level={1}
+          title="Historial"
+          subtitle="Registro de actividad y auditoría de la organización"
+          actions={
+            <Button variant="secondary">
+              <Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar
+            </Button>
+          }
+        />
 
         {/* KPIs */}
         <div className="mt-6 grid grid-cols-3 gap-4">
           {HISTORY_KPIS.map((k) => (
-            <div key={k.key} className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
+            <Card key={k.key} padding="md">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{k.label}</p>
               <p className="mt-2 text-3xl font-bold tabular-nums text-ink">{k.value}</p>
-            </div>
+            </Card>
           ))}
         </div>
 
         {/* Filtros */}
-        <div className="mt-6 rounded-2xl border border-line bg-surface p-4 shadow-sm">
+        <Card padding="none" className="mt-6 p-4">
           <div className="flex flex-wrap items-center gap-2">
             {HISTORY_FILTERS.map((f, i) => (
-              <button
-                key={f}
-                type="button"
-                aria-pressed={i === 0}
-                className={
-                  'rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ' +
-                  (i === 0 ? 'bg-brand-strong text-white' : 'bg-surface-container text-muted hover:text-ink')
-                }
-              >
+              <Button key={f} variant="pill" size="sm" selected={i === 0}>
                 {f}
-              </button>
+              </Button>
             ))}
             <div className="ml-auto flex items-center gap-2">
-              <button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-medium text-muted">
+              <Button variant="secondary" size="sm">
                 Últimos 7 días <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
-              </button>
-              <div className="hidden items-center gap-2 rounded-full bg-surface-container px-3.5 py-2 text-[13px] text-faint sm:flex">
-                <Search size={16} strokeWidth={1.75} aria-hidden="true" />
-                <span>Buscar en el historial…</span>
-              </div>
+              </Button>
+              {/* Búsqueda: input real focusable (uncontrolled hasta el wiring) */}
+              <label className="relative hidden sm:block">
+                <span className="sr-only">Buscar en el historial</span>
+                <Search
+                  size={16}
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+                />
+                <input
+                  type="search"
+                  placeholder="Buscar en el historial…"
+                  className={cn(
+                    'h-9 w-60 rounded-full bg-surface-container pl-9 pr-3.5 text-[13px] text-ink placeholder:text-faint',
+                    focusRing,
+                  )}
+                />
+              </label>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Timeline */}
         <div className="mt-4">
