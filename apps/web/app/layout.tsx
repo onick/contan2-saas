@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Roboto_Flex } from 'next/font/google';
 import './globals.css';
 import { getLocalBranding } from '../lib/branding/config';
+import { getBranding } from '../lib/api/branding';
 import { brandingToCssVars } from '../lib/branding/theme';
 
 // Tipografía estilo Google/Material: Roboto Flex. next/font self-hostea la
@@ -20,13 +21,16 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
-  // Theming por tenant: sobreescribimos las CSS vars de @theme en <body> con el
-  // branding LOCAL. Las utilidades de Tailwind (bg-brand, text-brand, …)
-  // resuelven estas vars, así que re-tematizan todo el subtree. Hoy la fuente
-  // es config local (estático); el wiring a /api/v2/org/branding cambia solo
-  // la fuente, no este puente. Resolución host → slug llega en ese PR.
-  const branding = getLocalBranding();
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Theming por tenant desde UNA sola fuente: branding real de
+  // GET /api/v2/org/branding (read-only) si hay sesión; si no, branding local
+  // (fallback en dev). Misma forma (BrandingOrg = OrgBrandingResponse.
+  // organization) → brandingToCssVars sobreescribe --color-brand(-accent) en
+  // <body> y re-tematiza todo el subtree, sin mezclar real/local.
+  // ATENCIÓN: este layout es la raíz y toca cookies()/fetch → vuelve DINÁMICO
+  // todo el árbol (todas las rutas pasan a ƒ). Es el costo de tematizar por
+  // tenant desde el root.
+  const branding = (await getBranding()) ?? getLocalBranding();
   const themeVars = brandingToCssVars(branding) as CSSProperties;
 
   return (
