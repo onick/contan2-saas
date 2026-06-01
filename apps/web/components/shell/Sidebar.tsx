@@ -1,43 +1,105 @@
+import { ChevronsUpDown } from 'lucide-react';
 import type { BrandingOrg } from '../../lib/branding/theme';
-import { NAV_ITEMS } from '../../lib/shell/nav';
+import { NAV_ITEMS, NAV_GROUPS } from '../../lib/shell/nav';
 
 export interface SidebarProps {
   branding: BrandingOrg;
+  // key del ítem activo (según la ruta actual).
+  activeKey?: string;
 }
 
-// Sidebar del shell tenant-admin. Visible en tablet/desktop (oculto en mobile,
-// donde el brand vive en el Topbar). Server Component: sin estado ni handlers
-// — la navegación es fake/local (los items no navegan todavía).
-export function Sidebar({ branding }: SidebarProps) {
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('');
+}
+
+// Navigation drawer · estilo Google/Material 3: marca arriba, navegación
+// agrupada con íconos, item activo con pill tonal (primary-container) + barra
+// naranja, bloque de cuenta abajo. Visible en tablet/desktop (oculto en mobile).
+// Server Component (sin estado): la navegación es fake/local todavía.
+export function Sidebar({ branding, activeKey }: SidebarProps) {
   return (
-    <aside className="hidden border-r border-slate-200 bg-white md:flex md:flex-col">
-      {/* Brand-mark: mismo patrón logo-or-name que BrandHeader (compacto). */}
-      <div className="flex h-16 items-center gap-2 border-b border-slate-200 px-4">
+    <aside className="hidden bg-surface md:sticky md:top-0 md:flex md:h-screen md:flex-col md:border-r md:border-line">
+      {/* Marca */}
+      <div className="flex items-center gap-3 px-5 py-4">
         {branding.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={branding.logoUrl} alt={branding.name} className="h-8 w-auto" />
+          <img src={branding.logoUrl} alt={branding.name} className="h-9 w-auto" />
         ) : (
-          <span className="truncate text-base font-bold text-brand">{branding.name}</span>
+          <>
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-[11px] bg-brand-strong text-sm font-bold text-white shadow-sm">
+              {initials(branding.name)}
+            </span>
+            <span className="truncate text-[15px] font-semibold tracking-tight text-ink">
+              {branding.name}
+            </span>
+          </>
         )}
       </div>
 
-      <nav aria-label="Navegación principal" className="flex flex-1 flex-col gap-1 p-3">
-        {NAV_ITEMS.map((item) => (
-          <a
-            key={item.key}
-            href="#"
-            aria-current={item.active ? 'page' : undefined}
-            className={
-              'rounded-lg px-3 py-2 text-sm font-medium transition-colors ' +
-              (item.active
-                ? 'bg-brand/10 text-brand'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900')
-            }
-          >
-            {item.label}
-          </a>
+      {/* Navegación agrupada */}
+      <nav aria-label="Navegación principal" className="flex-1 overflow-y-auto px-3 pb-2">
+        {NAV_GROUPS.map((group) => (
+          <div key={group}>
+            <p className="px-3 pb-1.5 pt-4 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
+              {group}
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {NAV_ITEMS.filter((i) => i.group === group).map((item) => {
+                const ItemIcon = item.icon;
+                const active = item.key === activeKey;
+                return (
+                  <a
+                    key={item.key}
+                    href={item.href}
+                    aria-label={item.label}
+                    aria-current={active ? 'page' : undefined}
+                    className={
+                      'relative flex items-center gap-3.5 rounded-full px-3.5 py-2 text-sm transition-colors ' +
+                      (active
+                        ? 'bg-primary-container font-semibold text-on-primary-container'
+                        : 'font-medium text-muted hover:bg-surface-container hover:text-ink')
+                    }
+                  >
+                    {active ? (
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-brand-accent"
+                      />
+                    ) : null}
+                    <ItemIcon size={20} strokeWidth={1.75} aria-hidden="true" />
+                    <span>{item.label}</span>
+                    {item.badge ? (
+                      <span
+                        aria-hidden="true"
+                        className="ml-auto rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-[#b35400]"
+                      >
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
         ))}
       </nav>
+
+      {/* Cuenta (placeholder hasta el wiring de auth) */}
+      <div className="m-2 flex items-center gap-3 rounded-2xl bg-surface-container px-4 py-3">
+        <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand-strong text-sm font-semibold text-white">
+          {initials(branding.name)}
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-[13px] font-semibold text-ink">Administración</span>
+          <span className="block text-xs text-muted">Tenant</span>
+        </span>
+        <ChevronsUpDown size={18} strokeWidth={1.75} aria-hidden="true" className="ml-auto text-faint" />
+      </div>
     </aside>
   );
 }

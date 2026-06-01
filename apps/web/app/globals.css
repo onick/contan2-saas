@@ -19,10 +19,38 @@
      xl:                = 1280px (desktop)
    No los redefinimos para no divergir de Tailwind. Ver lib/breakpoints.ts. */
 @theme {
-  --color-brand: #1a237e;
+  /* Tipografía (Roboto Flex vía next/font, fallback al stack del sistema). */
+  --font-sans: var(--font-roboto-flex), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Marca (theming por tenant; overridable desde <body>). Naranja CCB:
+     --color-brand es el acento (íconos, links, bordes, barras, texto-sobre-blanco);
+     --color-brand-accent es el naranja vibrante para acentos (dots/barras, NUNCA
+     lleva texto: blanco/#ff6f00 = 2.79:1). --color-brand-strong es un tono más
+     profundo del MISMO naranja, SOLO para rellenos sólidos con texto blanco
+     (blanco/#c44400 = 5.03:1 → WCAG AA); --color-brand a secas da 3.79:1 y no
+     cumple AA para texto. El theming por tenant deberá derivar un strong propio. */
+  --color-brand: #e65100;
   --color-brand-accent: #ff6f00;
-  --color-surface: #f8fafc;
-  --color-ink: #0f172a;
+  --color-brand-strong: #c44400;
+  /* Anillo de foco visible (focus-visible). Sigue al brand del tenant; 3.79:1
+     sobre blanco cumple el 3:1 de WCAG 1.4.11 para indicadores no-textuales. */
+  --color-focus: var(--color-brand);
+
+  /* Material 3 · seed = índigo CCB. Superficies tonales + neutrales. */
+  --color-page: #f5f6fb;             /* fondo de página (tinte índigo leve) */
+  --color-surface: #ffffff;          /* superficie de cards/paneles */
+  --color-surface-container: #f0f1f8;
+  --color-ink: #1a1b21;              /* texto principal */
+  --color-muted: #5b5e6b;            /* texto secundario */
+  --color-faint: #67697a;            /* labels / metadata · AA ≥4.5:1 (white 5.41, page 5.02, surface-container 4.81) */
+  --color-line: #e4e6ef;            /* hairlines / bordes */
+  --color-primary-container: #ffe6d2;
+  --color-on-primary-container: #7a3300;
+  --color-accent-soft: #fff3e6;
+  --color-success-bg: #e6f4ea;
+  --color-success-fg: #137333;
+  --color-danger-bg: #fce8e6;
+  --color-danger-fg: #c5221f;
 }
 
 :root {
@@ -30,6 +58,6 @@
 }
 
 body {
-  background-color: var(--color-surface);
+  background-color: var(--color-page);
   color: var(--color-ink);
 }

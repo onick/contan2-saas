@@ -1,8 +1,14 @@
 import type { Metadata, Viewport } from 'next';
 import type { CSSProperties, ReactNode } from 'react';
+import { Roboto_Flex } from 'next/font/google';
 import './globals.css';
 import { getLocalBranding } from '../lib/branding/config';
 import { brandingToCssVars } from '../lib/branding/theme';
+
+// Tipografía estilo Google/Material: Roboto Flex. next/font self-hostea la
+// fuente en build (sin dep nueva; built-in de Next) y expone la CSS var que
+// globals.css mapea a --font-sans de Tailwind.
+const robotoFlex = Roboto_Flex({ subsets: ['latin'], variable: '--font-roboto-flex', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'Contan2 v2',
@@ -24,8 +30,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const themeVars = brandingToCssVars(branding) as CSSProperties;
 
   return (
-    <html lang="es">
-      <body style={themeVars}>{children}</body>
+    <html lang="es" className={robotoFlex.variable}>
+      <body style={themeVars} className="font-sans">
+        {children}
+      </body>
     </html>
   );
 }
