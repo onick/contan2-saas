@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 
 vi.mock('./client', () => ({ apiGet: vi.fn() }));
 import { apiGet } from './client';
-import { getAttendance } from './attendance';
+import { getAttendanceView } from './attendance';
 
 afterEach(() => vi.clearAllMocks());
 
@@ -18,43 +18,35 @@ const base = {
   registeredAt: '2026-05-29T18:50:00.000Z',
 };
 
-describe('getAttendance', () => {
-  it('mapea presente (con check-in) → nombre + código + estado', async () => {
-    vi.mocked(apiGet).mockResolvedValue({ items: [base], total: 1, limit: 20, offset: 0 });
-    const r = (await getAttendance())![0]!;
-    expect(r.name).toBe('Sofía Méndez');
-    expect(r.code).toBe('CCB-7K2P9Q');
-    expect(r.activity).toBe('Los Congos de Villa Mella');
-    expect(r.status).toBe('presente');
-    expect(r.statusLabel).toBe('Presente');
+const METRICS = {
+  metrics: { totalUsers: 1842, totalActivities: 7, activeActivities: 2, totalAttendance: 500, checkedIn: 390 },
+};
+
+// Mock por path: /attendance → lista; /dashboard/metrics → métricas.
+function mockBoth(items: unknown[]) {
+  vi.mocked(apiGet).mockImplementation((async (path: string) =>
+    path.includes('/attendance') ? { items, total: 510, limit: 100, offset: 0 } : METRICS) as typeof apiGet);
+}
+
+describe('getAttendanceView', () => {
+  it('combina tabla (/attendance) + tasa real (/dashboard/metrics)', async () => {
+    mockBoth([base]);
+    const v = (await getAttendanceView())!;
+    expect(v.total).toBe(510); // real (attendance.total)
+    expect(v.tasaPct).toBe(78); // 390/500 (metrics)
+    expect(v.noShowPct).toBe(22);
+    expect(v.records[0]!.status).toBe('presente');
   });
 
-  it('sin check-in → registrado', async () => {
-    vi.mocked(apiGet).mockResolvedValue({
-      items: [{ ...base, checkedInAt: null }],
-      total: 1,
-      limit: 20,
-      offset: 0,
-    });
-    const r = (await getAttendance())![0]!;
-    expect(r.status).toBe('registrado');
-    expect(r.statusLabel).toBe('Registrado');
-  });
-
-  it('asistencia ANÓNIMA (user/userCode null) no rompe → "Anónimo" / "—"', async () => {
-    vi.mocked(apiGet).mockResolvedValue({
-      items: [{ ...base, anonymous: true, userCode: null, firstName: null, lastName: null }],
-      total: 1,
-      limit: 20,
-      offset: 0,
-    });
-    const r = (await getAttendance())![0]!;
+  it('asistencia ANÓNIMA no rompe → "Anónimo" / "—"', async () => {
+    mockBoth([{ ...base, anonymous: true, userCode: null, firstName: null, lastName: null }]);
+    const r = (await getAttendanceView())!.records[0]!;
     expect(r.name).toBe('Anónimo');
     expect(r.code).toBe('—');
   });
 
-  it('devuelve null si la API falla → fallback demo', async () => {
+  it('devuelve null si la API falla → la página cae a demo', async () => {
     vi.mocked(apiGet).mockRejectedValue(new Error('401'));
-    expect(await getAttendance()).toBeNull();
+    expect(await getAttendanceView()).toBeNull();
   });
 });

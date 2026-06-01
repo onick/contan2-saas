@@ -3,7 +3,11 @@
 // asistencia ANÓNIMA (anonymous=true → user/userCode null) sin romper la UI.
 // Devuelve null si falla → la página cae a demoData.
 
-import { AttendanceListResponseSchema, type AttendanceListItem } from '@contan2/contracts';
+import {
+  AttendanceListResponseSchema,
+  DashboardMetricsResponseSchema,
+  type AttendanceListItem,
+} from '@contan2/contracts';
 import { apiGet } from './client';
 import type { AttendanceRecord } from '../registros/demoData';
 
@@ -33,10 +37,30 @@ function toRecord(it: AttendanceListItem): AttendanceRecord {
   };
 }
 
-export async function getAttendance(): Promise<AttendanceRecord[] | null> {
+// Vista completa de Registros: combina /attendance (tabla + total real + "hoy"
+// sobre el set) con /dashboard/metrics (tasa de asistencia real = checkedIn /
+// totalAttendance). todo-real o todo-demo (si cualquiera falla → null → demo).
+export interface AttendanceView {
+  records: AttendanceRecord[];
+  total: number; // real (attendance.total)
+  tasaPct: number; // real (metrics: checkedIn/totalAttendance)
+  noShowPct: number; // 100 - tasa
+  hoy: number; // check-ins de hoy, sobre el set cargado (estimación)
+}
+
+export async function getAttendanceView(): Promise<AttendanceView | null> {
   try {
-    const { items } = await apiGet('/api/v2/attendance', AttendanceListResponseSchema);
-    return items.map(toRecord);
+    const [att, metrics] = await Promise.all([
+      apiGet('/api/v2/attendance?limit=100', AttendanceListResponseSchema),
+      apiGet('/api/v2/dashboard/metrics', DashboardMetricsResponseSchema),
+    ]);
+    const records = att.items.map(toRecord);
+    const m = metrics.metrics;
+    const tasaPct = m.totalAttendance > 0 ? Math.round((m.checkedIn / m.totalAttendance) * 100) : 0;
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const hoy = att.items.filter((i) => i.checkedInAt != null && new Date(i.checkedInAt) >= startOfToday).length;
+    return { records, total: att.total, tasaPct, noShowPct: 100 - tasaPct, hoy };
   } catch {
     return null;
   }
