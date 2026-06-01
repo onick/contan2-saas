@@ -3,9 +3,9 @@
 // consume MetricCard. Devuelve null si no hay datos reales (sin sesión /
 // api-v2 caído) → la página cae a demoData.
 
-import { DashboardMetricsResponseSchema } from '@contan2/contracts';
+import { DashboardMetricsResponseSchema, UsersListResponseSchema } from '@contan2/contracts';
 import { apiGet } from './client';
-import type { DashboardMetric } from '../dashboard/demoData';
+import type { DashboardMetric, RecentVisitor } from '../dashboard/demoData';
 
 export async function getDashboardMetricCards(): Promise<DashboardMetric[] | null> {
   try {
@@ -17,6 +17,23 @@ export async function getDashboardMetricCards(): Promise<DashboardMetric[] | nul
       { key: 'activas', label: 'Actividades activas', value: String(metrics.activeActivities) },
       { key: 'checkins', label: 'Check-ins', value: metrics.checkedIn.toLocaleString('en-US') },
     ];
+  } catch {
+    return null;
+  }
+}
+
+// Últimos visitantes = GET /api/v2/users (la API ya ordena por alta desc), los
+// primeros N. Devuelve null si falla → la sección cae a demoData.
+export async function getRecentVisitors(limit = 6): Promise<RecentVisitor[] | null> {
+  try {
+    const { items } = await apiGet(`/api/v2/users?limit=${limit}`, UsersListResponseSchema);
+    return items.map((u) => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName}`.trim(),
+      code: u.code,
+      email: u.email ?? '—',
+      visits: u.visitCount,
+    }));
   } catch {
     return null;
   }
