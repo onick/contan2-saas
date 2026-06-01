@@ -1,3 +1,5 @@
+import { Card } from '../ui';
+
 export interface BrandPreviewProps {
   name: string;
 }
@@ -11,7 +13,7 @@ function initials(name: string): string {
 // Component (estático; refleja los valores demo del tenant).
 export function BrandPreview({ name }: BrandPreviewProps) {
   return (
-    <section className="rounded-2xl border border-line bg-surface p-4 shadow-sm xl:sticky xl:top-20">
+    <Card padding="none" className="p-4 xl:sticky xl:top-20">
       <div className="flex items-center justify-between">
         <h3 className="text-[13px] font-semibold tracking-tight text-ink">Vista previa</h3>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-success-fg">
@@ -56,6 +58,6 @@ export function BrandPreview({ name }: BrandPreviewProps) {
       </div>
 
       <p className="mt-3 text-[11px] text-faint">Así lo verán tu equipo y tus visitantes.</p>
-    </section>
+    </Card>
   );
 }

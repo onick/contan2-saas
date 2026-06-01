@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Upload, Copy, CheckCircle2, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { BrandPreview } from '../../../components/identidad/BrandPreview';
+import { SectionHeader, Button, Card, Chip, Field, cn, focusRing, focusWithin } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { BRAND, BRAND_PALETTE, SIDEBAR_PRESETS, IDENTITY } from '../../../lib/identidad/demoData';
 
@@ -14,27 +15,13 @@ export const metadata: Metadata = {
   description: 'Identidad de marca del tenant',
 };
 
+// Bloque de sección del formulario, sobre la superficie estándar (Card).
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
+    <Card padding="lg">
       <h2 className="text-[15px] font-semibold tracking-tight text-ink">{title}</h2>
       <div className="mt-4">{children}</div>
-    </section>
-  );
-}
-
-function Field({ label, defaultValue, mono = false }: { label: string; defaultValue: string; mono?: boolean }) {
-  return (
-    <label className="block">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</span>
-      <input
-        defaultValue={defaultValue}
-        className={
-          'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[14px] text-ink outline-none ' +
-          (mono ? 'tabular-nums' : '')
-        }
-      />
-    </label>
+    </Card>
   );
 }
 
@@ -45,10 +32,11 @@ export default function IdentidadPage() {
     <AppShell branding={branding} title="Identidad" activeKey="identidad">
       <div className="mx-auto w-full max-w-[1600px] pb-20">
         {/* Encabezado */}
-        <header>
-          <h1 className="text-[26px] font-bold tracking-tight text-ink xl:text-[30px]">Identidad de marca</h1>
-          <p className="mt-1 text-muted">Personalizá cómo se ve Contan2 para tu organización</p>
-        </header>
+        <SectionHeader
+          level={1}
+          title="Identidad de marca"
+          subtitle="Personalizá cómo se ve Contan2 para tu organización"
+        />
 
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
           {/* ===== Formulario ===== */}
@@ -62,8 +50,8 @@ export default function IdentidadPage() {
                     <p className="text-sm font-medium text-ink">Logo principal</p>
                     <p className="text-xs text-faint">PNG/SVG, fondo transparente, mín. 256px</p>
                     <div className="mt-2 flex gap-2">
-                      <button type="button" className="inline-flex items-center gap-1.5 rounded-lg bg-brand-strong px-3 py-1.5 text-[13px] font-semibold text-white"><Upload size={14} strokeWidth={2} aria-hidden="true" /> Subir</button>
-                      <button type="button" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold text-muted">Quitar</button>
+                      <Button size="sm"><Upload size={14} strokeWidth={2} aria-hidden="true" /> Subir</Button>
+                      <Button variant="secondary" size="sm">Quitar</Button>
                     </div>
                   </div>
                 </div>
@@ -72,7 +60,7 @@ export default function IdentidadPage() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-ink">Logo para emails</p>
                     <p className="text-xs text-faint">Se muestra en el encabezado de los correos</p>
-                    <button type="button" className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold text-muted"><Upload size={14} strokeWidth={2} aria-hidden="true" /> Subir</button>
+                    <Button variant="secondary" size="sm" className="mt-2"><Upload size={14} strokeWidth={2} aria-hidden="true" /> Subir</Button>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 border-t border-line pt-4">
@@ -81,7 +69,7 @@ export default function IdentidadPage() {
                     <p className="text-sm font-medium text-ink">Favicon</p>
                     <p className="text-xs text-faint">Ícono de pestaña · 32×32 px</p>
                   </div>
-                  <button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold text-muted"><Upload size={14} strokeWidth={2} aria-hidden="true" /> Subir</button>
+                  <Button variant="secondary" size="sm"><Upload size={14} strokeWidth={2} aria-hidden="true" /> Subir</Button>
                 </div>
               </div>
             </Section>
@@ -91,17 +79,17 @@ export default function IdentidadPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Color primario</span>
-                  <div className="mt-1 flex items-center gap-2 rounded-lg border border-line bg-surface px-2 py-2">
+                  <div className={cn('mt-1 flex items-center gap-2 rounded-lg border border-line bg-surface px-2 py-2', focusWithin)}>
                     <span className="h-7 w-7 flex-none rounded-md" style={{ backgroundColor: BRAND.primary }} />
-                    <input defaultValue={BRAND.primary} className="w-full bg-transparent text-[14px] tabular-nums text-ink outline-none" />
+                    <input aria-label="Color primario" defaultValue={BRAND.primary} className="w-full bg-transparent text-[14px] tabular-nums text-ink outline-none" />
                     <Copy size={15} strokeWidth={1.75} aria-hidden="true" className="flex-none text-faint" />
                   </div>
                 </div>
                 <div>
                   <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Color de acento</span>
-                  <div className="mt-1 flex items-center gap-2 rounded-lg border border-line bg-surface px-2 py-2">
+                  <div className={cn('mt-1 flex items-center gap-2 rounded-lg border border-line bg-surface px-2 py-2', focusWithin)}>
                     <span className="h-7 w-7 flex-none rounded-md" style={{ backgroundColor: BRAND.accent }} />
-                    <input defaultValue={BRAND.accent} className="w-full bg-transparent text-[14px] tabular-nums text-ink outline-none" />
+                    <input aria-label="Color de acento" defaultValue={BRAND.accent} className="w-full bg-transparent text-[14px] tabular-nums text-ink outline-none" />
                     <Copy size={15} strokeWidth={1.75} aria-hidden="true" className="flex-none text-faint" />
                   </div>
                 </div>
@@ -125,10 +113,11 @@ export default function IdentidadPage() {
                     key={p.key}
                     type="button"
                     aria-pressed={p.active}
-                    className={
-                      'rounded-xl border p-2 text-left transition-colors ' +
-                      (p.active ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-line')
-                    }
+                    className={cn(
+                      'rounded-xl border p-2 text-left transition-colors',
+                      p.active ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-line',
+                      focusRing,
+                    )}
                   >
                     {/* mini sidebar mock */}
                     <span className="flex h-12 overflow-hidden rounded-md border border-line">
@@ -165,10 +154,14 @@ export default function IdentidadPage() {
                 <div>
                   <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Dominio propio</span>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <input defaultValue={IDENTITY.customDomain} className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2.5 text-[14px] text-ink outline-none" />
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-success-bg px-2.5 py-1 text-[12px] font-semibold text-success-fg">
+                    <input
+                      aria-label="Dominio propio"
+                      defaultValue={IDENTITY.customDomain}
+                      className={cn('min-h-11 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2.5 text-[14px] text-ink', focusRing)}
+                    />
+                    <Chip tone="success">
                       <CheckCircle2 size={14} strokeWidth={2} aria-hidden="true" /> Verificado
-                    </span>
+                    </Chip>
                   </div>
                 </div>
                 {/* DNS */}
@@ -179,9 +172,9 @@ export default function IdentidadPage() {
                     <dt className="text-faint">Host</dt><dd className="truncate font-mono text-ink">{IDENTITY.dns.host}</dd>
                     <dt className="text-faint">Valor</dt><dd className="truncate font-mono text-ink">{IDENTITY.dns.value}</dd>
                   </dl>
-                  <button type="button" className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold text-muted">
+                  <Button variant="secondary" size="sm" className="mt-3">
                     <RefreshCw size={14} strokeWidth={2} aria-hidden="true" /> Verificar DNS
-                  </button>
+                  </Button>
                 </div>
               </div>
             </Section>
@@ -203,10 +196,10 @@ export default function IdentidadPage() {
       {/* Barra de guardado sticky */}
       <div className="sticky bottom-0 -mx-5 mt-4 flex items-center justify-end gap-3 border-t border-line bg-surface/90 px-5 py-3 backdrop-blur md:-mx-7 md:px-7 xl:-mx-8 xl:px-8">
         <span className="mr-auto text-[12px] text-faint">Los cambios se aplican al guardar.</span>
-        <button type="button" className="rounded-[10px] border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-muted">Descartar</button>
-        <button type="button" className="inline-flex items-center gap-2 rounded-[10px] bg-brand-strong px-5 py-2.5 text-sm font-semibold text-white shadow-sm">
+        <Button variant="secondary">Descartar</Button>
+        <Button>
           <CheckCircle2 size={17} strokeWidth={2} aria-hidden="true" /> Guardar cambios
-        </button>
+        </Button>
       </div>
     </AppShell>
   );
