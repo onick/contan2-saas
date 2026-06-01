@@ -8,6 +8,7 @@ import { Chip } from './Chip';
 import { Card } from './Card';
 import { SectionHeader } from './SectionHeader';
 import { EmptyState } from './EmptyState';
+import { Skeleton } from './Skeleton';
 
 afterEach(cleanup);
 
@@ -84,5 +85,14 @@ describe('EmptyState', () => {
     render(<EmptyState icon={Inbox} title="Sin registros" description="Todavía no hay asistencias." />);
     expect(screen.getByText('Sin registros')).toBeInTheDocument();
     expect(screen.getByText('Todavía no hay asistencias.')).toBeInTheDocument();
+  });
+});
+
+describe('Skeleton', () => {
+  it('placeholder pulsante decorativo (aria-hidden)', () => {
+    const { container } = render(<Skeleton className="h-9 w-20" />);
+    const el = container.querySelector('span');
+    expect(el).toHaveClass('animate-pulse', 'h-9', 'w-20');
+    expect(el).toHaveAttribute('aria-hidden', 'true');
   });
 });

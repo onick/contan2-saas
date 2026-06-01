@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import {
   Plus,
   CalendarDays,
@@ -13,9 +14,38 @@ import {
 } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { ActivitiesTable } from '../../../components/activities/ActivitiesTable';
-import { SectionHeader, Button, IconButton, Card, cn, focusRing } from '../../../components/ui';
+import { SectionHeader, Button, IconButton, Card, Skeleton, cn, focusRing } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
+import { getActivities } from '../../../lib/api/activities';
 import { ACTIVITIES, STATUS_TABS, ACTIVITIES_KPIS } from '../../../lib/activities/demoData';
+
+// Tabla con datos reales (read-only) si hay sesión; si no, demoData. Async →
+// streamea en <Suspense>. Los KPIs/filtros siguen demo en esta fase (mapeo de
+// datos base primero, como se acordó).
+async function ActivitiesTableData() {
+  const activities = (await getActivities()) ?? ACTIVITIES;
+  return <ActivitiesTable activities={activities} />;
+}
+
+// Skeleton de la tabla mientras resuelve el fetch.
+function ActivitiesTableSkeleton() {
+  return (
+    <Card padding="none" className="overflow-hidden">
+      <div className="px-5 py-4 md:px-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 border-t border-line py-4 first:border-t-0">
+            <Skeleton className="h-10 w-10 flex-none rounded-lg" />
+            <div className="flex-1">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="mt-1.5 h-3 w-20" />
+            </div>
+            <Skeleton className="ml-auto hidden h-8 w-40 sm:block" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 // RUTA PROVISIONAL del tenant-admin. Pantalla de Actividades ESTÁTICA con datos
 // locales. Filtros, búsqueda, vista y paginación son afordancias visuales (se
@@ -115,9 +145,11 @@ export default function ActividadesPage() {
           </div>
         </Card>
 
-        {/* Tabla */}
+        {/* Tabla (datos reales read-only con skeleton + fallback a demo) */}
         <div className="mt-4">
-          <ActivitiesTable activities={ACTIVITIES} />
+          <Suspense fallback={<ActivitiesTableSkeleton />}>
+            <ActivitiesTableData />
+          </Suspense>
         </div>
 
         {/* Paginación */}

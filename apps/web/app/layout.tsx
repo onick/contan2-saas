@@ -1,9 +1,7 @@
 import type { Metadata, Viewport } from 'next';
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Roboto_Flex } from 'next/font/google';
 import './globals.css';
-import { getLocalBranding } from '../lib/branding/config';
-import { brandingToCssVars } from '../lib/branding/theme';
 
 // Tipografía estilo Google/Material: Roboto Flex. next/font self-hostea la
 // fuente en build (sin dep nueva; built-in de Next) y expone la CSS var que
@@ -21,19 +19,14 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  // Theming por tenant: sobreescribimos las CSS vars de @theme en <body> con el
-  // branding LOCAL. Las utilidades de Tailwind (bg-brand, text-brand, …)
-  // resuelven estas vars, así que re-tematizan todo el subtree. Hoy la fuente
-  // es config local (estático); el wiring a /api/v2/org/branding cambia solo
-  // la fuente, no este puente. Resolución host → slug llega en ese PR.
-  const branding = getLocalBranding();
-  const themeVars = brandingToCssVars(branding) as CSSProperties;
-
+  // Root ESTÁTICO: solo HTML + fuente base. El theming por-tenant (cookies()/
+  // fetch) vive en app/app/layout.tsx, de modo que la marketing `/` y
+  // `/_not-found` no tocan red y pueden prerenderizarse (Static). El <body> usa
+  // los defaults de @theme (paleta CCB) hasta que el subtree /app aplique el
+  // branding real del tenant.
   return (
     <html lang="es" className={robotoFlex.variable}>
-      <body style={themeVars} className="font-sans">
-        {children}
-      </body>
+      <body className="font-sans">{children}</body>
     </html>
   );
 }

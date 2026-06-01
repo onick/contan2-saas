@@ -8,3 +8,4 @@ export { Chip, type ChipProps, type ChipTone } from './Chip';
 export { Card, type CardProps, type CardPadding } from './Card';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
+export { Skeleton, type SkeletonProps } from './Skeleton';
