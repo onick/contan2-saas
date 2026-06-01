@@ -34,10 +34,32 @@ function toActivity(it: ActivityListItem): Activity {
   };
 }
 
-export async function getActivities(): Promise<Activity[] | null> {
+// Vista completa de Actividades: un solo fetch deriva tabla + KPIs + conteos de
+// pills (todo-real o todo-demo, sin mezclar). `total` es real (response.total);
+// los conteos por estado y el promedio de ocupación son sobre el SET CARGADO
+// (limit 100) — exactos para tenants con <100 actividades; estimación si hay más.
+export interface ActivitiesView {
+  activities: Activity[];
+  total: number;
+  activas: number;
+  finalizadas: number;
+  canceladas: number;
+  avgOccupancyPct: number;
+}
+
+export async function getActivitiesView(): Promise<ActivitiesView | null> {
   try {
-    const { items } = await apiGet('/api/v2/activities', ActivitiesListResponseSchema);
-    return items.map(toActivity);
+    const { items, total } = await apiGet('/api/v2/activities?limit=100', ActivitiesListResponseSchema);
+    const activities = items.map(toActivity);
+    const occ = activities.map((a) => a.occupancyPct).filter((p): p is number => p != null);
+    return {
+      activities,
+      total,
+      activas: items.filter((i) => i.status === 'activa').length,
+      finalizadas: items.filter((i) => i.status === 'finalizada').length,
+      canceladas: items.filter((i) => i.status === 'cancelada').length,
+      avgOccupancyPct: occ.length ? Math.round(occ.reduce((s, p) => s + p, 0) / occ.length) : 0,
+    };
   } catch {
     return null;
   }

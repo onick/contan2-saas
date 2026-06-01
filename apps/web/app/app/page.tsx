@@ -10,7 +10,7 @@ import { RecentVisitors } from '../../components/dashboard/RecentVisitors';
 import { Plus } from 'lucide-react';
 import { SectionHeader, Button, Card, Skeleton } from '../../components/ui';
 import { getLocalBranding } from '../../lib/branding/config';
-import { getDashboardMetricCards } from '../../lib/api/dashboard';
+import { getDashboardMetricCards, getRecentVisitors } from '../../lib/api/dashboard';
 import {
   DASHBOARD_METRICS,
   DASHBOARD_PERIOD,
@@ -60,6 +60,34 @@ function KpiSkeleton() {
   );
 }
 
+// Últimos visitantes · async (GET /api/v2/users, recientes). Streamea en
+// <Suspense>; cae a demoData si no hay datos reales.
+async function RecentVisitorsData() {
+  const visitors = (await getRecentVisitors()) ?? RECENT_VISITORS;
+  return <RecentVisitors visitors={visitors} />;
+}
+
+function RecentVisitorsSkeleton() {
+  return (
+    <Card padding="none" className="min-w-0">
+      <div className="px-5 py-4 md:px-6">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="mt-1.5 h-3 w-24" />
+      </div>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 border-t border-line px-5 py-3 md:px-6">
+          <Skeleton className="h-9 w-9 flex-none rounded-full" />
+          <div className="flex-1">
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="mt-1.5 h-3 w-40" />
+          </div>
+          <Skeleton className="ml-auto h-5 w-14 rounded-full" />
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 export default function TenantAdminDashboard() {
   const branding = getLocalBranding();
 
@@ -97,7 +125,9 @@ export default function TenantAdminDashboard() {
         {/* Top actividades + últimos visitantes */}
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
           <TopActivities activities={TOP_ACTIVITIES} />
-          <RecentVisitors visitors={RECENT_VISITORS} />
+          <Suspense fallback={<RecentVisitorsSkeleton />}>
+            <RecentVisitorsData />
+          </Suspense>
         </div>
       </div>
     </AppShell>
