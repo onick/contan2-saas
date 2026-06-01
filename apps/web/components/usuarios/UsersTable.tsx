@@ -1,5 +1,6 @@
-import { MoreHorizontal, ChevronDown } from 'lucide-react';
+import { MoreHorizontal, ChevronDown, SearchX } from 'lucide-react';
 import type { UserRow, UserStatus } from '../../lib/usuarios/demoData';
+import { Card, Chip, IconButton, EmptyState, cn, focusRing, type ChipTone } from '../ui';
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -14,10 +15,11 @@ const AVATAR_COLORS = [
   'bg-[#fdeaf0] text-[#b03060]',
 ];
 
-const STATUS_STYLE: Record<UserStatus, { chip: string; dot: string }> = {
-  activo: { chip: 'bg-success-bg text-success-fg', dot: 'bg-success-fg' },
-  nuevo: { chip: 'bg-accent-soft text-[#b35400]', dot: 'bg-brand-accent' },
-  inactivo: { chip: 'bg-surface-container text-faint', dot: 'bg-[#9aa0ad]' },
+// Estado → tono de Chip (activo=verde, nuevo=naranja, inactivo=neutral).
+const STATUS_TONE: Record<UserStatus, ChipTone> = {
+  activo: 'success',
+  nuevo: 'warning',
+  inactivo: 'neutral',
 };
 
 export interface UsersTableProps {
@@ -28,8 +30,18 @@ export interface UsersTableProps {
 // índice), código, visitas, última visita y chip de estado con punto. En mobile
 // se ocultan Código y Última visita. Server Component. Datos demo (no PII).
 export function UsersTable({ users }: UsersTableProps) {
+  if (users.length === 0) {
+    return (
+      <EmptyState
+        icon={SearchX}
+        title="Sin usuarios"
+        description="No hay visitantes que coincidan con la búsqueda o los filtros."
+      />
+    );
+  }
+
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
+    <Card padding="none" className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[820px] border-collapse">
           <thead>
@@ -49,7 +61,6 @@ export function UsersTable({ users }: UsersTableProps) {
           </thead>
           <tbody>
             {users.map((u, i) => {
-              const st = STATUS_STYLE[u.status];
               const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
               return (
                 <tr key={u.id} className="border-t border-line align-middle hover:bg-page">
@@ -76,16 +87,15 @@ export function UsersTable({ users }: UsersTableProps) {
                   </td>
                   <td className="hidden whitespace-nowrap px-4 py-4 text-[13px] text-muted md:table-cell">{u.lastVisit}</td>
                   <td className="px-4 py-4">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.chip}`}>
-                      <span className={`h-[7px] w-[7px] rounded-full ${st.dot}`} />
-                      {u.statusLabel}
-                    </span>
+                    <Chip tone={STATUS_TONE[u.status]} dot>{u.statusLabel}</Chip>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-4 text-right">
-                    <a href="#" className="text-[13px] font-semibold text-brand">Ver</a>
-                    <button type="button" aria-label="Más acciones" className="ml-2 align-middle text-faint hover:text-muted">
-                      <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
-                    </button>
+                  <td className="whitespace-nowrap px-4 py-4">
+                    <div className="flex items-center justify-end gap-1">
+                      <a href="#" className={cn('rounded px-1 text-[13px] font-semibold text-brand', focusRing)}>Ver</a>
+                      <IconButton label="Más acciones" variant="ghost" size="sm">
+                        <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
+                      </IconButton>
+                    </div>
                   </td>
                 </tr>
               );
@@ -93,6 +103,6 @@ export function UsersTable({ users }: UsersTableProps) {
           </tbody>
         </table>
       </div>
-    </section>
+    </Card>
   );
 }

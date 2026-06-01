@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { UsersTable } from '../../../components/usuarios/UsersTable';
+import { SectionHeader, Button, IconButton, Card, cn, focusRing } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { USERS, USER_KPIS, USER_TABS, TOTAL_USERS } from '../../../lib/usuarios/demoData';
 
@@ -29,25 +30,26 @@ export default function UsuariosPage() {
     <AppShell branding={branding} title="Usuarios" activeKey="usuarios">
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado + acciones */}
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[26px] font-bold tracking-tight text-ink xl:text-[30px]">Usuarios</h1>
-            <p className="mt-1 text-muted">Visitantes registrados del centro</p>
-          </div>
-          <div className="flex gap-2">
-            <button type="button" className="inline-flex items-center gap-2 rounded-[10px] border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-muted">
-              <Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar
-            </button>
-            <button type="button" className="inline-flex items-center gap-2 rounded-[10px] bg-brand-strong px-4 py-2.5 text-sm font-semibold text-white shadow-sm">
-              <UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Nuevo usuario
-            </button>
-          </div>
-        </header>
+        <SectionHeader
+          level={1}
+          title="Usuarios"
+          subtitle="Visitantes registrados del centro"
+          actions={
+            <>
+              <Button variant="secondary">
+                <Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar
+              </Button>
+              <Button>
+                <UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Nuevo usuario
+              </Button>
+            </>
+          }
+        />
 
         {/* KPIs */}
         <div className="mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
           {USER_KPIS.map((k) => (
-            <div key={k.key} className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
+            <Card key={k.key} padding="md">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{k.label}</p>
               <div className="mt-2 flex items-center gap-2">
                 <p className="text-3xl font-bold tabular-nums text-ink">{k.value}</p>
@@ -57,50 +59,67 @@ export default function UsuariosPage() {
                   </span>
                 ) : null}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
 
         {/* Filtros */}
-        <div className="mt-6 rounded-2xl border border-line bg-surface p-4 shadow-sm">
+        <Card padding="none" className="mt-6 p-4">
           <div className="flex flex-wrap gap-2">
             {USER_TABS.map((t, i) => (
-              <button
-                key={t}
-                type="button"
-                aria-pressed={i === 0}
-                className={
-                  'rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ' +
-                  (i === 0 ? 'bg-brand-strong text-white' : 'bg-surface-container text-muted hover:text-ink')
-                }
-              >
+              <Button key={t} variant="pill" size="sm" selected={i === 0}>
                 {t}
-              </button>
+              </Button>
             ))}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-            <button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-medium text-muted">
+            <Button variant="secondary" size="sm">
               Segmento: Todos <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
-            </button>
-            <button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-medium text-muted">
+            </Button>
+            <Button variant="secondary" size="sm">
               Orden: Recientes <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
-            </button>
+            </Button>
             <div className="ml-auto flex items-center gap-2">
-              <div className="hidden items-center gap-2 rounded-full bg-surface-container px-3.5 py-2 text-[13px] text-faint sm:flex">
-                <Search size={16} strokeWidth={1.75} aria-hidden="true" />
-                <span>Buscar por nombre, email o código…</span>
-              </div>
+              {/* Búsqueda: input real focusable (uncontrolled hasta el wiring) */}
+              <label className="relative hidden sm:block">
+                <span className="sr-only">Buscar por nombre, email o código</span>
+                <Search
+                  size={16}
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+                />
+                <input
+                  type="search"
+                  placeholder="Buscar por nombre, email o código…"
+                  className={cn(
+                    'h-9 w-72 rounded-full bg-surface-container pl-9 pr-3.5 text-[13px] text-ink placeholder:text-faint',
+                    focusRing,
+                  )}
+                />
+              </label>
+              {/* Toggle de vista (segmentado · botones reales con foco) */}
               <div className="flex items-center rounded-lg border border-line bg-surface p-0.5">
-                <span className="grid h-8 w-8 place-items-center rounded-md bg-surface-container text-ink" aria-label="Vista tabla">
+                <button
+                  type="button"
+                  aria-label="Vista tabla"
+                  aria-pressed={true}
+                  className={cn('grid h-8 w-8 place-items-center rounded-md bg-surface-container text-ink', focusRing)}
+                >
                   <List size={17} strokeWidth={1.75} aria-hidden="true" />
-                </span>
-                <span className="grid h-8 w-8 place-items-center rounded-md text-faint" aria-label="Vista tarjetas">
+                </button>
+                <button
+                  type="button"
+                  aria-label="Vista tarjetas"
+                  aria-pressed={false}
+                  className={cn('grid h-8 w-8 place-items-center rounded-md text-faint hover:text-muted', focusRing)}
+                >
                   <LayoutGrid size={17} strokeWidth={1.75} aria-hidden="true" />
-                </span>
+                </button>
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Tabla */}
         <div className="mt-4">
@@ -111,19 +130,19 @@ export default function UsuariosPage() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[13px] text-muted">
           <div className="inline-flex items-center gap-2">
             <span>Filas por página</span>
-            <span className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 font-medium text-ink">
+            <Button variant="secondary" size="sm">
               10 <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
-            </span>
+            </Button>
           </div>
           <div className="inline-flex items-center gap-3">
             <span className="tabular-nums">1–{USERS.length} de {TOTAL_USERS}</span>
             <span className="inline-flex gap-1">
-              <span className="grid h-8 w-8 place-items-center rounded-lg border border-line text-faint" aria-label="Anterior">
+              <IconButton label="Anterior" variant="outline" size="sm">
                 <ChevronLeft size={16} strokeWidth={2} aria-hidden="true" />
-              </span>
-              <span className="grid h-8 w-8 place-items-center rounded-lg border border-line text-faint" aria-label="Siguiente">
+              </IconButton>
+              <IconButton label="Siguiente" variant="outline" size="sm">
                 <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
-              </span>
+              </IconButton>
             </span>
           </div>
         </div>
