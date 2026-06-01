@@ -45,7 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'identidad', label: 'Identidad', icon: Palette, group: 'Operación', href: '/app/identidad' },
   { key: 'modo-publico', label: 'Modo público', icon: Globe, group: 'Operación', href: '#' },
   // Equipo
-  { key: 'equipo', label: 'Mi equipo', icon: UserCog, group: 'Equipo', href: '#' },
+  { key: 'equipo', label: 'Mi equipo', icon: UserCog, group: 'Equipo', href: '/app/equipo' },
   { key: 'historial', label: 'Historial', icon: History, group: 'Equipo', href: '#' },
 ];
 
