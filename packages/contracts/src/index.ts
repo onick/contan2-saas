@@ -138,3 +138,45 @@ export const AttendanceListResponseSchema = z.object({
   offset: z.number().int(),
 });
 export type AttendanceListResponse = z.infer<typeof AttendanceListResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
+// Slice PÚBLICO read-only de api-v2 (kiosko · PR v2/api-public-reads).
+// Tenant por host, SIN auth de staff. Shapes deliberadamente REDUCIDOS para
+// la superficie pública. Paridad con v1 (backend/src/routes/public.js):
+//   publicActivity = { type, category, …, enrolledCount } · filtro cupo
+//   publicUser     = { firstName, lastName, code, visitCount } · SIN PII extra
+// ─────────────────────────────────────────────────────────────────────────
+
+// Actividad visible al público (status activa + con cupo). Mismo type/category
+// que el endpoint staff; sin description ni campos internos.
+export const PublicActivitySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  category: z.string().nullable(),
+  location: z.string(),
+  date: z.string(), // ISO 8601; el cliente formatea
+  capacity: z.number().int(),
+  enrolledCount: z.number().int(),
+  imageUrl: z.string().nullable(),
+});
+export type PublicActivity = z.infer<typeof PublicActivitySchema>;
+
+export const PublicActivitiesResponseSchema = z.object({
+  activities: z.array(PublicActivitySchema),
+  total: z.number().int(),
+});
+export type PublicActivitiesResponse = z.infer<typeof PublicActivitiesResponseSchema>;
+
+// Lookup público de visitante: SOLO lo mínimo para confirmar identidad en el
+// kiosko. NUNCA email, phone, id ni tokens (anti-enumeración/leak de PII).
+export const PublicVisitorSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  code: z.string(),
+  visitCount: z.number().int(),
+});
+export type PublicVisitor = z.infer<typeof PublicVisitorSchema>;
+
+export const PublicVisitorLookupResponseSchema = z.object({ visitor: PublicVisitorSchema });
+export type PublicVisitorLookupResponse = z.infer<typeof PublicVisitorLookupResponseSchema>;

@@ -18,6 +18,9 @@ export interface TenantOrg {
   status: OrgStatus;
   customDomain: string | null;
   customDomainVerifiedAt: Date | null;
+  // Prefijo de códigos de visitante del tenant (ej. 'CCB'). Lo usa el lookup
+  // público para resolver códigos cortos `XXXXXX` → `${codePrefix}-XXXXXX`.
+  codePrefix: string;
 }
 
 const SELECT_COLUMNS = [
@@ -32,6 +35,7 @@ const SELECT_COLUMNS = [
   'status',
   'custom_domain',
   'custom_domain_verified_at',
+  'code_prefix',
 ] as const;
 
 interface OrgRow {
@@ -46,6 +50,7 @@ interface OrgRow {
   status: OrgStatus;
   custom_domain: string | null;
   custom_domain_verified_at: Date | null;
+  code_prefix: string;
 }
 
 function toTenantOrg(r: OrgRow): TenantOrg {
@@ -61,6 +66,7 @@ function toTenantOrg(r: OrgRow): TenantOrg {
     status: r.status,
     customDomain: r.custom_domain,
     customDomainVerifiedAt: r.custom_domain_verified_at,
+    codePrefix: r.code_prefix,
   };
 }
 
