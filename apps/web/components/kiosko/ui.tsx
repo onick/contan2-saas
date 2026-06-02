@@ -3,7 +3,7 @@
 // para el admin). Aquí no se usa el shell admin ni sus tokens de superficie.
 
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
-import { Ticket } from 'lucide-react';
+import { Ticket, ArrowLeft } from 'lucide-react';
 
 // Paleta oscura del kiosko (constante local; no contamina @theme). El naranja
 // de marca (#e65100/#ff6f00) se mantiene como único acento.
@@ -113,6 +113,25 @@ export function TicketButton({ label, eyebrow = 'Admit one', onClick }: { label:
       {/* Flecha */}
       <span aria-hidden="true" className="flex flex-none items-center pr-7 text-3xl font-light text-white/90 transition-transform group-hover:translate-x-1">→</span>
     </button>
+  );
+}
+
+// Pill de "volver atrás" (centrado, abajo de las pantallas). Touch-friendly.
+export function KioskBackPill({ label = 'Atrás', onClick }: { label?: string; onClick?: () => void }) {
+  return (
+    <div className="mt-10 flex justify-center">
+      <button
+        type="button"
+        onClick={onClick}
+        className={cx(
+          'inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-[#191b22]/80 px-7 py-3.5',
+          'text-sm font-medium text-[#a2a5b4] transition-colors hover:border-white/20 hover:bg-[#22242e] hover:text-[#f4f5f8]',
+          kioskFocus,
+        )}
+      >
+        <ArrowLeft size={18} aria-hidden="true" /> {label}
+      </button>
+    </div>
   );
 }
 

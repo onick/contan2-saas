@@ -9,7 +9,7 @@ import {
   ArrowLeft, Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
   Baby, Info, Minus, Plus,
 } from 'lucide-react';
-import { KioskButton, TicketButton, FauxQr, cx, kioskFocus, kioskMono } from './ui';
+import { KioskButton, TicketButton, KioskBackPill, FauxQr, cx, kioskFocus, kioskMono } from './ui';
 import { KioskClock } from './KioskClock';
 import { partySize, type KioskActivity, type KioskVisitor } from '../../lib/kiosko/demoData';
 
@@ -119,10 +119,10 @@ export function ActivityScreen({
   activities, onSelect, onHome,
 }: { activities: KioskActivity[]; onSelect: (a: KioskActivity) => void; onHome: () => void }) {
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-6 py-10">
-      <KioskTopBar title="Elige tu actividad" onHome={onHome} />
-      <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
-        {activities.map((a) => {
+    <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-6 py-12">
+      <KioskTopBar eyebrow="Cartelera de hoy" title="Elige tu actividad" />
+      <div className="mt-9 grid grid-cols-1 gap-4 md:grid-cols-2">
+        {activities.map((a, i) => {
           const spots = a.capacity - a.enrolled;
           const full = spots <= 0;
           const low = !full && spots <= a.capacity * 0.1;
@@ -133,33 +133,44 @@ export function ActivityScreen({
               type="button"
               disabled={full}
               onClick={() => onSelect(a)}
+              style={{ animationDelay: `${i * 70}ms` }}
               className={cx(
-                'flex flex-col gap-3 rounded-2xl border border-white/10 bg-[#191b22] p-5 text-left transition-colors',
-                'hover:border-white/20 hover:bg-[#22242e] disabled:cursor-not-allowed disabled:opacity-50',
+                'kiosk-card-in group relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-white/10 p-5 pt-6 text-left',
+                'bg-[linear-gradient(180deg,#191b22_0%,#15171e_100%)] transition-all duration-200',
+                'hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[0_18px_40px_-20px_rgba(0,0,0,0.8)]',
+                'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0',
                 kioskFocus,
               )}
             >
-              <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: accent }}>
+              {/* Barra de acento por categoría (superior, ancho completo) */}
+              <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: accent }} />
+              <span style={kioskMono} className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em]" >
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: accent }} />
-                {a.category}
+                <span style={{ color: accent }}>{a.category}</span>
               </span>
               <span className="text-lg font-semibold leading-snug text-[#f4f5f8]">{a.name}</span>
               <span className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#a2a5b4]">
                 <span className="inline-flex items-center gap-1.5"><CalendarDays size={15} aria-hidden="true" />{a.date}</span>
                 <span className="inline-flex items-center gap-1.5"><MapPin size={15} aria-hidden="true" />{a.location}</span>
               </span>
-              <span
-                className={cx(
-                  'inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold',
-                  full ? 'bg-white/10 text-[#a2a5b4]' : low ? 'bg-[#e65100]/20 text-[#ff8a3d]' : 'bg-emerald-400/15 text-emerald-300',
-                )}
-              >
-                {full ? 'Cupo lleno' : low ? `Últimos ${spots} cupos` : `${spots} cupos disponibles`}
+              <span className="flex items-center justify-between">
+                <span
+                  className={cx(
+                    'inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold',
+                    full ? 'bg-white/10 text-[#a2a5b4]' : low ? 'bg-[#e65100]/20 text-[#ff8a3d]' : 'bg-emerald-400/15 text-emerald-300',
+                  )}
+                >
+                  {full ? 'Cupo lleno' : low ? `Últimos ${spots} cupos` : `${spots} cupos disponibles`}
+                </span>
+                {!full ? (
+                  <span aria-hidden="true" className="text-xl font-light text-[#71748a] transition-all group-hover:translate-x-0.5 group-hover:text-[#ff8a3d]">→</span>
+                ) : null}
               </span>
             </button>
           );
         })}
       </div>
+      <KioskBackPill label="Volver al inicio" onClick={onHome} />
     </div>
   );
 }
@@ -169,33 +180,37 @@ export function IdentifyScreen({
   activityName, onHasCode, onNew, onBack,
 }: { activityName: string; onHasCode: () => void; onNew: () => void; onBack: () => void }) {
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-6 py-10">
-      <KioskTopBar title="¿Cómo te identificas?" onBack={onBack} />
+    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-6 py-12">
+      <KioskTopBar eyebrow="Identificación" title="¿Cómo te identificas?" />
       <p className="mt-2 text-[#a2a5b4]">
         Para asistir a <span className="font-medium text-[#f4f5f8]">{activityName}</span>
       </p>
       <div className="mt-10 grid flex-1 grid-cols-1 content-center gap-4 md:grid-cols-2">
-        <ChoiceCard icon={<QrCode size={32} aria-hidden="true" />} title="Tengo mi código" subtitle="Búscame por código o correo" onClick={onHasCode} />
-        <ChoiceCard icon={<UserPlus size={32} aria-hidden="true" />} title="Soy nuevo aquí" subtitle="Registro rápido en un paso" onClick={onNew} />
+        <ChoiceCard index={0} icon={<QrCode size={30} aria-hidden="true" />} title="Tengo mi código" subtitle="Búscame por código o correo" onClick={onHasCode} />
+        <ChoiceCard index={1} icon={<UserPlus size={30} aria-hidden="true" />} title="Soy nuevo aquí" subtitle="Registro rápido en un paso" onClick={onNew} />
       </div>
+      <KioskBackPill label="Volver a actividades" onClick={onBack} />
     </div>
   );
 }
 
-function ChoiceCard({ icon, title, subtitle, onClick }: { icon: React.ReactNode; title: string; subtitle: string; onClick: () => void }) {
+function ChoiceCard({ index, icon, title, subtitle, onClick }: { index: number; icon: React.ReactNode; title: string; subtitle: string; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      style={{ animationDelay: `${index * 90}ms` }}
       className={cx(
-        'flex flex-col items-start gap-4 rounded-3xl border border-white/10 bg-[#191b22] p-7 text-left transition-colors',
-        'hover:border-[#ff6f00]/40 hover:bg-[#22242e]',
+        'kiosk-card-in group relative flex flex-col items-start gap-4 overflow-hidden rounded-3xl border border-white/10 p-7 text-left',
+        'bg-[linear-gradient(180deg,#191b22_0%,#15171e_100%)] transition-all duration-200',
+        'hover:-translate-y-0.5 hover:border-[#ff6f00]/40 hover:shadow-[0_20px_44px_-22px_rgba(0,0,0,0.85)]',
         kioskFocus,
       )}
     >
-      <span className="grid h-16 w-16 place-items-center rounded-2xl bg-[#e65100]/15 text-[#ff8a3d]">{icon}</span>
+      <span className="grid h-16 w-16 place-items-center rounded-2xl bg-[#e65100]/15 text-[#ff8a3d] transition-colors group-hover:bg-[#e65100]/25">{icon}</span>
       <span className="text-xl font-semibold text-[#f4f5f8]">{title}</span>
       <span className="text-[#a2a5b4]">{subtitle}</span>
+      <span aria-hidden="true" className="absolute right-6 top-6 text-2xl font-light text-[#71748a] transition-all group-hover:translate-x-0.5 group-hover:text-[#ff8a3d]">→</span>
     </button>
   );
 }
@@ -396,7 +411,7 @@ export function ConfirmationScreen({
 }
 
 // ── Barra superior compartida ──────────────────────────────────────────────
-function KioskTopBar({ title, onBack, onHome }: { title: string; onBack?: () => void; onHome?: () => void }) {
+function KioskTopBar({ title, eyebrow, onBack, onHome }: { title: string; eyebrow?: string; onBack?: () => void; onHome?: () => void }) {
   return (
     <div className="flex items-center gap-4">
       {onBack ? (
@@ -404,7 +419,12 @@ function KioskTopBar({ title, onBack, onHome }: { title: string; onBack?: () => 
           <ArrowLeft size={22} aria-hidden="true" />
         </button>
       ) : null}
-      <h1 className="text-2xl font-semibold tracking-tight text-[#f4f5f8] md:text-3xl">{title}</h1>
+      <div className="min-w-0">
+        {eyebrow ? (
+          <p style={kioskMono} className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#ff8a3d]">{eyebrow}</p>
+        ) : null}
+        <h1 className="text-2xl font-semibold tracking-tight text-[#f4f5f8] md:text-3xl">{title}</h1>
+      </div>
       {onHome ? (
         <button type="button" onClick={onHome} aria-label="Volver al inicio" className={cx('ml-auto grid h-12 w-12 place-items-center rounded-full bg-[#191b22] text-[#a2a5b4] hover:text-[#f4f5f8]', kioskFocus)}>
           <Home size={22} aria-hidden="true" />
