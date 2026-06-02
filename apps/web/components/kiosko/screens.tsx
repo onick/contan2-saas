@@ -493,9 +493,10 @@ export function ConfirmationScreen({
             ¡Listo!
           </h1>
           {/* Saludo con el NOMBRE como protagonista: línea propia, mayor peso y
-              acento de marca en el nombre para que se sienta personal. */}
+              acento de marca en el nombre. Copy NEUTRO en género (no asumimos el
+              género del visitante; no hay ese dato): 'Te damos la bienvenida'. */}
           <p className="mt-4 text-[clamp(1.5rem,3.2vw,2.25rem)] font-bold leading-tight tracking-tight text-[#f4f5f8]">
-            {visitor.isNew ? '¡Bienvenida, ' : '¡Hola de nuevo, '}
+            {visitor.isNew ? '¡Te damos la bienvenida, ' : '¡Hola de nuevo, '}
             <span className="text-[#ff8a3d]">{visitor.firstName}</span>!
           </p>
           <p className="mt-2 text-[#a2a5b4] md:text-lg">

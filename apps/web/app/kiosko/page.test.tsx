@@ -36,7 +36,7 @@ describe('/kiosko · flujo del visitante', () => {
     fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: 'Ana' } });
     fireEvent.change(screen.getByLabelText(/Apellido/), { target: { value: 'Gómez' } });
     fireEvent.click(screen.getByRole('button', { name: /Registrarme y asistir/ }));
-    expect(screen.getByText(/¡Bienvenida,/)).toBeInTheDocument(); // saludo personalizado
+    expect(screen.getByText(/Te damos la bienvenida/)).toBeInTheDocument(); // saludo neutro
     expect(screen.getByText('Ana')).toBeInTheDocument();          // nombre destacado (acento)
     // Código con formato canónico <PREFIX>-XXXXXX (paridad de formato con v1).
     expect(screen.getByText(/^CCB-[0-9A-Z]{6}$/)).toBeInTheDocument();
