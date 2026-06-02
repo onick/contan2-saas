@@ -87,6 +87,21 @@ body {
 }
 .kiosk-cta-glow { animation: kiosk-cta-glow 2.8s ease-in-out infinite; }
 
+/* Kiosko · "spotlight": al pasar el mouse sobre una actividad, las demás se
+   difuminan y atenúan para enfocar la elegida. Sólo filter/opacity (no
+   transform) para no chocar con el transform retenido de kiosk-card-in.
+   Sólo en dispositivos con puntero fino (mouse), no en touch. */
+@media (hover: hover) and (pointer: fine) {
+  .kiosk-focus-grid > button { transition: filter 0.3s ease; }
+  /* blur + brightness en un solo filter: el atenuado va acá (no en opacity)
+     porque kiosk-card-in retiene opacity:1 con fill:both y la pisaría. */
+  .kiosk-focus-grid:has(button:hover) > button:not(:hover) {
+    filter: blur(3px) brightness(0.6);
+  }
+  /* el glow del CTA se pausa en las atenuadas para no llamar la atención */
+  .kiosk-focus-grid:has(button:hover) > button:not(:hover) .kiosk-cta-glow { animation: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .kiosk-pulse { animation: none; }
   .kiosk-card-in { animation: none; }

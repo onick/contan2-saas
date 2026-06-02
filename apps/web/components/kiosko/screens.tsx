@@ -164,7 +164,7 @@ export function ActivityScreen({
         </h1>
         <p className="mt-3 text-[#a2a5b4] md:text-lg">Estas son las actividades con cupo disponible hoy</p>
       </div>
-      <div className="mt-9 grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(290px,1fr))]">
+      <div className="kiosk-focus-grid mt-9 grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(290px,1fr))]">
         {activities.map((a, i) => (
           <ActivityCard key={a.id} activity={a} index={i} onSelect={onSelect} />
         ))}
