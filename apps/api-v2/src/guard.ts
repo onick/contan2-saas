@@ -7,7 +7,7 @@ import type { FastifyRequest } from 'fastify';
 import type { DbClient, TenantOrg } from '@contan2/db';
 import { resolveStaffSession } from '@contan2/auth';
 import type { PublicStaff } from '@contan2/contracts';
-import { resolveTenantFromHost } from './tenant.js';
+import { resolveTenantFromHost, effectiveHost } from './tenant.js';
 
 const SESSION_COOKIE = 'contan2_session';
 
@@ -26,7 +26,7 @@ export type GuardResult =
 //   sin cookie / inválida        → 401
 //   staff de otra org            → 403
 export async function requireTenantStaff(db: DbClient, req: FastifyRequest): Promise<GuardResult> {
-  const tenant = await resolveTenantFromHost(db, req.headers.host);
+  const tenant = await resolveTenantFromHost(db, effectiveHost(req));
   if (!tenant.ok) {
     if (tenant.reason === 'suspended') {
       return { ok: false, status: 503, error: 'Organización suspendida' };

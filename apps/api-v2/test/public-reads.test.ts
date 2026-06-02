@@ -152,6 +152,24 @@ run('slice público read-only (kiosko)', () => {
     expect((await get('/api/v2/public/activities', hostS)).statusCode).toBe(503);
   });
 
+  it('x-forwarded-host: con TRUST_FORWARDED_HOST=1 resuelve el tenant por el header (detrás de proxy)', async () => {
+    const prev = process.env.TRUST_FORWARDED_HOST;
+    process.env.TRUST_FORWARDED_HOST = '1';
+    try {
+      // Host = servicio interno (no-tenant); el host real del tenant va en el header.
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v2/public/activities',
+        headers: { host: 'api-internal:3001', 'x-forwarded-host': hostA },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(PublicActivitiesResponseSchema.parse(res.json()).total).toBe(1); // la actividad de orgA
+    } finally {
+      if (prev === undefined) delete process.env.TRUST_FORWARDED_HOST;
+      else process.env.TRUST_FORWARDED_HOST = prev;
+    }
+  });
+
   it('lookup: rate-limit por IP → 429 al superar el umbral', async () => {
     // Inunda con códigos válidos pero inexistentes (pasan tenant + validación).
     const codes: number[] = [];

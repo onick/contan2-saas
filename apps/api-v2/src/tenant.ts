@@ -5,12 +5,29 @@
 // ROOT_DOMAIN se lee de process.env (config aún no lo expone; mismo patrón
 // que @contan2/db con DATABASE_URL). Sin cache en PR #4 (se porta luego).
 
+import type { FastifyRequest } from 'fastify';
 import {
   type DbClient,
   findOrgBySlug,
   findOrgByCustomDomain,
   type TenantOrg,
 } from '@contan2/db';
+
+// Host efectivo del tenant. Detrás de un proxy (Coolify/Traefik) y en la llamada
+// web→api interna, el host real del tenant llega en `x-forwarded-host` (lo setea
+// el web vía apiGet), NO en `Host` (que es el del servicio interno). Solo se
+// confía en `x-forwarded-host` cuando `TRUST_FORWARDED_HOST=1` (staging/prod tras
+// un proxy de confianza); por defecto (dev/local/tests) se usa `Host`, sin
+// cambio de comportamiento. Header puede venir como lista (varios proxies) →
+// se toma el primer valor.
+export function effectiveHost(req: FastifyRequest): string | undefined {
+  if (process.env.TRUST_FORWARDED_HOST === '1') {
+    const fwd = req.headers['x-forwarded-host'];
+    const value = Array.isArray(fwd) ? fwd[0] : fwd;
+    if (value) return value.split(',')[0]!.trim();
+  }
+  return req.headers.host;
+}
 
 // Subdominios que NUNCA son tenants (admin incluido → admin.contan2.com
 // no resuelve como org). Igual conjunto que v1.
