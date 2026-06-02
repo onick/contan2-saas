@@ -324,20 +324,28 @@ export function NewVisitorScreen({
     <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col px-6 py-10">
       <KioskTopBar title="Registro rápido" onBack={onBack} />
       <form onSubmit={submit} className="mt-8 flex flex-col gap-5">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="kiosk-card-in grid grid-cols-1 gap-5 sm:grid-cols-2" style={{ animationDelay: '0ms' }}>
           <KField label="Nombre" required><input value={form.firstName} onChange={set('firstName')} autoComplete="given-name" className={inputCls} /></KField>
           <KField label="Apellido" required><input value={form.lastName} onChange={set('lastName')} autoComplete="family-name" className={inputCls} /></KField>
         </div>
-        <KField label="Correo" hint="Recomendado · te enviamos tu credencial">
-          <input type="email" value={form.email} onChange={set('email')} autoComplete="email" placeholder="tu@correo.com" className={inputCls} />
-        </KField>
-        <KField label="Teléfono" hint="Opcional">
-          <input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" className={inputCls} />
-        </KField>
-        <CompanionsControl children={kids} onChildren={setKids} />
-        <KioskButton type="submit" size="xl" disabled={!valid} className="mt-2">
-          <Check size={22} aria-hidden="true" /> Registrarme y asistir
-        </KioskButton>
+        <div className="kiosk-card-in" style={{ animationDelay: '70ms' }}>
+          <KField label="Correo" hint="Recomendado · te enviamos tu credencial">
+            <input type="email" value={form.email} onChange={set('email')} autoComplete="email" placeholder="tu@correo.com" className={inputCls} />
+          </KField>
+        </div>
+        <div className="kiosk-card-in" style={{ animationDelay: '140ms' }}>
+          <KField label="Teléfono" hint="Opcional">
+            <input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" className={inputCls} />
+          </KField>
+        </div>
+        <div className="kiosk-card-in" style={{ animationDelay: '210ms' }}>
+          <CompanionsControl children={kids} onChildren={setKids} />
+        </div>
+        <div className="kiosk-card-in mt-2" style={{ animationDelay: '280ms' }}>
+          <KioskButton type="submit" size="xl" disabled={!valid} className="w-full">
+            <Check size={22} aria-hidden="true" /> Registrarme y asistir
+          </KioskButton>
+        </div>
       </form>
     </div>
   );
