@@ -268,8 +268,10 @@ export function IdentifyScreen({
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
         <div className="mt-8">
           <p style={kioskMono} className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#ff8a3d]">Identificación</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#f4f5f8] md:text-3xl">¿Cómo te identificas?</h1>
-          <p className="mt-2 text-[#a2a5b4]">
+          <h1 className="text-[clamp(2.25rem,5.5vw,4rem)] font-extrabold uppercase leading-[0.95] tracking-[-0.03em] text-[#f4f5f8]">
+            ¿Cómo te identificas?
+          </h1>
+          <p className="mt-3 text-[#a2a5b4] md:text-lg">
             Para asistir a <span className="font-medium text-[#f4f5f8]">{activityName}</span>
           </p>
         </div>
