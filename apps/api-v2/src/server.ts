@@ -11,6 +11,7 @@ import { dashboardMetricsRoute } from './routes/dashboard-metrics.js';
 import { activitiesRoute } from './routes/activities.js';
 import { usersRoute } from './routes/users.js';
 import { attendanceRoute } from './routes/attendance.js';
+import { publicRoute } from './routes/public.js';
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
@@ -28,6 +29,8 @@ export function buildApp(): FastifyInstance {
   app.register(activitiesRoute, { prefix: '/api/v2' });
   app.register(usersRoute, { prefix: '/api/v2' });
   app.register(attendanceRoute, { prefix: '/api/v2' });
+  // Slice público read-only (kiosko): tenant por host, SIN auth de staff.
+  app.register(publicRoute, { prefix: '/api/v2' });
 
   // Cierra el pool singleton de @contan2/db al apagar la app (tests + prod).
   app.addHook('onClose', async () => {
