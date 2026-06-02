@@ -310,7 +310,9 @@ function ChoiceCard({ index, icon, title, subtitle, onClick }: { index: number; 
 export function CodeScreen({
   onLookup, onFound, onNew, onBack,
 }: {
-  onLookup: (query: string) => KioskVisitor | null;
+  // Async: en modo API resuelve por la red; en demo es Promise.resolve(local).
+  // null = no encontrado (404/inválido). throw = error real (api caído/5xx/red).
+  onLookup: (query: string) => Promise<KioskVisitor | null>;
   onFound: (v: KioskVisitor) => void;
   onNew: () => void;
   onBack: () => void;
@@ -318,14 +320,24 @@ export function CodeScreen({
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<KioskVisitor | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [kids, setKids] = useState(0);
 
-  const search = (e: FormEvent) => {
+  const search = async (e: FormEvent) => {
     e.preventDefault();
-    if (query.trim().length < 3) return;
-    const found = onLookup(query.trim());
-    setResult(found);
-    setNotFound(!found);
+    if (query.trim().length < 3 || loading) return;
+    setLoading(true); setError(false); setNotFound(false); setResult(null);
+    try {
+      const found = await onLookup(query.trim());
+      setResult(found);
+      setNotFound(!found);
+    } catch {
+      // En modo API un error NO cae a demo: mostramos "intentá de nuevo".
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -344,13 +356,13 @@ export function CodeScreen({
             <input
               id="k-code"
               value={query}
-              onChange={(e) => { setQuery(e.target.value); setNotFound(false); setResult(null); }}
+              onChange={(e) => { setQuery(e.target.value); setNotFound(false); setResult(null); setError(false); }}
               placeholder="CCB-7F3K2P"
               autoComplete="off"
               className={inputCls}
             />
-            <KioskButton type="submit" disabled={query.trim().length < 3} className="shrink-0">
-              <Search size={20} aria-hidden="true" /> Buscar
+            <KioskButton type="submit" disabled={query.trim().length < 3 || loading} className="shrink-0">
+              <Search size={20} aria-hidden="true" /> {loading ? 'Buscando…' : 'Buscar'}
             </KioskButton>
           </div>
         </form>
@@ -387,6 +399,13 @@ export function CodeScreen({
             <KioskButton variant="secondary" onClick={onNew} className="mt-4">
               <UserPlus size={20} aria-hidden="true" /> Registrarme como nuevo
             </KioskButton>
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="mt-6 rounded-2xl border border-amber-400/25 bg-amber-400/10 p-5 text-center">
+            <p className="text-[#f4f5f8]">No pudimos consultar el registro.</p>
+            <p className="mt-1 text-sm text-[#a2a5b4]">Revisá tu conexión e intentá de nuevo.</p>
           </div>
         ) : null}
 
