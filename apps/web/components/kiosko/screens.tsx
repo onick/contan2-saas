@@ -6,7 +6,7 @@
 
 import { useState, useEffect, type FormEvent } from 'react';
 import {
-  ArrowLeft, Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
+  Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
   Baby, Info, Minus, Plus, Film, Music, MessagesSquare, Palette, Ban, type LucideIcon,
 } from 'lucide-react';
 import { KioskButton, TicketButton, KioskBackPill, FauxQr, cx, kioskFocus, kioskMono } from './ui';
@@ -299,7 +299,7 @@ function ChoiceCard({ index, icon, title, subtitle, onClick }: { index: number; 
       )}
     >
       <span className="grid h-16 w-16 place-items-center rounded-2xl bg-[#e65100]/15 text-[#ff8a3d] transition-colors group-hover:bg-[#e65100]/25">{icon}</span>
-      <span className="text-xl font-semibold text-[#f4f5f8]">{title}</span>
+      <span className="text-xl font-bold uppercase tracking-tight text-[#f4f5f8]">{title}</span>
       <span className="text-[#a2a5b4]">{subtitle}</span>
       <span aria-hidden="true" className="absolute right-6 top-6 text-2xl font-light text-[#71748a] transition-all group-hover:translate-x-0.5 group-hover:text-[#ff8a3d]">→</span>
     </button>
@@ -329,59 +329,69 @@ export function CodeScreen({
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col px-6 py-10">
-      <KioskTopBar title="Busca tu registro" onBack={onBack} />
-      <form onSubmit={search} className="mt-8 flex flex-col gap-3">
-        <label htmlFor="k-code" className="text-sm font-medium text-[#a2a5b4]">Código (CCB-XXXXXX) o correo</label>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <input
-            id="k-code"
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setNotFound(false); setResult(null); }}
-            placeholder="CCB-7F3K2P"
-            autoComplete="off"
-            className={inputCls}
-          />
-          <KioskButton type="submit" disabled={query.trim().length < 3} className="shrink-0">
-            <Search size={20} aria-hidden="true" /> Buscar
-          </KioskButton>
+    <div className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
+      <KioskHeader />
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
+        <div className="mt-8">
+          <p style={kioskMono} className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#ff8a3d]">Tengo mi código</p>
+          <h1 className="text-[clamp(2.25rem,5.5vw,4rem)] font-extrabold uppercase leading-[0.95] tracking-[-0.03em] text-[#f4f5f8]">
+            Busca tu registro
+          </h1>
         </div>
-      </form>
+        <form onSubmit={search} className="mt-8 flex flex-col gap-3">
+          <label htmlFor="k-code" className="text-sm font-medium text-[#a2a5b4]">Código (CCB-XXXXXX) o correo</label>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              id="k-code"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setNotFound(false); setResult(null); }}
+              placeholder="CCB-7F3K2P"
+              autoComplete="off"
+              className={inputCls}
+            />
+            <KioskButton type="submit" disabled={query.trim().length < 3} className="shrink-0">
+              <Search size={20} aria-hidden="true" /> Buscar
+            </KioskButton>
+          </div>
+        </form>
 
-      {result ? (
-        <div className="mt-6 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-5">
-          <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-emerald-400/20 text-emerald-300">
-              <UserCheck size={24} aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-lg font-semibold text-[#f4f5f8]">{result.firstName} {result.lastName}</p>
-              <p className="text-sm text-[#a2a5b4]">{result.code} · {result.visitCount} visitas</p>
+        {result ? (
+          <div className="mt-6 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-5">
+            <div className="flex items-center gap-3">
+              <span className="grid h-12 w-12 place-items-center rounded-full bg-emerald-400/20 text-emerald-300">
+                <UserCheck size={24} aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-lg font-semibold text-[#f4f5f8]">{result.firstName} {result.lastName}</p>
+                <p className="text-sm text-[#a2a5b4]">{result.code} · {result.visitCount} visitas</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <CompanionsControl children={kids} onChildren={setKids} />
+            </div>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <KioskButton onClick={() => onFound({ ...result, companionsChildren: kids })} className="flex-1">
+                <Check size={20} aria-hidden="true" /> Sí, confirmar asistencia
+              </KioskButton>
+              <KioskButton variant="secondary" onClick={() => { setResult(null); setQuery(''); setKids(0); }}>
+                <X size={20} aria-hidden="true" /> No soy yo
+              </KioskButton>
             </div>
           </div>
-          <div className="mt-4">
-            <CompanionsControl children={kids} onChildren={setKids} />
-          </div>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-            <KioskButton onClick={() => onFound({ ...result, companionsChildren: kids })} className="flex-1">
-              <Check size={20} aria-hidden="true" /> Sí, confirmar asistencia
-            </KioskButton>
-            <KioskButton variant="secondary" onClick={() => { setResult(null); setQuery(''); setKids(0); }}>
-              <X size={20} aria-hidden="true" /> No soy yo
-            </KioskButton>
-          </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {notFound ? (
-        <div className="mt-6 rounded-2xl border border-white/10 bg-[#191b22] p-5 text-center">
-          <p className="text-[#f4f5f8]">No te encontramos con ese dato.</p>
-          <p className="mt-1 text-sm text-[#a2a5b4]">¿Es tu primera vez? Regístrate en un paso.</p>
-          <KioskButton variant="secondary" onClick={onNew} className="mt-4">
-            <UserPlus size={20} aria-hidden="true" /> Registrarme como nuevo
-          </KioskButton>
-        </div>
-      ) : null}
+        {notFound ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-[#191b22] p-5 text-center">
+            <p className="text-[#f4f5f8]">No te encontramos con ese dato.</p>
+            <p className="mt-1 text-sm text-[#a2a5b4]">¿Es tu primera vez? Regístrate en un paso.</p>
+            <KioskButton variant="secondary" onClick={onNew} className="mt-4">
+              <UserPlus size={20} aria-hidden="true" /> Registrarme como nuevo
+            </KioskButton>
+          </div>
+        ) : null}
+
+        <KioskBackPill label="Volver a identificación" onClick={onBack} />
+      </div>
     </div>
   );
 }
@@ -412,32 +422,41 @@ export function NewVisitorScreen({
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col px-6 py-10">
-      <KioskTopBar title="Registro rápido" onBack={onBack} />
-      <form onSubmit={submit} className="mt-8 flex flex-col gap-5">
-        <div className="kiosk-card-in grid grid-cols-1 gap-5 sm:grid-cols-2" style={{ animationDelay: '0ms' }}>
-          <KField label="Nombre" required><input value={form.firstName} onChange={set('firstName')} autoComplete="given-name" className={inputCls} /></KField>
-          <KField label="Apellido" required><input value={form.lastName} onChange={set('lastName')} autoComplete="family-name" className={inputCls} /></KField>
+    <div className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
+      <KioskHeader />
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
+        <div className="mt-8">
+          <p style={kioskMono} className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#ff8a3d]">Soy nuevo aquí</p>
+          <h1 className="text-[clamp(2.25rem,5.5vw,4rem)] font-extrabold uppercase leading-[0.95] tracking-[-0.03em] text-[#f4f5f8]">
+            Registro rápido
+          </h1>
         </div>
-        <div className="kiosk-card-in" style={{ animationDelay: '70ms' }}>
-          <KField label="Correo" hint="Recomendado · te enviamos tu credencial">
-            <input type="email" value={form.email} onChange={set('email')} autoComplete="email" placeholder="tu@correo.com" className={inputCls} />
-          </KField>
-        </div>
-        <div className="kiosk-card-in" style={{ animationDelay: '140ms' }}>
-          <KField label="Teléfono" hint="Opcional">
-            <input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" className={inputCls} />
-          </KField>
-        </div>
-        <div className="kiosk-card-in" style={{ animationDelay: '210ms' }}>
-          <CompanionsControl children={kids} onChildren={setKids} />
-        </div>
-        <div className="kiosk-card-in mt-2" style={{ animationDelay: '280ms' }}>
-          <KioskButton type="submit" size="xl" disabled={!valid} className="w-full">
-            <Check size={22} aria-hidden="true" /> Registrarme y asistir
-          </KioskButton>
-        </div>
-      </form>
+        <form onSubmit={submit} className="mt-8 flex flex-col gap-5">
+          <div className="kiosk-card-in grid grid-cols-1 gap-5 sm:grid-cols-2" style={{ animationDelay: '0ms' }}>
+            <KField label="Nombre" required><input value={form.firstName} onChange={set('firstName')} autoComplete="given-name" className={inputCls} /></KField>
+            <KField label="Apellido" required><input value={form.lastName} onChange={set('lastName')} autoComplete="family-name" className={inputCls} /></KField>
+          </div>
+          <div className="kiosk-card-in" style={{ animationDelay: '70ms' }}>
+            <KField label="Correo" hint="Recomendado · te enviamos tu credencial">
+              <input type="email" value={form.email} onChange={set('email')} autoComplete="email" placeholder="tu@correo.com" className={inputCls} />
+            </KField>
+          </div>
+          <div className="kiosk-card-in" style={{ animationDelay: '140ms' }}>
+            <KField label="Teléfono" hint="Opcional">
+              <input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" className={inputCls} />
+            </KField>
+          </div>
+          <div className="kiosk-card-in" style={{ animationDelay: '210ms' }}>
+            <CompanionsControl children={kids} onChildren={setKids} />
+          </div>
+          <div className="kiosk-card-in mt-2" style={{ animationDelay: '280ms' }}>
+            <KioskButton type="submit" size="xl" disabled={!valid} className="w-full">
+              <Check size={22} aria-hidden="true" /> Registrarme y asistir
+            </KioskButton>
+          </div>
+        </form>
+        <KioskBackPill label="Volver a identificación" onClick={onBack} />
+      </div>
     </div>
   );
 }
@@ -505,30 +524,6 @@ export function ConfirmationScreen({
       <KioskButton variant="secondary" onClick={onHome}>
         <Home size={20} aria-hidden="true" /> Volver al inicio · {secondsLeft}s
       </KioskButton>
-    </div>
-  );
-}
-
-// ── Barra superior compartida ──────────────────────────────────────────────
-function KioskTopBar({ title, eyebrow, onBack, onHome }: { title: string; eyebrow?: string; onBack?: () => void; onHome?: () => void }) {
-  return (
-    <div className="flex items-center gap-4">
-      {onBack ? (
-        <button type="button" onClick={onBack} aria-label="Volver" className={cx('grid h-12 w-12 place-items-center rounded-full bg-[#191b22] text-[#a2a5b4] hover:text-[#f4f5f8]', kioskFocus)}>
-          <ArrowLeft size={22} aria-hidden="true" />
-        </button>
-      ) : null}
-      <div className="min-w-0">
-        {eyebrow ? (
-          <p style={kioskMono} className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#ff8a3d]">{eyebrow}</p>
-        ) : null}
-        <h1 className="text-2xl font-semibold tracking-tight text-[#f4f5f8] md:text-3xl">{title}</h1>
-      </div>
-      {onHome ? (
-        <button type="button" onClick={onHome} aria-label="Volver al inicio" className={cx('ml-auto grid h-12 w-12 place-items-center rounded-full bg-[#191b22] text-[#a2a5b4] hover:text-[#f4f5f8]', kioskFocus)}>
-          <Home size={22} aria-hidden="true" />
-        </button>
-      ) : null}
     </div>
   );
 }
