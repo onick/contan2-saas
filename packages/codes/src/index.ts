@@ -10,6 +10,8 @@ export {
   isValidCode,
   parseCode,
   normalizeCodeForLookup,
+  normalizeScannedCode,
+  resolveTenantCode,
   type ParsedCode,
 } from './codes.js';
 
