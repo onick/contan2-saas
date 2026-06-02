@@ -18,8 +18,15 @@ WORKDIR /app
 FROM base AS build
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/api-v2 ./apps/api-v2
+# Los 5 packages workspace que api-v2 importa (ver apps/api-v2/package.json):
+# config + contracts + db + auth + codes. Sin estos, `pnpm install` y el build
+# (`@contan2/api-v2...` incluye sus deps) fallan. Ninguno usa módulos nativos
+# (kysely/pg/zod/node:crypto), así que no hace falta toolchain en la imagen.
 COPY packages/config ./packages/config
 COPY packages/contracts ./packages/contracts
+COPY packages/db ./packages/db
+COPY packages/auth ./packages/auth
+COPY packages/codes ./packages/codes
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @contan2/api-v2... build
 
@@ -37,6 +44,12 @@ COPY --from=build /app/packages/config/package.json ./packages/config/
 COPY --from=build /app/packages/config/dist ./packages/config/dist
 COPY --from=build /app/packages/contracts/package.json ./packages/contracts/
 COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist
+COPY --from=build /app/packages/db/package.json ./packages/db/
+COPY --from=build /app/packages/db/dist ./packages/db/dist
+COPY --from=build /app/packages/auth/package.json ./packages/auth/
+COPY --from=build /app/packages/auth/dist ./packages/auth/dist
+COPY --from=build /app/packages/codes/package.json ./packages/codes/
+COPY --from=build /app/packages/codes/dist ./packages/codes/dist
 RUN pnpm install --frozen-lockfile --prod
 
 EXPOSE 3001
