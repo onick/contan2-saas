@@ -2812,7 +2812,7 @@ function paintActivitiesTable() {
               </td>
               <td><span class="badge badge--type-${a.type}">${Utils.escapeHtml(Utils.activityTypeLabel(a.type))}</span></td>
               <td class="cell-muted">${Utils.escapeHtml(a.location)}</td>
-              <td class="cell-muted">${Utils.formatDate(a.date)} ${Utils.dateRelativeBadge(a.date)}</td>
+              <td class="cell-muted"${a.endDate ? ` title="Cierre: ${Utils.escapeHtml(Utils.formatDate(a.endDate))}"` : ''}>${Utils.formatDate(a.date)} ${Utils.dateRelativeBadge(a.date)}</td>
               <td>
                 <div class="progress">
                   <div class="progress-track"><div class="progress-bar ${nearFull ? 'progress-bar--hot' : ''}" style="width:${pct}%"></div></div>
@@ -2897,8 +2897,13 @@ function activityFormHtml(activity = null) {
         </div>
       </div>
       <div class="form-group">
-        <label>Fecha y hora <span class="required">*</span></label>
+        <label>Fecha y hora de inicio <span class="required">*</span></label>
         <input type="datetime-local" name="date" required value="${Utils.toInputValue(activity?.date) || Utils.todayInput()}" />
+      </div>
+      <div class="form-group">
+        <label>Fecha y hora de cierre <span class="form-hint" style="font-weight:400">(opcional)</span></label>
+        <input type="datetime-local" name="endDate" value="${Utils.toInputValue(activity?.endDate) || ''}" />
+        <div class="form-hint">Si la actividad tiene horario de fin, indícalo. Debe ser igual o posterior al inicio.</div>
       </div>
       <div class="form-group">
         <label>Descripción</label>
@@ -2951,6 +2956,8 @@ function readActivityForm(form) {
   if (status) data.status = status;
   const rawCategory = (fd.get('category') || '').trim();
   data.category = rawCategory === '' ? null : rawCategory;
+  const rawEnd = fd.get('endDate');
+  data.endDate = rawEnd ? Utils.toIsoFromInput(rawEnd) : null;
   return data;
 }
 
@@ -3292,7 +3299,8 @@ function renderActivityDetailModal() {
       </div>
 
       <div class="activity-detail-info">
-        <div class="activity-detail-row"><i class="fa-solid fa-calendar"></i> ${Utils.formatDate(activity.date)}</div>
+        <div class="activity-detail-row"><i class="fa-solid fa-calendar"></i> Inicio: ${Utils.formatDate(activity.date)}</div>
+        ${activity.endDate ? `<div class="activity-detail-row"><i class="fa-solid fa-calendar-xmark"></i> Cierre: ${Utils.escapeHtml(Utils.formatDate(activity.endDate))}</div>` : ''}
         <div class="activity-detail-row"><i class="fa-solid fa-location-dot"></i> ${Utils.escapeHtml(activity.location)}</div>
         <div class="activity-detail-row">
           <i class="fa-solid fa-users"></i>
