@@ -12,7 +12,7 @@ import type {
   PublicActivity,
   PublicVisitorLookupResponse,
 } from '@contan2/contracts';
-import { resolveTenantFromHost } from '../tenant.js';
+import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
 
 // Rate-limit in-memory para el lookup (anti-enumeración de códigos/emails).
 // Ventana fija por IP, port directo de v1 (backend/src/routes/public.js).
@@ -45,7 +45,7 @@ type TenantOnly =
 // guard de staff para hosts no-tenant / inexistentes / suspendidos. Expone
 // codePrefix para resolver códigos cortos en el lookup.
 async function tenantOnly(db: DbClient, req: FastifyRequest): Promise<TenantOnly> {
-  const tenant = await resolveTenantFromHost(db, req.headers.host);
+  const tenant = await resolveTenantFromHost(db, effectiveHost(req));
   if (tenant.ok) return { ok: true, orgId: tenant.org.id, codePrefix: tenant.org.codePrefix };
   return tenant.reason === 'suspended'
     ? { ok: false, status: 503, error: 'Organización suspendida' }
