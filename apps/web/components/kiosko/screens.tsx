@@ -261,16 +261,24 @@ export function IdentifyScreen({
   activityName, onHasCode, onNew, onBack,
 }: { activityName: string; onHasCode: () => void; onNew: () => void; onBack: () => void }) {
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-6 py-12">
-      <KioskTopBar eyebrow="Identificación" title="¿Cómo te identificas?" />
-      <p className="mt-2 text-[#a2a5b4]">
-        Para asistir a <span className="font-medium text-[#f4f5f8]">{activityName}</span>
-      </p>
-      <div className="mt-10 grid flex-1 grid-cols-1 content-center gap-4 md:grid-cols-2">
-        <ChoiceCard index={0} icon={<QrCode size={30} aria-hidden="true" />} title="Tengo mi código" subtitle="Búscame por código o correo" onClick={onHasCode} />
-        <ChoiceCard index={1} icon={<UserPlus size={30} aria-hidden="true" />} title="Soy nuevo aquí" subtitle="Registro rápido en un paso" onClick={onNew} />
+    <div className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
+      <KioskHeader />
+      {/* Contenido centrado (max-w-3xl) bajo el header full-width, para coherencia
+          con la pantalla de actividades: misma barra superior en ambas. */}
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
+        <div className="mt-8">
+          <p style={kioskMono} className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#ff8a3d]">Identificación</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-[#f4f5f8] md:text-3xl">¿Cómo te identificas?</h1>
+          <p className="mt-2 text-[#a2a5b4]">
+            Para asistir a <span className="font-medium text-[#f4f5f8]">{activityName}</span>
+          </p>
+        </div>
+        <div className="mt-10 grid flex-1 grid-cols-1 content-center gap-4 md:grid-cols-2">
+          <ChoiceCard index={0} icon={<QrCode size={30} aria-hidden="true" />} title="Tengo mi código" subtitle="Búscame por código o correo" onClick={onHasCode} />
+          <ChoiceCard index={1} icon={<UserPlus size={30} aria-hidden="true" />} title="Soy nuevo aquí" subtitle="Registro rápido en un paso" onClick={onNew} />
+        </div>
+        <KioskBackPill label="Volver a actividades" onClick={onBack} />
       </div>
-      <KioskBackPill label="Volver a actividades" onClick={onBack} />
     </div>
   );
 }
