@@ -480,50 +480,62 @@ export function ConfirmationScreen({
   const party = partySize(visitor);
   const companions = companionsLabel(visitor);
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center gap-7 px-6 py-10 text-center">
-      <span className="grid h-16 w-16 place-items-center rounded-full bg-emerald-400/20 text-emerald-300">
-        <Check size={36} strokeWidth={2.5} aria-hidden="true" />
-      </span>
+    <div className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
+      <KioskHeader />
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
+        <div className="mt-8">
+          {/* Eyebrow en verde + check: señal de éxito dentro del mismo slot y
+              estilo de eyebrow del resto del flujo (mono, uppercase, tracking). */}
+          <p style={kioskMono} className="mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
+            <Check size={14} strokeWidth={3} aria-hidden="true" /> Registro completado
+          </p>
+          <h1 className="text-[clamp(2.25rem,5.5vw,4rem)] font-extrabold uppercase leading-[0.95] tracking-[-0.03em] text-[#f4f5f8]">
+            ¡Listo!
+          </h1>
+          <p className="mt-3 text-[#a2a5b4] md:text-lg">
+            <span className="font-medium text-[#f4f5f8]">
+              {visitor.isNew ? `¡Bienvenida, ${visitor.firstName}!` : `¡Hola de nuevo, ${visitor.firstName}!`}
+            </span>{' '}
+            {companions
+              ? <>Registrados {visitor.firstName} {companions} en <span className="font-medium text-[#f4f5f8]">{activityName}</span>.</>
+              : <>Tu asistencia a <span className="font-medium text-[#f4f5f8]">{activityName}</span> quedó registrada.</>}
+          </p>
+        </div>
 
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-[#f4f5f8] md:text-4xl">
-          {visitor.isNew ? `¡Bienvenida, ${visitor.firstName}!` : `¡Hola de nuevo, ${visitor.firstName}!`}
-        </h1>
-        <p className="mt-2 text-[#a2a5b4]">
-          {companions ? <>Registrados <span className="font-medium text-[#f4f5f8]">{visitor.firstName} {companions}</span> en </> : <>Tu asistencia a </>}
-          <span className="font-medium text-[#f4f5f8]">{activityName}</span>{companions ? '.' : ' quedó registrada.'}
+        {/* Credencial demo: QR + código + badges, centrados en una tarjeta. */}
+        <div className="mt-8 flex flex-col items-center gap-6 rounded-3xl border border-white/10 bg-[linear-gradient(180deg,#191b22_0%,#15171e_100%)] p-8 text-center">
+          <FauxQr code={visitor.code} />
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-2xl font-bold tracking-[0.08em] tabular-nums text-[#f4f5f8]">{visitor.code}</p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-sm text-[#a2a5b4]">
+                {visitor.isNew ? 'Tu primera visita' : `Visita número ${visitor.visitCount}`}
+              </span>
+              {party > 1 ? (
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#e65100]/15 px-3 py-1 text-sm font-medium text-[#ff8a3d]">
+                  Ocupa {party} cupos
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <p className="mx-auto mt-6 flex max-w-md items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2.5 text-center text-sm text-[#a2a5b4]">
+          <UserPlus size={16} aria-hidden="true" className="flex-none text-[#ff8a3d]" />
+          ¿Viene otro adulto? Puede registrarse al finalizar este proceso.
         </p>
-      </div>
 
-      <FauxQr code={visitor.code} />
+        <p className="mx-auto mt-3 max-w-md text-center text-xs text-[#71748a]">
+          Vista previa. El código y el QR definitivos los emite el servidor con la misma
+          secuencia que v1, y te llegan por correo si lo registraste.
+        </p>
 
-      <div className="flex flex-col items-center gap-2">
-        <p className="text-2xl font-bold tracking-[0.08em] tabular-nums text-[#f4f5f8]">{visitor.code}</p>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-sm text-[#a2a5b4]">
-            {visitor.isNew ? 'Tu primera visita' : `Visita número ${visitor.visitCount}`}
-          </span>
-          {party > 1 ? (
-            <span className="inline-flex items-center gap-2 rounded-full bg-[#e65100]/15 px-3 py-1 text-sm font-medium text-[#ff8a3d]">
-              Ocupa {party} cupos
-            </span>
-          ) : null}
+        <div className="mt-8 flex justify-center">
+          <KioskButton variant="secondary" onClick={onHome}>
+            <Home size={20} aria-hidden="true" /> Volver al inicio · {secondsLeft}s
+          </KioskButton>
         </div>
       </div>
-
-      <p className="flex max-w-md items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2.5 text-sm text-[#a2a5b4]">
-        <UserPlus size={16} aria-hidden="true" className="flex-none text-[#ff8a3d]" />
-        ¿Viene otro adulto? Puede registrarse al finalizar este proceso.
-      </p>
-
-      <p className="max-w-md text-xs text-[#71748a]">
-        Vista previa. El código y el QR definitivos los emite el servidor con la misma
-        secuencia que v1, y te llegan por correo si lo registraste.
-      </p>
-
-      <KioskButton variant="secondary" onClick={onHome}>
-        <Home size={20} aria-hidden="true" /> Volver al inicio · {secondsLeft}s
-      </KioskButton>
     </div>
   );
 }
