@@ -1,18 +1,47 @@
-// apps/api-v2/src/routes/public.ts · slice PÚBLICO read-only para el kiosko.
-// Tenant por host (resolveTenantFromHost), SIN cookie de staff — paridad con
-// v1, donde /api/public/* se monta bajo resolveTenant pero sin requireAuth.
-// Dos endpoints: actividades visibles y lookup de visitante (rate-limited).
-// Read-only puro: cero escrituras, cero Resend, cero QR real.
+// apps/api-v2/src/routes/public.ts · slice PÚBLICO para el kiosko. Tenant por
+// host (resolveTenantFromHost), SIN cookie de staff — paridad con v1, donde
+// /api/public/* se monta bajo resolveTenant pero sin requireAuth.
+//   GET  /public/activities      · actividades visibles (read-only)
+//   GET  /public/users/lookup    · lookup de visitante (read-only, rate-limited)
+//   POST /public/checkin         · check-in (ESCRITURA, rate-limited, tx única)
+// El check-in NO emite QR PNG ni manda email (eso va en el PR de credencial);
+// devuelve el código real (QR = user.code).
 
+import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, type DbClient } from '@contan2/db';
-import { resolveTenantCode } from '@contan2/codes';
-import type {
-  PublicActivitiesResponse,
-  PublicActivity,
-  PublicVisitorLookupResponse,
+import { getDb, sql, type DbClient } from '@contan2/db';
+import { resolveTenantCode, generateUserCode } from '@contan2/codes';
+import {
+  PublicCheckinRequestSchema,
+  type PublicActivitiesResponse,
+  type PublicActivity,
+  type PublicVisitorLookupResponse,
+  type PublicCheckinResponse,
 } from '@contan2/contracts';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
+
+// Error de check-in con status HTTP, para que la transacción lo lance y haga
+// ROLLBACK, y el handler lo mapee a la respuesta.
+class CheckinError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = 'CheckinError';
+  }
+}
+
+// Rate-limit del check-in (escritura): bucket propio, aparte del lookup.
+const CHECKIN_LIMIT = 10;
+const checkinHits = new Map<string, { count: number; resetAt: number }>();
+function checkinRateLimited(ip: string, now: number): boolean {
+  for (const [k, b] of checkinHits) if (now >= b.resetAt) checkinHits.delete(k);
+  const cur = checkinHits.get(ip);
+  if (!cur || now >= cur.resetAt) {
+    checkinHits.set(ip, { count: 1, resetAt: now + LOOKUP_WINDOW_MS });
+    return false;
+  }
+  cur.count += 1;
+  return cur.count > CHECKIN_LIMIT;
+}
 
 // Rate-limit in-memory para el lookup (anti-enumeración de códigos/emails).
 // Ventana fija por IP, port directo de v1 (backend/src/routes/public.js).
@@ -153,5 +182,144 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       },
     };
     return body;
+  });
+
+  // POST /api/v2/public/checkin · ESCRITURA. Una sola transacción: resolver/crear
+  // visitante (scoped al tenant), descontar cupo atómicamente, registrar
+  // asistencia (idempotente por (org,user,activity)) e incrementar visitas. Sin
+  // QR PNG ni email (PR aparte). Cada adulto = identidad propia; sólo niños como
+  // acompañantes → partySize = 1 + companionsChildren.
+  app.post('/public/checkin', async (req, reply) => {
+    const db = getDb();
+    const t = await tenantOnly(db, req);
+    if (!t.ok) {
+      reply.code(t.status);
+      return { error: t.error };
+    }
+
+    if (checkinRateLimited(req.ip, Date.now())) {
+      reply.code(429);
+      return { error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' };
+    }
+
+    const parsed = PublicCheckinRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      reply.code(400);
+      return { error: 'Datos de check-in inválidos.' };
+    }
+    const { activityId, visitor, companionsChildren } = parsed.data;
+    const orgId = t.orgId;
+    const partySize = 1 + companionsChildren;
+
+    try {
+      const result = await db.transaction().execute(async (tx): Promise<PublicCheckinResponse> => {
+        // 1 · Resolver o crear visitante (scoped al tenant).
+        let user: { id: string; code: string; visit_count: number };
+        let isNew = false;
+        if ('new' in visitor) {
+          isNew = true;
+          const v = visitor.new;
+          const email = v.email ? v.email.toLowerCase() : null;
+          if (email) {
+            const exists = await tx.selectFrom('users').select('id')
+              .where('organization_id', '=', orgId).where('email', '=', email).executeTakeFirst();
+            if (exists) throw new CheckinError(409, 'Ese correo ya está registrado. Identifícate con tu código.');
+          }
+          // Código REAL con retry-on-collision (unique users_org_code_unique).
+          // visit_count = 1: este check-in ES su primera visita (DB default es 1).
+          let created: { id: string; code: string; visit_count: number } | undefined;
+          for (let attempt = 0; attempt < 5 && !created; attempt += 1) {
+            created = await tx.insertInto('users').values({
+              id: randomUUID(),
+              organization_id: orgId,
+              code: generateUserCode(t.codePrefix),
+              first_name: v.firstName,
+              last_name: v.lastName,
+              email,
+              phone: v.phone ?? null,
+              visit_count: 1,
+            })
+              .onConflict((oc) => oc.columns(['organization_id', 'code']).doNothing())
+              .returning(['id', 'code', 'visit_count'])
+              .executeTakeFirst();
+          }
+          if (!created) throw new CheckinError(500, 'No se pudo generar un código único.');
+          user = created;
+        } else {
+          let q = tx.selectFrom('users').select(['id', 'code', 'visit_count']).where('organization_id', '=', orgId);
+          if ('code' in visitor) {
+            const code = resolveTenantCode(visitor.code, t.codePrefix);
+            if (!code) throw new CheckinError(400, 'Código inválido.');
+            q = q.where('code', '=', code);
+          } else {
+            q = q.where('email', '=', visitor.email.toLowerCase());
+          }
+          const found = await q.executeTakeFirst();
+          if (!found) throw new CheckinError(404, 'No te encontramos con ese dato.');
+          user = found;
+        }
+
+        // 2 · Reserva ATÓMICA de cupo: el WHERE garantiza enrolled+party <= capacity.
+        const reserved = await tx.updateTable('activities')
+          .set({ enrolled_count: sql<number>`enrolled_count + ${partySize}` })
+          .where('organization_id', '=', orgId)
+          .where('id', '=', activityId)
+          .where('status', '=', 'activa')
+          .where(sql<boolean>`enrolled_count + ${partySize} <= capacity`)
+          .returning(['id', 'name'])
+          .executeTakeFirst();
+        if (!reserved) {
+          const act = await tx.selectFrom('activities').select(['status', 'enrolled_count', 'capacity'])
+            .where('organization_id', '=', orgId).where('id', '=', activityId).executeTakeFirst();
+          if (!act) throw new CheckinError(404, 'Actividad no encontrada.');
+          if (act.status !== 'activa') throw new CheckinError(409, 'La actividad no está activa.');
+          throw new CheckinError(409, 'Cupo agotado.');
+        }
+
+        // 3 · Asistencia. El ON CONFLICT es el ÚNICO árbitro de duplicado
+        //     (org,user,activity): si choca (re-check-in o carrera concurrente),
+        //     no devuelve fila → throw → ROLLBACK de la transacción → la reserva
+        //     del paso 2 se DESHACE (capacidad intacta, sin oversell).
+        const att = await tx.insertInto('attendance').values({
+          id: randomUUID(),
+          organization_id: orgId,
+          user_id: user.id,
+          user_code: user.code,
+          activity_id: reserved.id,
+          activity_name: reserved.name,
+          companions_children: companionsChildren,
+          checked_in_at: new Date().toISOString(),
+          anonymous: false,
+        })
+          .onConflict((oc) => oc.columns(['organization_id', 'user_id', 'activity_id']).doNothing())
+          .returning('id')
+          .executeTakeFirst();
+        if (!att) throw new CheckinError(409, 'Ya estás registrado en esta actividad.');
+
+        // 4 · Visitas: el NUEVO ya cuenta su 1ª visita (visit_count=1 al crear);
+        //     al EXISTENTE se le incrementa.
+        let visitCount = user.visit_count;
+        if (!isNew) {
+          await tx.updateTable('users').set({ visit_count: sql<number>`visit_count + 1` })
+            .where('id', '=', user.id).execute();
+          visitCount = user.visit_count + 1;
+        }
+
+        return {
+          code: user.code,
+          visitCount,
+          partySize,
+          activity: { id: reserved.id, name: reserved.name },
+        };
+      });
+
+      return result;
+    } catch (e) {
+      if (e instanceof CheckinError) {
+        reply.code(e.status);
+        return { error: e.message };
+      }
+      throw e;
+    }
   });
 };

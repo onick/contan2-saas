@@ -180,3 +180,34 @@ export type PublicVisitor = z.infer<typeof PublicVisitorSchema>;
 
 export const PublicVisitorLookupResponseSchema = z.object({ visitor: PublicVisitorSchema });
 export type PublicVisitorLookupResponse = z.infer<typeof PublicVisitorLookupResponseSchema>;
+
+// Check-in público (escritura · POST /api/v2/public/checkin). El visitante se
+// identifica por código, por email, o se registra como nuevo (un solo adulto
+// por check-in; sólo niños como acompañantes). Tope server-side de niños.
+export const MAX_COMPANIONS_CHILDREN = 10;
+
+export const PublicCheckinRequestSchema = z.object({
+  activityId: z.string().min(1),
+  visitor: z.union([
+    z.object({ code: z.string().min(1) }),
+    z.object({ email: z.string().email() }),
+    z.object({
+      new: z.object({
+        firstName: z.string().min(1).max(120),
+        lastName: z.string().min(1).max(120),
+        email: z.string().email().optional(),
+        phone: z.string().max(40).optional(),
+      }),
+    }),
+  ]),
+  companionsChildren: z.number().int().min(0).max(MAX_COMPANIONS_CHILDREN),
+});
+export type PublicCheckinRequest = z.infer<typeof PublicCheckinRequestSchema>;
+
+export const PublicCheckinResponseSchema = z.object({
+  code: z.string(),          // código real del visitante (QR = este valor)
+  visitCount: z.number().int(),
+  partySize: z.number().int(), // 1 + companionsChildren (cupos descontados)
+  activity: z.object({ id: z.string(), name: z.string() }),
+});
+export type PublicCheckinResponse = z.infer<typeof PublicCheckinResponseSchema>;
