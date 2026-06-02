@@ -93,3 +93,35 @@ export function parseCode(code: string): ParsedCode | null {
 export function normalizeCodeForLookup(input: string): string {
   return String(input).trim().toUpperCase();
 }
+
+/**
+ * Normaliza un código ESCANEADO por el scanner de staff (mismo trim+upper que
+ * el lookup). El scanner luego exige formato canónico vía `isValidCode` — acá
+ * solo se normaliza. Existe como helper con nombre propio para fijar el contrato
+ * del scanner; delega en `normalizeCodeForLookup` (única fuente de trim+upper).
+ */
+export function normalizeScannedCode(input: string): string {
+  return normalizeCodeForLookup(input);
+}
+
+// Sufijo de código corto (sin prefijo): exactamente los 6 chars del alfabeto que
+// componen la parte XXXXXX de CODE_RE.
+const SHORT_SUFFIX_RE = /^[0-9A-Z]{6}$/;
+
+/**
+ * Resuelve un input a código canónico `<PREFIX>-XXXXXX` en el contexto de un
+ * tenant (kiosko/lookup):
+ *  - código completo válido (con guión) → se devuelve tal cual (paridad v1: un
+ *    QR `CCB-XXXXXX` se acepta as-is, aunque su prefijo no sea el del tenant);
+ *  - código corto `XXXXXX` (6 chars, sin guión) → se antepone
+ *    `normalizePrefix(codePrefix)` del tenant;
+ *  - cualquier otra cosa → `null`.
+ * No toca la DB ni el scope por tenant: eso lo hace la query con `organization_id`.
+ */
+export function resolveTenantCode(input: string, codePrefix: string): string | null {
+  let code = normalizeCodeForLookup(input);
+  if (!code.includes('-') && SHORT_SUFFIX_RE.test(code)) {
+    code = `${normalizePrefix(codePrefix)}-${code}`;
+  }
+  return isValidCode(code) ? code : null;
+}

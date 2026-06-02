@@ -6,7 +6,7 @@
 
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { getDb, type DbClient } from '@contan2/db';
-import { normalizeCodeForLookup, isValidCode } from '@contan2/codes';
+import { resolveTenantCode } from '@contan2/codes';
 import type {
   PublicActivitiesResponse,
   PublicActivity,
@@ -51,9 +51,6 @@ async function tenantOnly(db: DbClient, req: FastifyRequest): Promise<TenantOnly
     ? { ok: false, status: 503, error: 'Organización suspendida' }
     : { ok: false, status: 404, error: 'Organización no encontrada' };
 }
-
-// Código corto sin prefijo: exactamente 6 chars alfanuméricos (mayúsculas).
-const SHORT_CODE_RE = /^[A-Z0-9]{6}$/;
 
 export const publicRoute: FastifyPluginAsync = async (app) => {
   // GET /api/v2/public/activities · actividades visibles (status activa y con
@@ -127,13 +124,10 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
         .where('email', '=', q.toLowerCase())
         .executeTakeFirst();
     } else {
-      // Código corto (XXXXXX) → se antepone el prefijo del tenant (CCB-XXXXXX),
-      // igual que v1. Si ya viene con prefijo, se usa tal cual.
-      let code = normalizeCodeForLookup(q);
-      if (!code.includes('-') && SHORT_CODE_RE.test(code)) {
-        code = `${t.codePrefix}-${code}`;
-      }
-      if (!isValidCode(code)) {
+      // Resuelve a código canónico: completo as-is, o corto + prefijo del tenant
+      // (lógica en @contan2/codes · resolveTenantCode, fuente del contrato).
+      const code = resolveTenantCode(q, t.codePrefix);
+      if (!code) {
         reply.code(400);
         return { error: 'Formato inválido. Usa tu código (CCB-XXXXXX) o tu correo.' };
       }

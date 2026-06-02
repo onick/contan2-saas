@@ -16,6 +16,8 @@ import {
   isValidCode,
   parseCode,
   normalizeCodeForLookup,
+  normalizeScannedCode,
+  resolveTenantCode,
   qrPayload,
 } from '../src/index.js';
 
@@ -117,6 +119,43 @@ describe('contrato QR + normalización de lookup', () => {
 
   it('normalizeCodeForLookup hace trim + uppercase (paridad check-in público)', () => {
     expect(normalizeCodeForLookup('  ccb-100123  ')).toBe('CCB-100123');
+  });
+});
+
+describe('normalizeScannedCode · contrato del scanner', () => {
+  it('trim + uppercase (igual que el lookup)', () => {
+    expect(normalizeScannedCode('  ccb-own001 ')).toBe('CCB-OWN001');
+    expect(normalizeScannedCode('CCB-100123')).toBe('CCB-100123');
+  });
+
+  it('preserva el formato canónico: un código v1 escaneado sigue siendo válido', () => {
+    // El scanner exige canónico vía isValidCode tras normalizar.
+    expect(isValidCode(normalizeScannedCode('  ccb-own001 '))).toBe(true);
+  });
+});
+
+describe('resolveTenantCode · completo o corto con prefijo del tenant', () => {
+  it('código completo válido → se devuelve tal cual', () => {
+    expect(resolveTenantCode('CCB-OWN001', 'CCB')).toBe('CCB-OWN001');
+  });
+
+  it('código corto XXXXXX + prefix CCB → CCB-XXXXXX', () => {
+    expect(resolveTenantCode('OWN001', 'CCB')).toBe('CCB-OWN001');
+  });
+
+  it('minúsculas normalizan (input y prefix)', () => {
+    expect(resolveTenantCode('own001', 'ccb')).toBe('CCB-OWN001');
+    expect(resolveTenantCode('ccb-own001', 'CCB')).toBe('CCB-OWN001');
+  });
+
+  it('código completo con OTRO prefijo se respeta (paridad v1: QR as-is)', () => {
+    expect(resolveTenantCode('TT-OWN001', 'CCB')).toBe('TT-OWN001');
+  });
+
+  it('basura / formato inválido → null', () => {
+    for (const bad of ['hello', 'AB!DEF', 'CCB-12345', 'OWN00', 'OWN0011', '']) {
+      expect(resolveTenantCode(bad, 'CCB'), bad).toBeNull();
+    }
   });
 });
 
