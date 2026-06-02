@@ -78,7 +78,17 @@ body {
 }
 .kiosk-card-in { animation: kiosk-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
+/* Kiosko · glow suave que respira en el botón "Asistir" (le da importancia sin
+   ser intrusivo). Scope: .kiosk-cta-glow (+ animationDelay inline por card para
+   desincronizar). La sombra base coincide en 0%/100% para que sea continuo. */
+@keyframes kiosk-cta-glow {
+  0%, 100% { box-shadow: 0 14px 28px -12px rgba(255, 111, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+  50%      { box-shadow: 0 16px 30px -12px rgba(255, 111, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 20px 1px rgba(255, 111, 0, 0.22); }
+}
+.kiosk-cta-glow { animation: kiosk-cta-glow 2.8s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .kiosk-pulse { animation: none; }
   .kiosk-card-in { animation: none; }
+  .kiosk-cta-glow { animation: none; }
 }

@@ -4,10 +4,10 @@
 // del flujo lo orquesta app/kiosko/page.tsx; estas reciben datos + callbacks.
 // CodeScreen y NewVisitorScreen manejan su propio estado de input local.
 
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import {
   ArrowLeft, Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
-  Baby, Info, Minus, Plus,
+  Baby, Info, Minus, Plus, Film, Music, MessagesSquare, Palette, Ban, type LucideIcon,
 } from 'lucide-react';
 import { KioskButton, TicketButton, KioskBackPill, FauxQr, cx, kioskFocus, kioskMono } from './ui';
 import { KioskClock } from './KioskClock';
@@ -71,6 +71,19 @@ const CAT_ACCENT: Record<string, string> = {
   Exposición: '#a78bfa', Taller: '#f472b6', Otro: '#a2a5b4',
 };
 
+// Banda de categoría (fallback cuando la actividad no tiene póster, igual que v1).
+const CAT_GRADIENT: Record<string, string> = {
+  Tertulia: 'linear-gradient(135deg,#0f766e,#134e4a)',
+  Concierto: 'linear-gradient(135deg,#e65100,#9a2f08)',
+  Cine: 'linear-gradient(135deg,#1e5fb0,#15407a)',
+  Exposición: 'linear-gradient(135deg,#6b3fb8,#43287a)',
+  Taller: 'linear-gradient(135deg,#b03060,#73203f)',
+  Otro: 'linear-gradient(135deg,#2a2d38,#1a1c24)',
+};
+const CAT_ICON: Record<string, LucideIcon> = {
+  Tertulia: MessagesSquare, Concierto: Music, Cine: Film, Exposición: Palette, Taller: Palette, Otro: CalendarDays,
+};
+
 const inputCls = cx(
   'w-full rounded-2xl border border-white/12 bg-[#22242e] px-5 py-4 text-lg text-[#f4f5f8]',
   'placeholder:text-[#71748a] transition-colors focus:border-[#ff6f00]',
@@ -114,64 +127,132 @@ export function WelcomeScreen({
   );
 }
 
+// Header fijo del kiosko (logo + rótulo + hora), al estilo v1. Client: hora viva.
+function KioskHeader() {
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    const fmt = () => new Date().toLocaleTimeString('es-DO', { hour: 'numeric', minute: '2-digit', hour12: true });
+    setTime(fmt());
+    const id = setInterval(() => setTime(fmt()), 10_000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <header className="sticky top-0 z-30 -mx-6 flex items-center justify-between border-b border-white/8 bg-[#0b0e14]/85 px-6 py-4 backdrop-blur md:-mx-12 md:px-12">
+      <div className="flex items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/kiosko/logo.png" alt="" width={40} height={30} className="h-8 w-auto object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
+        <span style={kioskMono} className="hidden text-[11px] font-semibold uppercase tracking-[0.26em] text-[#a2a5b4] sm:inline">
+          Sistema de registro de visitantes
+        </span>
+      </div>
+      <span style={kioskMono} className="text-sm tabular-nums text-[#a2a5b4]">{time}</span>
+    </header>
+  );
+}
+
 // ── 2 · Selección de actividad ─────────────────────────────────────────────
 export function ActivityScreen({
   activities, onSelect, onHome,
 }: { activities: KioskActivity[]; onSelect: (a: KioskActivity) => void; onHome: () => void }) {
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-6 py-12">
-      <KioskTopBar eyebrow="Cartelera de hoy" title="Elige tu actividad" />
-      <div className="mt-9 grid grid-cols-1 gap-4 md:grid-cols-2">
-        {activities.map((a, i) => {
-          const spots = a.capacity - a.enrolled;
-          const full = spots <= 0;
-          const low = !full && spots <= a.capacity * 0.1;
-          const accent = CAT_ACCENT[a.category] ?? CAT_ACCENT.Otro;
-          return (
-            <button
-              key={a.id}
-              type="button"
-              disabled={full}
-              onClick={() => onSelect(a)}
-              style={{ animationDelay: `${i * 70}ms` }}
-              className={cx(
-                'kiosk-card-in group relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-white/10 p-5 pt-6 text-left',
-                'bg-[linear-gradient(180deg,#191b22_0%,#15171e_100%)] transition-all duration-200',
-                'hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[0_18px_40px_-20px_rgba(0,0,0,0.8)]',
-                'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0',
-                kioskFocus,
-              )}
-            >
-              {/* Barra de acento por categoría (superior, ancho completo) */}
-              <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: accent }} />
-              <span style={kioskMono} className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em]" >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: accent }} />
-                <span style={{ color: accent }}>{a.category}</span>
-              </span>
-              <span className="text-lg font-semibold leading-snug text-[#f4f5f8]">{a.name}</span>
-              <span className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#a2a5b4]">
-                <span className="inline-flex items-center gap-1.5"><CalendarDays size={15} aria-hidden="true" />{a.date}</span>
-                <span className="inline-flex items-center gap-1.5"><MapPin size={15} aria-hidden="true" />{a.location}</span>
-              </span>
-              <span className="flex items-center justify-between">
-                <span
-                  className={cx(
-                    'inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold',
-                    full ? 'bg-white/10 text-[#a2a5b4]' : low ? 'bg-[#e65100]/20 text-[#ff8a3d]' : 'bg-emerald-400/15 text-emerald-300',
-                  )}
-                >
-                  {full ? 'Cupo lleno' : low ? `Últimos ${spots} cupos` : `${spots} cupos disponibles`}
-                </span>
-                {!full ? (
-                  <span aria-hidden="true" className="text-xl font-light text-[#71748a] transition-all group-hover:translate-x-0.5 group-hover:text-[#ff8a3d]">→</span>
-                ) : null}
-              </span>
-            </button>
-          );
-        })}
+    <div className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
+      <KioskHeader />
+      <div className="mt-8">
+        <p style={kioskMono} className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#ff8a3d]">Cartelera de hoy</p>
+        <h1 className="text-[clamp(2.25rem,5.5vw,4rem)] font-extrabold uppercase leading-[0.95] tracking-[-0.03em] text-[#f4f5f8]">
+          Elige tu actividad
+        </h1>
+        <p className="mt-3 text-[#a2a5b4] md:text-lg">Estas son las actividades con cupo disponible hoy</p>
+      </div>
+      <div className="mt-9 grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(290px,1fr))]">
+        {activities.map((a, i) => (
+          <ActivityCard key={a.id} activity={a} index={i} onSelect={onSelect} />
+        ))}
       </div>
       <KioskBackPill label="Volver al inicio" onClick={onHome} />
     </div>
+  );
+}
+
+// Card de actividad con póster montado (igual que v1): cover con la imagen
+// (object-cover) o, si no hay imagen / falla la carga, banda de categoría + ícono.
+function ActivityCard({ activity: a, index, onSelect }: { activity: KioskActivity; index: number; onSelect: (a: KioskActivity) => void }) {
+  const [imgError, setImgError] = useState(false);
+  const spots = a.capacity - a.enrolled;
+  const full = spots <= 0;
+  const low = !full && spots <= a.capacity * 0.1;
+  const accent = CAT_ACCENT[a.category] ?? CAT_ACCENT.Otro;
+  const Icon = CAT_ICON[a.category] ?? CalendarDays;
+  const showImage = Boolean(a.imageUrl) && !imgError;
+
+  return (
+    <button
+      type="button"
+      disabled={full}
+      onClick={() => onSelect(a)}
+      style={{ animationDelay: `${index * 70}ms` }}
+      className={cx(
+        'kiosk-card-in group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 text-left',
+        'bg-[linear-gradient(180deg,#191b22_0%,#15171e_100%)] transition-all duration-200',
+        'hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[0_18px_40px_-20px_rgba(0,0,0,0.8)]',
+        'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0',
+        kioskFocus,
+      )}
+    >
+      {/* Cover 16/10: póster o banda de categoría */}
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#0b0e14]">
+        {showImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={a.imageUrl!}
+            alt=""
+            loading="lazy"
+            onError={() => setImgError(true)}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+          />
+        ) : (
+          <div className="grid h-full w-full place-items-center" style={{ background: CAT_GRADIENT[a.category] ?? CAT_GRADIENT.Otro }}>
+            <Icon size={52} strokeWidth={1.4} aria-hidden="true" className="text-white/85" />
+          </div>
+        )}
+        {/* Scrim para fundir con el cuerpo + chip de categoría */}
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#15171e] via-transparent to-transparent" />
+        <span style={kioskMono} className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm">
+          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: accent }} />
+          {a.category}
+        </span>
+      </div>
+
+      {/* Cuerpo */}
+      <div className="flex flex-1 flex-col gap-3 p-5">
+        <span className="text-xl font-bold leading-tight text-[#f4f5f8]">{a.name}</span>
+        <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#a2a5b4]">
+          <span className="inline-flex items-center gap-1.5"><CalendarDays size={15} aria-hidden="true" />{a.date}</span>
+          <span className="inline-flex items-center gap-1.5"><MapPin size={15} aria-hidden="true" />{a.location}</span>
+        </span>
+        <div className="mt-auto flex flex-col gap-3 pt-1">
+          <span style={kioskMono} className={cx('inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em]', full ? 'text-[#a2a5b4]' : low ? 'text-[#ff8a3d]' : 'text-emerald-300')}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: full ? '#a2a5b4' : low ? '#ff8a3d' : '#34d399' }} />
+            {full ? 'Cupo agotado' : low ? `Últimos ${spots} cupos` : `${spots} cupos disponibles`}
+          </span>
+          {/* Botón ASISTIR (visual; toda la card es el botón real). Prominente
+              + shimmer sutil para darle importancia. */}
+          {full ? (
+            <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/8 px-5 py-3.5 text-sm font-bold uppercase tracking-[0.08em] text-[#a2a5b4]">
+              <Ban size={18} aria-hidden="true" /> Cupo agotado
+            </span>
+          ) : (
+            <span
+              style={{ animationDelay: `${index * 400}ms` }}
+              className="kiosk-cta-glow flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#e65100] px-5 py-3.5 text-sm font-bold uppercase tracking-[0.08em] text-white transition-[filter] duration-200 group-hover:brightness-110"
+            >
+              <Check size={18} strokeWidth={2.5} aria-hidden="true" /> Asistir
+              <span aria-hidden="true" className="transition-transform duration-200 group-hover:translate-x-0.5">→</span>
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
   );
 }
 
