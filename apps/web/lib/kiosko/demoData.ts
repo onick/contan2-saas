@@ -52,7 +52,7 @@ export function partySize(v: Pick<KioskVisitor, 'companionsChildren'>): number {
 export const KIOSK_ACTIVITIES: KioskActivity[] = [
   { id: 'a1', name: 'Tertulia: Poesía dominicana contemporánea', category: 'Tertulia', date: 'Hoy · 7:00 p.m.', location: 'Sala de lectura', capacity: 60, enrolled: 13, imageUrl: null },
   { id: 'a2', name: 'Concierto: Los Congos de Villa Mella', category: 'Concierto', date: 'Hoy · 8:00 p.m.', location: 'Auditorio principal', capacity: 220, enrolled: 189, imageUrl: null },
-  { id: 'a3', name: 'Ciclo de Cine Dominicano 2026', category: 'Cine', date: 'Mañana · 6:30 p.m.', location: 'Sala audiovisual', capacity: 80, enrolled: 41, imageUrl: '/kiosko/demo/cine.png' },
+  { id: 'a3', name: 'Ciclo de Cine Dominicano 2026', category: 'Cine', date: 'Mañana · 6:30 p.m.', location: 'Sala audiovisual', capacity: 80, enrolled: 41, imageUrl: '/kiosko/demo/cine.jpg' },
   { id: 'a4', name: 'Exposición: Trazos de la cordillera', category: 'Exposición', date: 'Todo el día', location: 'Galería este', capacity: 150, enrolled: 96, imageUrl: null },
 ];
 
