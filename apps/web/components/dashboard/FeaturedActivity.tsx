@@ -14,7 +14,7 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
   const pct = Math.max(0, Math.min(100, activity.occupancyPct));
 
   return (
-    <Card padding="none" className="flex flex-col gap-5 p-4 md:flex-row md:items-center md:p-5">
+    <Card interactive padding="none" className="flex flex-col gap-5 p-4 md:flex-row md:items-center md:p-5">
       {/* Miniatura (placeholder hasta tener el póster real) */}
       <div
         aria-hidden="true"
@@ -48,7 +48,7 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
             <span className="font-semibold tabular-nums text-ink">{pct}%</span>
           </div>
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
-            <div className="h-full rounded-full bg-brand-accent" style={{ width: `${pct}%` }} />
+            <div className="app-bar-grow h-full rounded-full bg-brand-accent" style={{ width: `${pct}%` }} />
           </div>
         </div>
       </div>

@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   description: 'Dashboard tenant-admin · resumen de operación cultural',
 };
 
-const KPI_GRID = 'mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4';
+const KPI_GRID = 'app-stagger mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4';
 
 // Sección de KPIs · async (toca cookies()/fetch → dinámica). Streamea dentro de
 // <Suspense>; cae a demoData si no hay datos reales.
@@ -112,18 +112,18 @@ export default function TenantAdminDashboard() {
         </Suspense>
 
         {/* Actividad próxima destacada (ancho completo) */}
-        <div className="mt-4">
+        <div className="app-reveal mt-4" style={{ animationDelay: '120ms' }}>
           <FeaturedActivity activity={FEATURED_ACTIVITY} />
         </div>
 
         {/* Gráfico (ancho) + destacado del período */}
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
+        <div className="app-reveal mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]" style={{ animationDelay: '180ms' }}>
           <AttendanceChart />
           <HighlightCard activity={HIGHLIGHT} />
         </div>
 
         {/* Top actividades + últimos visitantes */}
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
+        <div className="app-reveal mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]" style={{ animationDelay: '240ms' }}>
           <TopActivities activities={TOP_ACTIVITIES} />
           <Suspense fallback={<RecentVisitorsSkeleton />}>
             <RecentVisitorsData />
