@@ -4,7 +4,6 @@
 // next/headers). Si el fetch falla, el server wrapper cae a demoData → el
 // kiosko nunca queda en blanco. Cero escrituras.
 
-import { headers } from 'next/headers';
 import {
   PublicActivitiesResponseSchema,
   PublicVisitorLookupResponseSchema,
@@ -12,6 +11,7 @@ import {
   type PublicVisitor,
 } from '@contan2/contracts';
 import { apiGet, ApiError } from './client';
+import { forwardingHeaders } from './forwarded';
 import type { KioskActivity, KioskVisitor } from '../kiosko/demoData';
 
 const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:3001';
@@ -79,14 +79,14 @@ export async function getKioskActivities(): Promise<KioskActivity[] | null> {
 // cliente mapee éxito/cupo/duplicado/no-encontrado. api-v2 es el árbitro (cupo
 // atómico, idempotencia); este proxy NO valida ni transforma.
 export async function proxyKioskCheckin(body: unknown): Promise<Response> {
-  const incomingHost = (await headers()).get('host') ?? undefined;
+  // host del tenant + IP real del cliente (x-forwarded-for) → ver forwarded.ts.
   let upstream: Response;
   try {
     upstream = await fetch(`${API_BASE_URL}/api/v2/public/checkin`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        ...(incomingHost ? { 'x-forwarded-host': incomingHost } : {}),
+        ...(await forwardingHeaders()),
       },
       body: JSON.stringify(body),
       cache: 'no-store',

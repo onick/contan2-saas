@@ -7,8 +7,9 @@
 // (@contan2/contracts), así el dato llega tipado. `cache: 'no-store'` →
 // dinámico por request (datos por-tenant no se prerenderizan).
 
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import type { ZodType } from 'zod';
+import { forwardingHeaders } from './forwarded';
 
 const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:3001';
 const SESSION_COOKIE = 'contan2_session';
@@ -27,15 +28,13 @@ export class ApiError extends Error {
 // contra el schema. Los fetchers de cada pantalla capturan y caen a demoData.
 export async function apiGet<T>(path: string, schema: ZodType<T>): Promise<T> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  // Reenvía el host original del tenant. fetch (undici) NO deja setear `Host`
-  // (lo sobreescribe con el del API base), así que lo pasamos como
-  // x-forwarded-host. NOTA: api-v2 hoy resuelve por req.headers.host (en dev,
-  // localhost → fallback ccb); para multitenant en prod deberá leer este header.
-  const incomingHost = (await headers()).get('host') ?? undefined;
+  // Reenvía host del tenant (x-forwarded-host) + IP real del cliente
+  // (x-forwarded-for, verbatim si entra) → ver lib/api/forwarded.ts. fetch
+  // (undici) NO deja setear `Host`, por eso van como headers de forwarding.
   const res = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
-      ...(incomingHost ? { 'x-forwarded-host': incomingHost } : {}),
+      ...(await forwardingHeaders()),
     },
     cache: 'no-store',
   });
