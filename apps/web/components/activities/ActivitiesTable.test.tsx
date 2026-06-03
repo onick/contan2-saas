@@ -24,4 +24,10 @@ describe('ActivitiesTable', () => {
     render(<ActivitiesTable activities={ACTIVITIES} />);
     expect(screen.getByText('—')).toBeInTheDocument();
   });
+
+  it('polish sutil: filas escalonadas (tbody app-stagger) + barras app-bar-grow', () => {
+    const { container } = render(<ActivitiesTable activities={ACTIVITIES} />);
+    expect(container.querySelector('tbody')).toHaveClass('app-stagger');
+    expect(container.querySelector('.app-bar-grow')).toBeInTheDocument();
+  });
 });

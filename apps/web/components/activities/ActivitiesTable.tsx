@@ -52,7 +52,7 @@ export function ActivitiesTable({ activities }: ActivitiesTableProps) {
               <th className="px-4 py-3" />
             </tr>
           </thead>
-          <tbody>
+          <tbody className="app-stagger">
             {activities.map((a) => {
               const CatIcon = CATEGORY_ICON[a.category] ?? CalendarDays;
               return (
@@ -88,7 +88,7 @@ export function ActivitiesTable({ activities }: ActivitiesTableProps) {
                           <span className="font-semibold tabular-nums text-ink">{a.occupancyPct}%</span>
                         </div>
                         <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
-                          <div className={`h-full rounded-full ${barColor(a.status)}`} style={{ width: `${a.occupancyPct}%` }} />
+                          <div className={`app-bar-grow h-full rounded-full ${barColor(a.status)}`} style={{ width: `${a.occupancyPct}%` }} />
                         </div>
                       </div>
                     )}
