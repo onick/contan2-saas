@@ -10,7 +10,8 @@ export type KioskScreen =
   | 'identify'
   | 'code'
   | 'new'
-  | 'confirmation';
+  | 'confirmation'
+  | 'error';
 
 export interface KioskActivity {
   id: string;

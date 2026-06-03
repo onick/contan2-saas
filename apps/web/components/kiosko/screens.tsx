@@ -7,7 +7,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import {
   Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
-  Baby, Info, Minus, Plus, Film, Music, MessagesSquare, Palette, Ban, type LucideIcon,
+  Baby, Info, Minus, Plus, Film, Music, MessagesSquare, Palette, Ban, RotateCcw, type LucideIcon,
 } from 'lucide-react';
 import { KioskButton, TicketButton, KioskBackPill, FauxQr, cx, kioskFocus, kioskMono } from './ui';
 import { KioskClock } from './KioskClock';
@@ -308,12 +308,13 @@ function ChoiceCard({ index, icon, title, subtitle, onClick }: { index: number; 
 
 // ── 4a · Buscar por código / email ─────────────────────────────────────────
 export function CodeScreen({
-  onLookup, onFound, onNew, onBack,
+  onLookup, onFound, submitting, onNew, onBack,
 }: {
   // Async: en modo API resuelve por la red; en demo es Promise.resolve(local).
   // null = no encontrado (404/inválido). throw = error real (api caído/5xx/red).
   onLookup: (query: string) => Promise<KioskVisitor | null>;
   onFound: (v: KioskVisitor) => void;
+  submitting?: boolean; // confirmando el check-in real (modo API)
   onNew: () => void;
   onBack: () => void;
 }) {
@@ -382,10 +383,10 @@ export function CodeScreen({
               <CompanionsControl children={kids} onChildren={setKids} />
             </div>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <KioskButton onClick={() => onFound({ ...result, companionsChildren: kids })} className="flex-1">
-                <Check size={20} aria-hidden="true" /> Sí, confirmar asistencia
+              <KioskButton onClick={() => onFound({ ...result, companionsChildren: kids })} disabled={submitting} className="flex-1">
+                <Check size={20} aria-hidden="true" /> {submitting ? 'Confirmando…' : 'Sí, confirmar asistencia'}
               </KioskButton>
-              <KioskButton variant="secondary" onClick={() => { setResult(null); setQuery(''); setKids(0); }}>
+              <KioskButton variant="secondary" disabled={submitting} onClick={() => { setResult(null); setQuery(''); setKids(0); }}>
                 <X size={20} aria-hidden="true" /> No soy yo
               </KioskButton>
             </div>
@@ -423,19 +424,24 @@ export interface NewVisitorForm {
 type NewVisitorFields = Pick<NewVisitorForm, 'firstName' | 'lastName' | 'email' | 'phone'>;
 
 export function NewVisitorScreen({
-  onSubmit, onBack,
-}: { onSubmit: (f: NewVisitorForm) => void; onBack: () => void }) {
+  onSubmit, submitting, onBack,
+}: { onSubmit: (f: NewVisitorForm) => void; submitting?: boolean; onBack: () => void }) {
   const [form, setForm] = useState<NewVisitorFields>({ firstName: '', lastName: '', email: '', phone: '' });
   const [kids, setKids] = useState(0);
-  const valid = form.firstName.trim().length >= 2 && form.lastName.trim().length >= 2;
+  // El correo es opcional, pero si se escribe debe ser válido (el contrato del
+  // check-in exige formato email; si no, el POST daría 400). Validamos acá para
+  // dar feedback inmediato en vez de un error de servidor.
+  const emailRaw = form.email.trim();
+  const emailValid = emailRaw === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw);
+  const valid = form.firstName.trim().length >= 2 && form.lastName.trim().length >= 2 && emailValid;
   const set = (k: keyof NewVisitorFields) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!valid) return;
+    if (!valid || submitting) return;
     onSubmit({
       firstName: form.firstName.trim(), lastName: form.lastName.trim(),
-      email: form.email.trim(), phone: form.phone.trim(),
+      email: emailRaw, phone: form.phone.trim(),
       children: kids,
     });
   };
@@ -457,7 +463,8 @@ export function NewVisitorScreen({
           </div>
           <div className="kiosk-card-in" style={{ animationDelay: '70ms' }}>
             <KField label="Correo" hint="Recomendado · te enviamos tu credencial">
-              <input type="email" value={form.email} onChange={set('email')} autoComplete="email" placeholder="tu@correo.com" className={inputCls} />
+              <input type="email" value={form.email} onChange={set('email')} autoComplete="email" placeholder="tu@correo.com" className={inputCls} aria-invalid={!emailValid} />
+              {!emailValid ? <span className="mt-1.5 block text-sm text-[#ff8a3d]">Escribe un correo válido o déjalo en blanco.</span> : null}
             </KField>
           </div>
           <div className="kiosk-card-in" style={{ animationDelay: '140ms' }}>
@@ -469,8 +476,8 @@ export function NewVisitorScreen({
             <CompanionsControl children={kids} onChildren={setKids} />
           </div>
           <div className="kiosk-card-in mt-2" style={{ animationDelay: '280ms' }}>
-            <KioskButton type="submit" size="xl" disabled={!valid} className="w-full">
-              <Check size={22} aria-hidden="true" /> Registrarme y asistir
+            <KioskButton type="submit" size="xl" disabled={!valid || submitting} className="w-full">
+              <Check size={22} aria-hidden="true" /> {submitting ? 'Registrando…' : 'Registrarme y asistir'}
             </KioskButton>
           </div>
         </form>
@@ -494,8 +501,8 @@ function KField({ label, hint, required, children }: { label: string; hint?: str
 
 // ── 5 · Confirmación ───────────────────────────────────────────────────────
 export function ConfirmationScreen({
-  visitor, activityName, secondsLeft, onHome,
-}: { visitor: KioskVisitor; activityName: string; secondsLeft: number; onHome: () => void }) {
+  visitor, activityName, real, secondsLeft, onHome,
+}: { visitor: KioskVisitor; activityName: string; real: boolean; secondsLeft: number; onHome: () => void }) {
   const party = partySize(visitor);
   const companions = companionsLabel(visitor);
   return (
@@ -549,14 +556,46 @@ export function ConfirmationScreen({
         </p>
 
         <p className="mx-auto mt-3 max-w-md text-center text-xs text-[#71748a]">
-          Vista previa. El código y el QR definitivos los emite el servidor con la misma
-          secuencia que v1, y te llegan por correo si lo registraste.
+          {real
+            ? 'Tu asistencia quedó registrada. Guarda tu código para tu próxima visita.'
+            : 'Vista previa. El código y el QR definitivos los emite el servidor con la misma secuencia que v1.'}
         </p>
 
         <div className="mt-8 flex justify-center">
           <KioskButton variant="secondary" onClick={onHome}>
             <Home size={20} aria-hidden="true" /> Volver al inicio · {secondsLeft}s
           </KioskButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 6 · Error de check-in ──────────────────────────────────────────────────
+// Modo API: si el POST de check-in falla (cupo agotado, correo ya registrado,
+// duplicado, red), mostramos esto EN VEZ de la confirmación — nunca decimos
+// "registrado" si no se registró.
+export function CheckinErrorScreen({
+  message, onRetry, onHome,
+}: { message: string; onRetry: () => void; onHome: () => void }) {
+  return (
+    <div className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
+      <KioskHeader />
+      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center">
+        <div className="kiosk-card-in rounded-3xl border border-red-400/25 bg-red-400/10 p-8 text-center">
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-red-400/15 text-red-300">
+            <X size={30} strokeWidth={2.5} aria-hidden="true" />
+          </span>
+          <h1 className="mt-5 text-2xl font-bold text-[#f4f5f8]">No pudimos completar tu registro</h1>
+          <p className="mt-2 text-[#a2a5b4]">{message}</p>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <KioskButton onClick={onRetry}>
+              <RotateCcw size={20} aria-hidden="true" /> Intentar de nuevo
+            </KioskButton>
+            <KioskButton variant="secondary" onClick={onHome}>
+              <Home size={20} aria-hidden="true" /> Volver al inicio
+            </KioskButton>
+          </div>
         </div>
       </div>
     </div>
