@@ -19,6 +19,7 @@ import {
   type PublicCheckinResponse,
 } from '@contan2/contracts';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
+import { deliverCredential, type DeliverUser } from '../services/credential-delivery.js';
 
 // Error de check-in con status HTTP, para que la transacción lo lance y haga
 // ROLLBACK, y el handler lo mapee a la respuesta.
@@ -210,6 +211,9 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     const { activityId, visitor, companionsChildren } = parsed.data;
     const orgId = t.orgId;
     const partySize = 1 + companionsChildren;
+    // Visitante NUEVO con email → tras el commit se le entrega la credencial por
+    // correo (best-effort, fuera de la tx). El visitante EXISTENTE no reenvía.
+    let deliver: DeliverUser | null = null;
 
     try {
       const result = await db.transaction().execute(async (tx): Promise<PublicCheckinResponse> => {
@@ -245,6 +249,9 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
           }
           if (!created) throw new CheckinError(500, 'No se pudo generar un código único.');
           user = created;
+          if (email) {
+            deliver = { id: created.id, code: created.code, email, firstName: v.firstName, lastName: v.lastName };
+          }
         } else {
           let q = tx.selectFrom('users').select(['id', 'code', 'visit_count']).where('organization_id', '=', orgId);
           if ('code' in visitor) {
@@ -312,6 +319,16 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
           activity: { id: reserved.id, name: reserved.name },
         };
       });
+
+      // Commit OK. Entrega de credencial best-effort, FUERA de la transacción y
+      // fire-and-forget: no bloquea ni afecta la respuesta del check-in. Marca
+      // credential_sent_at sólo si el envío fue real (dry-run sin RESEND_API_KEY
+      // no marca). Sólo para visitante nuevo con email.
+      if (deliver) {
+        void deliverCredential(db, orgId, deliver).catch((err: unknown) => {
+          req.log.error({ err }, 'entrega de credencial falló');
+        });
+      }
 
       return result;
     } catch (e) {
