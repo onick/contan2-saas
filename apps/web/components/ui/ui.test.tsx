@@ -67,6 +67,17 @@ describe('Card', () => {
     expect(card.tagName).toBe('ARTICLE');
     expect(card).toHaveClass('rounded-2xl', 'border-line', 'bg-surface');
   });
+
+  it('default NO es interactiva (sin hover/transition)', () => {
+    render(<Card aria-label="estática">x</Card>);
+    expect(screen.getByLabelText('estática')).not.toHaveClass('hover:shadow-md');
+  });
+
+  it('interactive → hover sutil con lift sólo en motion-safe', () => {
+    render(<Card interactive aria-label="accionable">x</Card>);
+    const card = screen.getByLabelText('accionable');
+    expect(card).toHaveClass('hover:shadow-md', 'motion-safe:hover:-translate-y-0.5');
+  });
 });
 
 describe('SectionHeader', () => {
@@ -89,10 +100,10 @@ describe('EmptyState', () => {
 });
 
 describe('Skeleton', () => {
-  it('placeholder pulsante decorativo (aria-hidden)', () => {
+  it('placeholder decorativo (aria-hidden) con barrido shimmer', () => {
     const { container } = render(<Skeleton className="h-9 w-20" />);
     const el = container.querySelector('span');
-    expect(el).toHaveClass('animate-pulse', 'h-9', 'w-20');
+    expect(el).toHaveClass('app-shimmer', 'bg-surface-container', 'h-9', 'w-20');
     expect(el).toHaveAttribute('aria-hidden', 'true');
   });
 });

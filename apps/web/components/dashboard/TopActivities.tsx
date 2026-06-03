@@ -42,7 +42,7 @@ export function TopActivities({ activities }: TopActivitiesProps) {
                 <span className="font-semibold tabular-nums text-ink">{a.occupancyPct}%</span>
               </div>
               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
-                <div className="h-full rounded-full bg-brand" style={{ width: `${a.occupancyPct}%` }} />
+                <div className="app-bar-grow h-full rounded-full bg-brand" style={{ width: `${a.occupancyPct}%` }} />
               </div>
             </div>
             <span className="text-sm font-semibold tabular-nums text-ink sm:hidden">{a.occupancyPct}%</span>

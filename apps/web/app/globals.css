@@ -102,8 +102,51 @@ body {
   .kiosk-focus-grid:has(button:hover) > button:not(:hover) .kiosk-cta-glow { animation: none; }
 }
 
+/* Dashboard /app · polish de movimiento sutil. Mismo patrón que el kiosko:
+   animación con fill `both` (estado natural = visible, sin flash) y desactivada
+   bajo prefers-reduced-motion. Nada gatea la visibilidad del contenido. */
+
+/* Entrada de sección: fade + slide-up corto. Scope: .app-reveal (+ animationDelay
+   inline por sección). */
+@keyframes app-reveal {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.app-reveal { animation: app-reveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Entrada escalonada de los hijos directos (KPIs). Retardo incremental por
+   nth-child, tope corto (≤300ms) para que sea sutil, no "demo". */
+.app-stagger > * { animation: app-reveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.app-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.app-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.app-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.app-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.app-stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+/* Skeleton · barrido suave (reemplaza animate-pulse). El gradiente recorre el
+   bloque; base = surface-container, con un realce casi-blanco. */
+@keyframes app-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+.app-shimmer {
+  background-image: linear-gradient(90deg, var(--color-surface-container) 0%, #f7f8fd 50%, var(--color-surface-container) 100%);
+  background-size: 200% 100%;
+  animation: app-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Barras de progreso · "crecen" desde la izquierda al entrar (scaleX 0→1). El
+   ancho real lo fija el inline width; esto sólo anima la aparición. Scope:
+   .app-bar-grow (en el relleno de la barra). */
+@keyframes app-bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.app-bar-grow { transform-origin: left center; animation: app-bar-grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .kiosk-pulse { animation: none; }
   .kiosk-card-in { animation: none; }
   .kiosk-cta-glow { animation: none; }
+  .app-reveal { animation: none; }
+  .app-stagger > * { animation: none; }
+  .app-bar-grow { animation: none; }
+  .app-shimmer { animation: none; } /* gradiente estático, sin barrido */
 }
