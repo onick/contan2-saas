@@ -12,6 +12,7 @@ import { activitiesRoute } from './routes/activities.js';
 import { usersRoute } from './routes/users.js';
 import { attendanceRoute } from './routes/attendance.js';
 import { publicRoute } from './routes/public.js';
+import { scannerRoute } from './routes/scanner.js';
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
@@ -31,6 +32,8 @@ export function buildApp(): FastifyInstance {
   app.register(attendanceRoute, { prefix: '/api/v2' });
   // Slice público read-only (kiosko): tenant por host, SIN auth de staff.
   app.register(publicRoute, { prefix: '/api/v2' });
+  // Auth del scanner (gate por PIN de staff → cookie firmada).
+  app.register(scannerRoute, { prefix: '/api/v2' });
 
   // Cierra el pool singleton de @contan2/db al apagar la app (tests + prod).
   app.addHook('onClose', async () => {

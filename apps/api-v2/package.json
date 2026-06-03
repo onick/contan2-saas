@@ -13,19 +13,21 @@
     "lint": "echo 'lint placeholder (eslint config llega en PR siguiente)'"
   },
   "dependencies": {
-    "fastify": "^5.2.0",
-    "@fastify/cookie": "^11.0.2",
-    "zod": "^3.24.0",
+    "@contan2/auth": "workspace:*",
+    "@contan2/codes": "workspace:*",
     "@contan2/config": "workspace:*",
     "@contan2/contracts": "workspace:*",
     "@contan2/db": "workspace:*",
-    "@contan2/auth": "workspace:*",
-    "@contan2/codes": "workspace:*"
+    "@fastify/cookie": "^11.0.2",
+    "bcryptjs": "^3.0.3",
+    "fastify": "^5.2.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.0.0",
-    "@types/node": "^22.10.0"
+    "vitest": "^3.0.0"
   }
 }
