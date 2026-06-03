@@ -6,19 +6,19 @@
 // relayan status / body / Set-Cookie de vuelta al navegador same-origin. Sólo
 // toca el slice del scanner y el check-in público; cero lógica de negocio acá.
 
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { apiGet } from './client';
 import { PublicActivitiesResponseSchema } from '@contan2/contracts';
 import { formatKioskDate } from './kiosko';
+import { forwardingHeaders } from './forwarded';
 import type { ScannerActivity } from '../scanner/types';
 
 const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:3001';
 const SCANNER_COOKIE = 'scanner_session';
 
 async function baseHeaders(forwardScannerCookie: boolean): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
-  const host = (await headers()).get('host');
-  if (host) out['x-forwarded-host'] = host;
+  // host del tenant + IP real del cliente (x-forwarded-for) → ver forwarded.ts.
+  const out = await forwardingHeaders();
   if (forwardScannerCookie) {
     const token = (await cookies()).get(SCANNER_COOKIE)?.value;
     if (token) out.cookie = `${SCANNER_COOKIE}=${token}`;
@@ -69,12 +69,11 @@ export async function proxyToApiV2(init: ProxyInit): Promise<Response> {
 export async function getScannerSession(): Promise<{ orgSlug: string } | null> {
   const token = (await cookies()).get(SCANNER_COOKIE)?.value;
   if (!token) return null;
-  const host = (await headers()).get('host') ?? undefined;
   try {
     const res = await fetch(`${API_BASE_URL}/api/v2/scanner/me`, {
       headers: {
         cookie: `${SCANNER_COOKIE}=${token}`,
-        ...(host ? { 'x-forwarded-host': host } : {}),
+        ...(await forwardingHeaders()),
       },
       cache: 'no-store',
     });
