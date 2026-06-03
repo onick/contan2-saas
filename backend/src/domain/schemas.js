@@ -133,6 +133,18 @@ export function validateActivityCreate(data) {
       errors.push({ field: 'category', message: 'category string (máx 60 caracteres)' });
     }
   }
+  // Fecha de cierre OPCIONAL. Si se ingresa, debe ser válida y >= la de inicio.
+  if (data.endDate != null && data.endDate !== '') {
+    const e = new Date(data.endDate);
+    if (isNaN(e.getTime())) {
+      errors.push({ field: 'endDate', message: 'endDate inválida' });
+    } else if (date) {
+      const s = new Date(date);
+      if (!isNaN(s.getTime()) && e.getTime() < s.getTime()) {
+        errors.push({ field: 'endDate', message: 'endDate debe ser igual o posterior a la fecha de inicio' });
+      }
+    }
+  }
   return errors;
 }
 
@@ -173,6 +185,18 @@ export function validateActivityUpdate(data) {
       errors.push({ field: 'category', message: 'category string (máx 60 caracteres)' });
     }
   }
+  // Fecha de cierre OPCIONAL. Válida; y >= inicio cuando ambos vienen en el body.
+  if (data.endDate != null && data.endDate !== '') {
+    const e = new Date(data.endDate);
+    if (isNaN(e.getTime())) {
+      errors.push({ field: 'endDate', message: 'endDate inválida' });
+    } else if (data.date != null) {
+      const s = new Date(data.date);
+      if (!isNaN(s.getTime()) && e.getTime() < s.getTime()) {
+        errors.push({ field: 'endDate', message: 'endDate debe ser igual o posterior a la fecha de inicio' });
+      }
+    }
+  }
   return errors;
 }
 
@@ -202,6 +226,11 @@ export function normalizeActivityData(data) {
       const norm = String(data.category).trim().toLowerCase().replace(/\s+/g, ' ');
       out.category = norm === '' ? null : norm;
     }
+  }
+  if ('endDate' in data) {
+    out.endDate = data.endDate == null || data.endDate === ''
+      ? null
+      : new Date(data.endDate).toISOString();
   }
   return out;
 }

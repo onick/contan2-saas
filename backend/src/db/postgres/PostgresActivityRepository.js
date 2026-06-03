@@ -8,6 +8,7 @@ function rowToActivity(r) {
     type: r.type,
     location: r.location,
     date: r.date instanceof Date ? r.date.toISOString() : r.date,
+    endDate: r.end_date instanceof Date ? r.end_date.toISOString() : (r.end_date ?? null),
     capacity: r.capacity,
     description: r.description,
     imageUrl: r.image_url,
@@ -32,12 +33,13 @@ export class PostgresActivityRepository {
     const id = randomUUID();
     const { rows } = await this.pool.query(
       `INSERT INTO activities
-        (id, organization_id, name, type, location, date, capacity,
+        (id, organization_id, name, type, location, date, end_date, capacity,
          description, image_url, category, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         id, this.orgId, data.name, data.type, data.location, data.date,
+        data.endDate ?? null,
         data.capacity, data.description ?? '', data.imageUrl ?? null,
         data.category ?? null,
         data.status ?? 'activa',
@@ -108,6 +110,7 @@ export class PostgresActivityRepository {
     if (partial.type != null) { fields.push(`type = $${idx++}`); values.push(partial.type); }
     if (partial.location != null) { fields.push(`location = $${idx++}`); values.push(partial.location); }
     if (partial.date != null) { fields.push(`date = $${idx++}`); values.push(partial.date); }
+    if ('endDate' in partial) { fields.push(`end_date = $${idx++}`); values.push(partial.endDate); }
     if (partial.capacity != null) { fields.push(`capacity = $${idx++}`); values.push(partial.capacity); }
     if (partial.description != null) { fields.push(`description = $${idx++}`); values.push(partial.description); }
     if ('imageUrl' in partial) { fields.push(`image_url = $${idx++}`); values.push(partial.imageUrl); }
