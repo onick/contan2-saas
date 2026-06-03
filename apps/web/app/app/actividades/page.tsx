@@ -65,7 +65,7 @@ async function ActivitiesData() {
   return (
     <>
       {/* Mini-KPIs */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="app-stagger mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {kpis.map((k) => {
           const KIcon = k.icon;
           return (
@@ -83,7 +83,7 @@ async function ActivitiesData() {
       </div>
 
       {/* Barra de filtros */}
-      <Card padding="none" className="mt-6 p-4">
+      <Card padding="none" className="app-reveal mt-6 p-4" style={{ animationDelay: '120ms' }}>
         <div className="flex flex-wrap gap-2">
           {tabs.map((t, i) => (
             <Button key={t.key} variant="pill" size="sm" selected={i === 0}>
@@ -201,16 +201,18 @@ export default function ActividadesPage() {
   return (
     <AppShell branding={branding} title="Actividades" activeKey="actividades">
       <div className="mx-auto w-full max-w-[1600px]">
-        <SectionHeader
-          level={1}
-          title="Actividades"
-          subtitle="Gestioná los eventos del centro cultural"
-          actions={
-            <Button>
-              <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nueva actividad
-            </Button>
-          }
-        />
+        <div className="app-reveal">
+          <SectionHeader
+            level={1}
+            title="Actividades"
+            subtitle="Gestioná los eventos del centro cultural"
+            actions={
+              <Button>
+                <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nueva actividad
+              </Button>
+            }
+          />
+        </div>
 
         <Suspense fallback={<ActivitiesSkeleton />}>
           <ActivitiesData />
