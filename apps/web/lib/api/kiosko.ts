@@ -4,6 +4,7 @@
 // next/headers). Si el fetch falla, el server wrapper cae a demoData → el
 // kiosko nunca queda en blanco. Cero escrituras.
 
+import { headers } from 'next/headers';
 import {
   PublicActivitiesResponseSchema,
   PublicVisitorLookupResponseSchema,
@@ -12,6 +13,8 @@ import {
 } from '@contan2/contracts';
 import { apiGet, ApiError } from './client';
 import type { KioskActivity, KioskVisitor } from '../kiosko/demoData';
+
+const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:3001';
 
 // Hora local del tenant (es-DO, 12h). Ej: "7:00 p. m.".
 const TIME_FMT = new Intl.DateTimeFormat('es-DO', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -68,6 +71,34 @@ export async function getKioskActivities(): Promise<KioskActivity[] | null> {
   } catch {
     return null;
   }
+}
+
+// Proxy server-side del check-in público (ESCRITURA). El cliente del kiosko lo
+// llama same-origin (POST /kiosko/checkin); acá se reenvía a api-v2 con el host
+// del tenant (x-forwarded-host) y se relaya status + body tal cual, para que el
+// cliente mapee éxito/cupo/duplicado/no-encontrado. api-v2 es el árbitro (cupo
+// atómico, idempotencia); este proxy NO valida ni transforma.
+export async function proxyKioskCheckin(body: unknown): Promise<Response> {
+  const incomingHost = (await headers()).get('host') ?? undefined;
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE_URL}/api/v2/public/checkin`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(incomingHost ? { 'x-forwarded-host': incomingHost } : {}),
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
+  } catch {
+    return Response.json({ error: 'No pudimos completar el registro. Intentá de nuevo.' }, { status: 502 });
+  }
+  const text = await upstream.text();
+  return new Response(text, {
+    status: upstream.status,
+    headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
+  });
 }
 
 // Lookup de visitante por código/email. Devuelve el visitante, o null si "no

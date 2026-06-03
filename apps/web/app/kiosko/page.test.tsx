@@ -121,3 +121,88 @@ describe('/kiosko · modo API (lookup real vía proxy /kiosko/lookup)', () => {
     expect(await screen.findByText(/No te encontramos/)).toBeInTheDocument();
   });
 });
+
+describe('/kiosko · modo API · check-in REAL al confirmar (/kiosko/checkin)', () => {
+  // Mock que ramifica por URL: lookup → { visitor }; checkin → respuesta dada.
+  const apiFetch = (opts: { visitor?: unknown; checkin: { ok: boolean; status: number; body: unknown } }) =>
+    vi.fn((url: string, _init?: RequestInit) => {
+      const u = String(url);
+      if (u.startsWith('/kiosko/lookup')) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ visitor: opts.visitor ?? null }) });
+      }
+      if (u.startsWith('/kiosko/checkin')) {
+        return Promise.resolve({ ok: opts.checkin.ok, status: opts.checkin.status, json: async () => opts.checkin.body });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+
+  const renderApi = () =>
+    render(<KioskClient activities={KIOSK_ACTIVITIES} source="api" brandName="CCB" logoUrl="/kiosko/logo.png" />);
+
+  const goToNew = () => {
+    fireEvent.click(screen.getByText('Toca para registrarte'));
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getByText('Soy nuevo aquí'));
+    fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: 'Ana' } });
+    fireEvent.change(screen.getByLabelText(/Apellido/), { target: { value: 'Gómez' } });
+  };
+
+  it('nuevo visitante → POST {new} y confirma con CÓDIGO REAL del servidor', async () => {
+    const fetchMock = apiFetch({
+      checkin: { ok: true, status: 200, body: { code: 'CCB-RE4L00', visitCount: 1, partySize: 1, activity: { id: 'a1', name: 'X' } } },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderApi();
+    goToNew();
+    fireEvent.click(screen.getByRole('button', { name: /Registrarme y asistir/ }));
+
+    expect(await screen.findByText(/Te damos la bienvenida/)).toBeInTheDocument();
+    expect(screen.getByText('CCB-RE4L00')).toBeInTheDocument(); // código REAL, no demo
+    const checkinCall = fetchMock.mock.calls.find((c) => String(c[0]).startsWith('/kiosko/checkin'))!;
+    expect(checkinCall).toBeTruthy();
+    expect(String(checkinCall[1]!.body)).toContain('"new"');
+    expect(String(checkinCall[1]!.body)).toContain('"firstName":"Ana"');
+  });
+
+  it('visitante hallado → confirmar dispara POST {code} y muestra visitas reales', async () => {
+    const visitor = { firstName: 'Carmen', lastName: 'Objío', code: 'CCB-PUB001', visitCount: 3, isNew: false, companionsChildren: 0 };
+    const fetchMock = apiFetch({
+      visitor,
+      checkin: { ok: true, status: 200, body: { code: 'CCB-PUB001', visitCount: 4, partySize: 1, activity: { id: 'a1', name: 'X' } } },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderApi();
+    fireEvent.click(screen.getByText('Toca para registrarte'));
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getByText('Tengo mi código'));
+    fireEvent.change(screen.getByLabelText(/Código/), { target: { value: 'CCB-PUB001' } });
+    fireEvent.click(screen.getByRole('button', { name: /Buscar/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Sí, confirmar asistencia/ }));
+
+    expect(await screen.findByText(/Hola de nuevo/)).toBeInTheDocument();
+    const checkinCall = fetchMock.mock.calls.find((c) => String(c[0]).startsWith('/kiosko/checkin'))!;
+    expect(String(checkinCall[1]!.body)).toContain('"code":"CCB-PUB001"');
+  });
+
+  it('check-in falla (409 cupo) → pantalla de error, NO confirmación', async () => {
+    const fetchMock = apiFetch({ checkin: { ok: false, status: 409, body: { error: 'Cupo agotado.' } } });
+    vi.stubGlobal('fetch', fetchMock);
+    renderApi();
+    goToNew();
+    fireEvent.click(screen.getByRole('button', { name: /Registrarme y asistir/ }));
+
+    expect(await screen.findByText('No pudimos completar tu registro')).toBeInTheDocument();
+    expect(screen.getByText(/Se agotó el cupo/)).toBeInTheDocument();
+    expect(screen.queryByText(/Te damos la bienvenida/)).not.toBeInTheDocument();
+  });
+
+  it('correo inválido bloquea el submit (no postea)', () => {
+    const fetchMock = apiFetch({ checkin: { ok: true, status: 200, body: {} } });
+    vi.stubGlobal('fetch', fetchMock);
+    renderApi();
+    goToNew();
+    fireEvent.change(screen.getByLabelText(/Correo/), { target: { value: 'no-es-email' } });
+    expect(screen.getByText(/correo válido/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Registrarme y asistir/ })).toBeDisabled();
+  });
+});

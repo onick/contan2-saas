@@ -1,27 +1,28 @@
 'use client';
 
 // Máquina de estados del flujo del visitante (extraída del page.tsx, ahora un
-// Server Component que le pasa las actividades + el modo). Presentacional +
-// estado de flujo; no escribe nada.
+// Server Component que le pasa las actividades + el modo).
 //
 // MODO (decidido una sola vez en el server, según el fetch de actividades):
-//   source='api'  → actividades reales; lookup real vía /kiosko/lookup (proxy).
-//   source='demo' → actividades demo;  lookup local (demoLookup).
-// No se mezclan: en modo API un lookup con error muestra "intentá de nuevo"
-// (no cae a demo). El registro de NUEVO visitante sigue con código demo
-// (mintDemoCode) hasta el PR de escrituras; el visitante HALLADO usa su código
-// real. La confirmación sigue diciendo que el código/QR definitivo lo emite el
-// servidor.
+//   source='api'  → actividades reales; lookup real (/kiosko/lookup) y
+//                   CHECK-IN REAL al confirmar (/kiosko/checkin → POST público).
+//                   La confirmación devuelve el CÓDIGO REAL del visitante.
+//   source='demo' → actividades demo; lookup local; confirmación presentacional
+//                   (nuevo → código demo mintDemoCode; hallado → su código demo).
+// No se mezclan. En modo API, el confirmar (hallado o nuevo) escribe de verdad:
+// éxito → pantalla de confirmación con el código real; fallo (cupo agotado,
+// correo ya registrado, duplicado, red) → pantalla de error con reintento.
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  WelcomeScreen, ActivityScreen, IdentifyScreen, CodeScreen, NewVisitorScreen, ConfirmationScreen,
-  type NewVisitorForm,
+  WelcomeScreen, ActivityScreen, IdentifyScreen, CodeScreen, NewVisitorScreen,
+  ConfirmationScreen, CheckinErrorScreen, type NewVisitorForm,
 } from '../../components/kiosko/screens';
 import {
   KIOSK_KNOWN_VISITOR, KIOSK_KNOWN_EMAIL, mintDemoCode,
   type KioskScreen, type KioskActivity, type KioskVisitor,
 } from '../../lib/kiosko/demoData';
+import { checkinErrorMessage, type KioskCheckinResult } from '../../lib/kiosko/checkin';
 
 const CONFIRM_SECONDS = 15;
 
@@ -35,14 +36,44 @@ function demoLookup(query: string): KioskVisitor | null {
   return null;
 }
 
-// Lookup API (modo api): proxy same-origin. El proxy responde 200 con
-// { visitor } (hallado) o { visitor: null } (no encontrado); un status no-ok
-// (502) = error real → throw (el cliente muestra "intentá de nuevo", no cae a demo).
+// Lookup API (modo api): proxy same-origin. 200 { visitor } (hallado) o
+// { visitor: null } (no encontrado); status no-ok (502) = error → throw.
 async function apiLookup(query: string): Promise<KioskVisitor | null> {
   const res = await fetch(`/kiosko/lookup?q=${encodeURIComponent(query.trim())}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`lookup ${res.status}`);
   const data = (await res.json()) as { visitor: KioskVisitor | null };
   return data.visitor;
+}
+
+// Cuerpo del check-in público: el visitante se identifica por código (hallado) o
+// se registra como nuevo. Un solo adulto por check-in; sólo niños acompañantes.
+type CheckinVisitor =
+  | { code: string }
+  | { new: { firstName: string; lastName: string; email?: string; phone?: string } };
+
+// POST real al proxy del check-in. Devuelve un resultado discriminado (sin throw).
+async function postCheckin(
+  activityId: string,
+  visitor: CheckinVisitor,
+  companionsChildren: number,
+): Promise<{ ok: true; data: KioskCheckinResult } | { ok: false; message: string }> {
+  try {
+    const res = await fetch('/kiosko/checkin', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ activityId, visitor, companionsChildren }),
+    });
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      /* respuesta sin JSON → cae a error genérico */
+    }
+    if (res.ok) return { ok: true, data: body as KioskCheckinResult };
+    return { ok: false, message: checkinErrorMessage(res.status, body) };
+  } catch {
+    return { ok: false, message: checkinErrorMessage(0, null) };
+  }
 }
 
 export function KioskClient({
@@ -57,6 +88,8 @@ export function KioskClient({
   const [activity, setActivity] = useState<KioskActivity | null>(null);
   const [visitor, setVisitor] = useState<KioskVisitor | null>(null);
   const [countdown, setCountdown] = useState(CONFIRM_SECONDS);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const reset = useRef(() => {});
   reset.current = () => {
@@ -64,6 +97,7 @@ export function KioskClient({
     setActivity(null);
     setVisitor(null);
     setCountdown(CONFIRM_SECONDS);
+    setErrorMsg(null);
   };
 
   // Autoretorno al inicio desde la confirmación (como el kiosko v1).
@@ -81,19 +115,51 @@ export function KioskClient({
 
   const confirmVisitor = (v: KioskVisitor) => { setVisitor(v); setScreen('confirmation'); };
 
-  // Lookup según el modo (sin mezclar). En demo se envuelve en Promise para que
-  // CodeScreen lo trate igual (async) que el modo API.
+  // Lookup según el modo (sin mezclar). En demo se envuelve en Promise.
   const lookup = source === 'api' ? apiLookup : (q: string) => Promise.resolve(demoLookup(q));
 
-  const registerNew = (f: NewVisitorForm) => {
-    confirmVisitor({
-      firstName: f.firstName,
-      lastName: f.lastName,
-      code: mintDemoCode('CCB'), // visitante NUEVO → código demo (sin write todavía)
-      visitCount: 1,
-      isNew: true,
-      companionsChildren: f.children,
-    });
+  // Confirmar VISITANTE HALLADO. Demo → presentacional. API → check-in real {code}.
+  const confirmFound = async (found: KioskVisitor) => {
+    if (source !== 'api') { confirmVisitor(found); return; }
+    if (!activity || submitting) return;
+    setSubmitting(true);
+    const r = await postCheckin(activity.id, { code: found.code }, found.companionsChildren);
+    setSubmitting(false);
+    if (r.ok) {
+      // Código real (el mismo que ya tenía) + conteo de visitas actualizado.
+      confirmVisitor({ ...found, code: r.data.code, visitCount: r.data.visitCount });
+    } else {
+      setErrorMsg(r.message); setScreen('error');
+    }
+  };
+
+  // Registrar VISITANTE NUEVO. Demo → código demo. API → check-in real {new} →
+  // código REAL devuelto por el servidor.
+  const registerNew = async (f: NewVisitorForm) => {
+    if (source !== 'api') {
+      confirmVisitor({
+        firstName: f.firstName, lastName: f.lastName,
+        code: mintDemoCode('CCB'), visitCount: 1, isNew: true, companionsChildren: f.children,
+      });
+      return;
+    }
+    if (!activity || submitting) return;
+    setSubmitting(true);
+    const newVisitor = {
+      firstName: f.firstName, lastName: f.lastName,
+      ...(f.email ? { email: f.email } : {}),
+      ...(f.phone ? { phone: f.phone } : {}),
+    };
+    const r = await postCheckin(activity.id, { new: newVisitor }, f.children);
+    setSubmitting(false);
+    if (r.ok) {
+      confirmVisitor({
+        firstName: f.firstName, lastName: f.lastName,
+        code: r.data.code, visitCount: r.data.visitCount, isNew: true, companionsChildren: f.children,
+      });
+    } else {
+      setErrorMsg(r.message); setScreen('error');
+    }
   };
 
   return (
@@ -122,21 +188,31 @@ export function KioskClient({
       {screen === 'code' && (
         <CodeScreen
           onLookup={lookup}
-          onFound={confirmVisitor}
+          onFound={confirmFound}
+          submitting={submitting}
           onNew={() => setScreen('new')}
           onBack={() => setScreen('identify')}
         />
       )}
 
       {screen === 'new' && (
-        <NewVisitorScreen onSubmit={registerNew} onBack={() => setScreen('identify')} />
+        <NewVisitorScreen onSubmit={registerNew} submitting={submitting} onBack={() => setScreen('identify')} />
       )}
 
       {screen === 'confirmation' && visitor && activity && (
         <ConfirmationScreen
           visitor={visitor}
           activityName={activity.name}
+          real={source === 'api'}
           secondsLeft={countdown}
+          onHome={() => reset.current()}
+        />
+      )}
+
+      {screen === 'error' && (
+        <CheckinErrorScreen
+          message={errorMsg ?? 'No pudimos completar el registro.'}
+          onRetry={() => { setErrorMsg(null); setScreen('identify'); }}
           onHome={() => reset.current()}
         />
       )}
