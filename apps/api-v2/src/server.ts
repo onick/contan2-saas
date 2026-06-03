@@ -14,9 +14,31 @@ import { attendanceRoute } from './routes/attendance.js';
 import { publicRoute } from './routes/public.js';
 import { scannerRoute } from './routes/scanner.js';
 
+// Detrás de un reverse proxy (Traefik / web-v2), Fastify debe derivar `req.ip`
+// del `X-Forwarded-For` en vez del socket (que sería el proxy) — si no, TODOS los
+// clientes caen en el mismo bucket de rate-limit (la IP del proxy) y el límite
+// queda inservible. Default = 1: confía EXACTAMENTE en el proxy inmediato y toma
+// la IP que ESE proxy reenvía. NO usamos `true` porque tomaría el extremo
+// izquierdo del XFF, que lo controla el cliente → spoofeable (un atacante rota
+// XFF y evade el límite). Override por env `TRUST_PROXY` para topologías con más
+// hops (ej. "2") o para apagarlo ("false") en entornos sin proxy.
+//
+// NOTA: en v2 api-v2 es INTERNO; el tráfico público le llega vía los proxies de
+// web-v2. Para que `req.ip` sea la IP real del visitante, web-v2 debe REENVIAR
+// `x-forwarded-for` (PR aparte de apps/web). Este cambio es la base necesaria.
+export function resolveTrustProxy(env: NodeJS.ProcessEnv = process.env): boolean | number {
+  const v = env.TRUST_PROXY?.trim();
+  if (v === undefined || v === '') return 1;
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 ? n : 1;
+}
+
 export function buildApp(): FastifyInstance {
   const app = Fastify({
     logger: true,
+    trustProxy: resolveTrustProxy(),
   });
 
   app.register(cookie);
