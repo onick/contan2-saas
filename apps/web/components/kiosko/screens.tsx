@@ -10,6 +10,7 @@ import {
   Baby, Info, Minus, Plus, Film, Music, MessagesSquare, Palette, Ban, RotateCcw, type LucideIcon,
 } from 'lucide-react';
 import { KioskButton, TicketButton, KioskBackPill, FauxQr, cx, kioskFocus, kioskMono } from './ui';
+import { BorderBeam } from '../ui/BorderBeam';
 import { KioskClock } from './KioskClock';
 import { partySize, type KioskActivity, type KioskVisitor } from '../../lib/kiosko/demoData';
 
@@ -199,7 +200,12 @@ function ActivityCard({ activity: a, index, onSelect }: { activity: KioskActivit
         kioskFocus,
       )}
     >
-      {/* Cover 16/10: póster o banda de categoría */}
+      {/* Border beam · sólo si hay cupo (!full). Decorativo, detrás del contenido
+          interactivo (z-1 < z-10), no bloquea clics ni cambia el layout. */}
+      {!full && <BorderBeam />}
+
+      {/* Cover 16/10: póster o banda de categoría. Queda DEBAJO del beam (z-auto)
+          para que el haz enmarque por encima del borde de la imagen. */}
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#0b0e14]">
         {showImage ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -223,8 +229,8 @@ function ActivityCard({ activity: a, index, onSelect }: { activity: KioskActivit
         </span>
       </div>
 
-      {/* Cuerpo */}
-      <div className="flex flex-1 flex-col gap-3 p-5">
+      {/* Cuerpo · z-10 para quedar SOBRE el beam (el haz nunca tapa texto/CTA). */}
+      <div className="relative z-10 flex flex-1 flex-col gap-3 p-5">
         <span className="text-xl font-bold leading-tight text-[#f4f5f8]">{a.name}</span>
         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#a2a5b4]">
           <span className="inline-flex items-center gap-1.5"><CalendarDays size={15} aria-hidden="true" />{a.date}</span>
@@ -235,17 +241,15 @@ function ActivityCard({ activity: a, index, onSelect }: { activity: KioskActivit
             <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: full ? '#a2a5b4' : low ? '#ff8a3d' : '#34d399' }} />
             {full ? 'Cupo agotado' : low ? `Últimos ${spots} cupos` : `${spots} cupos disponibles`}
           </span>
-          {/* Botón ASISTIR (visual; toda la card es el botón real). Prominente
-              + shimmer sutil para darle importancia. */}
+          {/* Botón ASISTIR (visual; toda la card es el botón real). Naranja sólido,
+              limpio y profesional: sin glow. Hover = realce leve de tono; active =
+              presión sutil. El foco visible lo da la card (kioskFocus). */}
           {full ? (
             <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/8 px-5 py-3.5 text-sm font-bold uppercase tracking-[0.08em] text-[#a2a5b4]">
               <Ban size={18} aria-hidden="true" /> Cupo agotado
             </span>
           ) : (
-            <span
-              style={{ animationDelay: `${index * 400}ms` }}
-              className="kiosk-cta-glow flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#e65100] px-5 py-3.5 text-sm font-bold uppercase tracking-[0.08em] text-white transition-[filter] duration-200 group-hover:brightness-110"
-            >
+            <span className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#e65100] px-5 py-3.5 text-sm font-bold uppercase tracking-[0.08em] text-white transition-[filter,transform] duration-200 group-hover:brightness-[1.07] group-active:translate-y-px">
               <Check size={18} strokeWidth={2.5} aria-hidden="true" /> Asistir
               <span aria-hidden="true" className="transition-transform duration-200 group-hover:translate-x-0.5">→</span>
             </span>
