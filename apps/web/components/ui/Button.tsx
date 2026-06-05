@@ -4,11 +4,15 @@ import { cn, focusRing } from './cn';
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'pill';
 export type ButtonSize = 'md' | 'sm' | 'lg';
 
-// primary usa brand-strong (texto blanco AA); el acento brand queda para
-// links/íconos. secondary y ghost para acciones de menor jerarquía. `pill` es
-// para filtros toggle (usar con `selected`).
+// primary usa brand-strong (#c44400) para que el texto blanco cumpla WCAG AA en
+// TODOS los tamaños: blanco/#c44400 = 5.03:1 (≥4.5:1, texto normal). El naranja
+// de marca #e65100 NO se usa de relleno con texto blanco (3.79:1 < 4.5:1; 14px
+// bold NO es "texto grande" — WCAG exige ~18.66px bold). El hover OSCURECE
+// (brightness-95 = 4.88:1) en vez de bajar opacidad (opacity-90 componía sobre la
+// página y caía a 4.31:1 < 4.5). active = brightness-90 (4.79:1). secondary y
+// ghost para menor jerarquía. `pill` (filtros toggle) mantiene brand-strong.
 const VARIANTS: Record<Exclude<ButtonVariant, 'pill'>, string> = {
-  primary: 'bg-brand-strong text-white shadow-sm hover:opacity-90',
+  primary: 'bg-brand-strong text-white shadow-sm hover:brightness-95 active:brightness-90',
   secondary: 'border border-line bg-surface text-muted hover:bg-page hover:text-ink',
   ghost: 'text-muted hover:bg-surface-container hover:text-ink',
 };
