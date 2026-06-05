@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import type { LucideIcon } from 'lucide-react';
 import { Suspense } from 'react';
-import { Plus, CalendarDays, CalendarClock, TrendingUp } from 'lucide-react';
+import { CalendarDays, CalendarClock, TrendingUp } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { ActivitiesView } from '../../../components/activities/ActivitiesView';
-import { SectionHeader, Button, Card, Skeleton } from '../../../components/ui';
+import { NewActivityButton } from '../../../components/activities/NewActivityButton';
+import { SectionHeader, Card, Skeleton } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { getActivitiesView } from '../../../lib/api/activities';
 import type { Activity } from '../../../lib/activities/demoData';
@@ -116,11 +117,7 @@ export default function ActividadesPage() {
             level={1}
             title="Actividades"
             subtitle="Gestioná los eventos del centro cultural"
-            actions={
-              <Button>
-                <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nueva actividad
-              </Button>
-            }
+            actions={<NewActivityButton />}
           />
         </div>
 
