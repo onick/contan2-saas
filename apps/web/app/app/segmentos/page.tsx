@@ -20,19 +20,21 @@ export default function SegmentosPage() {
     <AppShell branding={branding} title="Segmentos" activeKey="segmentos">
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado */}
-        <SectionHeader
-          level={1}
-          title="Segmentos"
-          subtitle="Agrupá tu audiencia para invitar y analizar"
-          actions={
-            <Button>
-              <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nuevo segmento
-            </Button>
-          }
-        />
+        <div className="app-reveal">
+          <SectionHeader
+            level={1}
+            title="Segmentos"
+            subtitle="Agrupá tu audiencia para invitar y analizar"
+            actions={
+              <Button>
+                <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nuevo segmento
+              </Button>
+            }
+          />
+        </div>
 
         {/* KPIs */}
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="app-stagger mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {SEGMENT_KPIS.map((k) => (
             <Card key={k.key} padding="md">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{k.label}</p>
@@ -96,7 +98,7 @@ export default function SegmentosPage() {
             }
           />
         ) : (
-          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="app-stagger mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {SEGMENTS.map((s) => (
               <SegmentCard key={s.id} segment={s} />
             ))}

@@ -32,15 +32,17 @@ export default function IdentidadPage() {
     <AppShell branding={branding} title="Identidad" activeKey="identidad">
       <div className="mx-auto w-full max-w-[1600px] pb-20">
         {/* Encabezado */}
-        <SectionHeader
-          level={1}
-          title="Identidad de marca"
-          subtitle="Personalizá cómo se ve Contan2 para tu organización"
-        />
+        <div className="app-reveal">
+          <SectionHeader
+            level={1}
+            title="Identidad de marca"
+            subtitle="Personalizá cómo se ve Contan2 para tu organización"
+          />
+        </div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
           {/* ===== Formulario ===== */}
-          <div className="flex min-w-0 flex-col gap-4">
+          <div className="app-stagger flex min-w-0 flex-col gap-4">
             {/* Logo e imagen */}
             <Section title="Logo e imagen">
               <div className="flex flex-col gap-4">

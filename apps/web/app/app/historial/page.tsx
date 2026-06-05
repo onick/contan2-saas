@@ -21,19 +21,21 @@ export default function HistorialPage() {
     <AppShell branding={branding} title="Historial" activeKey="historial">
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado + acciones */}
-        <SectionHeader
-          level={1}
-          title="Historial"
-          subtitle="Registro de actividad y auditoría de la organización"
-          actions={
-            <Button variant="secondary">
-              <Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar
-            </Button>
-          }
-        />
+        <div className="app-reveal">
+          <SectionHeader
+            level={1}
+            title="Historial"
+            subtitle="Registro de actividad y auditoría de la organización"
+            actions={
+              <Button variant="secondary">
+                <Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar
+              </Button>
+            }
+          />
+        </div>
 
         {/* KPIs */}
-        <div className="mt-6 grid grid-cols-3 gap-4">
+        <div className="app-stagger mt-6 grid grid-cols-3 gap-4">
           {HISTORY_KPIS.map((k) => (
             <Card key={k.key} padding="md">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{k.label}</p>
@@ -77,7 +79,7 @@ export default function HistorialPage() {
         </Card>
 
         {/* Timeline */}
-        <div className="mt-4">
+        <div className="app-reveal mt-4" style={{ animationDelay: '120ms' }}>
           <ActivityTimeline groups={EVENT_GROUPS} />
         </div>
         <p className="mt-3 text-[13px] text-faint tabular-nums">{TOTAL_EVENTS} eventos en los últimos 7 días</p>
