@@ -93,6 +93,79 @@ export const ActivitiesListResponseSchema = z.object({
 });
 export type ActivitiesListResponse = z.infer<typeof ActivitiesListResponseSchema>;
 
+// ─────────────────────────────────────────────────────────────────────────
+// Creación de actividad (ESCRITURA · POST /api/v2/activities). Primer write
+// del admin v2. Paridad con v1 (backend/src/domain/schemas.js · validateActivity
+// Create + normalizeActivityData). Decisiones de producto:
+//   · status NO viaja en el request: el server fija 'activa' (publica al crear).
+//   · imageUrl NO viaja en el request: se persiste image_url = null (sin uploads).
+//   · organizationId jamás del body: se deriva de la sesión staff (tenant-scope).
+// ─────────────────────────────────────────────────────────────────────────
+
+// type es un enum cerrado en v1 (no free-text). Mismo conjunto exacto.
+export const ACTIVITY_TYPES = [
+  'exposicion', 'concierto', 'cine', 'taller', 'teatro', 'conferencia', 'otro',
+] as const;
+export const ActivityTypeSchema = z.enum(ACTIVITY_TYPES);
+export type ActivityType = z.infer<typeof ActivityTypeSchema>;
+
+// Gracia de 60s para "fecha no en el pasado" (paridad exacta con v1).
+const ACTIVITY_DATE_PAST_GRACE_MS = 60_000;
+
+export const ActivityCreateRequestSchema = z
+  .object({
+    name: z.string().trim().min(3).max(100),
+    type: ActivityTypeSchema,
+    location: z.string().trim().min(2).max(100),
+    date: z.string().datetime({ offset: true }), // ISO 8601 (inicio)
+    endDate: z.string().datetime({ offset: true }).optional(), // ISO 8601 (cierre)
+    capacity: z.number().int().min(1).max(10000),
+    description: z.string().max(1000).optional(),
+    category: z.string().max(60).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const start = new Date(data.date).getTime();
+    if (Number.isNaN(start)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['date'], message: 'Fecha inválida' });
+      return;
+    }
+    if (start < Date.now() - ACTIVITY_DATE_PAST_GRACE_MS) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['date'], message: 'La fecha debe ser presente o futura' });
+    }
+    if (data.endDate) {
+      const end = new Date(data.endDate).getTime();
+      if (Number.isNaN(end)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['endDate'], message: 'Fecha de cierre inválida' });
+      } else if (end < start) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['endDate'], message: 'La fecha de cierre debe ser igual o posterior a la de inicio' });
+      }
+    }
+  });
+export type ActivityCreateRequest = z.infer<typeof ActivityCreateRequestSchema>;
+
+// Actividad completa (respuesta del create · superset del ListItem con los
+// campos que el listado no proyecta: endDate/description/imageUrl/timestamps).
+export const ActivityDetailSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  location: z.string(),
+  date: z.string(), // ISO 8601
+  endDate: z.string().nullable(), // ISO 8601 | null
+  capacity: z.number().int(),
+  enrolledCount: z.number().int(),
+  status: ActivityStatusSchema,
+  description: z.string(),
+  imageUrl: z.string().nullable(),
+  category: z.string().nullable(),
+  createdAt: z.string(), // ISO 8601
+  updatedAt: z.string(), // ISO 8601
+});
+export type ActivityDetail = z.infer<typeof ActivityDetailSchema>;
+
+export const ActivityCreateResponseSchema = z.object({ activity: ActivityDetailSchema });
+export type ActivityCreateResponse = z.infer<typeof ActivityCreateResponseSchema>;
+
 // Visitante · PII real visible para staff autenticado del MISMO tenant.
 export const UserSchema = z.object({
   id: z.string(),
