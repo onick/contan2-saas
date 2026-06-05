@@ -6,9 +6,10 @@
 // abrir y restaura al cerrar, backdrop clickeable. CERO edición, cero escrituras.
 
 import { useEffect, useId, useRef } from 'react';
-import { X, CalendarDays, MapPin, Tag, Users } from 'lucide-react';
+import { X, CalendarDays, MapPin, Tag, Users, ImageOff } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
 import { StatusBadge } from './StatusBadge';
+import { CoverThumb } from './CoverThumb';
 import { IconButton, cn, focusRing } from '../ui';
 
 export interface ActivityDetailDrawerProps {
@@ -55,12 +56,12 @@ export function ActivityDetailDrawer({ activity, onClose }: ActivityDetailDrawer
         aria-label="Cerrar"
         tabIndex={-1}
         onClick={onClose}
-        className="absolute inset-0 bg-ink/40 motion-safe:transition-opacity"
+        className="drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity"
       />
       {/* Panel: bottom-sheet en mobile, lateral derecho en md+ */}
       <div
         className={cn(
-          'absolute inset-x-0 bottom-0 max-h-[88dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
+          'drawer-panel absolute inset-x-0 bottom-0 max-h-[88dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
           'md:inset-y-0 md:right-0 md:left-auto md:h-dvh md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
           'flex flex-col',
         )}
@@ -76,6 +77,19 @@ export function ActivityDetailDrawer({ activity, onClose }: ActivityDetailDrawer
         </header>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* Portada 16:9 (fallback si no hay imagen) */}
+          <div className="mb-4 aspect-video w-full overflow-hidden rounded-xl bg-surface-container">
+            <CoverThumb
+              src={activity.imageUrl ?? null}
+              alt=""
+              className="h-full w-full object-cover"
+              fallback={
+                <div className="grid h-full w-full place-items-center text-faint">
+                  <ImageOff size={28} strokeWidth={1.5} aria-hidden="true" />
+                </div>
+              }
+            />
+          </div>
           <div className="mb-4"><StatusBadge status={activity.status} label={activity.statusLabel} /></div>
           <dl className="space-y-3">
             <Row icon={CalendarDays} label="Fecha">{activity.date}</Row>

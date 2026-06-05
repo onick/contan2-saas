@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { Activity, ActivityStatus } from '../../lib/activities/demoData';
 import { StatusBadge } from './StatusBadge';
 import { CategoryChip } from '../CategoryChip';
+import { CoverThumb } from './CoverThumb';
 import { EmptyState, cn, focusRing } from '../ui';
 
 // Clases de "card accionable": misma superficie que ui/Card + hover sutil (lift
@@ -46,10 +47,19 @@ export function ActivitiesGrid({ activities, onView }: ActivitiesGridProps) {
         const CatIcon = CATEGORY_ICON[a.category] ?? CalendarDays;
         return (
           <button key={a.id} type="button" onClick={() => onView?.(a)} className={CARD_BTN}>
-            <div className="flex items-start justify-between gap-3">
-              <span className="grid h-10 w-10 flex-none place-items-center rounded-lg bg-surface-container text-muted">
-                <CatIcon size={18} strokeWidth={1.75} aria-hidden="true" />
-              </span>
+            <div className="aspect-video w-full overflow-hidden rounded-lg bg-surface-container">
+              <CoverThumb
+                src={a.imageUrl ?? null}
+                alt=""
+                className="h-full w-full object-cover"
+                fallback={
+                  <span className="grid h-full w-full place-items-center text-muted">
+                    <CatIcon size={28} strokeWidth={1.5} aria-hidden="true" />
+                  </span>
+                }
+              />
+            </div>
+            <div className="flex items-center justify-end">
               <StatusBadge status={a.status} label={a.statusLabel} />
             </div>
             <div className="min-w-0">

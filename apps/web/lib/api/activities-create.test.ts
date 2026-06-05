@@ -7,10 +7,54 @@ vi.mock('next/headers', () => ({
   headers: async () => new Map([['host', 'ccb.contan2.com'], ['x-forwarded-for', '1.2.3.4']]),
 }));
 
-import { proxyCreateActivity } from './activities-create';
+import { proxyCreateActivity, proxyUploadCover } from './activities-create';
 import { POST } from '../../app/app/actividades/api/route';
 
 afterEach(() => vi.restoreAllMocks());
+
+describe('proxyUploadCover (multipart)', () => {
+  const boundary = '----testBoundary123';
+  const ct = `multipart/form-data; boundary=${boundary}`;
+  const mkReq = (contentType: string | null) =>
+    new Request('http://localhost/app/actividades/api/A1/cover', {
+      method: 'POST',
+      ...(contentType ? { headers: { 'content-type': contentType } } : {}),
+      body: `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="c.png"\r\nContent-Type: image/png\r\n\r\nXXXX\r\n--${boundary}--\r\n`,
+    });
+
+  it('preserva el boundary (reenvía el content-type entrante), cookie y forwarded headers', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify({ activity: { id: 'A1' } }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchFn);
+
+    const res = await proxyUploadCover('A1', mkReq(ct));
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchFn.mock.calls[0]!;
+    expect(url).toBe('http://localhost:3001/api/v2/activities/A1/cover');
+    expect(init.method).toBe('POST');
+    // content-type reenviado TAL CUAL → conserva el boundary (no hardcodeado).
+    expect(init.headers['content-type']).toBe(ct);
+    expect(init.headers.cookie).toBe('contan2_session=tok123');
+    expect(init.headers['x-forwarded-host']).toBe('ccb.contan2.com');
+    expect(init.headers['x-forwarded-for']).toBe('1.2.3.4');
+    expect(init.duplex).toBe('half');
+    expect(res.status).toBe(200);
+  });
+
+  it('content-type que no es multipart → 400 sin tocar api-v2', async () => {
+    const fetchFn = vi.fn();
+    vi.stubGlobal('fetch', fetchFn);
+    const res = await proxyUploadCover('A1', mkReq('application/json'));
+    expect(res.status).toBe(400);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('fallo de red → 502', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+    const res = await proxyUploadCover('A1', mkReq(ct));
+    expect(res.status).toBe(502);
+  });
+});
 
 describe('proxyCreateActivity', () => {
   it('reenvía cookie + forwarded headers a api-v2 y relaya status/body (201)', async () => {

@@ -36,3 +36,39 @@ export async function proxyCreateActivity(body: unknown): Promise<Response> {
     headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
   });
 }
+
+// Proxy de subida de portada (multipart) → api-v2 POST /activities/:id/cover.
+// CLAVE: NO se setea manualmente `content-type: multipart/form-data` (perdería el
+// boundary). Se REENVÍA el content-type entrante del navegador (que incluye el
+// boundary) y el body como stream (duplex: 'half') → el boundary se preserva
+// exacto y no se bufferiza el archivo. Reenvía cookie + forwarded headers; relaya
+// status + body tal cual.
+export async function proxyUploadCover(id: string, req: Request): Promise<Response> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const contentType = req.headers.get('content-type');
+  if (!contentType || !contentType.toLowerCase().startsWith('multipart/form-data')) {
+    return Response.json({ error: 'Se esperaba multipart/form-data.' }, { status: 400 });
+  }
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE_URL}/api/v2/activities/${encodeURIComponent(id)}/cover`, {
+      method: 'POST',
+      headers: {
+        'content-type': contentType, // preserva el boundary generado por el navegador
+        ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+        ...(await forwardingHeaders()),
+      },
+      body: req.body,
+      // @ts-expect-error duplex es requerido por undici al enviar un stream y no está en los tipos
+      duplex: 'half',
+      cache: 'no-store',
+    });
+  } catch {
+    return Response.json({ error: 'No pudimos subir la portada. Intentá de nuevo.' }, { status: 502 });
+  }
+  const text = await upstream.text();
+  return new Response(text, {
+    status: upstream.status,
+    headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
+  });
+}
