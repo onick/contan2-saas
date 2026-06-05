@@ -120,16 +120,19 @@ describe('persistCover (atomicidad)', () => {
     await expect(stat(path.join(dir, old))).rejects.toBeTruthy(); // viejo v2 borrado
   });
 
-  it('fallo de DB: borra el archivo nuevo (rollback) y propaga', async () => {
+  it('fallo de DB: borra el archivo nuevo (rollback), preserva el v2 anterior y no deja .tmp', async () => {
+    const old = await writeCoverAtomic(dir, Buffer.from('old-v2'));
     const before = (await readdir(dir)).length;
     await expect(persistCover({
       root: dir,
       data: Buffer.from('new'),
-      oldImageUrl: null,
+      oldImageUrl: coverUrlFromName(old),
       update: async () => { throw new Error('db down'); },
     })).rejects.toThrow('db down');
-    const after = (await readdir(dir)).filter((f) => !f.startsWith('.tmp-')).length;
-    expect(after).toBe(before); // ningún archivo nuevo quedó
+    const files = await readdir(dir);
+    expect(files.filter((f) => f.startsWith('.tmp-'))).toHaveLength(0); // sin temporales
+    expect(files.length).toBe(before); // no quedó archivo nuevo
+    expect((await stat(path.join(dir, old))).isFile()).toBe(true); // el v2 anterior NO se borró (update falló antes)
   });
 
   it('reemplazo de legacy: NO borra el archivo legacy', async () => {

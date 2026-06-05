@@ -7,7 +7,7 @@
 process.env.ROOT_DOMAIN = 'contan2.com';
 
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile, stat, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, stat, readFile, symlink, mkdir, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -26,13 +26,31 @@ const run = DATABASE_URL ? describe : describe.skip;
 const realPng = () => sharp({ create: { width: 100, height: 100, channels: 3, background: { r: 200, g: 80, b: 0 } } }).png().toBuffer();
 const realJpeg = () => sharp({ create: { width: 100, height: 100, channels: 3, background: { r: 0, g: 100, b: 200 } } }).jpeg().toBuffer();
 
-function multipart(buffer: Buffer, filename: string, contentType: string) {
+type Part =
+  | { kind: 'file'; name: string; filename: string; ct: string; buffer: Buffer }
+  | { kind: 'field'; name: string; value: string };
+
+// Builder de cuerpo multipart con N partes (file/field) para cubrir 0/1/varios
+// archivos y campos no-file.
+function multipartRaw(parts: Part[]) {
   const boundary = '----cover' + randomUUID().replace(/-/g, '');
-  const pre = Buffer.from(
-    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`,
-  );
-  const post = Buffer.from(`\r\n--${boundary}--\r\n`);
-  return { payload: Buffer.concat([pre, buffer, post]), ct: `multipart/form-data; boundary=${boundary}` };
+  const chunks: Buffer[] = [];
+  for (const p of parts) {
+    if (p.kind === 'field') {
+      chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${p.name}"\r\n\r\n${p.value}\r\n`));
+    } else {
+      chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${p.name}"; filename="${p.filename}"\r\nContent-Type: ${p.ct}\r\n\r\n`));
+      chunks.push(p.buffer);
+      chunks.push(Buffer.from('\r\n'));
+    }
+  }
+  chunks.push(Buffer.from(`--${boundary}--\r\n`));
+  return { payload: Buffer.concat(chunks), ct: `multipart/form-data; boundary=${boundary}` };
+}
+
+// Conveniencia: un solo archivo.
+function multipart(buffer: Buffer, filename: string, contentType: string) {
+  return multipartRaw([{ kind: 'file', name: 'file', filename, ct: contentType, buffer }]);
 }
 
 run('POST /activities/:id/cover · escritura de portada', () => {
@@ -192,5 +210,64 @@ run('POST /activities/:id/cover · escritura de portada', () => {
 
     const bad = await app.inject({ method: 'GET', url: `/uploads/${encodeURIComponent('../../etc/passwd')}` });
     expect(bad.statusCode).toBe(404);
+  });
+
+  // ── Multipart: exactamente un archivo ──────────────────────────────────────
+  it('multipart sin archivo → 400', async () => {
+    const mp = multipartRaw([{ kind: 'field', name: 'foo', value: 'bar' }]);
+    expect((await postCover(actA, mp, TOK.admin)).statusCode).toBe(400);
+  });
+
+  it('más de un archivo → 400', async () => {
+    const png = await realPng();
+    const mp = multipartRaw([
+      { kind: 'file', name: 'file', filename: 'a.png', ct: 'image/png', buffer: png },
+      { kind: 'file', name: 'file2', filename: 'b.png', ct: 'image/png', buffer: png },
+    ]);
+    expect((await postCover(actA, mp, TOK.admin)).statusCode).toBe(400);
+  });
+
+  it('campo no-file inesperado no altera el comportamiento (field + file → 200)', async () => {
+    const mp = multipartRaw([
+      { kind: 'field', name: 'titulo', value: 'ignorado' },
+      { kind: 'file', name: 'file', filename: 'ok.png', ct: 'image/png', buffer: await realPng() },
+    ]);
+    expect((await postCover(await mkActivity(orgAId), mp, TOK.admin)).statusCode).toBe(200);
+  });
+
+  it('archivo vacío → 415 (0 bytes no tiene magic válido)', async () => {
+    const mp = multipart(Buffer.alloc(0), 'empty.png', 'image/png');
+    expect((await postCover(actA, mp, TOK.admin)).statusCode).toBe(415);
+  });
+
+  // ── Serving: symlink y directorio no se sirven ─────────────────────────────
+  it('symlink dentro del upload root NO se sirve → 404', async () => {
+    const secret = path.join(uploadsDir, '.secret-target');
+    await writeFile(secret, Buffer.from('top secret'));
+    const linkName = `v2-activity-${randomUUID()}.webp`;
+    await symlink(secret, path.join(uploadsDir, linkName));
+    const res = await app.inject({ method: 'GET', url: `/uploads/${linkName}` });
+    expect(res.statusCode).toBe(404); // lstat detecta symlink → rechazado
+  });
+
+  it('directorio con nombre aparentemente válido NO se sirve → 404', async () => {
+    const dirName = `looks-like-file-${randomUUID().slice(0, 8)}.webp`;
+    await mkdir(path.join(uploadsDir, dirName));
+    const res = await app.inject({ method: 'GET', url: `/uploads/${dirName}` });
+    expect(res.statusCode).toBe(404); // lstat: no es archivo regular
+  });
+
+  // ── Atomicidad: fallo de Sharp no cambia nada ──────────────────────────────
+  it('fallo de Sharp (magic PNG válido + cuerpo corrupto) → 400, image_url sin cambios, sin archivos nuevos/tmp', async () => {
+    const a = await mkActivity(orgAId);
+    expect(await imageUrlOf(a)).toBe(null);
+    const before = (await readdir(uploadsDir)).length;
+    // magic PNG válido pero cuerpo no decodificable → pasa magic-bytes, sharp lanza.
+    const corrupt = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(40, 7)]);
+    const res = await postCover(a, multipart(corrupt, 'corrupt.png', 'image/png'), TOK.admin);
+    expect(res.statusCode).toBe(400);
+    expect(await imageUrlOf(a)).toBe(null); // image_url intacto
+    const after = (await readdir(uploadsDir)).filter((f) => !f.startsWith('.tmp-'));
+    expect(after.length).toBe(before); // ningún archivo nuevo ni .tmp quedó
   });
 });

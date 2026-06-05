@@ -7,21 +7,18 @@
 
 import { createReadStream } from 'node:fs';
 import type { FastifyPluginAsync } from 'fastify';
-import { uploadsRoot, resolveWithinRoot, contentTypeFor, fileExists } from '../storage.js';
+import { uploadsRoot, resolveServablePath, contentTypeFor } from '../storage.js';
 
 // Se registra SIN el prefijo /api/v2: el image_url es `/uploads/<name>` y web-v2
 // proxyará `/uploads/*` → api-v2 `/uploads/*` (PR B).
 export const uploadsRoute: FastifyPluginAsync = async (app) => {
   app.get('/uploads/:name', async (req, reply) => {
     const name = (req.params as { name: string }).name;
-    const root = uploadsRoot();
-    const abs = resolveWithinRoot(root, name); // null si inseguro / extensión no permitida
-    const ct = contentTypeFor(name);
-    if (!abs || !ct) {
-      reply.code(404);
-      return { error: 'No encontrado' };
-    }
-    if (!(await fileExists(abs))) {
+    const ct = contentTypeFor(name); // null si extensión no permitida
+    // resolveServablePath: nombre seguro + lstat archivo regular (NO symlink/dir/
+    // special) + realpath dentro del root. null → 404 (sin listar el directorio).
+    const real = ct ? await resolveServablePath(uploadsRoot(), name) : null;
+    if (!ct || !real) {
       reply.code(404);
       return { error: 'No encontrado' };
     }
@@ -29,6 +26,6 @@ export const uploadsRoute: FastifyPluginAsync = async (app) => {
     reply.header('X-Content-Type-Options', 'nosniff');
     // Nombres inmutables (uuid v2 / timestamp+hash legacy) → cache larga.
     reply.header('Cache-Control', 'public, max-age=31536000, immutable');
-    return reply.send(createReadStream(abs));
+    return reply.send(createReadStream(real));
   });
 };

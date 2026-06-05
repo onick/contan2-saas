@@ -45,9 +45,10 @@ export function buildApp(): FastifyInstance {
   });
 
   app.register(cookie);
-  // Multipart para subida de portadas. Tope duro global (defensa) + el endpoint
-  // lo re-aplica por request. files:1 → un solo archivo.
-  app.register(multipart, { limits: { fileSize: MAX_COVER_BYTES, files: 1, fields: 20 } });
+  // Multipart para subida de portadas. Tope duro de tamaño por archivo (5MB); el
+  // endpoint cuenta las partes y exige EXACTAMENTE un archivo (rechaza 0/>1). El
+  // límite `files` es sólo un backstop alto (el conteo del handler es el árbitro).
+  app.register(multipart, { limits: { fileSize: MAX_COVER_BYTES, fields: 20, files: 4 } });
   // Serving de portadas (S2). SIN prefijo /api/v2: image_url = `/uploads/<name>`.
   app.register(uploadsRoute);
   app.register(healthzRoute, { prefix: '/api/v2' });

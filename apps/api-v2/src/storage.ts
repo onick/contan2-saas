@@ -1,19 +1,25 @@
 // apps/api-v2/src/storage.ts · capa de almacenamiento de portadas (filesystem).
 // Propiedad de api-v2 (serving S2). Reglas duras:
-//   · Root configurable por UPLOADS_DIR (staging/prod = volumen montado, p.ej.
-//     /data/contan2/uploads; dev/tests = temporal). NO se asume que exista; si
-//     no es escribible, falla claro.
+//   · Root configurable por UPLOADS_DIR. AISLAMIENTO ABSOLUTO de volúmenes:
+//       - staging → /data/contan2-v2-staging/uploads (volumen PROPIO de staging)
+//       - prod    → /data/contan2/uploads (compat con imágenes v1)
+//     ambos montados en /app/uploads dentro del contenedor. STAGING JAMÁS monta
+//     ni escribe el volumen de prod. dev/tests = temporal. NO se asume que el
+//     directorio exista; si no es escribible, falla claro. La compatibilidad con
+//     imágenes legacy v1 se valida en PROD o en una COPIA controlada del volumen
+//     prod — nunca compartiendo el volumen prod con staging.
 //   · Nombres de archivo v2 INMUTABLES: `v2-activity-<uuid>.webp`. Nunca el
 //     nombre original del cliente.
 //   · Escritura ATÓMICA: tmp en el mismo volumen → rename. `wx` (no sobrescribe).
 //   · Borrado automático SOLO de archivos que cumplen EXACTO el patrón v2; los
 //     legacy (`/uploads/<v1>`) jamás se borran automáticamente.
 //   · Path safety: nombres seguros (sin `..`, sin separadores), resueltos contra
-//     el root; el resultado debe quedar dentro del root.
+//     el root; además, al servir, lstat (archivo regular, NO symlink/dir/special)
+//     + realpath dentro del realpath del root.
 
 import os from 'node:os';
 import path from 'node:path';
-import { access, mkdir, writeFile, rename, unlink, stat } from 'node:fs/promises';
+import { access, mkdir, writeFile, rename, unlink, stat, lstat, realpath } from 'node:fs/promises';
 import { constants as FS } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 
@@ -128,6 +134,33 @@ export async function deletePreviousCoverIfV2(root: string, oldImageUrl: string 
     return true;
   } catch {
     return false;
+  }
+}
+
+// Resuelve un nombre a un path SERVIBLE con verificación dura:
+//   1) nombre seguro + dentro del root (léxico, resolveWithinRoot).
+//   2) lstat: debe ser un ARCHIVO REGULAR (lstat NO sigue symlinks → un symlink
+//      da isFile()=false). Rechaza symlinks, directorios y archivos especiales.
+//   3) realpath del archivo + del root; el archivo real debe quedar dentro del
+//      realpath del root (defensa extra contra symlinks/montajes).
+// Devuelve el path real servible, o null si algo no cumple. NO sigue symlinks.
+export async function resolveServablePath(root: string, name: string): Promise<string | null> {
+  const abs = resolveWithinRoot(root, name);
+  if (!abs) return null;
+  let st;
+  try {
+    st = await lstat(abs); // lstat: no sigue symlinks
+  } catch {
+    return null;
+  }
+  if (!st.isFile()) return null; // symlink / dir / fifo / socket / device → rechazado
+  try {
+    const realFile = await realpath(abs);
+    const realRoot = await realpath(root);
+    if (realFile !== realRoot && !realFile.startsWith(realRoot + path.sep)) return null;
+    return realFile;
+  } catch {
+    return null;
   }
 }
 

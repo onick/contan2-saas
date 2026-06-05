@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import type { MultipartFile } from '@fastify/multipart';
 import { getDb, sql } from '@contan2/db';
 import {
   ActivityCreateRequestSchema,
@@ -17,7 +16,6 @@ import {
   ACTIVITY_DETAIL_COLUMNS,
 } from '../activities-input.js';
 import {
-  MAX_COVER_BYTES,
   assertAllowedImage,
   processCover,
   persistCover,
@@ -163,28 +161,45 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: 'Actividad no encontrada.' };
     }
 
-    // Multipart: exactamente un archivo, tope duro 5MB.
-    let part: MultipartFile | undefined;
+    // Multipart: EXACTAMENTE un archivo, tope duro 5MB (límite global del plugin).
+    // Iteramos las partes para contar archivos (rechazar 0 o >1) e ignorar campos
+    // no-file. Al exceder el tamaño, @fastify/multipart lanza FST_REQ_FILE_TOO_LARGE
+    // (puede surgir en toBuffer o al avanzar el iterador) → lo mapeamos a 413.
+    let buf: Buffer | undefined;
+    let fileCount = 0;
+    let oversize = false;
+    let parseErr = false;
     try {
-      part = await req.file({ limits: { fileSize: MAX_COVER_BYTES, files: 1 } });
-    } catch {
+      for await (const partItem of req.parts()) {
+        if (partItem.type !== 'file') continue; // campos no-file → ignorados
+        fileCount += 1;
+        if (fileCount > 1) break; // segundo archivo → rechazo (no lo leemos)
+        buf = await partItem.toBuffer();
+        if (partItem.file.truncated) oversize = true;
+      }
+    } catch (e) {
+      if ((e as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') oversize = true;
+      else parseErr = true;
+    }
+    if (parseErr) {
       reply.code(400);
       return { error: 'Carga de archivo inválida.' };
     }
-    if (!part) {
+    if (fileCount > 1) {
+      reply.code(400);
+      return { error: 'Subí exactamente un archivo.' };
+    }
+    if (oversize) {
+      reply.code(413);
+      return { error: 'La imagen supera el máximo de 5 MB.' };
+    }
+    if (fileCount === 0) {
       reply.code(400);
       return { error: 'Se requiere un archivo de portada.' };
     }
-    let buf: Buffer;
-    try {
-      buf = await part.toBuffer();
-    } catch {
-      reply.code(413);
-      return { error: 'La imagen supera el máximo de 5 MB.' };
-    }
-    if (part.file.truncated) {
-      reply.code(413);
-      return { error: 'La imagen supera el máximo de 5 MB.' };
+    if (!buf) {
+      reply.code(400);
+      return { error: 'Archivo de portada inválido.' };
     }
 
     // Validación por magic bytes + decode real (sharp). Procesa a WebP 1600×900.

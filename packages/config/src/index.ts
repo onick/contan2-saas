@@ -12,10 +12,13 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
   EMAIL_REPLY_TO: z.string().optional(),
-  // Directorio raíz de uploads (portadas de actividad). En staging/prod apunta
-  // al volumen persistente montado (p.ej. /data/contan2/uploads, compatible con
-  // v1). En dev/tests, un directorio temporal. NO se asume que exista: la capa
-  // de storage falla claro si no es escribible. Sin setear → default dev temporal.
+  // Directorio raíz de uploads (portadas de actividad). AISLAMIENTO de volúmenes:
+  //   staging → volumen PROPIO /data/contan2-v2-staging/uploads (jamás el de prod)
+  //   prod    → /data/contan2/uploads (compat con imágenes v1)
+  // ambos montados en /app/uploads. En dev/tests, un directorio temporal. NO se
+  // asume que exista: la capa de storage falla claro si no es escribible. La
+  // compat legacy se valida en prod o en una copia controlada del volumen prod,
+  // nunca compartiendo el volumen prod con staging. Sin setear → temporal de dev.
   UPLOADS_DIR: z.string().optional(),
 });
 
