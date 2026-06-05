@@ -80,7 +80,7 @@ run('endpoints read-only de negocio', () => {
     act1Id = randomUUID();
     const act2 = randomUUID();
     await db.insertInto('activities').values([
-      { id: act1Id, organization_id: orgAId, name: 'Concierto Los Congos', type: 'Concierto', location: 'Sala 1', date: new Date().toISOString(), capacity: 100, status: 'activa' },
+      { id: act1Id, organization_id: orgAId, name: 'Concierto Los Congos', type: 'Concierto', location: 'Sala 1', date: new Date().toISOString(), capacity: 100, status: 'activa', image_url: '/uploads/v2-activity-congos.webp' },
       { id: act2, organization_id: orgAId, name: 'Cine Foro', type: 'Cine', location: 'Sala 2', date: new Date().toISOString(), capacity: 50, status: 'finalizada' },
     ]).execute();
 
@@ -125,10 +125,14 @@ run('endpoints read-only de negocio', () => {
     expect(all.statusCode).toBe(200);
     const body = ActivitiesListResponseSchema.parse(all.json());
     expect(body.total).toBe(2);
+    // image_url → imageUrl: con portada devuelve la ruta; sin portada, null.
+    expect(body.items.find((i) => i.id === act1Id)?.imageUrl).toBe('/uploads/v2-activity-congos.webp');
+    expect(body.items.find((i) => i.name === 'Cine Foro')?.imageUrl).toBe(null);
 
     const active = ActivitiesListResponseSchema.parse((await get('/api/v2/activities?status=activa', hostA, TOK.a)).json());
     expect(active.total).toBe(1);
     expect(active.items[0]?.status).toBe('activa');
+    expect(active.items[0]?.imageUrl).toBe('/uploads/v2-activity-congos.webp');
   });
 
   it('GET /users → 200 + PII real + aislamiento de tenant', async () => {

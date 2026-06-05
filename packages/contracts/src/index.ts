@@ -82,6 +82,7 @@ export const ActivityListItemSchema = z.object({
   enrolledCount: z.number().int(),
   status: ActivityStatusSchema,
   category: z.string().nullable(),
+  imageUrl: z.string().nullable(), // ruta de portada (/uploads/...) o null
 });
 export type ActivityListItem = z.infer<typeof ActivityListItemSchema>;
 
