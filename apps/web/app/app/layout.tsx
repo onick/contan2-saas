@@ -1,17 +1,38 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { getLocalBranding } from '../../lib/branding/config';
-import { getBranding } from '../../lib/api/branding';
 import { brandingToCssVars } from '../../lib/branding/theme';
+import { getAdminGate, sanitizeNext } from '../../lib/auth/session';
+import { Unavailable } from '../../components/shell/Unavailable';
 
-// Layout del tenant-admin (/app/*). Aplica el branding por-tenant desde UNA
-// sola fuente: real (GET /api/v2/org/branding, read-only) si hay sesión; si no,
-// local en fallback. brandingToCssVars sobreescribe --color-brand(-accent) en
-// un wrapper, re-tematizando todo el subtree (las utilidades bg-brand/text-brand
-// resuelven esas vars). Es async (cookies()/fetch) → las rutas /app/* son
-// DINÁMICAS; la marketing `/` queda Static (su layout raíz no toca red).
+// Gate AUTORITATIVO del tenant-admin (/app/*). El middleware ya hizo el chequeo
+// barato de presencia de cookie; acá validamos de verdad contra api-v2:
+//   ok           → renderiza con el branding REAL del tenant.
+//   unavailable  → api-v2 caído: estado de indisponibilidad, JAMÁS datos demo.
+//   resto        → sesión inválida/expirada/cross-tenant/host desconocido →
+//                  redirect a /login?next=<ruta> (la ruta llega vía x-pathname
+//                  que inyecta el middleware, y se sanea antes de usarse).
+// Dinámico por request (cookies()/fetch).
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const branding = (await getBranding()) ?? getLocalBranding();
-  const themeVars = brandingToCssVars(branding) as CSSProperties;
+  const gate = await getAdminGate();
 
+  if (gate.status === 'unavailable') {
+    // No podemos validar la sesión: mostramos indisponibilidad (no redirigimos
+    // a /login porque ese flujo también dependería de api-v2) y NUNCA demo.
+    const themeVars = brandingToCssVars(getLocalBranding()) as CSSProperties;
+    return (
+      <div style={themeVars}>
+        <Unavailable />
+      </div>
+    );
+  }
+
+  if (gate.status !== 'ok') {
+    const path = (await headers()).get('x-pathname');
+    redirect(`/login?next=${encodeURIComponent(sanitizeNext(path))}`);
+  }
+
+  const themeVars = brandingToCssVars(gate.branding) as CSSProperties;
   return <div style={themeVars}>{children}</div>;
 }

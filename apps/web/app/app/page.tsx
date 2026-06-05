@@ -9,7 +9,10 @@ import { TopActivities } from '../../components/dashboard/TopActivities';
 import { RecentVisitors } from '../../components/dashboard/RecentVisitors';
 import { Plus } from 'lucide-react';
 import { SectionHeader, Button, Card, Skeleton } from '../../components/ui';
+import { Unavailable } from '../../components/shell/Unavailable';
+import { DemoBanner } from '../../components/shell/DemoBanner';
 import { getLocalBranding } from '../../lib/branding/config';
+import { isDemoFallbackAllowed } from '../../lib/auth/demo';
 import { getDashboardMetricCards, getRecentVisitors } from '../../lib/api/dashboard';
 import {
   DASHBOARD_METRICS,
@@ -35,7 +38,12 @@ const KPI_GRID = 'app-stagger mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid
 // Sección de KPIs · async (toca cookies()/fetch → dinámica). Streamea dentro de
 // <Suspense>; cae a demoData si no hay datos reales.
 async function DashboardKpis() {
-  const metrics = (await getDashboardMetricCards()) ?? DASHBOARD_METRICS;
+  const real = await getDashboardMetricCards();
+  // api caída + demo no permitido (staging/prod) → indisponibilidad, NUNCA demo.
+  if (!real && !isDemoFallbackAllowed()) {
+    return <Unavailable inline title="KPIs no disponibles" description="No pudimos cargar las métricas. Reintentá en unos segundos." />;
+  }
+  const metrics = real ?? DASHBOARD_METRICS;
   return (
     <div className={KPI_GRID}>
       {metrics.map((m) => (
@@ -63,8 +71,11 @@ function KpiSkeleton() {
 // Últimos visitantes · async (GET /api/v2/users, recientes). Streamea en
 // <Suspense>; cae a demoData si no hay datos reales.
 async function RecentVisitorsData() {
-  const visitors = (await getRecentVisitors()) ?? RECENT_VISITORS;
-  return <RecentVisitors visitors={visitors} />;
+  const real = await getRecentVisitors();
+  if (!real && !isDemoFallbackAllowed()) {
+    return <Unavailable inline title="Visitantes no disponibles" description="No pudimos cargar los últimos visitantes." />;
+  }
+  return <RecentVisitors visitors={real ?? RECENT_VISITORS} />;
 }
 
 function RecentVisitorsSkeleton() {
@@ -94,6 +105,7 @@ export default function TenantAdminDashboard() {
   return (
     <AppShell branding={branding} title="Dashboard" activeKey="dashboard" meta={DASHBOARD_PERIOD}>
       <div className="mx-auto w-full max-w-[1600px]">
+        {isDemoFallbackAllowed() ? <DemoBanner /> : null}
         {/* Encabezado de la vista + acción primaria */}
         <SectionHeader
           level={1}

@@ -15,6 +15,9 @@ import { AppShell } from '../../../components/shell/AppShell';
 import { UsersTable } from '../../../components/usuarios/UsersTable';
 import { SectionHeader, Button, IconButton, Card, Skeleton, cn, focusRing } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
+import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
+import { Unavailable } from '../../../components/shell/Unavailable';
+import { DemoBanner } from '../../../components/shell/DemoBanner';
 import { getUsersView } from '../../../lib/api/users';
 import type { UserKpi, UserRow } from '../../../lib/usuarios/demoData';
 import { USERS, USER_KPIS, USER_TABS, TOTAL_USERS } from '../../../lib/usuarios/demoData';
@@ -32,6 +35,10 @@ interface Tab { label: string; count: number | null }
 
 async function UsersData() {
   const view = await getUsersView();
+  // api caída + demo no permitido (staging/prod) → indisponibilidad, NUNCA demo.
+  if (!view && !isDemoFallbackAllowed()) {
+    return <Unavailable inline title="Usuarios no disponibles" description="No pudimos cargar el padrón de visitantes. Reintentá en unos segundos." />;
+  }
   const users: UserRow[] = view?.users ?? USERS;
   const total = view ? view.total.toLocaleString('en-US') : TOTAL_USERS;
 
@@ -200,6 +207,7 @@ export default function UsuariosPage() {
   return (
     <AppShell branding={branding} title="Usuarios" activeKey="usuarios">
       <div className="mx-auto w-full max-w-[1600px]">
+        {isDemoFallbackAllowed() ? <DemoBanner /> : null}
         <div className="app-reveal">
           <SectionHeader
             level={1}

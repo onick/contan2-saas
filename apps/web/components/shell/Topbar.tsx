@@ -1,5 +1,6 @@
-import { Search, Bell } from 'lucide-react';
+import { Search, Bell, LogOut } from 'lucide-react';
 import type { BrandingOrg } from '../../lib/branding/theme';
+import { cn, focusRing } from '../ui/cn';
 
 export interface TopbarProps {
   branding: BrandingOrg;
@@ -60,6 +61,21 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
         <span className="ml-0.5 grid h-9 w-9 flex-none place-items-center rounded-full bg-brand-strong text-xs font-semibold text-white">
           {initials(branding.name)}
         </span>
+
+        {/* Cerrar sesión · visible siempre (en mobile el Sidebar está oculto, así
+            que este es el único acceso al logout). Form-post sin JS. */}
+        <form action="/api/auth/logout" method="post" className="flex">
+          <button
+            type="submit"
+            aria-label="Cerrar sesión"
+            className={cn(
+              'grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-surface-container hover:text-ink',
+              focusRing,
+            )}
+          >
+            <LogOut size={20} strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        </form>
       </div>
     </header>
   );
