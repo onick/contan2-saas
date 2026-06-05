@@ -25,6 +25,8 @@ function toActivity(it: ActivityListItem): Activity {
     title: it.name,
     category: it.category ?? 'Otro',
     date: DATE_FMT.format(new Date(it.date)),
+    // Preserva el ISO real de la API (hoy se descartaba) para filtrar por fecha.
+    startsAt: it.date,
     location: it.location,
     status: s.status,
     statusLabel: s.label,

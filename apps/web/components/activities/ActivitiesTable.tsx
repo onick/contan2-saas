@@ -22,12 +22,14 @@ function barColor(status: ActivityStatus): string {
 
 export interface ActivitiesTableProps {
   activities: Activity[];
+  // Abre el detalle read-only (drawer). Opcional → la tabla sigue presentacional.
+  onView?: (activity: Activity) => void;
 }
 
 // Tabla de actividades · estilo Google/Material: columnas tituladas, ícono por
 // categoría, chip de estado, barra de ocupación, acciones. En mobile se ocultan
-// Fecha/Lugar/Estado (queda Actividad + Ocupación). Server Component.
-export function ActivitiesTable({ activities }: ActivitiesTableProps) {
+// Fecha/Lugar/Estado (queda Actividad + Ocupación).
+export function ActivitiesTable({ activities, onView }: ActivitiesTableProps) {
   if (activities.length === 0) {
     return (
       <EmptyState
@@ -96,7 +98,13 @@ export function ActivitiesTable({ activities }: ActivitiesTableProps) {
                   {/* Acciones */}
                   <td className="whitespace-nowrap px-4 py-4">
                     <div className="flex items-center justify-end gap-1">
-                      <a href="#" className={cn('rounded px-1 text-[13px] font-semibold text-brand', focusRing)}>Ver</a>
+                      <button
+                        type="button"
+                        onClick={() => onView?.(a)}
+                        className={cn('rounded px-1 text-[13px] font-semibold text-brand hover:underline', focusRing)}
+                      >
+                        Ver
+                      </button>
                       <IconButton label="Más acciones" variant="ghost" size="sm">
                         <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
                       </IconButton>
