@@ -78,14 +78,42 @@ body {
 }
 .kiosk-card-in { animation: kiosk-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-/* Kiosko · glow suave que respira en el botón "Asistir" (le da importancia sin
-   ser intrusivo). Scope: .kiosk-cta-glow (+ animationDelay inline por card para
-   desincronizar). La sombra base coincide en 0%/100% para que sea continuo. */
-@keyframes kiosk-cta-glow {
-  0%, 100% { box-shadow: 0 14px 28px -12px rgba(255, 111, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
-  50%      { box-shadow: 0 16px 30px -12px rgba(255, 111, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 20px 1px rgba(255, 111, 0, 0.22); }
+/* Kiosko · "border beam": una luz naranja TENUE recorre lento el borde de la
+   tarjeta (sólo actividades con cupo · ver BorderBeam.tsx). CSS puro, sin JS:
+   un anillo de 1.5px formado por máscara (mask-composite: exclude) sobre un
+   conic-gradient cuyo ángulo rota vía @property --beam-angle. Usa el token de
+   marca (respeta theming por tenant). pointer-events:none → no bloquea clics;
+   el contenido interactivo va por encima (z-index). Reemplaza al viejo glow
+   naranja del botón "Asistir" (eliminado): el CTA queda naranja sólido. */
+@property --beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
 }
-.kiosk-cta-glow { animation: kiosk-cta-glow 2.8s ease-in-out infinite; }
+.border-beam {
+  /* el padding define el grosor del anillo; la máscara recorta el interior */
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 0deg,
+    transparent 248deg,
+    color-mix(in srgb, var(--color-brand-accent) 80%, transparent) 318deg,
+    var(--color-brand-accent) 340deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: border-beam-spin 7s linear infinite;
+}
+@keyframes border-beam-spin {
+  to { --beam-angle: 360deg; }
+}
 
 /* Kiosko · "spotlight": al pasar el mouse sobre una actividad, las demás se
    difuminan y atenúan para enfocar la elegida. Sólo filter/opacity (no
@@ -98,8 +126,8 @@ body {
   .kiosk-focus-grid:has(button:hover) > button:not(:hover) {
     filter: blur(3px) brightness(0.6);
   }
-  /* el glow del CTA se pausa en las atenuadas para no llamar la atención */
-  .kiosk-focus-grid:has(button:hover) > button:not(:hover) .kiosk-cta-glow { animation: none; }
+  /* el beam se pausa en las tarjetas atenuadas para no llamar la atención */
+  .kiosk-focus-grid:has(button:hover) > button:not(:hover) .border-beam { animation: none; }
 }
 
 /* Dashboard /app · polish de movimiento sutil. Mismo patrón que el kiosko:
@@ -144,9 +172,17 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .kiosk-pulse { animation: none; }
   .kiosk-card-in { animation: none; }
-  .kiosk-cta-glow { animation: none; }
   .app-reveal { animation: none; }
   .app-stagger > * { animation: none; }
   .app-bar-grow { animation: none; }
   .app-shimmer { animation: none; } /* gradiente estático, sin barrido */
+  /* Border beam: sin recorrido; queda un borde naranja estático y discreto. */
+  .border-beam {
+    animation: none;
+    padding: 0;
+    background: none;
+    -webkit-mask: none;
+    mask: none;
+    border: 1.5px solid color-mix(in srgb, var(--color-brand-accent) 22%, transparent);
+  }
 }
