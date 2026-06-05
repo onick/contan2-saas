@@ -20,8 +20,10 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/api-v2 ./apps/api-v2
 # Los 5 packages workspace que api-v2 importa (ver apps/api-v2/package.json):
 # config + contracts + db + auth + codes. Sin estos, `pnpm install` y el build
-# (`@contan2/api-v2...` incluye sus deps) fallan. Ninguno usa módulos nativos
-# (kysely/pg/zod/node:crypto), así que no hace falta toolchain en la imagen.
+# (`@contan2/api-v2...` incluye sus deps) fallan. api-v2 sí depende de módulos
+# nativos (sharp, @node-rs/argon2), pero ambos traen binarios PREBUILT para
+# linux-{x64,arm64}-gnu (bookworm = glibc), así que NO hace falta toolchain
+# (node-gyp/python) en la imagen: pnpm resuelve el binario por plataforma.
 COPY packages/config ./packages/config
 COPY packages/contracts ./packages/contracts
 COPY packages/db ./packages/db

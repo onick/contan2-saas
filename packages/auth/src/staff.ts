@@ -67,6 +67,47 @@ export async function loadActiveStaffById(
   return row;
 }
 
+// Igual que StaffRecord pero con password_hash, para el flujo de LOGIN.
+export interface LoginStaffRecord extends StaffRecord {
+  password_hash: string;
+}
+
+/**
+ * Carga staff por (org, email) para LOGIN. Match EXACTO de email + deleted_at
+ * IS NULL (paridad con v1 · StaffMemberRepository.findByEmail). Devuelve la fila
+ * AUNQUE no esté active — el caller distingue 401 (credencial inválida) de 403
+ * (cuenta inactiva) — e incluye password_hash para verificar. null si no existe
+ * o está borrada.
+ */
+export async function loadStaffForLogin(
+  db: Kysely<Database>,
+  organizationId: string,
+  email: string,
+): Promise<LoginStaffRecord | null> {
+  if (!organizationId || !email) return null;
+  const row = await db
+    .selectFrom('staff_members')
+    .select([
+      'id',
+      'organization_id',
+      'email',
+      'full_name',
+      'status',
+      'role',
+      'must_change_password',
+      'mfa_enabled',
+      'last_login_at',
+      'created_at',
+      'password_hash',
+    ])
+    .where('organization_id', '=', organizationId)
+    .where('email', '=', email)
+    .where('deleted_at', 'is', null)
+    .limit(1)
+    .executeTakeFirst();
+  return row ?? null;
+}
+
 export function publicStaff(row: StaffRecord): PublicStaff {
   return {
     id: row.id,

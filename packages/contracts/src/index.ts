@@ -34,6 +34,32 @@ export const StaffMeResponseSchema = z.object({
 
 export type StaffMeResponse = z.infer<typeof StaffMeResponseSchema>;
 
+// ─────────────────────────────────────────────────────────────────────────
+// Auth admin v2 (ESCRITURA · login/logout). Paridad con v1 (backend/src/routes/
+// auth.js · POST /api/auth/login + POST /api/logout). El tenant se deriva del
+// HOST, jamás del body; la sesión se escribe en staff_auth_sessions (la MISMA
+// tabla de v1, byte-compatible). Roles: owner/admin/operator pueden ingresar;
+// los permisos de escritura se gatean por endpoint, no en el login.
+// ─────────────────────────────────────────────────────────────────────────
+export const StaffLoginRequestSchema = z.object({
+  email: z.string().email().max(255),
+  password: z.string().min(1).max(200),
+  rememberMe: z.boolean().optional(),
+});
+export type StaffLoginRequest = z.infer<typeof StaffLoginRequestSchema>;
+
+// Respuesta del login OK. `mustChangePassword` se expone también al tope (igual
+// que v1) para que el cliente pueda forzar el cambio sin releer el staff.
+export const StaffLoginResponseSchema = z.object({
+  ok: z.literal(true),
+  staff: PublicStaffSchema,
+  mustChangePassword: z.boolean(),
+});
+export type StaffLoginResponse = z.infer<typeof StaffLoginResponseSchema>;
+
+export const StaffLogoutResponseSchema = z.object({ ok: z.literal(true) });
+export type StaffLogoutResponse = z.infer<typeof StaffLogoutResponseSchema>;
+
 // Respuesta de GET /api/v2/org/branding. `sidebarTheme` mapea la columna
 // `sidebar_style` de v1; el resto es proyección de branding del tenant.
 export const OrgBrandingResponseSchema = z.object({
