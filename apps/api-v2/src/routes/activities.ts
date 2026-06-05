@@ -48,7 +48,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
 
     let rowsQ = db
       .selectFrom('activities')
-      .select(['id', 'name', 'type', 'location', 'date', 'capacity', 'enrolled_count', 'status', 'category'])
+      .select(['id', 'name', 'type', 'location', 'date', 'capacity', 'enrolled_count', 'status', 'category', 'image_url'])
       .where('organization_id', '=', orgId);
     let countQ = db
       .selectFrom('activities')
@@ -74,6 +74,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       enrolledCount: r.enrolled_count,
       status: r.status,
       category: r.category,
+      imageUrl: r.image_url,
     }));
 
     const body: ActivitiesListResponse = { items, total: Number(count.n), limit, offset };

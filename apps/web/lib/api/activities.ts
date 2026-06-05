@@ -33,10 +33,9 @@ function toActivity(it: ActivityListItem): Activity {
     registered: it.enrolledCount,
     capacity: it.capacity,
     occupancyPct,
-    // El listado (ActivityListItem) aún NO proyecta image_url → null por ahora
-    // (las cards caen al fallback de ícono). Follow-up mínimo: agregar image_url a
-    // ActivityListItem (contracts) + a la proyección del GET (api-v2).
-    imageUrl: null,
+    // Portada real del listado (image_url → imageUrl); null si la actividad no
+    // tiene portada → las cards caen al fallback de ícono.
+    imageUrl: it.imageUrl ?? null,
   };
 }
 

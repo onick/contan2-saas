@@ -44,6 +44,19 @@ describe('getActivitiesView', () => {
     expect(v.activities[1]!.category).toBe('Otro'); // null → Otro
   });
 
+  it('mapea la portada: imageUrl real → imageUrl; ausente → null', async () => {
+    vi.mocked(apiGet).mockResolvedValue({
+      items: [
+        item({ id: 'con-portada', imageUrl: '/uploads/v2-activity-x.webp' }),
+        item({ id: 'sin-portada' }), // sin imageUrl
+      ],
+      total: 2, limit: 100, offset: 0,
+    });
+    const v = (await getActivitiesView())!;
+    expect(v.activities[0]!.imageUrl).toBe('/uploads/v2-activity-x.webp');
+    expect(v.activities[1]!.imageUrl).toBe(null);
+  });
+
   it('devuelve null si la API falla → la página cae a demo (KPIs+pills+tabla)', async () => {
     vi.mocked(apiGet).mockRejectedValue(new Error('401'));
     expect(await getActivitiesView()).toBeNull();
