@@ -6,7 +6,10 @@ import { AppShell } from '../../../components/shell/AppShell';
 import { ActivitiesView } from '../../../components/activities/ActivitiesView';
 import { NewActivityButton } from '../../../components/activities/NewActivityButton';
 import { SectionHeader, Card, Skeleton } from '../../../components/ui';
+import { Unavailable } from '../../../components/shell/Unavailable';
+import { DemoBanner } from '../../../components/shell/DemoBanner';
 import { getLocalBranding } from '../../../lib/branding/config';
+import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
 import { getActivitiesView } from '../../../lib/api/activities';
 import type { Activity } from '../../../lib/activities/demoData';
 import { ACTIVITIES, ACTIVITIES_KPIS } from '../../../lib/activities/demoData';
@@ -25,6 +28,10 @@ interface Kpi { key: string; label: string; value: string; icon: LucideIcon }
 // Sección de datos · async. KPIs server + pasa el set a la vista interactiva.
 async function ActivitiesData() {
   const view = await getActivitiesView();
+  // api caída + demo no permitido (staging/prod) → indisponibilidad, NUNCA demo.
+  if (!view && !isDemoFallbackAllowed()) {
+    return <Unavailable inline title="Actividades no disponibles" description="No pudimos cargar las actividades. Reintentá en unos segundos." />;
+  }
   const activities: Activity[] = view?.activities ?? ACTIVITIES;
   const total = view?.total ?? activities.length;
 
@@ -112,6 +119,7 @@ export default function ActividadesPage() {
   return (
     <AppShell branding={branding} title="Actividades" activeKey="actividades">
       <div className="mx-auto w-full max-w-[1600px]">
+        {isDemoFallbackAllowed() ? <DemoBanner /> : null}
         <div className="app-reveal">
           <SectionHeader
             level={1}

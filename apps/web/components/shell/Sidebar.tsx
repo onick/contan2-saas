@@ -1,6 +1,6 @@
-import { ChevronsUpDown } from 'lucide-react';
 import type { BrandingOrg } from '../../lib/branding/theme';
 import { NAV_ITEMS, NAV_GROUPS } from '../../lib/shell/nav';
+import { LogoutButton } from './LogoutButton';
 
 export interface SidebarProps {
   branding: BrandingOrg;
@@ -89,16 +89,18 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Cuenta (placeholder hasta el wiring de auth) */}
-      <div className="m-2 flex items-center gap-3 rounded-2xl bg-surface-container px-4 py-3">
-        <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand-strong text-sm font-semibold text-white">
-          {initials(branding.name)}
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-[13px] font-semibold text-ink">Administración</span>
-          <span className="block text-xs text-muted">Tenant</span>
-        </span>
-        <ChevronsUpDown size={18} strokeWidth={1.75} aria-hidden="true" className="ml-auto text-faint" />
+      {/* Cuenta + cerrar sesión */}
+      <div className="m-2 rounded-2xl bg-surface-container p-2">
+        <div className="flex items-center gap-3 px-2 py-1.5">
+          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand-strong text-sm font-semibold text-white">
+            {initials(branding.name)}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-semibold text-ink">Administración</span>
+            <span className="block text-xs text-muted">Panel del tenant</span>
+          </span>
+        </div>
+        <LogoutButton className="mt-1" />
       </div>
     </aside>
   );

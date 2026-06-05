@@ -5,6 +5,9 @@ import { AppShell } from '../../../components/shell/AppShell';
 import { AttendanceTable } from '../../../components/registros/AttendanceTable';
 import { SectionHeader, Button, IconButton, Card, Skeleton, cn, focusRing } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
+import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
+import { Unavailable } from '../../../components/shell/Unavailable';
+import { DemoBanner } from '../../../components/shell/DemoBanner';
 import { getAttendanceView } from '../../../lib/api/attendance';
 import type { AttendanceKpi, AttendanceRecord } from '../../../lib/registros/demoData';
 import { ATTENDANCE_RECORDS, ATTENDANCE_KPIS, ATTENDANCE_TABS, TOTAL_RECORDS } from '../../../lib/registros/demoData';
@@ -20,6 +23,10 @@ export const metadata: Metadata = {
 
 async function AttendanceData() {
   const view = await getAttendanceView();
+  // api caída + demo no permitido (staging/prod) → indisponibilidad, NUNCA demo.
+  if (!view && !isDemoFallbackAllowed()) {
+    return <Unavailable inline title="Registros no disponibles" description="No pudimos cargar las asistencias. Reintentá en unos segundos." />;
+  }
   const records: AttendanceRecord[] = view?.records ?? ATTENDANCE_RECORDS;
   const total = view ? view.total.toLocaleString('en-US') : TOTAL_RECORDS;
 
@@ -158,6 +165,7 @@ export default function RegistrosPage() {
   return (
     <AppShell branding={branding} title="Registros" activeKey="registros">
       <div className="mx-auto w-full max-w-[1600px]">
+        {isDemoFallbackAllowed() ? <DemoBanner /> : null}
         <div className="app-reveal">
           <SectionHeader
             level={1}
