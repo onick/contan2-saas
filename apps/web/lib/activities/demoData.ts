@@ -9,6 +9,9 @@ export interface Activity {
   title: string;
   category: string;
   date: string;
+  // ISO 8601 (o null si "sin fecha"/borrador). Para filtrar/ordenar por fecha;
+  // `date` es solo el string de display. Se preserva del ISO real de la API.
+  startsAt: string | null;
   location: string;
   status: ActivityStatus;
   statusLabel: string;
@@ -25,13 +28,13 @@ export interface StatusTab {
 }
 
 export const ACTIVITIES: Activity[] = [
-  { id: 'visita-citlally', title: 'Visita Guiada CITLALLY MIRANDA', category: 'Otro', date: '29 may 2026, 7:00 p.m.', location: 'Centro Cultural Banreservas', status: 'soon', statusLabel: 'Próxima', registered: 13, capacity: 60, occupancyPct: 22 },
-  { id: 'tertulia-adha', title: 'Tertulia ADHA: «Interpretando universos con Manuel Montilla»', category: 'Tertulia', date: '27 may 2026', location: 'CCB', status: 'soon', statusLabel: 'Próxima', registered: 14, capacity: 50, occupancyPct: 28 },
-  { id: 'kacimiro', title: '5to Ciclo de Cine Dominicano · Kacimiro', category: 'Cine', date: '24 may 2026', location: 'CCB', status: 'live', statusLabel: 'En curso', registered: 85, capacity: 150, occupancyPct: 57 },
-  { id: 'perdicion', title: 'Cine Clásico · Perdición', category: 'Cine', date: '18 may 2026', location: 'CCB', status: 'done', statusLabel: 'Finalizada', registered: 108, capacity: 150, occupancyPct: 72 },
-  { id: 'congos', title: 'Los Congos de Villa Mella', category: 'Concierto', date: '12 may 2026', location: 'CCB', status: 'done', statusLabel: 'Finalizada', registered: 219, capacity: 250, occupancyPct: 88 },
-  { id: 'memoria-territorio', title: 'Exposición: Memoria y Territorio', category: 'Exposición', date: '8 may 2026', location: 'CCB', status: 'done', statusLabel: 'Finalizada', registered: 140, capacity: 200, occupancyPct: 70 },
-  { id: 'serigrafia', title: 'Taller de Serigrafía', category: 'Taller', date: 'Sin fecha', location: 'CCB', status: 'draft', statusLabel: 'Borrador', registered: null, capacity: null, occupancyPct: null },
+  { id: 'visita-citlally', title: 'Visita Guiada CITLALLY MIRANDA', category: 'Otro', date: '29 may 2026, 7:00 p.m.', startsAt: '2026-05-29T19:00:00.000Z', location: 'Centro Cultural Banreservas', status: 'soon', statusLabel: 'Próxima', registered: 13, capacity: 60, occupancyPct: 22 },
+  { id: 'tertulia-adha', title: 'Tertulia ADHA: «Interpretando universos con Manuel Montilla»', category: 'Tertulia', date: '27 may 2026', startsAt: '2026-05-27T00:00:00.000Z', location: 'CCB', status: 'soon', statusLabel: 'Próxima', registered: 14, capacity: 50, occupancyPct: 28 },
+  { id: 'kacimiro', title: '5to Ciclo de Cine Dominicano · Kacimiro', category: 'Cine', date: '24 may 2026', startsAt: '2026-05-24T00:00:00.000Z', location: 'CCB', status: 'live', statusLabel: 'En curso', registered: 85, capacity: 150, occupancyPct: 57 },
+  { id: 'perdicion', title: 'Cine Clásico · Perdición', category: 'Cine', date: '18 may 2026', startsAt: '2026-05-18T00:00:00.000Z', location: 'CCB', status: 'done', statusLabel: 'Finalizada', registered: 108, capacity: 150, occupancyPct: 72 },
+  { id: 'congos', title: 'Los Congos de Villa Mella', category: 'Concierto', date: '12 may 2026', startsAt: '2026-05-12T00:00:00.000Z', location: 'CCB', status: 'done', statusLabel: 'Finalizada', registered: 219, capacity: 250, occupancyPct: 88 },
+  { id: 'memoria-territorio', title: 'Exposición: Memoria y Territorio', category: 'Exposición', date: '8 may 2026', startsAt: '2026-05-08T00:00:00.000Z', location: 'CCB', status: 'done', statusLabel: 'Finalizada', registered: 140, capacity: 200, occupancyPct: 70 },
+  { id: 'serigrafia', title: 'Taller de Serigrafía', category: 'Taller', date: 'Sin fecha', startsAt: null, location: 'CCB', status: 'draft', statusLabel: 'Borrador', registered: null, capacity: null, occupancyPct: null },
 ];
 
 export const STATUS_TABS: StatusTab[] = [
