@@ -20,10 +20,11 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, AlertTriangle } from 'lucide-react';
 import { ActivityCreateRequestSchema, ACTIVITY_TYPES, type ActivityType } from '@contan2/contracts';
 import type { ZodIssue } from 'zod';
 import { IconButton, Button, cn, focusRing } from '../ui';
+import { CoverDropzone } from './CoverDropzone';
 
 const TYPE_LABELS: Record<ActivityType, string> = {
   exposicion: 'Exposición',
@@ -102,18 +103,40 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
   const panelRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
+  const coverLabelId = `${baseId}-cover`;
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Errors>({});
-  const [submitting, setSubmitting] = useState(false);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  // Flujo: form → creating (POST create) → uploading (POST cover, si hay archivo)
+  // → partial (creada pero falló la portada) / éxito. createdId se conserva para
+  // reintentar SOLO el upload (nunca recrea la actividad).
+  const [phase, setPhase] = useState<'form' | 'creating' | 'uploading' | 'partial'>('form');
+  const createdIdRef = useRef<string | null>(null);
+  const busy = phase === 'creating' || phase === 'uploading';
 
-  // Cierre seguro: bloqueado mientras se envía (no cerrar accidentalmente).
-  const submittingRef = useRef(submitting);
-  submittingRef.current = submitting;
-  const requestClose = useRef(() => {});
-  requestClose.current = () => {
-    if (submittingRef.current) return;
+  const reset = () => {
     setForm(EMPTY);
     setErrors({});
+    setCoverFile(null);
+    setPhase('form');
+    createdIdRef.current = null;
+  };
+  const success = () => {
+    reset();
+    onCreated();
+  };
+
+  // Cierre seguro: bloqueado mientras crea/sube. En 'partial' la actividad YA
+  // existe → cerrar equivale a "finalizar sin portada" (cierra + refresca).
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const requestClose = useRef(() => {});
+  requestClose.current = () => {
+    if (busyRef.current) return;
+    if (phaseRef.current === 'partial') { success(); return; }
+    reset();
     onClose();
   };
 
@@ -195,14 +218,27 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
     return { ok: true, body: parsed.success ? parsed.data : candidate };
   }
 
+  // Sube la portada por su id. NO recrea la actividad. Devuelve ok/falló.
+  async function uploadCover(id: string, f: File): Promise<boolean> {
+    try {
+      const fd = new FormData();
+      fd.append('file', f, f.name); // sin setear content-type: el navegador pone el boundary
+      const r = await fetch(`/app/actividades/api/${id}/cover`, { method: 'POST', body: fd });
+      return r.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (submitting) return; // no duplicar POST
+    if (busy) return; // no duplicar
     setErrors({});
     const v = validate();
     if (!v.ok) { setErrors(v.errors); return; }
 
-    setSubmitting(true);
+    // Fase 1: crear actividad.
+    setPhase('creating');
     let res: Response;
     try {
       res = await fetch('/app/actividades/api', {
@@ -211,34 +247,50 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
         body: JSON.stringify(v.body),
       });
     } catch {
-      setSubmitting(false);
+      setPhase('form');
       setErrors({ _form: 'No pudimos crear la actividad. Revisá tu conexión e intentá de nuevo.' });
       return;
     }
-    setSubmitting(false);
 
-    if (res.status === 201) {
-      setForm(EMPTY);
-      setErrors({});
-      onCreated();
+    if (res.status !== 201) {
+      setPhase('form');
+      type ErrBody = { error?: string; issues?: Array<{ path?: unknown[]; message?: string }> };
+      let body: ErrBody | null = null;
+      try { body = (await res.json()) as ErrBody; } catch { /* sin JSON */ }
+      if (res.status === 400 && body && Array.isArray(body.issues) && body.issues.length > 0) {
+        const fe: Errors = {};
+        for (const it of body.issues) {
+          const k = Array.isArray(it.path) ? it.path[0] : undefined;
+          if (typeof k === 'string' && it.message) fe[k as FieldKey] = it.message;
+        }
+        setErrors(Object.keys(fe).length ? fe : { _form: serverMessage(400, body) });
+      } else {
+        setErrors({ _form: serverMessage(res.status, body) });
+      }
       return;
     }
 
-    // Error: se conservan los datos (drawer abierto). Si el server manda issues
-    // de Zod (defensivo · hoy api-v2 sólo manda { error }), se mapean por campo.
-    type ErrBody = { error?: string; issues?: Array<{ path?: unknown[]; message?: string }> };
-    let body: ErrBody | null = null;
-    try { body = (await res.json()) as ErrBody; } catch { /* sin JSON */ }
-    if (res.status === 400 && body && Array.isArray(body.issues) && body.issues.length > 0) {
-      const fe: Errors = {};
-      for (const it of body.issues) {
-        const k = Array.isArray(it.path) ? it.path[0] : undefined;
-        if (typeof k === 'string' && it.message) fe[k as FieldKey] = it.message;
-      }
-      setErrors(Object.keys(fe).length ? fe : { _form: serverMessage(400, body) });
+    // 201: actividad creada. Guardar id. Si hay portada → fase 2 (upload).
+    let id: string | null = null;
+    try { id = ((await res.json()) as { activity?: { id?: string } }).activity?.id ?? null; } catch { /* */ }
+    createdIdRef.current = id;
+
+    if (coverFile && id) {
+      setPhase('uploading');
+      const ok = await uploadCover(id, coverFile);
+      if (ok) success(); else setPhase('partial'); // éxito parcial
     } else {
-      setErrors({ _form: serverMessage(res.status, body) });
+      success();
     }
+  }
+
+  // Reintenta SOLO el upload de la portada (la actividad ya existe).
+  async function retryCover() {
+    const id = createdIdRef.current;
+    if (busy || !id || !coverFile) return;
+    setPhase('uploading');
+    const ok = await uploadCover(id, coverFile);
+    if (ok) success(); else setPhase('partial');
   }
 
   const inputCls = (hasErr: boolean) =>
@@ -280,19 +332,27 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
             <p className={labelCls}>Nueva actividad</p>
             <h2 id={titleId} className="mt-1 text-lg font-bold leading-tight tracking-tight text-ink">Crear actividad</h2>
           </div>
-          <IconButton label="Cerrar" variant="outline" size="sm" onClick={() => requestClose.current()} disabled={submitting}>
+          <IconButton label="Cerrar" variant="outline" size="sm" onClick={() => requestClose.current()} disabled={busy}>
             <X size={18} strokeWidth={2} aria-hidden="true" />
           </IconButton>
         </header>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-            {errors._form ? (
+            {phase === 'partial' ? (
+              <div role="alert" className="rounded-lg border border-primary-container bg-accent-soft px-3 py-2.5 text-[13px] text-on-primary-container">
+                <span className="inline-flex items-center gap-1.5 font-semibold">
+                  <AlertTriangle size={15} strokeWidth={2} aria-hidden="true" /> La actividad fue creada
+                </span>
+                , pero no pudimos subir la portada. Reintentá o finalizá sin portada.
+              </div>
+            ) : errors._form ? (
               <p role="alert" className="rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">
                 {errors._form}
               </p>
             ) : null}
 
+            <fieldset disabled={busy || phase === 'partial'} className="m-0 min-w-0 space-y-4 border-0 p-0">
             <label className="block">
               <span className={labelCls}>Nombre</span>
               <input
@@ -417,26 +477,39 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
               />
               <FieldError k="description" />
             </label>
+            </fieldset>
+
+            <CoverDropzone file={coverFile} onSelect={setCoverFile} disabled={busy} labelId={coverLabelId} />
           </div>
 
           <footer className="border-t border-line px-5 py-4">
-            <p id={noticeId} className="mb-3 text-[12px] text-faint">
-              Al crear, la actividad se <strong className="font-semibold text-muted">publica de inmediato</strong> como activa.
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => requestClose.current()} disabled={submitting}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={submitting} aria-describedby={noticeId}>
-                {submitting ? (
-                  <>
-                    <Loader2 size={16} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Creando…
-                  </>
-                ) : (
-                  'Crear actividad'
-                )}
-              </Button>
-            </div>
+            {phase === 'partial' ? (
+              <div className="flex items-center justify-end gap-2">
+                <Button type="button" variant="secondary" onClick={success}>Finalizar sin portada</Button>
+                <Button type="button" onClick={retryCover}>Reintentar portada</Button>
+              </div>
+            ) : (
+              <>
+                <p id={noticeId} className="mb-3 text-[12px] text-faint">
+                  Al crear, la actividad se <strong className="font-semibold text-muted">publica de inmediato</strong> como activa.
+                </p>
+                <div className="flex items-center justify-end gap-2">
+                  <Button type="button" variant="secondary" onClick={() => requestClose.current()} disabled={busy}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={busy} aria-describedby={noticeId}>
+                    {busy ? (
+                      <>
+                        <Loader2 size={16} strokeWidth={2.25} aria-hidden="true" className="animate-spin" />
+                        {phase === 'creating' ? ' Creando actividad…' : ' Subiendo portada…'}
+                      </>
+                    ) : (
+                      'Crear actividad'
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
           </footer>
         </form>
       </div>

@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { Activity, ActivityStatus } from '../../lib/activities/demoData';
 import { StatusBadge } from './StatusBadge';
 import { CategoryChip } from '../CategoryChip';
+import { CoverThumb } from './CoverThumb';
 import { Card, IconButton, EmptyState, cn, focusRing } from '../ui';
 
 // Ícono por categoría (coherente con lucide).
@@ -62,8 +63,17 @@ export function ActivitiesTable({ activities, onView }: ActivitiesTableProps) {
                   {/* Actividad */}
                   <td className="px-5 py-4 md:px-6">
                     <div className="flex items-center gap-3">
-                      <span className="grid h-10 w-10 flex-none place-items-center rounded-lg bg-surface-container text-muted">
-                        <CatIcon size={18} strokeWidth={1.75} aria-hidden="true" />
+                      <span className="block h-10 w-[68px] flex-none overflow-hidden rounded-lg bg-surface-container">
+                        <CoverThumb
+                          src={a.imageUrl ?? null}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          fallback={
+                            <span className="grid h-full w-full place-items-center text-muted">
+                              <CatIcon size={18} strokeWidth={1.75} aria-hidden="true" />
+                            </span>
+                          }
+                        />
                       </span>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium tracking-tight text-ink">{a.title}</p>

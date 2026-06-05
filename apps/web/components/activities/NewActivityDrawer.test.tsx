@@ -153,3 +153,103 @@ describe('NewActivityDrawer', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+// ── Flujo de portada: crear → subir, éxito parcial, reintento ────────────────
+describe('NewActivityDrawer · portada (2 fases)', () => {
+  beforeEach(() => {
+    (URL as unknown as { createObjectURL: () => string }).createObjectURL = () => 'blob:p';
+    (URL as unknown as { revokeObjectURL: () => void }).revokeObjectURL = () => {};
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const COVER_RE = /\/app\/actividades\/api\/.+\/cover$/;
+  // fetch ruteado: distingue create (/app/actividades/api) de cover (.../:id/cover).
+  function routedFetch(create: () => Promise<Response>, cover: () => Promise<Response>) {
+    const fn = vi.fn((url: string, _init: RequestInit) => (COVER_RE.test(url) ? cover() : create()));
+    vi.stubGlobal('fetch', fn);
+    return fn;
+  }
+  const ok = (status: number, body?: unknown) =>
+    new Response(body === undefined ? '' : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+  function pickCover() {
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File([new Uint8Array(32)], 'c.png', { type: 'image/png' })] } });
+  }
+
+  it('crear → subir portada: 201 + cover 200 → onCreated; cover POST al id correcto', async () => {
+    const fn = routedFetch(() => Promise.resolve(ok(201, { activity: { id: 'A1' } })), () => Promise.resolve(ok(200, { activity: {} })));
+    const { onCreated } = renderDrawer();
+    fillValid();
+    pickCover();
+    submit();
+    await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    const coverCall = fn.mock.calls.find((c) => COVER_RE.test(c[0] as string));
+    expect(coverCall).toBeTruthy();
+    expect(coverCall![0]).toBe('/app/actividades/api/A1/cover');
+    expect(coverCall![1].method).toBe('POST');
+    // body es FormData (no JSON) → el navegador pone el boundary; no se setea content-type.
+    expect(coverCall![1].body).toBeInstanceOf(FormData);
+    expect(coverCall![1].headers).toBeUndefined();
+  });
+
+  it('crear sin portada: no llama al endpoint de cover', async () => {
+    const fn = routedFetch(() => Promise.resolve(ok(201, { activity: { id: 'A1' } })), () => Promise.resolve(ok(200)));
+    const { onCreated } = renderDrawer();
+    fillValid();
+    submit();
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect(fn.mock.calls.some((c) => COVER_RE.test(c[0] as string))).toBe(false);
+  });
+
+  it('éxito parcial: cover falla → muestra mensaje + reintentar SOLO el upload', async () => {
+    let coverCalls = 0;
+    const fn = routedFetch(
+      () => Promise.resolve(ok(201, { activity: { id: 'A1' } })),
+      () => { coverCalls += 1; return Promise.resolve(coverCalls === 1 ? ok(500, { error: 'x' }) : ok(200, { activity: {} })); },
+    );
+    const { onCreated } = renderDrawer();
+    fillValid();
+    pickCover();
+    submit();
+    // mensaje de éxito parcial
+    expect(await screen.findByText(/La actividad fue creada/)).toBeInTheDocument();
+    expect(onCreated).not.toHaveBeenCalled();
+    const createCalls = fn.mock.calls.filter((c) => !COVER_RE.test(c[0] as string)).length;
+    // Reintentar portada
+    fireEvent.click(screen.getByRole('button', { name: /Reintentar portada/ }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    expect(coverCalls).toBe(2); // reintentó el upload
+    // NO recreó la actividad (mismo número de create calls)
+    expect(fn.mock.calls.filter((c) => !COVER_RE.test(c[0] as string)).length).toBe(createCalls);
+  });
+
+  it('finalizar sin portada: tras parcial, cierra/onCreated sin reintentar cover', async () => {
+    let coverCalls = 0;
+    routedFetch(
+      () => Promise.resolve(ok(201, { activity: { id: 'A1' } })),
+      () => { coverCalls += 1; return Promise.resolve(ok(500, { error: 'x' })); },
+    );
+    const { onCreated } = renderDrawer();
+    fillValid();
+    pickCover();
+    submit();
+    await screen.findByText(/La actividad fue creada/);
+    fireEvent.click(screen.getByRole('button', { name: /Finalizar sin portada/ }));
+    expect(onCreated).toHaveBeenCalledTimes(1);
+    expect(coverCalls).toBe(1); // no reintentó
+  });
+
+  it('doble submit durante creación: no duplica el POST de create', async () => {
+    let resolveCreate!: (r: Response) => void;
+    const fn = routedFetch(() => new Promise<Response>((r) => { resolveCreate = r; }), () => Promise.resolve(ok(200)));
+    const { onCreated } = renderDrawer();
+    fillValid();
+    submit();
+    await waitFor(() => expect(fn).toHaveBeenCalledTimes(1));
+    submit(); // segundo intento mientras crea
+    expect(fn.mock.calls.filter((c) => !COVER_RE.test(c[0] as string)).length).toBe(1);
+    resolveCreate(ok(201, { activity: { id: 'A1' } }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+  });
+});

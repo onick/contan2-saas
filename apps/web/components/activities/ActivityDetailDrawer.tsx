@@ -6,9 +6,10 @@
 // abrir y restaura al cerrar, backdrop clickeable. CERO edición, cero escrituras.
 
 import { useEffect, useId, useRef } from 'react';
-import { X, CalendarDays, MapPin, Tag, Users } from 'lucide-react';
+import { X, CalendarDays, MapPin, Tag, Users, ImageOff } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
 import { StatusBadge } from './StatusBadge';
+import { CoverThumb } from './CoverThumb';
 import { IconButton, cn, focusRing } from '../ui';
 
 export interface ActivityDetailDrawerProps {
@@ -76,6 +77,19 @@ export function ActivityDetailDrawer({ activity, onClose }: ActivityDetailDrawer
         </header>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* Portada 16:9 (fallback si no hay imagen) */}
+          <div className="mb-4 aspect-video w-full overflow-hidden rounded-xl bg-surface-container">
+            <CoverThumb
+              src={activity.imageUrl ?? null}
+              alt=""
+              className="h-full w-full object-cover"
+              fallback={
+                <div className="grid h-full w-full place-items-center text-faint">
+                  <ImageOff size={28} strokeWidth={1.5} aria-hidden="true" />
+                </div>
+              }
+            />
+          </div>
           <div className="mb-4"><StatusBadge status={activity.status} label={activity.statusLabel} /></div>
           <dl className="space-y-3">
             <Row icon={CalendarDays} label="Fecha">{activity.date}</Row>
