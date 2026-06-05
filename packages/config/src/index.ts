@@ -12,6 +12,11 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
   EMAIL_REPLY_TO: z.string().optional(),
+  // Directorio raíz de uploads (portadas de actividad). En staging/prod apunta
+  // al volumen persistente montado (p.ej. /data/contan2/uploads, compatible con
+  // v1). En dev/tests, un directorio temporal. NO se asume que exista: la capa
+  // de storage falla claro si no es escribible. Sin setear → default dev temporal.
+  UPLOADS_DIR: z.string().optional(),
 });
 
 export type Config = z.infer<typeof envSchema>;
