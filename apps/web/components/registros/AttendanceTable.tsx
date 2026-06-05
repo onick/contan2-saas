@@ -52,7 +52,7 @@ export function AttendanceTable({ records }: AttendanceTableProps) {
               <th className="px-4 py-3">Estado</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="app-stagger">
             {records.map((r, i) => {
               const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
               return (

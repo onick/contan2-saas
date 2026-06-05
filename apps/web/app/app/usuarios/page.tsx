@@ -56,7 +56,7 @@ async function UsersData() {
   return (
     <>
       {/* KPIs */}
-      <div className="mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="app-stagger mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
         {kpis.map((k) => (
           <Card key={k.key} padding="md">
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{k.label}</p>
@@ -200,21 +200,23 @@ export default function UsuariosPage() {
   return (
     <AppShell branding={branding} title="Usuarios" activeKey="usuarios">
       <div className="mx-auto w-full max-w-[1600px]">
-        <SectionHeader
-          level={1}
-          title="Usuarios"
-          subtitle="Visitantes registrados del centro"
-          actions={
-            <>
-              <Button variant="secondary">
-                <Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar
-              </Button>
-              <Button>
-                <UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Nuevo usuario
-              </Button>
-            </>
-          }
-        />
+        <div className="app-reveal">
+          <SectionHeader
+            level={1}
+            title="Usuarios"
+            subtitle="Visitantes registrados del centro"
+            actions={
+              <>
+                <Button variant="secondary">
+                  <Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar
+                </Button>
+                <Button>
+                  <UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Nuevo usuario
+                </Button>
+              </>
+            }
+          />
+        </div>
 
         <Suspense fallback={<UsersSkeleton />}>
           <UsersData />

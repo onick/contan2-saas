@@ -22,24 +22,26 @@ export default function EquipoPage() {
     <AppShell branding={branding} title="Mi equipo" activeKey="equipo">
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado + acciones */}
-        <SectionHeader
-          level={1}
-          title="Mi equipo"
-          subtitle="Quién tiene acceso a la organización y con qué permisos"
-          actions={
-            <>
-              <Button variant="secondary">
-                <ShieldCheck size={17} strokeWidth={2} aria-hidden="true" /> Gestionar roles
-              </Button>
-              <Button>
-                <UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Invitar miembro
-              </Button>
-            </>
-          }
-        />
+        <div className="app-reveal">
+          <SectionHeader
+            level={1}
+            title="Mi equipo"
+            subtitle="Quién tiene acceso a la organización y con qué permisos"
+            actions={
+              <>
+                <Button variant="secondary">
+                  <ShieldCheck size={17} strokeWidth={2} aria-hidden="true" /> Gestionar roles
+                </Button>
+                <Button>
+                  <UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Invitar miembro
+                </Button>
+              </>
+            }
+          />
+        </div>
 
         {/* KPIs */}
-        <div className="mt-6 grid grid-cols-3 gap-4">
+        <div className="app-stagger mt-6 grid grid-cols-3 gap-4">
           {STAFF_KPIS.map((k) => (
             <Card key={k.key} padding="md">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{k.label}</p>
@@ -88,7 +90,7 @@ export default function EquipoPage() {
             Personalizar permisos <ChevronDown size={15} strokeWidth={2} aria-hidden="true" className="-rotate-90" />
           </a>
         </div>
-        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="app-stagger mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {ROLES.map((r) => (
             <RoleCard key={r.key} role={r} />
           ))}

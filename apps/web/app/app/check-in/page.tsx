@@ -22,19 +22,21 @@ export default function CheckinPage() {
     <AppShell branding={branding} title="Check-in" activeKey="checkin">
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado */}
-        <SectionHeader
-          level={1}
-          title="Check-in"
-          subtitle="Registrá asistencias en puerta, en tiempo real"
-          actions={
-            <Chip tone="success" dot className="uppercase tracking-[0.04em]">
-              En vivo
-            </Chip>
-          }
-        />
+        <div className="app-reveal">
+          <SectionHeader
+            level={1}
+            title="Check-in"
+            subtitle="Registrá asistencias en puerta, en tiempo real"
+            actions={
+              <Chip tone="success" dot className="uppercase tracking-[0.04em]">
+                En vivo
+              </Chip>
+            }
+          />
+        </div>
 
         {/* Stats en vivo */}
-        <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="app-stagger mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {CHECKIN_STATS.map((s) => (
             <Card key={s.key} padding="md">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{s.label}</p>
@@ -44,7 +46,7 @@ export default function CheckinPage() {
         </div>
 
         {/* Estación + feed */}
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
+        <div className="app-reveal mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]" style={{ animationDelay: '120ms' }}>
           {/* Columna principal */}
           <div className="flex min-w-0 flex-col gap-4">
             {/* Encontrar visitante */}
@@ -107,7 +109,7 @@ export default function CheckinPage() {
                         <span className="font-semibold tabular-nums text-ink">{a.occupancyPct}%</span>
                       </div>
                       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
-                        <div className="h-full rounded-full bg-brand" style={{ width: `${a.occupancyPct}%` }} />
+                        <div className="app-bar-grow h-full rounded-full bg-brand" style={{ width: `${a.occupancyPct}%` }} />
                       </div>
                     </div>
                     <a

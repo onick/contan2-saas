@@ -59,7 +59,7 @@ export function UsersTable({ users }: UsersTableProps) {
               <th className="px-4 py-3" />
             </tr>
           </thead>
-          <tbody>
+          <tbody className="app-stagger">
             {users.map((u, i) => {
               const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
               return (

@@ -49,10 +49,12 @@ export default function ReportesPage() {
     <AppShell branding={branding} title="Reportes" activeKey="reportes">
       <div className="mx-auto w-full max-w-[1600px]">
         {/* Encabezado */}
-        <SectionHeader level={1} title="Reportes" subtitle="Generá y descargá reportes de la operación cultural" />
+        <div className="app-reveal">
+          <SectionHeader level={1} title="Reportes" subtitle="Generá y descargá reportes de la operación cultural" />
+        </div>
 
         {/* Generador */}
-        <Card padding="lg" className="mt-6">
+        <Card padding="lg" className="app-reveal mt-6" style={{ animationDelay: '80ms' }}>
           <div className="flex items-center gap-2">
             <Sparkles size={18} strokeWidth={2} aria-hidden="true" className="text-brand-accent" />
             <h2 className="text-[15px] font-semibold tracking-tight text-ink">Generar reporte</h2>
@@ -78,7 +80,7 @@ export default function ReportesPage() {
 
         {/* Plantillas */}
         <h2 className="mb-3 mt-8 text-[17px] font-semibold tracking-tight text-ink">Plantillas de reporte</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="app-stagger grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {REPORT_TEMPLATES.map((t) => {
             const TplIcon = t.icon;
             return (
