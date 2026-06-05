@@ -9,6 +9,7 @@ import { uploadsRoute } from './routes/uploads.js';
 import { healthzRoute } from './routes/healthz.js';
 import { dbCheckRoute } from './routes/db-check.js';
 import { authMeRoute } from './routes/auth-me.js';
+import { authLoginRoute } from './routes/auth-login.js';
 import { orgBrandingRoute } from './routes/org-branding.js';
 import { dashboardMetricsRoute } from './routes/dashboard-metrics.js';
 import { activitiesRoute } from './routes/activities.js';
@@ -55,6 +56,9 @@ export function buildApp(): FastifyInstance {
   // Gated por DB_CHECK_ENABLED; no registra ruta si está apagado.
   app.register(dbCheckRoute, { prefix: '/api/v2' });
   app.register(authMeRoute, { prefix: '/api/v2' });
+  // Login/logout del admin v2 (ESCRITURA · única superficie que escribe en
+  // staff_auth_sessions, byte-compatible con v1).
+  app.register(authLoginRoute, { prefix: '/api/v2' });
   app.register(orgBrandingRoute, { prefix: '/api/v2' });
   // Endpoints read-only de negocio (tenant-scoped, sesión staff requerida).
   app.register(dashboardMetricsRoute, { prefix: '/api/v2' });

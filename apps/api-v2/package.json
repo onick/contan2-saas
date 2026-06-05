@@ -20,6 +20,7 @@
     "@contan2/db": "workspace:*",
     "@fastify/cookie": "^11.0.2",
     "@fastify/multipart": "^9.0.3",
+    "@node-rs/argon2": "^2.0.2",
     "bcryptjs": "^3.0.3",
     "fastify": "^5.2.0",
     "qrcode": "^1.5.4",
