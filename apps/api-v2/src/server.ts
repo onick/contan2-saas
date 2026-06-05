@@ -1,8 +1,11 @@
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import { loadConfig } from '@contan2/config';
 import { closeDb } from '@contan2/db';
+import { MAX_COVER_BYTES } from './services/cover-upload.js';
+import { uploadsRoute } from './routes/uploads.js';
 import { healthzRoute } from './routes/healthz.js';
 import { dbCheckRoute } from './routes/db-check.js';
 import { authMeRoute } from './routes/auth-me.js';
@@ -42,6 +45,12 @@ export function buildApp(): FastifyInstance {
   });
 
   app.register(cookie);
+  // Multipart para subida de portadas. Tope duro de tamaño por archivo (5MB); el
+  // endpoint cuenta las partes y exige EXACTAMENTE un archivo (rechaza 0/>1). El
+  // límite `files` es sólo un backstop alto (el conteo del handler es el árbitro).
+  app.register(multipart, { limits: { fileSize: MAX_COVER_BYTES, fields: 20, files: 4 } });
+  // Serving de portadas (S2). SIN prefijo /api/v2: image_url = `/uploads/<name>`.
+  app.register(uploadsRoute);
   app.register(healthzRoute, { prefix: '/api/v2' });
   // Gated por DB_CHECK_ENABLED; no registra ruta si está apagado.
   app.register(dbCheckRoute, { prefix: '/api/v2' });
