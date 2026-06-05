@@ -169,6 +169,18 @@ body {
 @keyframes app-bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .app-bar-grow { transform-origin: left center; animation: app-bar-grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
+/* Drawer · entrada sutil. RESPONSIVE: en mobile el panel es bottom-sheet → entra
+   deslizando desde abajo; en md+ es lateral derecho → entra desde la derecha. El
+   backdrop hace fade-in. ease-out-quint, ~0.28s. Scope: .drawer-panel / .drawer-backdrop. */
+@keyframes drawer-in-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes drawer-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes drawer-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+.drawer-panel { animation: drawer-in-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.drawer-backdrop { animation: drawer-backdrop-in 0.22s ease both; }
+@media (min-width: 768px) {
+  .drawer-panel { animation-name: drawer-in-right; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .kiosk-pulse { animation: none; }
   .kiosk-card-in { animation: none; }
@@ -176,6 +188,8 @@ body {
   .app-stagger > * { animation: none; }
   .app-bar-grow { animation: none; }
   .app-shimmer { animation: none; } /* gradiente estático, sin barrido */
+  .drawer-panel { animation: none; }
+  .drawer-backdrop { animation: none; }
   /* Border beam: sin recorrido; queda un borde naranja estático y discreto. */
   .border-beam {
     animation: none;
