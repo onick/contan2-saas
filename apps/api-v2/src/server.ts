@@ -4,6 +4,7 @@ import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import { loadConfig } from '@contan2/config';
 import { closeDb } from '@contan2/db';
+import { closeRateLimitRedis } from './rate-limit.js';
 import { MAX_COVER_BYTES } from './services/cover-upload.js';
 import { uploadsRoute } from './routes/uploads.js';
 import { healthzRoute } from './routes/healthz.js';
@@ -70,9 +71,11 @@ export function buildApp(): FastifyInstance {
   // Auth del scanner (gate por PIN de staff → cookie firmada).
   app.register(scannerRoute, { prefix: '/api/v2' });
 
-  // Cierra el pool singleton de @contan2/db al apagar la app (tests + prod).
+  // Cierra el pool singleton de @contan2/db + el cliente Redis del rate-limit
+  // (si se creó) al apagar la app (tests + prod).
   app.addHook('onClose', async () => {
     await closeDb();
+    await closeRateLimitRedis();
   });
 
   return app;

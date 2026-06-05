@@ -123,8 +123,22 @@ jobs:
           --health-interval 2s
           --health-timeout 5s
           --health-retries 30
+      # Redis efímero para los tests del rate-limit distribuido (gateados por
+      # REDIS_URL). El service de GH Actions se crea y DESTRUYE por job (teardown
+      # garantizado). NO es infra de prod. El job `test` (sin REDIS_URL) sigue
+      # cubriendo el fallback in-memory.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
     env:
       DATABASE_URL: postgres://test:test@localhost:5433/contan2_test
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

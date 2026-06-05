@@ -85,7 +85,12 @@ run('POST /auth/login + /auth/logout', () => {
   });
 
   // Cada test usa una IP (X-Forwarded-For) distinta para NO compartir el bucket
-  // del rate-limit (10/15min por IP). El test de rate-limit usa una IP propia.
+  // del rate-limit (10/15min por IP). El bloque /24 se deriva del `stamp` para
+  // que cada CORRIDA use IPs frescas: con backend Redis el contador persiste la
+  // ventana entre procesos, así un /24 nuevo por corrida evita falsos 429.
+  const ipBase = `10.${(stamp >> 16) % 256}.${(stamp >> 8) % 256}`;
+  const ip = (n: number) => `${ipBase}.${n}`;
+
   const login = (
     body: Record<string, unknown>,
     host: string,
@@ -99,7 +104,7 @@ run('POST /auth/login + /auth/logout', () => {
     });
 
   it('login correcto → 200 + cookie segura + body, y la cookie valida en /auth/me', async () => {
-    const res = await login({ email: emailActiveA, password: PASS }, hostA, '198.51.100.1');
+    const res = await login({ email: emailActiveA, password: PASS }, hostA, ip(1));
     expect(res.statusCode).toBe(200);
     const json = res.json();
     expect(json.ok).toBe(true);
@@ -127,11 +132,11 @@ run('POST /auth/login + /auth/logout', () => {
   });
 
   it('remember-me → cookie con expiración ~30d (vs ~12h sin remember-me)', async () => {
-    const r12 = await login({ email: emailActiveA, password: PASS }, hostA, '198.51.100.2');
+    const r12 = await login({ email: emailActiveA, password: PASS }, hostA, ip(2));
     const r30 = await login(
       { email: emailActiveA, password: PASS, rememberMe: true },
       hostA,
-      '198.51.100.3',
+      ip(3),
     );
     const exp12 = r12.cookies.find((c) => c.name === 'contan2_session')?.expires?.getTime() ?? 0;
     const exp30 = r30.cookies.find((c) => c.name === 'contan2_session')?.expires?.getTime() ?? 0;
@@ -143,7 +148,7 @@ run('POST /auth/login + /auth/logout', () => {
   });
 
   it('password incorrecta → 401 (sin cookie)', async () => {
-    const res = await login({ email: emailActiveA, password: 'wrong-pass' }, hostA, '198.51.100.4');
+    const res = await login({ email: emailActiveA, password: 'wrong-pass' }, hostA, ip(4));
     expect(res.statusCode).toBe(401);
     expect(res.cookies.find((c) => c.name === 'contan2_session')).toBeUndefined();
   });
@@ -152,43 +157,43 @@ run('POST /auth/login + /auth/logout', () => {
     const res = await login(
       { email: `ghost-${stamp}@test.local`, password: PASS },
       hostA,
-      '198.51.100.5',
+      ip(5),
     );
     expect(res.statusCode).toBe(401);
   });
 
   it('cuenta suspendida con password correcta → 403', async () => {
-    const res = await login({ email: emailSuspendedA, password: PASS }, hostA, '198.51.100.6');
+    const res = await login({ email: emailSuspendedA, password: PASS }, hostA, ip(6));
     expect(res.statusCode).toBe(403);
     expect(res.cookies.find((c) => c.name === 'contan2_session')).toBeUndefined();
   });
 
   it('cross-tenant · staff de B sobre host A → 401; sobre host B → 200', async () => {
-    const onA = await login({ email: emailB, password: PASS }, hostA, '198.51.100.7');
+    const onA = await login({ email: emailB, password: PASS }, hostA, ip(7));
     expect(onA.statusCode).toBe(401); // el email de B no existe en A
-    const onB = await login({ email: emailB, password: PASS }, hostB, '198.51.100.8');
+    const onB = await login({ email: emailB, password: PASS }, hostB, ip(8));
     expect(onB.statusCode).toBe(200);
     expect(onB.json().staff.role).toBe('owner');
   });
 
   it('body inválido → 400', async () => {
-    const res = await login({ email: 'not-an-email', password: '' }, hostA, '198.51.100.9');
+    const res = await login({ email: 'not-an-email', password: '' }, hostA, ip(9));
     expect(res.statusCode).toBe(400);
   });
 
   it('rate-limit · 10 intentos OK por IP, el 11º → 429', async () => {
-    const ip = '198.51.100.200';
+    const rlIp = ip(200);
     const codes: number[] = [];
     for (let i = 0; i < 11; i += 1) {
       // Password incorrecta a propósito: el rate-limit cuenta antes de validar.
-      codes.push((await login({ email: emailActiveA, password: 'x' }, hostA, ip)).statusCode);
+      codes.push((await login({ email: emailActiveA, password: 'x' }, hostA, rlIp)).statusCode);
     }
     expect(codes.slice(0, 10).every((c) => c === 401)).toBe(true);
     expect(codes[10]).toBe(429);
   });
 
   it('logout · revoca la sesión y limpia la cookie', async () => {
-    const res = await login({ email: emailActiveA, password: PASS }, hostA, '198.51.100.10');
+    const res = await login({ email: emailActiveA, password: PASS }, hostA, ip(10));
     const token = res.cookies.find((c) => c.name === 'contan2_session')!.value;
 
     const out = await app.inject({

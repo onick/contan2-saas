@@ -30,12 +30,13 @@ import {
 } from '@contan2/contracts';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
 import { verifyStaffPassword } from '../services/password.js';
-import { createInMemoryRateLimiter } from '../rate-limit.js';
+import { createRateLimiter } from '../rate-limit.js';
 
 const SESSION_COOKIE = 'contan2_session';
 
 // Rate-limit de login: 10 intentos / 15 min por IP (paridad con v1 · auth.js:31).
-const loginLimiter = createInMemoryRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 });
+// Backend según REDIS_URL: Redis (compartido) si está seteado, in-memory si no.
+const loginLimiter = createRateLimiter({ max: 10, windowMs: 15 * 60 * 1000, prefix: 'login' });
 
 // secure=true sólo en prod (en prod NODE_ENV=production, ver Dockerfile). En
 // dev/tests (http) iría false para que la cookie funcione sin TLS. Mismo criterio
@@ -64,7 +65,7 @@ export const authLoginRoute: FastifyPluginAsync = async (app) => {
     }
 
     // 2) Rate-limit por IP real (req.ip viene de trustProxy=1).
-    const rl = loginLimiter.hit(req.ip);
+    const rl = await loginLimiter.hit(req.ip);
     if (rl.limited) {
       reply.code(429);
       reply.header('retry-after', Math.ceil(rl.retryAfterMs / 1000));

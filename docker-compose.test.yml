@@ -64,3 +64,19 @@ services:
       retries: 30
     # Sin restart policy — esto es para tests, no para servir.
     restart: "no"
+
+  # Redis para los tests del rate-limit distribuido (gateados por REDIS_URL).
+  # Puerto 6380 para no chocar con un Redis del host (6379). Datos efímeros: no
+  # persiste nada (--save "" --appendonly no). Local/CI; NO es infra de prod.
+  redis-test:
+    image: redis:7-alpine
+    container_name: contan2-redis-test
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    restart: "no"
