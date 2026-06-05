@@ -179,6 +179,8 @@ export interface ActivitiesTable {
   location: string;
   // TIMESTAMPTZ NOT NULL sin default → requerido al insertar.
   date: RequiredTs;
+  // TIMESTAMPTZ NULL (migración 024) → cierre opcional; insert/update opcional o null.
+  end_date: NullableTs;
   // INTEGER NOT NULL CHECK (capacity >= 1) sin default → requerido.
   capacity: number;
   description: DefaultedText;

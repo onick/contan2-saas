@@ -56,7 +56,7 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'organization_id', 'credential_sent_at', 'created_at', 'updated_at',
   ],
   activities: [
-    'id', 'name', 'type', 'location', 'date', 'capacity', 'description',
+    'id', 'name', 'type', 'location', 'date', 'end_date', 'capacity', 'description',
     'image_url', 'enrolled_count', 'status', 'organization_id', 'category',
     'created_at', 'updated_at',
   ],
