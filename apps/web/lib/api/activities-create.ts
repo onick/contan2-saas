@@ -72,3 +72,38 @@ export async function proxyUploadCover(id: string, req: Request): Promise<Respon
     headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
   });
 }
+
+// Proxy multipart de CREACIÓN ATÓMICA con portada → api-v2
+// POST /api/v2/activities/with-cover. Reenvía el multipart entrante TAL CUAL
+// (preserva el boundary del navegador, NO base64), cookie + forwarded headers,
+// body como stream (duplex 'half'); relaya status + body exacto. api-v2 es el
+// árbitro (rol, validación, atomicidad portada+INSERT).
+export async function proxyCreateActivityWithCover(req: Request): Promise<Response> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const contentType = req.headers.get('content-type');
+  if (!contentType || !contentType.toLowerCase().startsWith('multipart/form-data')) {
+    return Response.json({ error: 'Se esperaba multipart/form-data.' }, { status: 400 });
+  }
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE_URL}/api/v2/activities/with-cover`, {
+      method: 'POST',
+      headers: {
+        'content-type': contentType, // preserva el boundary
+        ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+        ...(await forwardingHeaders()),
+      },
+      body: req.body,
+      // @ts-expect-error duplex es requerido por undici al enviar un stream y no está en los tipos
+      duplex: 'half',
+      cache: 'no-store',
+    });
+  } catch {
+    return Response.json({ error: 'No pudimos crear la actividad. Intentá de nuevo.' }, { status: 502 });
+  }
+  const text = await upstream.text();
+  return new Response(text, {
+    status: upstream.status,
+    headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
+  });
+}
