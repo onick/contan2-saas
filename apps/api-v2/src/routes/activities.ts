@@ -96,6 +96,37 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     return body;
   });
 
+  // GET /api/v2/activities/:id · LECTURA. Detalle COMPLETO de una actividad del
+  // tenant (incluye description/endDate/imageUrl que el listado no proyecta) →
+  // lo consume el drawer/edición bajo demanda (Lifecycle A2). Guard tenant→auth
+  // (requireTenantStaff): cualquier staff del tenant (owner/admin/operator) puede
+  // consultar; sin sesión → 401; cross-tenant / inexistente → 404. Responde
+  // ActivityDetail (organization_id NO se proyecta). Cero writes.
+  app.get('/activities/:id', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    const orgId = guard.ctx.org.id;
+    const id = (req.params as { id: string }).id;
+
+    const row = await db
+      .selectFrom('activities')
+      .select(ACTIVITY_DETAIL_COLUMNS)
+      .where('organization_id', '=', orgId)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!row) {
+      reply.code(404);
+      return { error: 'Actividad no encontrada.' };
+    }
+
+    reply.code(200);
+    return mapActivityDetailRow(row);
+  });
+
   // POST /api/v2/activities · ESCRITURA. Crea una actividad del tenant de la
   // sesión (organization_id NUNCA del body). status se fija 'activa' (publica
   // al crear) e image_url = null (sin uploads). Sólo owner/admin. enrolled_count
