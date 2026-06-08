@@ -1,0 +1,325 @@
+'use client';
+
+// apps/web/components/checkin/CheckinConsole.tsx · consola de check-in REAL del
+// staff (Check-in C). Cero demo: métricas/actividades/búsqueda vienen de api-v2 vía
+// BFF same-origin; estados honestos loading/error/empty (si la API cae → estado de
+// error, NUNCA datos demo). Métricas con polling 30s. Búsqueda server-side con
+// debounce 300ms + descarte de respuestas obsoletas (AbortController). Atajo `/`.
+// Check-in de visitante existente o nuevo (alta + check-in en una operación) y "+1
+// sin credencial" con Idempotency-Key reutilizada en reintentos del MISMO click.
+
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Search, X, UserPlus, Users, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle } from 'lucide-react';
+import type { CheckinMetricsResponse, CheckinActivityItem, CheckinVisitorItem } from '@contan2/contracts';
+import { getCheckinMetrics, getCheckinActivities, searchCheckinVisitors, postCheckin, postCheckinAnonymous } from '../../lib/api/checkin-client';
+import { NewVisitorDrawer } from './NewVisitorDrawer';
+import { Button, Card, Chip, IconButton, cn, focusRing } from '../ui';
+
+type Async<T> = { phase: 'loading' | 'ready' | 'error'; data?: T; error?: string };
+type Toast = { kind: 'success' | 'error'; msg: string } | null;
+
+const METRIC_LABELS: { key: keyof CheckinMetricsResponse['metrics']; label: string }[] = [
+  { key: 'checkinsToday', label: 'Check-ins hoy' },
+  { key: 'checkinsLast10Min', label: 'Últimos 10 min' },
+  { key: 'uniqueVisitorsToday', label: 'Únicos hoy' },
+  { key: 'activeActivities', label: 'Actividades activas' },
+];
+
+export function CheckinConsole() {
+  const [metrics, setMetrics] = useState<Async<CheckinMetricsResponse['metrics']>>({ phase: 'loading' });
+  const [activities, setActivities] = useState<Async<CheckinActivityItem[]>>({ phase: 'loading' });
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<{ phase: 'idle' | 'searching' | 'ready' | 'error'; items: CheckinVisitorItem[]; error?: string }>({ phase: 'idle', items: [] });
+  const [selected, setSelected] = useState<CheckinVisitorItem | null>(null);
+  const [toast, setToast] = useState<Toast>(null);
+  const [busyActivity, setBusyActivity] = useState<string | null>(null);
+  const [pendingAnon, setPendingAnon] = useState<{ activityId: string; activityName: string; key: string } | null>(null);
+  const [anonBusy, setAnonBusy] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
+
+  const searchRef = useRef<HTMLInputElement>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const liveId = useId();
+
+  const flash = useCallback((t: Toast) => {
+    setToast(t);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    if (t) toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }, []);
+
+  // ── métricas: carga + polling 30s ──
+  const loadMetrics = useCallback(async (signal?: AbortSignal) => {
+    const r = await getCheckinMetrics(signal).catch((e) => { throw e; });
+    if (r.ok) setMetrics({ phase: 'ready', data: r.data.metrics });
+    else setMetrics((prev) => (prev.data ? { ...prev, phase: 'ready' } : { phase: 'error', error: r.error }));
+  }, []);
+  const loadActivities = useCallback(async () => {
+    const r = await getCheckinActivities();
+    if (r.ok) setActivities({ phase: 'ready', data: r.data.items });
+    else setActivities((prev) => (prev.data ? { ...prev, phase: 'ready' } : { phase: 'error', error: r.error }));
+  }, []);
+
+  useEffect(() => {
+    void loadMetrics();
+    void loadActivities();
+    const id = setInterval(() => { void loadMetrics(); }, 30_000);
+    return () => clearInterval(id);
+  }, [loadMetrics, loadActivities]);
+
+  const refreshLive = useCallback(() => { void loadMetrics(); void loadActivities(); }, [loadMetrics, loadActivities]);
+
+  // ── búsqueda: debounce 300ms + abort de respuestas obsoletas ──
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setResults({ phase: 'idle', items: [] }); return; }
+    setResults((r) => ({ ...r, phase: 'searching' }));
+    const ac = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchCheckinVisitors(q, ac.signal);
+        if (r.ok) setResults({ phase: 'ready', items: r.data.items });
+        else setResults({ phase: 'error', items: [], error: r.error });
+      } catch { /* abortada → la reemplaza la siguiente */ }
+    }, 300);
+    return () => { clearTimeout(t); ac.abort(); };
+  }, [query]);
+
+  // Escape cierra el confirm de "+1" (a11y), salvo mientras registra.
+  useEffect(() => {
+    if (!pendingAnon) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !anonBusy) setPendingAnon(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [pendingAnon, anonBusy]);
+
+  // ── atajo "/" enfoca la búsqueda (si no estás tipeando en otro campo) ──
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const selectVisitor = (v: CheckinVisitorItem) => { setSelected(v); setQuery(''); setResults({ phase: 'idle', items: [] }); };
+
+  // ── check-in de visitante EXISTENTE ──
+  async function registerExisting(act: CheckinActivityItem) {
+    if (!selected || busyActivity || act.full) return;
+    setBusyActivity(act.id);
+    const r = await postCheckin({ activityId: act.id, visitor: { code: selected.code }, companionsChildren: 0 });
+    setBusyActivity(null);
+    if (r.ok) {
+      flash({ kind: 'success', msg: `${selected.firstName} registrado en "${act.name}". Quedó auditado.` });
+      setSelected(null);
+      refreshLive();
+    } else {
+      flash({ kind: 'error', msg: r.error });
+      if (r.status === 409) refreshLive(); // cupo/dup → refrescar cupos
+    }
+  }
+
+  // ── "+1 sin credencial": Idempotency-Key se genera al abrir el confirm y se
+  //    REUTILIZA en cada reintento de ESTE click (red caída/retry). Cerrar = key nueva.
+  function openAnon(act: CheckinActivityItem) {
+    if (act.full) return;
+    setPendingAnon({ activityId: act.id, activityName: act.name, key: crypto.randomUUID() });
+  }
+  async function confirmAnon() {
+    if (!pendingAnon || anonBusy) return;
+    setAnonBusy(true);
+    const r = await postCheckinAnonymous(pendingAnon.activityId, pendingAnon.key);
+    setAnonBusy(false);
+    if (r.ok) {
+      flash({ kind: 'success', msg: r.data.replay ? 'Ese ingreso ya estaba registrado.' : `+1 registrado en "${pendingAnon.activityName}". Quedó auditado.` });
+      setPendingAnon(null);
+      refreshLive();
+    } else {
+      // NO cerramos: un reintento reusa la MISMA key (no duplica).
+      flash({ kind: 'error', msg: r.error });
+    }
+  }
+
+  return (
+    <>
+      {/* aria-live para feedback inmediato accesible */}
+      <div id={liveId} role="status" aria-live="polite" className="sr-only">{toast?.msg ?? ''}</div>
+
+      {/* Métricas (poll 30s) */}
+      <div className="app-stagger mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {METRIC_LABELS.map((m) => (
+          <Card key={m.key} padding="md">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{m.label}</p>
+            {metrics.phase === 'error' && !metrics.data ? (
+              <p className="mt-2 text-[13px] text-danger-fg">No disponible</p>
+            ) : (
+              <p className="mt-2 text-3xl font-bold tabular-nums text-ink">
+                {metrics.data ? metrics.data[m.key] : <span className="inline-block h-7 w-10 animate-pulse rounded bg-surface-container align-middle" />}
+              </p>
+            )}
+          </Card>
+        ))}
+      </div>
+
+      <div className="app-reveal mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]" style={{ animationDelay: '120ms' }}>
+        <div className="flex min-w-0 flex-col gap-4">
+          {/* Buscar / seleccionar visitante */}
+          <Card padding="lg">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Encontrar visitante</p>
+              <Button variant="secondary" size="sm" onClick={() => setNewOpen(true)}>
+                <UserPlus size={16} strokeWidth={2} aria-hidden="true" /> Nuevo visitante
+              </Button>
+            </div>
+
+            {selected ? (
+              <div className="mt-3 flex items-center gap-3 rounded-xl border border-line bg-surface-container px-4 py-3">
+                <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-primary-container text-[12px] font-semibold text-on-primary-container">
+                  {(selected.firstName[0] ?? '') + (selected.lastName[0] ?? '')}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-ink">{selected.firstName} {selected.lastName}</p>
+                  <p className="truncate text-xs text-faint">
+                    <span className="tabular-nums">{selected.code}</span>
+                    <span className="ml-2 inline-flex items-center gap-1">{selected.visitCount >= 10 ? <Crown size={11} aria-hidden="true" /> : null}{selected.visitCount} {selected.visitCount === 1 ? 'visita' : 'visitas'}</span>
+                  </p>
+                </div>
+                <IconButton label="Quitar visitante" variant="outline" size="sm" onClick={() => setSelected(null)}>
+                  <X size={16} strokeWidth={2} aria-hidden="true" />
+                </IconButton>
+              </div>
+            ) : (
+              <>
+                <label className="relative mt-3 block">
+                  <span className="sr-only">Buscar visitante por código, nombre, email o teléfono</span>
+                  <Search size={18} strokeWidth={1.75} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
+                  <input
+                    ref={searchRef}
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Código, nombre, email o teléfono…   ( / )"
+                    className={cn('h-12 w-full rounded-xl border border-line bg-page pl-11 pr-4 text-[14px] text-ink placeholder:text-faint', focusRing)}
+                  />
+                  {results.phase === 'searching' ? <Loader2 size={16} aria-hidden="true" className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-faint" /> : null}
+                </label>
+
+                {query.trim().length >= 2 ? (
+                  <div className="mt-2">
+                    {results.phase === 'error' ? (
+                      <p className="px-1 py-2 text-[13px] text-danger-fg">{results.error}</p>
+                    ) : results.phase === 'ready' && results.items.length === 0 ? (
+                      <p className="px-1 py-2 text-[13px] text-faint">Sin coincidencias. Probá otro dato o creá el visitante.</p>
+                    ) : (
+                      <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
+                        {results.items.map((v) => (
+                          <li key={v.id}>
+                            <button type="button" onClick={() => selectVisitor(v)} className={cn('flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-container', focusRing)}>
+                              <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-primary-container text-[11px] font-semibold text-on-primary-container">{(v.firstName[0] ?? '') + (v.lastName[0] ?? '')}</span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium text-ink">{v.firstName} {v.lastName}</span>
+                                <span className="block truncate text-xs text-faint"><span className="tabular-nums">{v.code}</span>{v.email ? ` · ${v.email}` : ''}</span>
+                              </span>
+                              <Chip tone="neutral" className="flex-none tabular-nums">{v.visitCount === 1 ? '1ª vez' : `${v.visitCount}v`}</Chip>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-[13px] text-muted">Buscá por código o datos del visitante (mín. 2 caracteres).</p>
+                )}
+              </>
+            )}
+          </Card>
+
+          {/* Actividades activas (reales) */}
+          <Card padding="none">
+            <div className="flex items-center justify-between px-5 py-4 md:px-6">
+              <h3 className="text-[15px] font-semibold tracking-tight text-ink">Actividades activas</h3>
+              <div className="flex items-center gap-2">
+                {activities.data ? <Chip tone="neutral" className="tabular-nums">{activities.data.length}</Chip> : null}
+                <IconButton label="Refrescar" variant="outline" size="sm" onClick={refreshLive}><RotateCw size={15} strokeWidth={2} aria-hidden="true" /></IconButton>
+              </div>
+            </div>
+            {activities.phase === 'error' && !activities.data ? (
+              <p className="px-5 py-6 text-[13px] text-danger-fg md:px-6">{activities.error ?? 'No pudimos cargar las actividades.'}</p>
+            ) : activities.phase === 'loading' ? (
+              <p className="px-5 py-6 text-[13px] text-faint md:px-6">Cargando actividades…</p>
+            ) : activities.data && activities.data.length === 0 ? (
+              <p className="px-5 py-6 text-[13px] text-faint md:px-6">No hay actividades activas ahora mismo.</p>
+            ) : (
+              <ul>
+                {activities.data?.map((a) => (
+                  <li key={a.id} className="flex flex-wrap items-center gap-3 border-t border-line px-5 py-4 md:px-6">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium tracking-tight text-ink">{a.name}</p>
+                      <p className="mt-0.5 text-xs text-faint">
+                        {a.location} · <span className="tabular-nums">{a.enrolledCount}/{a.capacity}</span> ({a.occupancyPct}%)
+                        {a.recentMovement > 0 ? <span className="ml-2 text-success-fg">+{a.recentMovement} en 10 min</span> : null}
+                        {a.full ? <span className="ml-2 font-semibold text-danger-fg">Lleno</span> : null}
+                      </p>
+                    </div>
+                    <div className="flex flex-none items-center gap-2">
+                      <Button size="sm" disabled={!selected || a.full || busyActivity === a.id} onClick={() => registerExisting(a)}>
+                        {busyActivity === a.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Registrar
+                      </Button>
+                      <Button variant="secondary" size="sm" disabled={a.full} onClick={() => openAnon(a)}>
+                        <Sparkle size={15} strokeWidth={2} aria-hidden="true" /> +1 sin credencial
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+
+        {/* Toast visible (además del aria-live) */}
+        <div className="min-w-0">
+          {toast ? (
+            <div role="alert" className={cn('flex items-start gap-2 rounded-xl border px-4 py-3 text-[13px]', toast.kind === 'success' ? 'border-success-fg/30 bg-success-bg text-success-fg' : 'border-danger-fg/30 bg-danger-bg text-danger-fg')}>
+              {toast.kind === 'success' ? <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" className="mt-0.5 flex-none" /> : <AlertTriangle size={16} strokeWidth={2} aria-hidden="true" className="mt-0.5 flex-none" />}
+              <span>{toast.msg}</span>
+            </div>
+          ) : (
+            <Card padding="lg" className="text-[13px] text-faint">
+              <p className="flex items-center gap-2 font-medium text-muted"><Users size={16} strokeWidth={1.75} aria-hidden="true" /> Consola de recepción</p>
+              <p className="mt-2">Buscá o creá un visitante y registralo en una actividad. Cada registro queda auditado.</p>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* Confirmación "+1 sin credencial" (Idempotency-Key reutilizada en reintentos) */}
+      {pendingAnon ? (
+        <div className="fixed inset-0 z-[60] grid place-items-center p-4" role="dialog" aria-modal="true" aria-labelledby="anon-title">
+          <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => { if (!anonBusy) setPendingAnon(null); }} className="absolute inset-0 bg-ink/40" />
+          <div className="relative w-full max-w-sm rounded-2xl border border-line bg-surface p-5 shadow-xl">
+            <h3 id="anon-title" className="text-base font-bold tracking-tight text-ink">Registrar +1 sin credencial</h3>
+            <p className="mt-1.5 text-[13px] text-muted">Suma un ingreso anónimo a “{pendingAnon.activityName}”. No crea usuario ni código; queda auditado.</p>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setPendingAnon(null)} disabled={anonBusy}>Cancelar</Button>
+              <Button type="button" autoFocus onClick={confirmAnon} disabled={anonBusy}>
+                {anonBusy ? <><Loader2 size={15} aria-hidden="true" className="animate-spin" /> Registrando…</> : 'Sí, registrar +1'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <NewVisitorDrawer
+        open={newOpen}
+        activities={activities.data ?? []}
+        onClose={() => setNewOpen(false)}
+        onDone={(msg) => { setNewOpen(false); flash({ kind: 'success', msg }); refreshLive(); }}
+      />
+    </>
+  );
+}
