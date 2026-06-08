@@ -3,7 +3,7 @@ import { getDb } from '@contan2/db';
 import { normalizeCodeForLookup, isValidCode } from '@contan2/codes';
 import type { User, UsersListResponse, UserDetailResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
-import { parsePage } from '../query.js';
+import { parsePage, parseSearch, likeContains } from '../query.js';
 
 const COLUMNS = ['id', 'code', 'first_name', 'last_name', 'email', 'phone', 'visit_count', 'created_at'] as const;
 
@@ -45,14 +45,47 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
-    const { limit, offset } = parsePage((req.query ?? {}) as Record<string, unknown>);
+    const query = (req.query ?? {}) as Record<string, unknown>;
+    const { limit, offset } = parsePage(query);
+    const search = parseSearch(query.q);
+    if (search.error) {
+      reply.code(400);
+      return { error: 'Parámetro de búsqueda inválido.' };
+    }
+    const pattern = search.q ? likeContains(search.q) : undefined;
+
+    // Filtro tenant-scoped + búsqueda (código/nombre/apellido/email, ILIKE). El
+    // MISMO `where` se aplica al listado y al count → `total` refleja los filtros.
+    // organizationId SIEMPRE del guard (sesión), nunca del cliente.
+    let rowsQ = db.selectFrom('users').select(COLUMNS).where('organization_id', '=', orgId);
+    let countQ = db
+      .selectFrom('users')
+      .select(db.fn.countAll<string>().as('n'))
+      .where('organization_id', '=', orgId);
+    if (pattern) {
+      rowsQ = rowsQ.where((eb) =>
+        eb.or([
+          eb('code', 'ilike', pattern),
+          eb('first_name', 'ilike', pattern),
+          eb('last_name', 'ilike', pattern),
+          eb('email', 'ilike', pattern),
+        ]),
+      );
+      countQ = countQ.where((eb) =>
+        eb.or([
+          eb('code', 'ilike', pattern),
+          eb('first_name', 'ilike', pattern),
+          eb('last_name', 'ilike', pattern),
+          eb('email', 'ilike', pattern),
+        ]),
+      );
+    }
 
     const [rows, count] = await Promise.all([
-      db.selectFrom('users').select(COLUMNS)
-        .where('organization_id', '=', orgId)
-        .orderBy('created_at', 'desc').limit(limit).offset(offset).execute(),
-      db.selectFrom('users').select(db.fn.countAll<string>().as('n'))
-        .where('organization_id', '=', orgId).executeTakeFirstOrThrow(),
+      // Orden determinista: created_at desc, desempate por id desc (sin saltos ni
+      // solapamientos entre páginas con created_at iguales).
+      rowsQ.orderBy('created_at', 'desc').orderBy('id', 'desc').limit(limit).offset(offset).execute(),
+      countQ.executeTakeFirstOrThrow(),
     ]);
 
     const body: UsersListResponse = {
