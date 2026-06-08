@@ -36,6 +36,11 @@ function toActivity(it: ActivityListItem): Activity {
     // Portada real del listado (image_url → imageUrl); null si la actividad no
     // tiene portada → las cards caen al fallback de ícono.
     imageUrl: it.imageUrl ?? null,
+    // Crudos para Lifecycle B (edición + acciones de estado). El listado no
+    // proyecta endDate/description → el form de edición los deja vacíos y sólo
+    // envía lo modificado (PATCH parcial preserva lo no tocado).
+    type: it.type,
+    statusRaw: it.status,
   };
 }
 
