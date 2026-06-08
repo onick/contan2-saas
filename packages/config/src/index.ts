@@ -20,6 +20,11 @@ const envSchema = z.object({
   // compat legacy se valida en prod o en una copia controlada del volumen prod,
   // nunca compartiendo el volumen prod con staging. Sin setear → temporal de dev.
   UPLOADS_DIR: z.string().optional(),
+  // Rate-limit distribuido (Redis). OPCIONAL: sin REDIS_URL el limiter cae a
+  // in-memory (single-instance, se reinicia en redeploy). Con REDIS_URL, el
+  // contador se comparte entre réplicas y persiste a redeploys. No se despliega
+  // Redis aún; esto sólo habilita el backend cuando exista la infra.
+  REDIS_URL: z.string().optional(),
 });
 
 export type Config = z.infer<typeof envSchema>;
