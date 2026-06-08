@@ -19,6 +19,7 @@ import {
   type PublicCheckinResponse,
 } from '@contan2/contracts';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
+import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { deliverCredential, type DeliverUser } from '../services/credential-delivery.js';
 
 // Error de check-in con status HTTP, para que la transacción lo lance y haga
@@ -30,42 +31,14 @@ class CheckinError extends Error {
   }
 }
 
-// Rate-limit del check-in (escritura): bucket propio, aparte del lookup.
-const CHECKIN_LIMIT = 10;
-const checkinHits = new Map<string, { count: number; resetAt: number }>();
-function checkinRateLimited(ip: string, now: number): boolean {
-  for (const [k, b] of checkinHits) if (now >= b.resetAt) checkinHits.delete(k);
-  const cur = checkinHits.get(ip);
-  if (!cur || now >= cur.resetAt) {
-    checkinHits.set(ip, { count: 1, resetAt: now + LOOKUP_WINDOW_MS });
-    return false;
-  }
-  cur.count += 1;
-  return cur.count > CHECKIN_LIMIT;
-}
-
-// Rate-limit in-memory para el lookup (anti-enumeración de códigos/emails).
-// Ventana fija por IP, port directo de v1 (backend/src/routes/public.js).
-// Suficiente para una instancia; con N réplicas se movería a un store
-// compartido. NO se aplica a /activities (listado no sensible).
-const LOOKUP_LIMIT = 15;
-const LOOKUP_WINDOW_MS = 60_000;
-const hits = new Map<string, { count: number; resetAt: number }>();
-
-function rateLimited(ip: string, now: number): boolean {
-  const cur = hits.get(ip);
-  if (!cur || now >= cur.resetAt) {
-    hits.set(ip, { count: 1, resetAt: now + LOOKUP_WINDOW_MS });
-    return false;
-  }
-  cur.count += 1;
-  return cur.count > LOOKUP_LIMIT;
-}
-
-// Limpieza perezosa de buckets vencidos (cota el crecimiento del Map).
-function sweep(now: number): void {
-  for (const [ip, b] of hits) if (now >= b.resetAt) hits.delete(ip);
-}
+// Rate-limit detrás del limiter compartido: Redis (estado entre réplicas) si hay
+// REDIS_URL, in-memory con degradación grácil si no. Buckets SEPARADOS por
+// endpoint (lookup 15/60s · check-in 10/60s), aislados por entorno + tenant: la
+// key es `${orgId}:${ip}` (sin PII: nunca email/código/token). El lookup protege
+// contra enumeración de códigos/emails; /activities (listado no sensible) no se
+// limita.
+const lookupLimiter = createRateLimiter({ max: 15, windowMs: 60_000, prefix: endpointPrefix('public-lookup') });
+const checkinLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('public-checkin') });
 
 type TenantOnly =
   | { ok: true; orgId: string; codePrefix: string }
@@ -132,9 +105,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       return { error: t.error };
     }
 
-    const now = Date.now();
-    sweep(now);
-    if (rateLimited(req.ip, now)) {
+    if ((await lookupLimiter.hit(`${t.orgId}:${req.ip}`)).limited) {
       reply.code(429);
       return { error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' };
     }
@@ -198,7 +169,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       return { error: t.error };
     }
 
-    if (checkinRateLimited(req.ip, Date.now())) {
+    if ((await checkinLimiter.hit(`${t.orgId}:${req.ip}`)).limited) {
       reply.code(429);
       return { error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' };
     }

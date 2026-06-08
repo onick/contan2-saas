@@ -9,6 +9,7 @@ import bcrypt from 'bcryptjs';
 import { getDb, type DbClient } from '@contan2/db';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
 import { baseCookieOptions } from '../cookies.js';
+import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import {
   signScannerSession, verifyScannerSession, SCANNER_COOKIE, SCANNER_TTL_MS,
 } from '../scanner-auth.js';
@@ -16,20 +17,10 @@ import {
 // PIN: 4-8 dígitos (paridad con v1 · staffPin.js).
 const PIN_RE = /^\d{4,8}$/;
 
-// Rate-limit del PIN por IP (anti fuerza bruta).
-const PIN_LIMIT = 8;
-const PIN_WINDOW_MS = 60_000;
-const hits = new Map<string, { count: number; resetAt: number }>();
-function pinRateLimited(ip: string, now: number): boolean {
-  for (const [k, b] of hits) if (now >= b.resetAt) hits.delete(k);
-  const cur = hits.get(ip);
-  if (!cur || now >= cur.resetAt) {
-    hits.set(ip, { count: 1, resetAt: now + PIN_WINDOW_MS });
-    return false;
-  }
-  cur.count += 1;
-  return cur.count > PIN_LIMIT;
-}
+// Rate-limit del PIN: 8 / 60s. Backend Redis (compartido entre réplicas) si hay
+// REDIS_URL, in-memory si no (con degradación grácil si Redis cae). Aislado por
+// entorno + tenant + endpoint; la key es `${orgId}:${ip}` (sin PIN ni PII).
+const pinLimiter = createRateLimiter({ max: 8, windowMs: 60_000, prefix: endpointPrefix('scanner-pin') });
 
 async function resolveOrg(db: DbClient, req: FastifyRequest) {
   const tenant = await resolveTenantFromHost(db, effectiveHost(req));
@@ -46,7 +37,7 @@ export const scannerRoute: FastifyPluginAsync = async (app) => {
     const t = await resolveOrg(db, req);
     if (!t.ok) { reply.code(t.status); return { error: t.error }; }
 
-    if (pinRateLimited(req.ip, Date.now())) {
+    if ((await pinLimiter.hit(`${t.orgId}:${req.ip}`)).limited) {
       reply.code(429);
       return { error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' };
     }

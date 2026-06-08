@@ -26,6 +26,14 @@ export interface RateLimitOptions {
   prefix?: string; // namespacing de la key (login vs scanner vs …)
 }
 
+// Prefijo de endpoint con namespace por ENTORNO. Evita colisiones de contadores
+// si staging y producción compartieran un Redis: la key Redis final queda
+// `${env}:${name}:${tenantId}:${ip}` (entorno · endpoint · tenant · ip). Sin
+// NODE_ENV (dev local) → 'dev'. La key NUNCA lleva email/código/PIN/token (PII).
+export function endpointPrefix(name: string, env: { NODE_ENV?: string } = process.env): string {
+  return `${env.NODE_ENV ?? 'dev'}:${name}`;
+}
+
 // ── In-memory ───────────────────────────────────────────────────────────────
 // `clock` inyectable para tests deterministas (default Date.now).
 export function createInMemoryRateLimiter(

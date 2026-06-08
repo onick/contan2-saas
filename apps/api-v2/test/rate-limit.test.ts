@@ -7,6 +7,7 @@ import {
   createInMemoryRateLimiter,
   createRateLimiter,
   createRedisRateLimiter,
+  endpointPrefix,
 } from '../src/rate-limit.js';
 
 describe('createInMemoryRateLimiter', () => {
@@ -43,6 +44,31 @@ describe('createInMemoryRateLimiter', () => {
     await rl.hit('ip');
     t = 300;
     expect((await rl.hit('ip')).retryAfterMs).toBe(700);
+  });
+});
+
+describe('endpointPrefix (namespace por entorno)', () => {
+  it('prefija con NODE_ENV; sin NODE_ENV → dev', () => {
+    expect(endpointPrefix('scanner-pin', { NODE_ENV: 'staging' })).toBe('staging:scanner-pin');
+    expect(endpointPrefix('public-checkin', { NODE_ENV: 'production' })).toBe('production:public-checkin');
+    expect(endpointPrefix('login', {})).toBe('dev:login');
+  });
+});
+
+describe('aislamiento por tenant y por endpoint', () => {
+  it('tenant: misma IP, distinto orgId → contadores independientes (key)', async () => {
+    const rl = createInMemoryRateLimiter({ max: 1, windowMs: 1000, clock: () => 0 });
+    expect((await rl.hit('orgA:1.1.1.1')).limited).toBe(false);
+    expect((await rl.hit('orgB:1.1.1.1')).limited).toBe(false); // otro tenant, su bucket
+    expect((await rl.hit('orgA:1.1.1.1')).limited).toBe(true); // 2ª de orgA supera max=1
+  });
+
+  it('endpoint: instancias separadas (scanner vs checkin) no comparten estado', async () => {
+    const scanner = createInMemoryRateLimiter({ max: 1, windowMs: 1000, clock: () => 0 });
+    const checkin = createInMemoryRateLimiter({ max: 1, windowMs: 1000, clock: () => 0 });
+    expect((await scanner.hit('org:ip')).limited).toBe(false);
+    expect((await checkin.hit('org:ip')).limited).toBe(false); // otro endpoint
+    expect((await scanner.hit('org:ip')).limited).toBe(true); // 2ª en scanner
   });
 });
 
