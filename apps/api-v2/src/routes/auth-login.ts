@@ -31,19 +31,13 @@ import {
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
 import { verifyStaffPassword } from '../services/password.js';
 import { createRateLimiter } from '../rate-limit.js';
+import { baseCookieOptions } from '../cookies.js';
 
 const SESSION_COOKIE = 'contan2_session';
 
 // Rate-limit de login: 10 intentos / 15 min por IP (paridad con v1 · auth.js:31).
 // Backend según REDIS_URL: Redis (compartido) si está seteado, in-memory si no.
 const loginLimiter = createRateLimiter({ max: 10, windowMs: 15 * 60 * 1000, prefix: 'login' });
-
-// secure=true sólo en prod (en prod NODE_ENV=production, ver Dockerfile). En
-// dev/tests (http) iría false para que la cookie funcione sin TLS. Mismo criterio
-// efectivo que v1 (secure cuando no es localhost).
-function isSecureCookieEnv(): boolean {
-  return process.env.NODE_ENV === 'production';
-}
 
 function sha256(s: string): string {
   return createHash('sha256').update(s).digest('hex');
@@ -109,13 +103,7 @@ export const authLoginRoute: FastifyPluginAsync = async (app) => {
       userAgent: typeof ua === 'string' ? ua.slice(0, 256) : null,
     });
 
-    reply.setCookie(SESSION_COOKIE, token, {
-      httpOnly: true,
-      secure: isSecureCookieEnv(),
-      sameSite: 'lax',
-      path: '/',
-      expires: expiresAt,
-    });
+    reply.setCookie(SESSION_COOKIE, token, { ...baseCookieOptions(), expires: expiresAt });
 
     reply.code(200);
     const body: StaffLoginResponse = {
@@ -131,7 +119,8 @@ export const authLoginRoute: FastifyPluginAsync = async (app) => {
   app.post('/auth/logout', async (req: FastifyRequest, reply) => {
     const token = req.cookies?.[SESSION_COOKIE];
     await revokeStaffSession(getDb(), token);
-    reply.clearCookie(SESSION_COOKIE, { path: '/' });
+    // Limpia con los MISMOS atributos que la cookie original (secure/sameSite/path).
+    reply.clearCookie(SESSION_COOKIE, baseCookieOptions());
     const body: StaffLogoutResponse = { ok: true };
     return body;
   });

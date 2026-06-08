@@ -8,6 +8,7 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { getDb, type DbClient } from '@contan2/db';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
+import { baseCookieOptions } from '../cookies.js';
 import {
   signScannerSession, verifyScannerSession, SCANNER_COOKIE, SCANNER_TTL_MS,
 } from '../scanner-auth.js';
@@ -68,10 +69,7 @@ export const scannerRoute: FastifyPluginAsync = async (app) => {
     }
 
     reply.setCookie(SCANNER_COOKIE, signScannerSession(t.orgId), {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      secure: process.env.NODE_ENV === 'production',
+      ...baseCookieOptions(),
       maxAge: Math.floor(SCANNER_TTL_MS / 1000),
     });
     return { ok: true };
@@ -91,9 +89,9 @@ export const scannerRoute: FastifyPluginAsync = async (app) => {
     return { ok: true, orgSlug: t.slug };
   });
 
-  // POST /api/v2/scanner/logout · limpia la cookie.
+  // POST /api/v2/scanner/logout · limpia la cookie (mismos atributos que al setear).
   app.post('/scanner/logout', async (_req, reply) => {
-    reply.clearCookie(SCANNER_COOKIE, { path: '/' });
+    reply.clearCookie(SCANNER_COOKIE, baseCookieOptions());
     return { ok: true };
   });
 };
