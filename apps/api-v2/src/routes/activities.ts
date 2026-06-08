@@ -176,6 +176,150 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     return body;
   });
 
+  // POST /api/v2/activities/with-cover · ESCRITURA ATÓMICA. Crea una actividad
+  // nueva con su portada OBLIGATORIA en un solo request multipart (campos +
+  // EXACTAMENTE un archivo). Garantía server-side: la actividad se INSERTA desde
+  // el inicio con `image_url`; si falla el procesamiento, la escritura del archivo
+  // o el INSERT → no se crea actividad y se borra el archivo nuevo (sin huérfanos
+  // ni `.tmp-*`). Nunca publica una actividad sin portada. Sólo owner/admin
+  // (operator 403). organization_id/status/image_url/enrolled_count jamás del
+  // cliente. El endpoint legacy `POST /activities` se mantiene por compatibilidad.
+  app.post('/activities/with-cover', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
+      reply.code(403);
+      return { error: 'No tenés permiso para crear actividades.' };
+    }
+    const orgId = guard.ctx.org.id;
+
+    // Multipart: campos de actividad + EXACTAMENTE un archivo (tope duro 5MB del
+    // plugin). Bufferizamos el archivo en memoria pero NO lo escribimos a disco
+    // hasta validar todo → un body inválido no deja archivo ni actividad.
+    const fields: Record<string, string> = {};
+    let buf: Buffer | undefined;
+    let fileCount = 0;
+    let oversize = false;
+    let parseErr = false;
+    try {
+      for await (const partItem of req.parts()) {
+        if (partItem.type === 'file') {
+          fileCount += 1;
+          if (fileCount > 1) break; // segundo archivo → rechazo (no lo leemos)
+          buf = await partItem.toBuffer();
+          if (partItem.file.truncated) oversize = true;
+        } else {
+          fields[partItem.fieldname] = String(partItem.value ?? '');
+        }
+      }
+    } catch (e) {
+      if ((e as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') oversize = true;
+      else parseErr = true;
+    }
+    if (parseErr) {
+      reply.code(400);
+      return { error: 'Carga de archivo inválida.' };
+    }
+    if (fileCount > 1) {
+      reply.code(400);
+      return { error: 'Subí exactamente un archivo de portada.' };
+    }
+    if (oversize) {
+      reply.code(413);
+      return { error: 'La imagen supera el máximo de 5 MB.' };
+    }
+    if (fileCount === 0 || !buf) {
+      reply.code(400);
+      return { error: 'La portada es obligatoria.' };
+    }
+
+    // Campos prohibidos del cliente → 400 (no se derivan del body).
+    for (const k of ['organizationId', 'organization_id', 'status', 'imageUrl', 'image_url', 'enrolledCount', 'enrolled_count', 'id']) {
+      if (k in fields) {
+        reply.code(400);
+        return { error: `Campo no permitido: ${k}.` };
+      }
+    }
+
+    // Validar campos con el contrato existente (coerción de tipos como el form).
+    const candidate: Record<string, unknown> = {
+      name: fields.name?.trim(),
+      type: fields.type,
+      location: fields.location?.trim(),
+      date: fields.date,
+      ...(fields.endDate ? { endDate: fields.endDate } : {}),
+      ...(fields.capacity !== undefined && fields.capacity !== '' ? { capacity: Number(fields.capacity) } : {}),
+      ...(fields.description ? { description: fields.description } : {}),
+      ...(fields.category ? { category: fields.category } : {}),
+    };
+    const parsed = ActivityCreateRequestSchema.safeParse(candidate);
+    if (!parsed.success) {
+      reply.code(400);
+      return { error: 'Datos de actividad inválidos.' };
+    }
+    const input = normalizeActivityInput(parsed.data);
+
+    // Validar imagen por MAGIC BYTES + decode real (sharp) → WebP 1600×900. Si
+    // falla, NO se escribió ningún archivo ni actividad.
+    let processed: { data: Buffer; width: number; height: number };
+    try {
+      assertAllowedImage(buf);
+      processed = await processCover(buf);
+    } catch (e) {
+      reply.code(e instanceof CoverError && e.code === 'unsupported_type' ? 415 : 400);
+      return { error: e instanceof Error ? e.message : 'Imagen inválida.' };
+    }
+
+    let root: string;
+    try {
+      root = await ensureWritableRoot();
+    } catch (e) {
+      req.log.error({ err: e }, 'uploads dir no escribible (with-cover)');
+      reply.code(500);
+      return { error: 'Almacenamiento de portadas no disponible.' };
+    }
+
+    // Atómico: escribir archivo → INSERT con image_url. `persistCover` borra el
+    // archivo nuevo si el INSERT lanza o devuelve nada (rollback) → sin huérfanos.
+    try {
+      const { row } = await persistCover({
+        root,
+        data: processed.data,
+        oldImageUrl: null,
+        update: (url) =>
+          db
+            .insertInto('activities')
+            .values({
+              id: randomUUID(),
+              organization_id: orgId,
+              name: input.name,
+              type: input.type,
+              location: input.location,
+              date: input.date,
+              end_date: input.endDate,
+              capacity: input.capacity,
+              description: input.description,
+              image_url: url,
+              category: input.category,
+              status: 'activa',
+            })
+            .returning(ACTIVITY_DETAIL_COLUMNS)
+            .executeTakeFirst(),
+      });
+      reply.code(201);
+      const body: ActivityCreateResponse = { activity: mapActivityDetailRow(row) };
+      return body;
+    } catch (e) {
+      req.log.error({ err: e }, 'with-cover: fallo al crear actividad con portada');
+      reply.code(500);
+      return { error: 'No se pudo crear la actividad con portada. Intentá de nuevo.' };
+    }
+  });
+
   // POST /api/v2/activities/:id/cover · ESCRITURA. Sube y asocia la portada de
   // una actividad EXISTENTE del tenant (flujo: crear → subir portada). Sólo
   // owner/admin. multipart, un archivo, tope duro 5MB. Valida por MAGIC BYTES +
