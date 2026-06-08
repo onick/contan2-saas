@@ -3,6 +3,8 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { getDb, sql } from '@contan2/db';
 import {
   ActivityCreateRequestSchema,
+  ActivityUpdateRequestSchema,
+  ActivityStatusUpdateSchema,
   type ActivitiesListResponse,
   type ActivityListItem,
   type ActivityCreateResponse,
@@ -12,6 +14,7 @@ import { requireTenantStaff } from '../guard.js';
 import { parsePage } from '../query.js';
 import {
   normalizeActivityInput,
+  normalizeActivityUpdate,
   mapActivityDetailRow,
   ACTIVITY_DETAIL_COLUMNS,
 } from '../activities-input.js';
@@ -25,9 +28,21 @@ import { ensureWritableRoot, StorageError } from '../storage.js';
 
 const STATUSES: ReadonlySet<ActivityStatus> = new Set(['activa', 'finalizada', 'cancelada']);
 
-// Crear actividad es tarea administrativa: sólo owner/admin. operator → 403
-// (decisión de producto; v1 lo permitía a todo staff, v2 lo acota).
+// Crear/editar/cambiar-estado es tarea administrativa: sólo owner/admin.
+// operator → 403 (decisión de producto; v1 lo permitía a todo staff, v2 lo acota).
 const CAN_CREATE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+
+// Gracia de 60s para "fecha no en el pasado" (paridad con el create / v1).
+const ACTIVITY_DATE_PAST_GRACE_MS = 60_000;
+
+// Transiciones de estado permitidas (paridad acordada). Mismo estado = idempotente
+// (se maneja aparte). Reactivar (finalizada|cancelada → activa) se permite AUNQUE
+// la fecha haya pasado. No hay hard-delete: "cancelar" es el soft-delete.
+const ALLOWED_TRANSITIONS: Record<ActivityStatus, ReadonlySet<ActivityStatus>> = {
+  activa: new Set(['finalizada', 'cancelada']),
+  finalizada: new Set(['activa']),
+  cancelada: new Set(['activa']),
+};
 
 // GET /api/v2/activities?status=&limit=&offset= · listado tenant-scoped.
 export const activitiesRoute: FastifyPluginAsync = async (app) => {
@@ -248,5 +263,157 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       reply.code(500);
       return { error: 'No se pudo guardar la portada.' };
     }
+  });
+
+  // PATCH /api/v2/activities/:id · ESCRITURA. Edición PARCIAL de una actividad del
+  // tenant. Sólo owner/admin. Cuerpo validado por ActivityUpdateRequestSchema
+  // (.strict() → rechaza organizationId/enrolledCount/imageUrl/status/etc). Las
+  // validaciones cruzadas usan los valores EFECTIVOS (enviado ?? existente). La
+  // guarda de capacidad va en el WHERE del UPDATE → atómica (sin carrera con el
+  // check-in: si enrolled_count creció por encima de la nueva capacidad, no
+  // actualiza → 409). organization_id/enrolled_count/image_url NUNCA se tocan.
+  app.patch('/activities/:id', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
+      reply.code(403);
+      return { error: 'No tenés permiso para editar actividades.' };
+    }
+    const orgId = guard.ctx.org.id;
+    const id = (req.params as { id: string }).id;
+
+    const parsed = ActivityUpdateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      reply.code(400);
+      return { error: 'Datos de actividad inválidos.' };
+    }
+
+    // Cargar la actividad DENTRO del tenant (cross-tenant / inexistente → 404).
+    const existing = await db
+      .selectFrom('activities')
+      .select(['status', 'date', 'end_date', 'capacity', 'enrolled_count'])
+      .where('organization_id', '=', orgId)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!existing) {
+      reply.code(404);
+      return { error: 'Actividad no encontrada.' };
+    }
+
+    const data = parsed.data;
+    // Valores EFECTIVOS (enviado ?? existente) para las validaciones cruzadas.
+    const effDate = data.date !== undefined ? new Date(data.date) : existing.date;
+    const effEnd =
+      data.endDate !== undefined
+        ? data.endDate
+          ? new Date(data.endDate)
+          : null
+        : existing.end_date;
+    const effCapacity = data.capacity !== undefined ? data.capacity : existing.capacity;
+
+    if (effEnd && effEnd.getTime() < effDate.getTime()) {
+      reply.code(400);
+      return { error: 'La fecha de cierre debe ser igual o posterior a la de inicio.' };
+    }
+    // Sólo una actividad ACTIVA no puede quedar con fecha pasada (las terminales
+    // conservan su fecha histórica, p. ej. al reactivar después).
+    if (existing.status === 'activa' && effDate.getTime() < Date.now() - ACTIVITY_DATE_PAST_GRACE_MS) {
+      reply.code(400);
+      return { error: 'La fecha debe ser presente o futura.' };
+    }
+    if (effCapacity < existing.enrolled_count) {
+      reply.code(409);
+      return { error: 'La capacidad no puede ser menor que la cantidad de inscritos.' };
+    }
+
+    const setFields = normalizeActivityUpdate(data);
+    // UPDATE atómico: la guarda `enrolled_count <= effCapacity` en el WHERE evita
+    // la carrera con el check-in (si subió por encima, no actualiza → 409).
+    const row = await db
+      .updateTable('activities')
+      .set({ ...setFields, updated_at: sql<string>`now()` })
+      .where('organization_id', '=', orgId)
+      .where('id', '=', id)
+      .where('enrolled_count', '<=', effCapacity)
+      .returning(ACTIVITY_DETAIL_COLUMNS)
+      .executeTakeFirst();
+    if (!row) {
+      // La fila existe (ya la cargamos) → perdió la carrera de capacidad.
+      reply.code(409);
+      return { error: 'La capacidad no puede ser menor que la cantidad de inscritos.' };
+    }
+
+    // TODO Redis C-C: invalidar la cache pública del tenant aquí
+    // (DEL `${env}:pubacts:${orgId}`). Sin cache aún → no-op.
+
+    reply.code(200);
+    const body: ActivityCreateResponse = { activity: mapActivityDetailRow(row) };
+    return body;
+  });
+
+  // PATCH /api/v2/activities/:id/status · ESCRITURA. Cambia el estado según la
+  // matriz de transiciones. Mismo estado → 200 idempotente (sin tocar updated_at).
+  // Transición no permitida → 409. Reactivar permite fecha pasada. Sin emails ni
+  // hard-delete. Sólo owner/admin.
+  app.patch('/activities/:id/status', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
+      reply.code(403);
+      return { error: 'No tenés permiso para cambiar el estado de actividades.' };
+    }
+    const orgId = guard.ctx.org.id;
+    const id = (req.params as { id: string }).id;
+
+    const parsed = ActivityStatusUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      reply.code(400);
+      return { error: 'Estado inválido.' };
+    }
+    const target = parsed.data.status;
+
+    const existing = await db
+      .selectFrom('activities')
+      .select(ACTIVITY_DETAIL_COLUMNS)
+      .where('organization_id', '=', orgId)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!existing) {
+      reply.code(404);
+      return { error: 'Actividad no encontrada.' };
+    }
+
+    // Idempotente: mismo estado → devuelve la actividad sin escribir (no bumpea
+    // updated_at).
+    if (existing.status === target) {
+      reply.code(200);
+      return { activity: mapActivityDetailRow(existing) } satisfies ActivityCreateResponse;
+    }
+    if (!ALLOWED_TRANSITIONS[existing.status].has(target)) {
+      reply.code(409);
+      return { error: `No se puede pasar de ${existing.status} a ${target}.` };
+    }
+
+    const row = await db
+      .updateTable('activities')
+      .set({ status: target, updated_at: sql<string>`now()` })
+      .where('organization_id', '=', orgId)
+      .where('id', '=', id)
+      .returning(ACTIVITY_DETAIL_COLUMNS)
+      .executeTakeFirstOrThrow();
+
+    // TODO Redis C-C: invalidar cache pública del tenant (DEL pubacts:${orgId}).
+
+    reply.code(200);
+    const body: ActivityCreateResponse = { activity: mapActivityDetailRow(row) };
+    return body;
   });
 };

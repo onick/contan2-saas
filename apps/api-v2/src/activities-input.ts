@@ -9,7 +9,7 @@
 // status e image_url NO se tocan acá: el route fija status='activa' e
 // image_url=null (decisiones de producto), nunca desde el body.
 
-import type { ActivityCreateRequest, ActivityDetail } from '@contan2/contracts';
+import type { ActivityCreateRequest, ActivityUpdateRequest, ActivityDetail } from '@contan2/contracts';
 
 // Columnas a proyectar con RETURNING para construir un ActivityDetail (create +
 // cover comparten esta proyección + el mapper de abajo).
@@ -65,6 +65,36 @@ export interface NormalizedActivityInput {
   capacity: number;
   description: string;
   category: string | null;
+}
+
+// SET parcial (snake_case) para el UPDATE de edición: SÓLO las claves enviadas,
+// normalizadas igual que el create. `endDate`/`category` null → limpian el valor.
+// `updated_at` y la guarda de capacidad las pone el route (no acá).
+export interface ActivityUpdateSet {
+  name?: string;
+  type?: string;
+  location?: string;
+  date?: string;
+  end_date?: string | null;
+  capacity?: number;
+  description?: string;
+  category?: string | null;
+}
+
+export function normalizeActivityUpdate(data: ActivityUpdateRequest): ActivityUpdateSet {
+  const set: ActivityUpdateSet = {};
+  if (data.name !== undefined) set.name = data.name.trim();
+  if (data.type !== undefined) set.type = data.type;
+  if (data.location !== undefined) set.location = data.location.trim();
+  if (data.date !== undefined) set.date = new Date(data.date).toISOString();
+  if (data.endDate !== undefined) set.end_date = data.endDate ? new Date(data.endDate).toISOString() : null;
+  if (data.capacity !== undefined) set.capacity = data.capacity;
+  if (data.description !== undefined) set.description = data.description.trim();
+  if (data.category !== undefined) {
+    const c = data.category?.trim();
+    set.category = c ? c.toLowerCase().replace(/\s+/g, ' ') : null;
+  }
+  return set;
 }
 
 export function normalizeActivityInput(data: ActivityCreateRequest): NormalizedActivityInput {

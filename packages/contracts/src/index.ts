@@ -170,6 +170,35 @@ export const ActivityCreateRequestSchema = z
   });
 export type ActivityCreateRequest = z.infer<typeof ActivityCreateRequestSchema>;
 
+// ─────────────────────────────────────────────────────────────────────────
+// Edición de actividad (ESCRITURA · PATCH /api/v2/activities/:id). PARCIAL:
+// todos los campos opcionales (se actualiza sólo lo enviado). `.strict()` →
+// RECHAZA claves no editables (organizationId, enrolledCount, imageUrl, status,
+// id, timestamps) con 400. Las validaciones CRUZADAS contra el estado/valores
+// EXISTENTES (capacity ≥ enrolled_count → 409, endDate ≥ date, fecha no pasada
+// si está 'activa') viven en el route, porque dependen de la fila actual.
+//   · endDate/category aceptan null para LIMPIAR el valor.
+// ─────────────────────────────────────────────────────────────────────────
+export const ActivityUpdateRequestSchema = z
+  .object({
+    name: z.string().trim().min(3).max(100),
+    type: ActivityTypeSchema,
+    location: z.string().trim().min(2).max(100),
+    date: z.string().datetime({ offset: true }),
+    endDate: z.string().datetime({ offset: true }).nullable(),
+    capacity: z.number().int().min(1).max(10000),
+    description: z.string().max(1000),
+    category: z.string().max(60).nullable(),
+  })
+  .partial()
+  .strict();
+export type ActivityUpdateRequest = z.infer<typeof ActivityUpdateRequestSchema>;
+
+// Cambio de estado (ESCRITURA · PATCH /api/v2/activities/:id/status). Sólo el
+// campo status; transiciones válidas las decide el route (matriz). `.strict()`.
+export const ActivityStatusUpdateSchema = z.object({ status: ActivityStatusSchema }).strict();
+export type ActivityStatusUpdate = z.infer<typeof ActivityStatusUpdateSchema>;
+
 // Actividad completa (respuesta del create · superset del ListItem con los
 // campos que el listado no proyecta: endDate/description/imageUrl/timestamps).
 export const ActivityDetailSchema = z.object({
