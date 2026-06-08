@@ -340,3 +340,54 @@ export const PublicCheckinResponseSchema = z.object({
   activity: z.object({ id: z.string(), name: z.string() }),
 });
 export type PublicCheckinResponse = z.infer<typeof PublicCheckinResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
+// Check-in administrativo (LECTURA · Check-in A). Consola operativa del staff
+// autenticado. "Hoy" usa una zona horaria única de app (CHECKIN_TZ, default
+// America/Santo_Domingo) porque v2 NO tiene timezone por tenant; los "últimos
+// 10 min" son absolutos. serverNow corrige discrepancias de reloj del cliente.
+// ─────────────────────────────────────────────────────────────────────────
+export const CheckinMetricsResponseSchema = z.object({
+  metrics: z.object({
+    checkinsToday: z.number().int(),
+    checkinsLast10Min: z.number().int(),
+    uniqueVisitorsToday: z.number().int(),
+    activeActivities: z.number().int(),
+  }),
+  serverNow: z.string(), // ISO 8601
+  timezone: z.string(), // tz usada para "hoy"
+});
+export type CheckinMetricsResponse = z.infer<typeof CheckinMetricsResponseSchema>;
+
+export const CheckinActivityItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  location: z.string(),
+  date: z.string(), // ISO 8601
+  capacity: z.number().int(),
+  enrolledCount: z.number().int(),
+  available: z.number().int(), // max(0, capacity - enrolledCount)
+  occupancyPct: z.number().int(),
+  recentMovement: z.number().int(), // check-ins en los últimos 10 min
+  full: z.boolean(),
+});
+export type CheckinActivityItem = z.infer<typeof CheckinActivityItemSchema>;
+export const CheckinActivitiesResponseSchema = z.object({
+  items: z.array(CheckinActivityItemSchema),
+  serverNow: z.string(),
+});
+export type CheckinActivitiesResponse = z.infer<typeof CheckinActivitiesResponseSchema>;
+
+// Respuesta mínima de búsqueda: lo necesario para identificar/seleccionar al
+// visitante. NO incluye teléfono (PII innecesaria para el check-in).
+export const CheckinVisitorItemSchema = z.object({
+  id: z.string(),
+  code: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().nullable(),
+  visitCount: z.number().int(),
+});
+export type CheckinVisitorItem = z.infer<typeof CheckinVisitorItemSchema>;
+export const CheckinVisitorsResponseSchema = z.object({ items: z.array(CheckinVisitorItemSchema) });
+export type CheckinVisitorsResponse = z.infer<typeof CheckinVisitorsResponseSchema>;
