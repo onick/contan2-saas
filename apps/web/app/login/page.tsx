@@ -25,12 +25,11 @@ export default async function LoginPage({
   const safeNext = sanitizeNext(next);
   const branding = getLocalBranding();
   const themeVars = brandingToCssVars(branding) as CSSProperties;
-  const mark = branding.name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
+  // Nombre en dos líneas: "Centro Cultural" / "Banreservas". Derivado del nombre
+  // del tenant (primeras 2 palabras + resto) → para CCB da exactamente eso.
+  const words = branding.name.split(/\s+/).filter(Boolean);
+  const nameLine1 = words.slice(0, 2).join(' ');
+  const nameLine2 = words.slice(2).join(' ');
 
   return (
     <div style={themeVars} className="grid min-h-screen place-items-center bg-page px-5 py-10">
@@ -38,15 +37,15 @@ export default async function LoginPage({
         {/* Entrada sutil escalonada (logo → card → pie). Desactivada bajo
             prefers-reduced-motion por globals.css; el contenido queda visible. */}
         <div className="app-stagger">
-          {/* Cabecera compacta */}
+          {/* Cabecera compacta · ícono real de la marca (símbolo CCB) */}
           <header className="flex flex-col items-center text-center">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-strong text-base font-bold text-white shadow-sm">
-              {mark}
-            </span>
-            <h1 className="mt-3 text-[19px] font-semibold tracking-tight text-ink text-balance">
-              {branding.name}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/ccb-icon.svg" alt={branding.name} className="h-16 w-auto" />
+            <h1 className="mt-3 text-[19px] font-semibold leading-tight tracking-tight text-ink">
+              <span className="block">{nameLine1}</span>
+              {nameLine2 ? <span className="block">{nameLine2}</span> : null}
             </h1>
-            <p className="mt-0.5 text-[13px] text-muted">Panel de administración</p>
+            <p className="mt-1 text-[13px] text-muted">Panel de administración</p>
           </header>
 
           {/* Card */}
