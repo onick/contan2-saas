@@ -41,9 +41,11 @@ export default async function LoginPage({
           <header className="flex flex-col items-center text-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/ccb-icon.svg" alt={branding.name} className="h-16 w-auto" />
-            <h1 className="mt-3 text-[19px] font-semibold leading-tight tracking-tight text-ink">
-              <span className="block">{nameLine1}</span>
-              {nameLine2 ? <span className="block">{nameLine2}</span> : null}
+            <h1 className="mt-3 text-[19px] font-semibold leading-tight tracking-tight">
+              <span className="block text-[#646769]">{nameLine1}</span>
+              {nameLine2 ? (
+                <span className="block font-light text-[#646769]">{nameLine2}</span>
+              ) : null}
             </h1>
             <p className="mt-1 text-[13px] text-muted">Panel de administración</p>
           </header>
