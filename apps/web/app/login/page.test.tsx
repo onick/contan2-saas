@@ -1,0 +1,35 @@
+// apps/web/app/login/page.test.tsx · textos e identidad del login (presentación).
+import { describe, it, expect, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
+import LoginPage from './page';
+
+afterEach(cleanup);
+
+async function renderPage(next?: string) {
+  const ui = await LoginPage({ searchParams: Promise.resolve(next ? { next } : {}) });
+  render(ui);
+}
+
+describe('/login', () => {
+  it('conserva la identidad y los textos en español', async () => {
+    await renderPage();
+    expect(screen.getByText('CC')).toBeInTheDocument(); // logo
+    expect(screen.getByRole('heading', { name: 'Centro Cultural Banreservas' })).toBeInTheDocument();
+    expect(screen.getByText('Panel de administración')).toBeInTheDocument();
+    expect(screen.getByText('Correo')).toBeInTheDocument();
+    expect(screen.getByText('Contraseña')).toBeInTheDocument();
+    expect(screen.getByText('Mantener la sesión iniciada')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /ingresar/i })).toBeInTheDocument();
+    expect(
+      screen.getByText('Acceso restringido al equipo del centro cultural.'),
+    ).toBeInTheDocument();
+  });
+
+  it('no agrega Google, registro, recuperación ni enlaces', async () => {
+    await renderPage();
+    expect(screen.queryByText(/google/i)).toBeNull();
+    expect(screen.queryByText(/sign up|regist|crear cuenta/i)).toBeNull();
+    expect(screen.queryByText(/forgot|olvid|recuperar/i)).toBeNull();
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+  });
+});

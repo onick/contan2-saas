@@ -5,9 +5,12 @@
 // (navegación completa → la nueva cookie viaja). En error muestra UN mensaje
 // genérico: NO distingue email inexistente de password incorrecta (anti
 // enumeración). 429 → mensaje de demasiados intentos. No guarda ni loguea PII.
+//
+// Rediseño visual (pill inputs + botón redondeado) SIN tocar la lógica: mismo
+// onSubmit, mismos estados de carga/anti-doble-submit, mismos mensajes.
 
 import { useState, type FormEvent } from 'react';
-import { LogIn, Loader2 } from 'lucide-react';
+import { LogIn, Loader2, Mail, Lock } from 'lucide-react';
 import { cn, focusRing } from '../ui/cn';
 
 export interface LoginFormProps {
@@ -53,8 +56,12 @@ export function LoginForm({ next }: LoginFormProps) {
     }
   }
 
+  // Input pill: ícono discreto a la izquierda, alto ~48px, label arriba.
+  const labelCls = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-faint';
+  const iconCls = 'pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint';
   const inputCls = cn(
-    'mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-[15px] text-ink',
+    'h-12 w-full rounded-full border border-line bg-surface pl-11 pr-4 text-[15px] text-ink',
+    'placeholder:text-faint',
     focusRing,
   );
 
@@ -63,44 +70,50 @@ export function LoginForm({ next }: LoginFormProps) {
       {error ? (
         <p
           role="alert"
-          className="rounded-lg border border-[#e0b4b4] bg-[#fdf3f3] px-3.5 py-2.5 text-[13px] font-medium text-[#9b1c1c]"
+          className="rounded-xl border border-[#e0b4b4] bg-[#fdf3f3] px-3.5 py-2.5 text-[13px] font-medium text-[#9b1c1c]"
         >
           {error}
         </p>
       ) : null}
 
       <label className="block">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-          Correo
-        </span>
-        <input
-          name="email"
-          type="email"
-          autoComplete="username"
-          required
-          autoFocus
-          inputMode="email"
-          placeholder="tu@correo.com"
-          className={inputCls}
-        />
+        <span className={labelCls}>Correo</span>
+        <div className="relative mt-1.5">
+          <Mail size={18} strokeWidth={1.75} aria-hidden="true" className={iconCls} />
+          <input
+            name="email"
+            type="email"
+            autoComplete="username"
+            required
+            autoFocus
+            inputMode="email"
+            placeholder="tu@correo.com"
+            className={inputCls}
+          />
+        </div>
       </label>
 
       <label className="block">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-          Contraseña
-        </span>
-        <input
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          placeholder="••••••••"
-          className={inputCls}
-        />
+        <span className={labelCls}>Contraseña</span>
+        <div className="relative mt-1.5">
+          <Lock size={18} strokeWidth={1.75} aria-hidden="true" className={iconCls} />
+          <input
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            placeholder="••••••••"
+            className={inputCls}
+          />
+        </div>
       </label>
 
       <label className="flex items-center gap-2.5 text-[13px] text-muted">
-        <input name="rememberMe" type="checkbox" className="h-4 w-4 rounded border-line accent-[color:var(--color-brand,#c44400)]" />
+        <input
+          name="rememberMe"
+          type="checkbox"
+          className="h-4 w-4 rounded border-line accent-[color:var(--color-brand,#c44400)]"
+        />
         Mantener la sesión iniciada
       </label>
 
@@ -108,7 +121,9 @@ export function LoginForm({ next }: LoginFormProps) {
         type="submit"
         disabled={loading}
         className={cn(
-          'mt-1 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand-strong px-4 text-[15px] font-semibold text-white shadow-sm transition hover:brightness-95 active:brightness-90 disabled:opacity-70',
+          'mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#e99838] px-4 text-[15px] font-semibold text-[#211c18] shadow-sm',
+          'transition hover:brightness-95 active:translate-y-px active:brightness-90',
+          'disabled:pointer-events-none disabled:opacity-70',
           focusRing,
         )}
       >

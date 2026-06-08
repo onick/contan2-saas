@@ -25,32 +25,40 @@ export default async function LoginPage({
   const safeNext = sanitizeNext(next);
   const branding = getLocalBranding();
   const themeVars = brandingToCssVars(branding) as CSSProperties;
+  const mark = branding.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('');
 
   return (
     <div style={themeVars} className="grid min-h-screen place-items-center bg-page px-5 py-10">
-      <main className="w-full max-w-sm">
-        <div className="mb-7 flex flex-col items-center text-center">
-          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-strong text-lg font-bold text-white shadow-sm">
-            {branding.name
-              .split(/\s+/)
-              .filter(Boolean)
-              .slice(0, 2)
-              .map((w) => w[0]?.toUpperCase() ?? '')
-              .join('')}
-          </span>
-          <h1 className="mt-4 text-[22px] font-semibold tracking-tight text-ink text-balance">
-            {branding.name}
-          </h1>
-          <p className="mt-1 text-[13px] text-muted">Panel de administración</p>
-        </div>
+      <main className="w-full max-w-[420px]">
+        {/* Entrada sutil escalonada (logo → card → pie). Desactivada bajo
+            prefers-reduced-motion por globals.css; el contenido queda visible. */}
+        <div className="app-stagger">
+          {/* Cabecera compacta */}
+          <header className="flex flex-col items-center text-center">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-strong text-base font-bold text-white shadow-sm">
+              {mark}
+            </span>
+            <h1 className="mt-3 text-[19px] font-semibold tracking-tight text-ink text-balance">
+              {branding.name}
+            </h1>
+            <p className="mt-0.5 text-[13px] text-muted">Panel de administración</p>
+          </header>
 
-        <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
-          <LoginForm next={safeNext} />
-        </div>
+          {/* Card */}
+          <div className="mt-5 rounded-2xl border border-line bg-surface p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_8px_24px_-12px_rgba(16,24,40,0.12)] sm:p-7">
+            <LoginForm next={safeNext} />
+          </div>
 
-        <p className="mt-6 text-center text-xs text-faint">
-          Acceso restringido al equipo del centro cultural.
-        </p>
+          {/* Pie */}
+          <p className="mt-5 text-center text-xs text-faint">
+            Acceso restringido al equipo del centro cultural.
+          </p>
+        </div>
       </main>
     </div>
   );
