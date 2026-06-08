@@ -13,8 +13,13 @@ async function renderPage(next?: string) {
 describe('/login', () => {
   it('conserva la identidad y los textos en español', async () => {
     await renderPage();
-    expect(screen.getByText('CC')).toBeInTheDocument(); // logo
-    expect(screen.getByRole('heading', { name: 'Centro Cultural Banreservas' })).toBeInTheDocument();
+    // Logo: ícono real de la marca (símbolo CCB), con alt accesible.
+    const logo = screen.getByRole('img', { name: 'Centro Cultural Banreservas' });
+    expect(logo).toHaveAttribute('src', '/ccb-icon.svg');
+    // Nombre en dos líneas.
+    expect(screen.getByText('Centro Cultural')).toBeInTheDocument();
+    expect(screen.getByText('Banreservas')).toBeInTheDocument();
+    expect(screen.getByRole('heading')).toBeInTheDocument();
     expect(screen.getByText('Panel de administración')).toBeInTheDocument();
     expect(screen.getByText('Correo')).toBeInTheDocument();
     expect(screen.getByText('Contraseña')).toBeInTheDocument();
