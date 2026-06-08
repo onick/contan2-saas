@@ -30,14 +30,16 @@ import {
 } from '@contan2/contracts';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
 import { verifyStaffPassword } from '../services/password.js';
-import { createRateLimiter } from '../rate-limit.js';
+import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { baseCookieOptions } from '../cookies.js';
 
 const SESSION_COOKIE = 'contan2_session';
 
 // Rate-limit de login: 10 intentos / 15 min por IP (paridad con v1 · auth.js:31).
 // Backend según REDIS_URL: Redis (compartido) si está seteado, in-memory si no.
-const loginLimiter = createRateLimiter({ max: 10, windowMs: 15 * 60 * 1000, prefix: 'login' });
+// Namespace por entorno (igual que scanner/lookup/checkin). Login es por IP
+// (anti-bruteforce, no por tenant — paridad con v1).
+const loginLimiter = createRateLimiter({ max: 10, windowMs: 15 * 60 * 1000, prefix: endpointPrefix('login') });
 
 function sha256(s: string): string {
   return createHash('sha256').update(s).digest('hex');

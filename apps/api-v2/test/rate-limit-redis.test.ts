@@ -50,4 +50,21 @@ run('createRedisRateLimiter', () => {
     await new Promise((r) => setTimeout(r, 250)); // deja vencer la ventana
     expect((await rl.hit('ip-d')).limited).toBe(false); // contador nuevo
   });
+
+  it('DOS INSTANCIAS sobre el MISMO Redis comparten el contador (cross-réplica)', async () => {
+    // Simula dos réplicas del servicio apuntando al mismo Redis/prefijo.
+    const inst1 = createRedisRateLimiter(client, { max: 2, windowMs: 5000, prefix });
+    const inst2 = createRedisRateLimiter(client, { max: 2, windowMs: 5000, prefix });
+    const key = 'shared-ip';
+    expect((await inst1.hit(key)).limited).toBe(false); // 1 (réplica 1)
+    expect((await inst2.hit(key)).limited).toBe(false); // 2 (réplica 2, mismo contador)
+    expect((await inst1.hit(key)).limited).toBe(true); // 3 > max → limita (estado compartido)
+  });
+
+  it('aislamiento por tenant también en Redis (keys distintas)', async () => {
+    const rl = createRedisRateLimiter(client, { max: 1, windowMs: 5000, prefix });
+    expect((await rl.hit('orgA:ip')).limited).toBe(false);
+    expect((await rl.hit('orgB:ip')).limited).toBe(false); // otro tenant
+    expect((await rl.hit('orgA:ip')).limited).toBe(true);
+  });
 });
