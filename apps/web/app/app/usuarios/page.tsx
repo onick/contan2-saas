@@ -1,235 +1,117 @@
 import type { Metadata } from 'next';
-import { Suspense } from 'react';
-import {
-  Download,
-  UserPlus,
-  ArrowUp,
-  ChevronDown,
-  Search,
-  List,
-  LayoutGrid,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
+import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { Download, UserPlus, SearchX } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { UsersTable } from '../../../components/usuarios/UsersTable';
-import { SectionHeader, Button, IconButton, Card, Skeleton, cn, focusRing } from '../../../components/ui';
-import { getLocalBranding } from '../../../lib/branding/config';
-import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
+import { SectionHeader, Button, Card, EmptyState } from '../../../components/ui';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { DemoBanner } from '../../../components/shell/DemoBanner';
-import { getUsersView } from '../../../lib/api/users';
-import type { UserKpi, UserRow } from '../../../lib/usuarios/demoData';
-import { USERS, USER_KPIS, USER_TABS, TOTAL_USERS } from '../../../lib/usuarios/demoData';
+import { SearchBar } from '../../../components/admin/SearchBar';
+import { Pagination } from '../../../components/admin/Pagination';
+import { getLocalBranding } from '../../../lib/branding/config';
+import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
+import { getUsersPage } from '../../../lib/api/users';
+import {
+  parsePage, parsePageSize, parseQ, qForApi, computeOffset, totalPages,
+  patchSearchParams, recordToSearchParams, type Raw,
+} from '../../../lib/admin/list-params';
+import { USERS } from '../../../lib/usuarios/demoData';
 
-// RUTA PROVISIONAL del tenant-admin. KPIs + pills + tabla se derivan de UN solo
-// fetch a GET /api/v2/users (read-only, PII real al staff del mismo tenant):
-// todo-real o todo-demo (fallback) → nunca KPI real con tabla demo. Total real;
-// nuevos/recurrentes/retorno y conteos de pills son sobre el set cargado (≤100).
+// Usuarios · paginación + búsqueda SERVER-SIDE (la URL es la fuente de verdad).
+// La tabla es presentacional (sin filtrado cliente). KPI de cabecera = total real
+// (API). API caída → Unavailable; nunca demo salvo dev con ALLOW_DEMO_FALLBACK.
 export const metadata: Metadata = {
   title: 'Contan2 v2 · Usuarios',
   description: 'Visitantes registrados del centro cultural',
 };
 
-interface Tab { label: string; count: number | null }
+export const dynamic = 'force-dynamic';
 
-async function UsersData() {
-  const view = await getUsersView();
-  // api caída + demo no permitido (staging/prod) → indisponibilidad, NUNCA demo.
-  if (!view && !isDemoFallbackAllowed()) {
-    return <Unavailable inline title="Usuarios no disponibles" description="No pudimos cargar el padrón de visitantes. Reintentá en unos segundos." />;
+export default async function UsuariosPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, Raw>>;
+}) {
+  const sp = await searchParams;
+  const branding = getLocalBranding();
+  const page = parsePage(sp.page);
+  const pageSize = parsePageSize(sp.pageSize);
+  const q = parseQ(sp.q);
+
+  const view = await getUsersPage({
+    limit: pageSize,
+    offset: computeOffset(page, pageSize),
+    q: qForApi(q),
+  });
+
+  // Página fuera de rango (URL vieja / datos borrados): normaliza preservando
+  // filtros. total=0 → página 1; offset ≥ total>0 → última página válida.
+  if (view) {
+    if (view.total === 0 && page !== 1) {
+      redirect(`/app/usuarios?${patchSearchParams(recordToSearchParams(sp), { page: undefined })}`);
+    } else if (view.total > 0 && computeOffset(page, pageSize) >= view.total) {
+      const last = totalPages(view.total, pageSize);
+      redirect(`/app/usuarios?${patchSearchParams(recordToSearchParams(sp), { page: String(last) })}`);
+    }
   }
-  const users: UserRow[] = view?.users ?? USERS;
-  const total = view ? view.total.toLocaleString('en-US') : TOTAL_USERS;
 
-  const kpis: UserKpi[] = view
-    ? [
-        { key: 'total', label: 'Total usuarios', value: view.total.toLocaleString('en-US') },
-        { key: 'nuevos', label: 'Nuevos (30 días)', value: String(view.nuevos) },
-        { key: 'recurrentes', label: 'Recurrentes', value: String(view.recurrentes) },
-        { key: 'retorno', label: 'Tasa de retorno', value: `${view.retornoPct}%` },
-      ]
-    : USER_KPIS;
-
-  const tabs: Tab[] = view
-    ? [
-        { label: 'Todos', count: view.total },
-        { label: 'Activos', count: view.activos },
-        { label: 'Nuevos', count: view.nuevos },
-        { label: 'Inactivos', count: view.inactivos },
-      ]
-    : USER_TABS.map((t) => ({ label: t, count: null }));
-
-  return (
+  const actions = (
     <>
-      {/* KPIs */}
-      <div className="app-stagger mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
-        {kpis.map((k) => (
-          <Card key={k.key} padding="md">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{k.label}</p>
-            <div className="mt-2 flex items-center gap-2">
-              <p className="text-3xl font-bold tabular-nums text-ink">{k.value}</p>
-              {k.trend ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-[12px] font-semibold text-success-fg">
-                  <ArrowUp size={14} strokeWidth={2.25} aria-hidden="true" /> {k.trend.label}
-                </span>
-              ) : null}
-            </div>
-          </Card>
-        ))}
-      </div>
+      <Button variant="secondary"><Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar</Button>
+      <Button><UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Nuevo usuario</Button>
+    </>
+  );
+  const shell = (children: ReactNode) => (
+    <AppShell branding={branding} title="Usuarios" activeKey="usuarios">
+      <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+    </AppShell>
+  );
 
-      {/* Filtros */}
+  if (!view) {
+    if (!isDemoFallbackAllowed()) {
+      return shell(
+        <Unavailable inline title="Usuarios no disponibles" description="No pudimos cargar el padrón de visitantes. Reintentá en unos segundos." />,
+      );
+    }
+    return shell(
+      <>
+        <DemoBanner />
+        <SectionHeader level={1} title="Usuarios" subtitle="Visitantes registrados del centro" actions={actions} />
+        <div className="mt-4"><UsersTable users={USERS} /></div>
+      </>,
+    );
+  }
+
+  return shell(
+    <>
+      <SectionHeader
+        level={1}
+        title="Usuarios"
+        subtitle={`${view.total.toLocaleString('en-US')} visitantes registrados`}
+        actions={actions}
+      />
       <Card padding="none" className="mt-6 p-4">
-        <div className="flex flex-wrap gap-2">
-          {tabs.map((t, i) => (
-            <Button key={t.label} variant="pill" size="sm" selected={i === 0}>
-              {t.label}
-              {t.count != null ? <span className="tabular-nums opacity-70"> ({t.count})</span> : null}
-            </Button>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-          <Button variant="secondary" size="sm">
-            Segmento: Todos <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
-          </Button>
-          <Button variant="secondary" size="sm">
-            Orden: Recientes <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
-          </Button>
-          <div className="ml-auto flex items-center gap-2">
-            <label className="relative hidden sm:block">
-              <span className="sr-only">Buscar por nombre, email o código</span>
-              <Search
-                size={16}
-                strokeWidth={1.75}
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
-              />
-              <input
-                type="search"
-                placeholder="Buscar por nombre, email o código…"
-                className={cn(
-                  'h-9 w-72 rounded-full bg-surface-container pl-9 pr-3.5 text-[13px] text-ink placeholder:text-faint',
-                  focusRing,
-                )}
-              />
-            </label>
-            <div className="flex items-center rounded-lg border border-line bg-surface p-0.5">
-              <button
-                type="button"
-                aria-label="Vista tabla"
-                aria-pressed={true}
-                className={cn('grid h-8 w-8 place-items-center rounded-md bg-surface-container text-ink', focusRing)}
-              >
-                <List size={17} strokeWidth={1.75} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                aria-label="Vista tarjetas"
-                aria-pressed={false}
-                className={cn('grid h-8 w-8 place-items-center rounded-md text-faint hover:text-muted', focusRing)}
-              >
-                <LayoutGrid size={17} strokeWidth={1.75} aria-hidden="true" />
-              </button>
-            </div>
+        <div className="flex items-center gap-2">
+          <div className="ml-auto min-w-0 flex-1 sm:flex-none">
+            <SearchBar label="Buscar por nombre, email o código" placeholder="Buscar por nombre, email o código…" />
           </div>
         </div>
       </Card>
 
-      {/* Tabla */}
-      <div className="mt-4">
-        <UsersTable users={users} />
-      </div>
-
-      {/* Paginación */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[13px] text-muted">
-        <div className="inline-flex items-center gap-2">
-          <span>Filas por página</span>
-          <Button variant="secondary" size="sm">
-            10 <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
-          </Button>
-        </div>
-        <div className="inline-flex items-center gap-3">
-          <span className="tabular-nums">1–{users.length} de {total}</span>
-          <span className="inline-flex gap-1">
-            <IconButton label="Anterior" variant="outline" size="sm">
-              <ChevronLeft size={16} strokeWidth={2} aria-hidden="true" />
-            </IconButton>
-            <IconButton label="Siguiente" variant="outline" size="sm">
-              <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
-            </IconButton>
-          </span>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function UsersSkeleton() {
-  return (
-    <>
-      <div className="mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} padding="md">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="mt-2 h-8 w-20" />
-          </Card>
-        ))}
-      </div>
-      <Card padding="none" className="mt-6 p-4">
-        <div className="flex flex-wrap gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-9 w-24 rounded-full" />
-          ))}
-        </div>
-      </Card>
-      <Card padding="none" className="mt-4 overflow-hidden">
-        <div className="px-5 py-4 md:px-6">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 border-t border-line py-4 first:border-t-0">
-              <Skeleton className="h-10 w-10 flex-none rounded-full" />
-              <div className="flex-1">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="mt-1.5 h-3 w-28" />
-              </div>
-              <Skeleton className="ml-auto hidden h-6 w-20 rounded-full sm:block" />
-            </div>
-          ))}
-        </div>
-      </Card>
-    </>
-  );
-}
-
-export default function UsuariosPage() {
-  const branding = getLocalBranding();
-
-  return (
-    <AppShell branding={branding} title="Usuarios" activeKey="usuarios">
-      <div className="mx-auto w-full max-w-[1600px]">
-        {isDemoFallbackAllowed() ? <DemoBanner /> : null}
-        <div className="app-reveal">
-          <SectionHeader
-            level={1}
-            title="Usuarios"
-            subtitle="Visitantes registrados del centro"
-            actions={
-              <>
-                <Button variant="secondary">
-                  <Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar
-                </Button>
-                <Button>
-                  <UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Nuevo usuario
-                </Button>
-              </>
-            }
+      {view.total === 0 ? (
+        <Card padding="lg" className="mt-4">
+          <EmptyState
+            icon={SearchX}
+            title="Sin resultados"
+            description={q.trim() ? 'No encontramos usuarios para tu búsqueda. Probá con otro término.' : 'Aún no hay visitantes registrados.'}
           />
-        </div>
+        </Card>
+      ) : (
+        <div className="mt-4"><UsersTable users={view.users} /></div>
+      )}
 
-        <Suspense fallback={<UsersSkeleton />}>
-          <UsersData />
-        </Suspense>
-      </div>
-    </AppShell>
+      <Pagination total={view.total} page={page} pageSize={pageSize} />
+    </>,
   );
 }

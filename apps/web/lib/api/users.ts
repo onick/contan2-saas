@@ -6,6 +6,7 @@
 
 import { UsersListResponseSchema, type User } from '@contan2/contracts';
 import { apiGet } from './client';
+import { toApiQuery } from '../admin/list-params';
 import type { UserRow, UserStatus } from '../usuarios/demoData';
 
 const DATE_FMT = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -47,35 +48,32 @@ function toUserRow(u: User): UserRow {
   };
 }
 
-// Vista completa de Usuarios: un fetch deriva tabla + KPIs + conteos de pills
-// (todo-real o todo-demo). `total` es real (response.total); el resto (nuevos/
-// recurrentes/retorno y los conteos por estado) es sobre el SET CARGADO
-// (limit 100) — exacto para tenants con <100 usuarios, estimación si hay más.
-export interface UsersView {
+// Página de Usuarios (paginación + búsqueda SERVER-SIDE). Devuelve la fila ya
+// mapeada + el `total` REAL del filtro aplicado (la API cuenta en SQL). Se
+// eliminaron los KPIs derivados del slice cargado (eran engañosos con >100): el
+// único KPI de cabecera honesto es `total`. null si la API falla → la página
+// muestra Unavailable (jamás demo, salvo dev con flag).
+export interface UsersPage {
   users: UserRow[];
   total: number;
-  nuevos: number;
-  recurrentes: number;
-  retornoPct: number;
-  activos: number;
-  inactivos: number;
+  limit: number;
+  offset: number;
 }
 
-export async function getUsersView(): Promise<UsersView | null> {
+export interface UsersPageParams {
+  limit: number;
+  offset: number;
+  q?: string;
+}
+
+export async function getUsersPage(params: UsersPageParams): Promise<UsersPage | null> {
   try {
-    const { items, total } = await apiGet('/api/v2/users?limit=100', UsersListResponseSchema);
-    const users = items.map(toUserRow);
-    const setSize = users.length || 1;
-    const recurrentes = users.filter((u) => u.visits > 1).length;
-    return {
-      users,
-      total,
-      nuevos: users.filter((u) => u.status === 'nuevo').length,
-      recurrentes,
-      retornoPct: Math.round((recurrentes / setSize) * 100),
-      activos: users.filter((u) => u.status === 'activo').length,
-      inactivos: users.filter((u) => u.status === 'inactivo').length,
-    };
+    const qs = toApiQuery({ limit: params.limit, offset: params.offset, q: params.q });
+    const { items, total, limit, offset } = await apiGet(
+      `/api/v2/users?${qs}`,
+      UsersListResponseSchema,
+    );
+    return { users: items.map(toUserRow), total, limit, offset };
   } catch {
     return null;
   }
