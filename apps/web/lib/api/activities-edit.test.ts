@@ -7,11 +7,43 @@ vi.mock('next/headers', () => ({
   headers: async () => new Map([['host', 'ccb.contan2.com'], ['x-forwarded-for', '1.2.3.4']]),
 }));
 
-import { proxyUpdateActivity, proxyUpdateStatus } from './activities-edit';
-import { PATCH as patchActivity } from '../../app/app/actividades/api/[id]/route';
+import { proxyUpdateActivity, proxyUpdateStatus, proxyGetActivity } from './activities-edit';
+import { PATCH as patchActivity, GET as getActivity } from '../../app/app/actividades/api/[id]/route';
 import { PATCH as patchStatus } from '../../app/app/actividades/api/[id]/status/route';
 
 afterEach(() => vi.restoreAllMocks());
+
+describe('proxyGetActivity (GET /:id · detalle)', () => {
+  it('reenvía GET con cookie + forwarded headers y relaya 200/body', async () => {
+    const detail = { id: 'A1', name: 'X' };
+    const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify(detail), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchFn);
+    const res = await proxyGetActivity('A1');
+    const [url, init] = fetchFn.mock.calls[0]!;
+    expect(url).toBe('http://localhost:3001/api/v2/activities/A1');
+    expect(init.method).toBe('GET');
+    expect(init.headers.cookie).toBe('contan2_session=tok123');
+    expect(init.headers['x-forwarded-host']).toBe('ccb.contan2.com');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(detail);
+  });
+
+  it('relaya 404 del server', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'x' }), { status: 404, headers: { 'content-type': 'application/json' } })));
+    expect((await proxyGetActivity('A1')).status).toBe(404);
+  });
+
+  it('fallo de red → 502', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+    expect((await proxyGetActivity('A1')).status).toBe(502);
+  });
+
+  it('BFF GET route reenvía al proxy', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"id":"A1"}', { status: 200 })));
+    const res = await getActivity(new Request('http://localhost/x'), { params: Promise.resolve({ id: 'A1' }) });
+    expect(res.status).toBe(200);
+  });
+});
 
 describe('proxyUpdateActivity (PATCH /:id)', () => {
   it('reenvía PATCH con cookie + forwarded headers y relaya status/body', async () => {

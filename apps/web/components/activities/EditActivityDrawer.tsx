@@ -4,25 +4,27 @@
 // en el mismo shell de drawer accesible que NewActivityDrawer (role=dialog,
 // aria-modal, Escape, foco inicial, scroll-lock, bottom-sheet/lateral). Lifecycle B.
 //
-// PRECARGA: name/type/location/date/capacity/category vienen del listado real
-// (ActivityListItem). endDate y description NO los proyecta el listado → quedan
-// vacíos con ayuda explícita; sólo se envían si el usuario los edita.
+// PRECARGA FULL-FIDELITY (Lifecycle A2): al abrir, hace GET del detalle completo
+// (/app/actividades/api/[id] → api-v2 GET /:id) → precarga name/type/location/date/
+// endDate/capacity/category/description REALES. Muestra loading mientras carga y un
+// error honesto si falla; si el detalle no carga, NO se permite editar (sin form,
+// sin submit). Reintentar no recrea nada (es sólo un GET).
 //
-// PATCH PARCIAL: se compara el form actual contra el inicial (por string) y se
-// envía ÚNICAMENTE lo modificado, convertido a la forma del contrato (datetime-
-// local → ISO, capacity → number, vacío→null donde el contrato lo permite). NUNCA
-// se envía organizationId/enrolledCount/imageUrl/status (el contrato .strict los
-// rechazaría). api-v2 es la autoridad (rol, 409 capacidad, 400 fechas, 404 tenant).
+// PATCH PARCIAL: compara el form actual contra el inicial (cargado del detalle) y
+// envía ÚNICAMENTE lo modificado, en forma de contrato (datetime-local → ISO,
+// capacity → number, vacío→null donde el contrato lo permite). NUNCA envía
+// organizationId/enrolledCount/imageUrl/status. api-v2 es la autoridad.
 //
 // UX: durante submitting no se puede cerrar ni re-enviar (no duplica PATCH). Si
 // falla, se conservan los datos y el drawer queda abierto. En 200: onSaved().
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2 } from 'lucide-react';
-import { ActivityUpdateRequestSchema, ACTIVITY_TYPES } from '@contan2/contracts';
+import { X, Loader2, AlertTriangle } from 'lucide-react';
+import { ActivityUpdateRequestSchema, ACTIVITY_TYPES, type ActivityDetail } from '@contan2/contracts';
 import type { ZodIssue } from 'zod';
 import type { Activity } from '../../lib/activities/demoData';
+import { fetchActivityDetail } from '../../lib/api/activity-detail';
 import { IconButton, Button, cn, focusRing } from '../ui';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -36,6 +38,7 @@ interface FormState {
 }
 type FieldKey = keyof FormState;
 type Errors = Partial<Record<FieldKey | '_form', string>>;
+const EMPTY: FormState = { name: '', type: '', location: '', date: '', endDate: '', capacity: '', category: '', description: '' };
 
 // ISO → "YYYY-MM-DDTHH:mm" en hora LOCAL (lo que espera datetime-local).
 function isoToLocalInput(iso: string | null): string {
@@ -50,6 +53,20 @@ function toIso(value: string): string | null {
   if (!value) return null;
   const t = new Date(value).getTime();
   return Number.isNaN(t) ? null : new Date(t).toISOString();
+}
+
+// Precarga full-fidelity desde el detalle completo (incluye endDate + description).
+function formFromDetail(d: ActivityDetail): FormState {
+  return {
+    name: d.name,
+    type: d.type,
+    location: d.location,
+    date: isoToLocalInput(d.date),
+    endDate: isoToLocalInput(d.endDate),
+    capacity: String(d.capacity),
+    category: d.category ?? '',
+    description: d.description ?? '',
+  };
 }
 
 function friendly(issue: ZodIssue): string {
@@ -74,19 +91,6 @@ function serverMessage(status: number, body: { error?: string } | null): string 
   }
 }
 
-function initialFrom(a: Activity): FormState {
-  return {
-    name: a.title ?? '',
-    type: a.type ?? '',
-    location: a.location ?? '',
-    date: isoToLocalInput(a.startsAt),
-    endDate: '', // no proyectado por el listado
-    capacity: a.capacity != null ? String(a.capacity) : '',
-    category: a.category && a.category !== 'Otro' ? a.category : (a.category ?? ''),
-    description: '', // no proyectado por el listado
-  };
-}
-
 export interface EditActivityDrawerProps {
   activity: Activity | null;
   onClose: () => void;
@@ -100,17 +104,35 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
   const panelRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const open = activity !== null;
+  const activityId = activity?.id ?? null;
 
-  const initial = useMemo<FormState>(() => (activity ? initialFrom(activity) : {
-    name: '', type: '', location: '', date: '', endDate: '', capacity: '', category: '', description: '',
-  }), [activity]);
-
-  const [form, setForm] = useState<FormState>(initial);
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState<ActivityDetail | null>(null);
+  const [initial, setInitial] = useState<FormState>(EMPTY);
+  const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
 
-  // Re-precargar cuando cambia la actividad objetivo.
-  useEffect(() => { setForm(initial); setErrors({}); setBusy(false); }, [initial]);
+  // Carga (o recarga) el detalle. Sólo un GET → reintentar no recrea nada. Guarda
+  // contra carrera: si la actividad objetivo cambió, descarta el resultado.
+  const load = useCallback(async () => {
+    if (!activityId) return;
+    setPhase('loading'); setDetailError(null); setErrors({}); setBusy(false);
+    const r = await fetchActivityDetail(activityId);
+    if (activityId !== (activity?.id ?? null)) return; // stale
+    if (r.ok) {
+      const f = formFromDetail(r.detail);
+      setLoaded(r.detail); setInitial(f); setForm(f); setPhase('ready');
+    } else {
+      setDetailError(r.error); setPhase('error');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activityId]);
+
+  useEffect(() => { if (activityId) void load(); }, [activityId, load]);
+  // Foco al primer campo cuando el form queda listo.
+  useEffect(() => { if (phase === 'ready') firstFieldRef.current?.focus(); }, [phase]);
 
   const busyRef = useRef(busy); busyRef.current = busy;
   const requestClose = useRef(() => {});
@@ -123,7 +145,6 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
     document.addEventListener('keydown', onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    firstFieldRef.current?.focus();
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
@@ -144,26 +165,22 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
     setErrors((e) => (e[key] || e._form ? { ...e, [key]: undefined, _form: undefined } : e));
   };
 
-  // Construye el body PARCIAL (sólo dirty) + valida con el contrato. Devuelve el
-  // body o errores por campo. Cross-checks de cliente: endDate>=date (si ambos en
-  // el form) y fecha no-pasada si la actividad está activa (paridad con api-v2).
+  // Body PARCIAL (sólo dirty) + validación de contrato. Cross-checks de cliente:
+  // endDate>=date y fecha no-pasada si la actividad está activa (paridad api-v2),
+  // usando los valores reales del detalle cargado como base.
   function build(): { ok: true; body: Record<string, unknown> } | { ok: false; errors: Errors } {
     const fe: Errors = {};
     const body: Record<string, unknown> = {};
 
     if (dirty.includes('name')) body.name = form.name.trim();
-    if (dirty.includes('type')) {
-      if (!form.type) fe.type = 'Seleccioná un tipo'; else body.type = form.type;
-    }
+    if (dirty.includes('type')) { if (!form.type) fe.type = 'Seleccioná un tipo'; else body.type = form.type; }
     if (dirty.includes('location')) body.location = form.location.trim();
-
-    let dateIso: string | undefined;
     if (dirty.includes('date')) {
       if (!form.date) fe.date = 'Requerido';
-      else { const iso = toIso(form.date); if (!iso) fe.date = 'Fecha inválida'; else { dateIso = iso; body.date = iso; } }
+      else { const iso = toIso(form.date); if (!iso) fe.date = 'Fecha inválida'; else body.date = iso; }
     }
     if (dirty.includes('endDate')) {
-      if (!form.endDate) body.endDate = null; // limpiar
+      if (!form.endDate) body.endDate = null;
       else { const iso = toIso(form.endDate); if (!iso) fe.endDate = 'Fecha inválida'; else body.endDate = iso; }
     }
     if (dirty.includes('capacity')) {
@@ -172,18 +189,14 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
       else body.capacity = n;
     }
     if (dirty.includes('description')) body.description = form.description.trim();
-    if (dirty.includes('category')) {
-      const c = form.category.trim();
-      body.category = c === '' ? null : c;
-    }
+    if (dirty.includes('category')) { const c = form.category.trim(); body.category = c === '' ? null : c; }
 
-    // Cross-checks de cliente (api-v2 vuelve a validar).
-    const effDate = (body.date as string | undefined) ?? activity?.startsAt ?? undefined;
-    const effEnd = body.endDate as string | null | undefined;
+    const effDate = (body.date as string | undefined) ?? loaded?.date ?? undefined;
+    const effEnd = (body.endDate as string | null | undefined) ?? (dirty.includes('endDate') ? undefined : loaded?.endDate);
     if (effEnd && effDate && new Date(effEnd).getTime() < new Date(effDate).getTime()) {
       fe.endDate = 'Debe ser igual o posterior a la fecha de inicio.';
     }
-    if (body.date && activity?.statusRaw === 'activa' && new Date(body.date as string).getTime() < Date.now() - 60_000) {
+    if (body.date && loaded?.status === 'activa' && new Date(body.date as string).getTime() < Date.now() - 60_000) {
       fe.date = 'La fecha debe ser presente o futura.';
     }
 
@@ -200,7 +213,7 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy || !activity) return;
+    if (busy || !activity || phase !== 'ready') return;
     if (dirty.length === 0) { setErrors({ _form: 'No hay cambios para guardar.' }); return; }
     setErrors({});
     const v = build();
@@ -222,7 +235,6 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
 
     if (res.status === 200) { setBusy(false); onSaved(); return; }
 
-    // Error: conservar datos, mostrar mensaje. 400 con issues → por campo.
     setBusy(false);
     type ErrBody = { error?: string; issues?: Array<{ path?: unknown[]; message?: string }> };
     let body: ErrBody | null = null;
@@ -264,90 +276,108 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
           </IconButton>
         </header>
 
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-            {errors._form ? (
-              <p role="alert" className="rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{errors._form}</p>
-            ) : null}
-
-            <fieldset disabled={busy} className="m-0 min-w-0 space-y-4 border-0 p-0">
-              <label className="block">
-                <span className={labelCls}>Nombre</span>
-                <input ref={firstFieldRef} type="text" value={form.name} onChange={(e) => set('name', e.target.value)}
-                  aria-invalid={!!errors.name} aria-describedby={errors.name ? errId('name') : undefined} className={inputCls(!!errors.name)} />
-                <FieldError k="name" />
-              </label>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className={labelCls}>Tipo</span>
-                  <select value={form.type} onChange={(e) => set('type', e.target.value)}
-                    aria-invalid={!!errors.type} aria-describedby={errors.type ? errId('type') : undefined} className={inputCls(!!errors.type)}>
-                    <option value="" disabled>Seleccioná…</option>
-                    {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>)}
-                  </select>
-                  <FieldError k="type" />
-                </label>
-                <label className="block">
-                  <span className={labelCls}>Capacidad</span>
-                  <input type="number" min={1} max={10000} step={1} value={form.capacity} onChange={(e) => set('capacity', e.target.value)}
-                    aria-invalid={!!errors.capacity} aria-describedby={errors.capacity ? errId('capacity') : undefined} className={cn(inputCls(!!errors.capacity), 'tabular-nums')} />
-                  <FieldError k="capacity" />
-                </label>
-              </div>
-
-              <label className="block">
-                <span className={labelCls}>Lugar</span>
-                <input type="text" value={form.location} onChange={(e) => set('location', e.target.value)}
-                  aria-invalid={!!errors.location} aria-describedby={errors.location ? errId('location') : undefined} className={inputCls(!!errors.location)} />
-                <FieldError k="location" />
-              </label>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className={labelCls}>Fecha y hora</span>
-                  <input type="datetime-local" value={form.date} onChange={(e) => set('date', e.target.value)}
-                    aria-invalid={!!errors.date} aria-describedby={errors.date ? errId('date') : undefined} className={inputCls(!!errors.date)} />
-                  <FieldError k="date" />
-                </label>
-                <label className="block">
-                  <span className={labelCls}>Cierre <span className="normal-case text-faint">(opcional)</span></span>
-                  <input type="datetime-local" value={form.endDate} onChange={(e) => set('endDate', e.target.value)}
-                    aria-invalid={!!errors.endDate} aria-describedby={errors.endDate ? errId('endDate') : undefined} className={inputCls(!!errors.endDate)} />
-                  <FieldError k="endDate" />
-                </label>
-              </div>
-
-              <label className="block">
-                <span className={labelCls}>Categoría <span className="normal-case text-faint">(opcional)</span></span>
-                <input type="text" value={form.category} onChange={(e) => set('category', e.target.value)}
-                  aria-invalid={!!errors.category} aria-describedby={errors.category ? errId('category') : undefined} className={inputCls(!!errors.category)} />
-                <FieldError k="category" />
-              </label>
-
-              <label className="block">
-                <span className={labelCls}>Descripción <span className="normal-case text-faint">(opcional)</span></span>
-                <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3}
-                  aria-invalid={!!errors.description} aria-describedby={errors.description ? errId('description') : undefined}
-                  className={cn('mt-1 min-h-[88px] w-full rounded-lg border bg-surface px-3 py-2.5 text-[14px] text-ink', focusRing, errors.description ? 'border-danger-fg' : 'border-line')} />
-                <FieldError k="description" />
-                <span className="mt-1 block text-[11px] text-faint">Se conserva el valor actual si lo dejás vacío.</span>
-              </label>
-            </fieldset>
+        {/* LOADING: detalle en camino. */}
+        {phase === 'loading' ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-5 py-12 text-muted" aria-busy="true">
+            <Loader2 size={22} strokeWidth={2.25} aria-hidden="true" className="animate-spin" />
+            <p className="text-[13px]">Cargando actividad…</p>
           </div>
-
-          <footer className="border-t border-line px-5 py-4">
-            <p id={noticeId} className="mb-3 text-[12px] text-faint">
-              Se guardan <strong className="font-semibold text-muted">sólo los campos que modifiques</strong>.
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => requestClose.current()} disabled={busy}>Cancelar</Button>
-              <Button type="submit" disabled={busy || dirty.length === 0} aria-describedby={noticeId}>
-                {busy ? (<><Loader2 size={16} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Guardando…</>) : 'Guardar cambios'}
-              </Button>
+        ) : phase === 'error' ? (
+          /* ERROR: detalle no cargó → NO se permite editar. Reintentar sólo reintenta el GET. */
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+            <AlertTriangle size={24} strokeWidth={2} aria-hidden="true" className="text-danger-fg" />
+            <p role="alert" className="text-[13px] text-muted">{detailError ?? 'No pudimos cargar la actividad.'}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <Button type="button" variant="secondary" onClick={() => requestClose.current()}>Cerrar</Button>
+              <Button type="button" onClick={() => void load()}>Reintentar</Button>
             </div>
-          </footer>
-        </form>
+          </div>
+        ) : (
+          /* READY: form precargado con valores reales. */
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              {errors._form ? (
+                <p role="alert" className="rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{errors._form}</p>
+              ) : null}
+
+              <fieldset disabled={busy} className="m-0 min-w-0 space-y-4 border-0 p-0">
+                <label className="block">
+                  <span className={labelCls}>Nombre</span>
+                  <input ref={firstFieldRef} type="text" value={form.name} onChange={(e) => set('name', e.target.value)}
+                    aria-invalid={!!errors.name} aria-describedby={errors.name ? errId('name') : undefined} className={inputCls(!!errors.name)} />
+                  <FieldError k="name" />
+                </label>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className={labelCls}>Tipo</span>
+                    <select value={form.type} onChange={(e) => set('type', e.target.value)}
+                      aria-invalid={!!errors.type} aria-describedby={errors.type ? errId('type') : undefined} className={inputCls(!!errors.type)}>
+                      <option value="" disabled>Seleccioná…</option>
+                      {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>)}
+                    </select>
+                    <FieldError k="type" />
+                  </label>
+                  <label className="block">
+                    <span className={labelCls}>Capacidad</span>
+                    <input type="number" min={1} max={10000} step={1} value={form.capacity} onChange={(e) => set('capacity', e.target.value)}
+                      aria-invalid={!!errors.capacity} aria-describedby={errors.capacity ? errId('capacity') : undefined} className={cn(inputCls(!!errors.capacity), 'tabular-nums')} />
+                    <FieldError k="capacity" />
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className={labelCls}>Lugar</span>
+                  <input type="text" value={form.location} onChange={(e) => set('location', e.target.value)}
+                    aria-invalid={!!errors.location} aria-describedby={errors.location ? errId('location') : undefined} className={inputCls(!!errors.location)} />
+                  <FieldError k="location" />
+                </label>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className={labelCls}>Fecha y hora</span>
+                    <input type="datetime-local" value={form.date} onChange={(e) => set('date', e.target.value)}
+                      aria-invalid={!!errors.date} aria-describedby={errors.date ? errId('date') : undefined} className={inputCls(!!errors.date)} />
+                    <FieldError k="date" />
+                  </label>
+                  <label className="block">
+                    <span className={labelCls}>Cierre <span className="normal-case text-faint">(opcional)</span></span>
+                    <input type="datetime-local" value={form.endDate} onChange={(e) => set('endDate', e.target.value)}
+                      aria-invalid={!!errors.endDate} aria-describedby={errors.endDate ? errId('endDate') : undefined} className={inputCls(!!errors.endDate)} />
+                    <FieldError k="endDate" />
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className={labelCls}>Categoría <span className="normal-case text-faint">(opcional)</span></span>
+                  <input type="text" value={form.category} onChange={(e) => set('category', e.target.value)}
+                    aria-invalid={!!errors.category} aria-describedby={errors.category ? errId('category') : undefined} className={inputCls(!!errors.category)} />
+                  <FieldError k="category" />
+                </label>
+
+                <label className="block">
+                  <span className={labelCls}>Descripción <span className="normal-case text-faint">(opcional)</span></span>
+                  <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3}
+                    aria-invalid={!!errors.description} aria-describedby={errors.description ? errId('description') : undefined}
+                    className={cn('mt-1 min-h-[88px] w-full rounded-lg border bg-surface px-3 py-2.5 text-[14px] text-ink', focusRing, errors.description ? 'border-danger-fg' : 'border-line')} />
+                  <FieldError k="description" />
+                </label>
+              </fieldset>
+            </div>
+
+            <footer className="border-t border-line px-5 py-4">
+              <p id={noticeId} className="mb-3 text-[12px] text-faint">
+                Se guardan <strong className="font-semibold text-muted">sólo los campos que modifiques</strong>.
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <Button type="button" variant="secondary" onClick={() => requestClose.current()} disabled={busy}>Cancelar</Button>
+                <Button type="submit" disabled={busy || dirty.length === 0} aria-describedby={noticeId}>
+                  {busy ? (<><Loader2 size={16} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Guardando…</>) : 'Guardar cambios'}
+                </Button>
+              </div>
+            </footer>
+          </form>
+        )}
       </div>
     </div>,
     document.body,

@@ -57,3 +57,28 @@ export function proxyUpdateStatus(id: string, body: unknown): Promise<Response> 
     'No pudimos cambiar el estado. Intentá de nuevo.',
   );
 }
+
+// GET /api/v2/activities/:id · detalle COMPLETO (description/endDate/imageUrl que
+// el listado no proyecta). Reenvía con cookie + forwarded headers y relaya status
+// + body. Lo usa el drawer/edición para precarga full-fidelity (Lifecycle A2/B).
+export async function proxyGetActivity(id: string): Promise<Response> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE_URL}/api/v2/activities/${encodeURIComponent(id)}`, {
+      method: 'GET',
+      headers: {
+        ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+        ...(await forwardingHeaders()),
+      },
+      cache: 'no-store',
+    });
+  } catch {
+    return Response.json({ error: 'No pudimos cargar la actividad.' }, { status: 502 });
+  }
+  const text = await upstream.text();
+  return new Response(text, {
+    status: upstream.status,
+    headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
+  });
+}

@@ -5,9 +5,10 @@
 // Accesible: role=dialog + aria-modal, cierra con Escape y con botón, foco al
 // abrir y restaura al cerrar, backdrop clickeable. CERO edición, cero escrituras.
 
-import { useEffect, useId, useRef } from 'react';
-import { X, CalendarDays, MapPin, Tag, Users, ImageOff, Pencil } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { X, CalendarDays, MapPin, Tag, Users, ImageOff, Pencil, FileText, Loader2 } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
+import { fetchActivityDetail } from '../../lib/api/activity-detail';
 import { StatusBadge } from './StatusBadge';
 import { CoverThumb } from './CoverThumb';
 import { StatusActions } from './StatusActions';
@@ -26,6 +27,23 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const open = activity !== null;
+
+  // Detalle completo (Lifecycle A2): el listado no proyecta `description`. Para
+  // items REALES (statusRaw) lo traemos bajo demanda y lo mostramos con estado
+  // honesto (loading/dato/error), sin bloquear el resto del detalle.
+  const realId = activity?.statusRaw ? activity.id : null;
+  const [desc, setDesc] = useState<{ phase: 'loading' | 'ready' | 'error'; text: string | null }>({ phase: 'loading', text: null });
+  useEffect(() => {
+    if (!realId) return;
+    let ignore = false;
+    setDesc({ phase: 'loading', text: null });
+    void fetchActivityDetail(realId).then((r) => {
+      if (ignore) return;
+      if (r.ok) setDesc({ phase: 'ready', text: r.detail.description });
+      else setDesc({ phase: 'error', text: null });
+    });
+    return () => { ignore = true; };
+  }, [realId]);
 
   // Escape para cerrar + bloqueo de scroll del body + foco al panel; restaura
   // el foco previo al cerrar.
@@ -112,6 +130,26 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
               <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container">
                 <div className="h-full rounded-full bg-brand" style={{ width: `${activity.occupancyPct}%` }} />
               </div>
+            </div>
+          ) : null}
+
+          {/* Descripción · del detalle completo (Lifecycle A2). Estado honesto. */}
+          {activity.statusRaw ? (
+            <div className="mt-5">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
+                <FileText size={13} strokeWidth={1.75} aria-hidden="true" /> Descripción
+              </p>
+              {desc.phase === 'loading' ? (
+                <p className="mt-1 flex items-center gap-1.5 text-[13px] text-faint" aria-busy="true">
+                  <Loader2 size={13} strokeWidth={2} aria-hidden="true" className="animate-spin" /> Cargando…
+                </p>
+              ) : desc.phase === 'error' ? (
+                <p className="mt-1 text-[13px] text-faint">No pudimos cargar la descripción.</p>
+              ) : desc.text && desc.text.trim() ? (
+                <p className="mt-1 whitespace-pre-line text-sm text-ink">{desc.text}</p>
+              ) : (
+                <p className="mt-1 text-[13px] text-faint">Sin descripción.</p>
+              )}
             </div>
           ) : null}
 
