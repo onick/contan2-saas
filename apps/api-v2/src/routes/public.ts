@@ -7,10 +7,9 @@
 // El check-in NO emite QR PNG ni manda email (eso va en el PR de credencial);
 // devuelve el código real (QR = user.code).
 
-import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql, type DbClient } from '@contan2/db';
-import { resolveTenantCode, generateUserCode } from '@contan2/codes';
+import { getDb, type DbClient } from '@contan2/db';
+import { resolveTenantCode } from '@contan2/codes';
 import {
   PublicCheckinRequestSchema,
   type PublicActivitiesResponse,
@@ -21,15 +20,9 @@ import {
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { deliverCredential, type DeliverUser } from '../services/credential-delivery.js';
-
-// Error de check-in con status HTTP, para que la transacción lo lance y haga
-// ROLLBACK, y el handler lo mapee a la respuesta.
-class CheckinError extends Error {
-  constructor(public readonly status: number, message: string) {
-    super(message);
-    this.name = 'CheckinError';
-  }
-}
+// Núcleo transaccional COMPARTIDO (público/scanner/admin): resuelve/crea visitante,
+// reserva cupo atómica y registra asistencia idempotente. CheckinError → ROLLBACK.
+import { CheckinError, checkinIdentified } from '../services/checkin-core.js';
 
 // Rate-limit detrás del limiter compartido: Redis (estado entre réplicas) si hay
 // REDIS_URL, in-memory con degradación grácil si no. Buckets SEPARADOS por
@@ -181,114 +174,17 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     }
     const { activityId, visitor, companionsChildren } = parsed.data;
     const orgId = t.orgId;
-    const partySize = 1 + companionsChildren;
     // Visitante NUEVO con email → tras el commit se le entrega la credencial por
     // correo (best-effort, fuera de la tx). El visitante EXISTENTE no reenvía.
     let deliver: DeliverUser | null = null;
 
     try {
       const result = await db.transaction().execute(async (tx): Promise<PublicCheckinResponse> => {
-        // 1 · Resolver o crear visitante (scoped al tenant).
-        let user: { id: string; code: string; visit_count: number };
-        let isNew = false;
-        if ('new' in visitor) {
-          isNew = true;
-          const v = visitor.new;
-          const email = v.email ? v.email.toLowerCase() : null;
-          if (email) {
-            const exists = await tx.selectFrom('users').select('id')
-              .where('organization_id', '=', orgId).where('email', '=', email).executeTakeFirst();
-            if (exists) throw new CheckinError(409, 'Ese correo ya está registrado. Identifícate con tu código.');
-          }
-          // Código REAL con retry-on-collision (unique users_org_code_unique).
-          // visit_count = 1: este check-in ES su primera visita (DB default es 1).
-          let created: { id: string; code: string; visit_count: number } | undefined;
-          for (let attempt = 0; attempt < 5 && !created; attempt += 1) {
-            created = await tx.insertInto('users').values({
-              id: randomUUID(),
-              organization_id: orgId,
-              code: generateUserCode(t.codePrefix),
-              first_name: v.firstName,
-              last_name: v.lastName,
-              email,
-              phone: v.phone ?? null,
-              visit_count: 1,
-            })
-              .onConflict((oc) => oc.columns(['organization_id', 'code']).doNothing())
-              .returning(['id', 'code', 'visit_count'])
-              .executeTakeFirst();
-          }
-          if (!created) throw new CheckinError(500, 'No se pudo generar un código único.');
-          user = created;
-          if (email) {
-            deliver = { id: created.id, code: created.code, email, firstName: v.firstName, lastName: v.lastName };
-          }
-        } else {
-          let q = tx.selectFrom('users').select(['id', 'code', 'visit_count']).where('organization_id', '=', orgId);
-          if ('code' in visitor) {
-            const code = resolveTenantCode(visitor.code, t.codePrefix);
-            if (!code) throw new CheckinError(400, 'Código inválido.');
-            q = q.where('code', '=', code);
-          } else {
-            q = q.where('email', '=', visitor.email.toLowerCase());
-          }
-          const found = await q.executeTakeFirst();
-          if (!found) throw new CheckinError(404, 'No te encontramos con ese dato.');
-          user = found;
-        }
-
-        // 2 · Reserva ATÓMICA de cupo: el WHERE garantiza enrolled+party <= capacity.
-        const reserved = await tx.updateTable('activities')
-          .set({ enrolled_count: sql<number>`enrolled_count + ${partySize}` })
-          .where('organization_id', '=', orgId)
-          .where('id', '=', activityId)
-          .where('status', '=', 'activa')
-          .where(sql<boolean>`enrolled_count + ${partySize} <= capacity`)
-          .returning(['id', 'name'])
-          .executeTakeFirst();
-        if (!reserved) {
-          const act = await tx.selectFrom('activities').select(['status', 'enrolled_count', 'capacity'])
-            .where('organization_id', '=', orgId).where('id', '=', activityId).executeTakeFirst();
-          if (!act) throw new CheckinError(404, 'Actividad no encontrada.');
-          if (act.status !== 'activa') throw new CheckinError(409, 'La actividad no está activa.');
-          throw new CheckinError(409, 'Cupo agotado.');
-        }
-
-        // 3 · Asistencia. El ON CONFLICT es el ÚNICO árbitro de duplicado
-        //     (org,user,activity): si choca (re-check-in o carrera concurrente),
-        //     no devuelve fila → throw → ROLLBACK de la transacción → la reserva
-        //     del paso 2 se DESHACE (capacidad intacta, sin oversell).
-        const att = await tx.insertInto('attendance').values({
-          id: randomUUID(),
-          organization_id: orgId,
-          user_id: user.id,
-          user_code: user.code,
-          activity_id: reserved.id,
-          activity_name: reserved.name,
-          companions_children: companionsChildren,
-          checked_in_at: new Date().toISOString(),
-          anonymous: false,
-        })
-          .onConflict((oc) => oc.columns(['organization_id', 'user_id', 'activity_id']).doNothing())
-          .returning('id')
-          .executeTakeFirst();
-        if (!att) throw new CheckinError(409, 'Ya estás registrado en esta actividad.');
-
-        // 4 · Visitas: el NUEVO ya cuenta su 1ª visita (visit_count=1 al crear);
-        //     al EXISTENTE se le incrementa.
-        let visitCount = user.visit_count;
-        if (!isNew) {
-          await tx.updateTable('users').set({ visit_count: sql<number>`visit_count + 1` })
-            .where('id', '=', user.id).execute();
-          visitCount = user.visit_count + 1;
-        }
-
-        return {
-          code: user.code,
-          visitCount,
-          partySize,
-          activity: { id: reserved.id, name: reserved.name },
-        };
+        // Núcleo COMPARTIDO: resuelve/crea visitante + reserva cupo atómica +
+        // asistencia idempotente + visitas (mismo comportamiento que antes).
+        const r = await checkinIdentified(tx, { orgId, codePrefix: t.codePrefix, activityId, visitor, companionsChildren });
+        deliver = r.deliver;
+        return { code: r.code, visitCount: r.visitCount, partySize: r.partySize, activity: r.activity };
       });
 
       // Commit OK. Entrega de credencial best-effort, FUERA de la transacción y

@@ -391,3 +391,48 @@ export const CheckinVisitorItemSchema = z.object({
 export type CheckinVisitorItem = z.infer<typeof CheckinVisitorItemSchema>;
 export const CheckinVisitorsResponseSchema = z.object({ items: z.array(CheckinVisitorItemSchema) });
 export type CheckinVisitorsResponse = z.infer<typeof CheckinVisitorsResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
+// Check-in administrativo · ESCRITURA autenticada (Check-in B). Schemas SEPARADOS
+// (no se reutilizan los públicos). .strict() rechaza campos prohibidos del cliente
+// (organizationId/enrolledCount/userId directo/actor). El actor/tenant salen de la
+// sesión (requireTenantStaff), nunca del body.
+// ─────────────────────────────────────────────────────────────────────────
+const AdminCheckinVisitorSchema = z.union([
+  z.object({ code: z.string().min(1) }).strict(),
+  z.object({ email: z.string().email() }).strict(),
+  z.object({
+    new: z.object({
+      firstName: z.string().trim().min(1).max(120),
+      lastName: z.string().trim().min(1).max(120),
+      email: z.string().email().optional(),
+      phone: z.string().max(40).optional(),
+    }).strict(),
+  }).strict(),
+]);
+export const AdminCheckinRequestSchema = z.object({
+  activityId: z.string().min(1),
+  visitor: AdminCheckinVisitorSchema,
+  companionsChildren: z.number().int().min(0).max(10),
+}).strict();
+export type AdminCheckinRequest = z.infer<typeof AdminCheckinRequestSchema>;
+export const AdminCheckinResponseSchema = z.object({
+  code: z.string(),
+  visitCount: z.number().int(),
+  partySize: z.number().int(),
+  activity: z.object({ id: z.string(), name: z.string() }),
+  mode: z.enum(['existing', 'new']),
+});
+export type AdminCheckinResponse = z.infer<typeof AdminCheckinResponseSchema>;
+
+export const AdminAnonymousCheckinRequestSchema = z.object({
+  activityId: z.string().min(1),
+}).strict();
+export type AdminAnonymousCheckinRequest = z.infer<typeof AdminAnonymousCheckinRequestSchema>;
+export const AdminAnonymousCheckinResponseSchema = z.object({
+  attendanceId: z.string(),
+  activity: z.object({ id: z.string(), name: z.string() }),
+  mode: z.literal('anonymous'),
+  replay: z.boolean(), // true si devolvió el resultado original (Idempotency-Key repetida)
+});
+export type AdminAnonymousCheckinResponse = z.infer<typeof AdminAnonymousCheckinResponseSchema>;

@@ -1,14 +1,22 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { getDb, sql } from '@contan2/db';
-import type {
-  CheckinMetricsResponse,
-  CheckinActivitiesResponse,
-  CheckinVisitorsResponse,
-  CheckinActivityItem,
-  CheckinVisitorItem,
+import {
+  AdminCheckinRequestSchema,
+  AdminAnonymousCheckinRequestSchema,
+  type CheckinMetricsResponse,
+  type CheckinActivitiesResponse,
+  type CheckinVisitorsResponse,
+  type CheckinActivityItem,
+  type CheckinVisitorItem,
+  type AdminCheckinResponse,
+  type AdminAnonymousCheckinResponse,
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { parseSearch, likeContains } from '../query.js';
+import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
+import { CheckinError, checkinIdentified, reserveCapacity } from '../services/checkin-core.js';
+import { writeCheckinAudit } from '../services/checkin-audit.js';
 
 // Check-in administrativo · LECTURA (Check-in A). Consola operativa del staff
 // autenticado (owner/admin/operator). Todo tenant-scoped por la sesión
@@ -42,6 +50,13 @@ const CHECKIN_TZ = resolveCheckinTz();
 const VISITORS_DEFAULT_LIMIT = 10;
 const VISITORS_MAX_LIMIT = 20;
 const VISITORS_MIN_Q = 2;
+
+// Rate-limit de ESCRITURA (limiter compartido Redis/in-memory). Namespace por
+// entorno+endpoint (endpointPrefix); key `${orgId}:${ip}` (sin PII). Límites
+// generosos para no bloquear una puerta concurrida.
+const ANON_ENDPOINT = 'checkin.anonymous';
+const manualLimiter = createRateLimiter({ max: 60, windowMs: 60_000, prefix: endpointPrefix('checkin-manual') });
+const anonLimiter = createRateLimiter({ max: 60, windowMs: 60_000, prefix: endpointPrefix('checkin-anon') });
 
 export const checkinRoute: FastifyPluginAsync = async (app) => {
   // GET /api/v2/checkin/metrics
@@ -177,5 +192,131 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       visitCount: Number(r.visit_count),
     }));
     return { items } satisfies CheckinVisitorsResponse;
+  });
+
+  // POST /api/v2/checkin · ESCRITURA. Check-in manual de visitante (existente por
+  // código/email o nuevo inline). owner/admin/operator. Reusa el núcleo compartido
+  // (capacidad atómica + idempotencia (org,user,activity)). Auditoría DENTRO de la
+  // tx → si falla, rollback completo. organizationId/actor jamás del cliente.
+  app.post('/checkin', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const orgId = guard.ctx.org.id;
+    if ((await manualLimiter.hit(`${orgId}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: 'Demasiados intentos. Esperá un momento e intentá de nuevo.' };
+    }
+    const parsed = AdminCheckinRequestSchema.safeParse(req.body);
+    if (!parsed.success) { reply.code(400); return { error: 'Datos de check-in inválidos.' }; }
+    const { activityId, visitor, companionsChildren } = parsed.data;
+    const staff = guard.ctx.staff;
+
+    try {
+      const result = await db.transaction().execute(async (tx) => {
+        const r = await checkinIdentified(tx, { orgId, codePrefix: guard.ctx.org.codePrefix, activityId, visitor, companionsChildren });
+        await writeCheckinAudit(tx, {
+          orgId, staff: { id: staff.id, email: staff.email, role: staff.role },
+          action: 'checkin.manual', activityId: r.activity.id, attendanceId: r.attendanceId,
+          mode: r.isNew ? 'new' : 'existing', ip: req.ip, ua: req.headers['user-agent'] ?? null,
+        });
+        return r;
+      });
+      reply.code(201);
+      const body: AdminCheckinResponse = {
+        code: result.code, visitCount: result.visitCount, partySize: result.partySize,
+        activity: result.activity, mode: result.isNew ? 'new' : 'existing',
+      };
+      return body;
+    } catch (e) {
+      if (e instanceof CheckinError) { reply.code(e.status); return { error: e.message }; }
+      throw e;
+    }
+  });
+
+  // POST /api/v2/checkin/anonymous · "+1 sin credencial". Registra EXACTAMENTE una
+  // asistencia anónima (user_id/user_code null), enrolled_count +1 atómico. 201 en
+  // éxito; NUNCA crea usuario ni código. Protección anti doble-click: header
+  // **Idempotency-Key** obligatorio, deduplicado TRANSACCIONAL (tabla
+  // checkin_idempotency, PK org+endpoint+key). Misma key → devuelve el original
+  // (200, replay). El claim de la key vive en la MISMA tx que la reserva/asistencia/
+  // audit → si algo falla, se libera (rollback). La concurrencia la serializa el
+  // índice único (el 2º insert bloquea hasta el commit del 1º).
+  app.post('/checkin/anonymous', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const orgId = guard.ctx.org.id;
+    if ((await anonLimiter.hit(`${orgId}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: 'Demasiados intentos. Esperá un momento e intentá de nuevo.' };
+    }
+    const key = String(req.headers['idempotency-key'] ?? '').trim();
+    if (!key || key.length > 200) {
+      reply.code(400);
+      return { error: 'Falta el header Idempotency-Key (string del cliente).' };
+    }
+    const parsed = AdminAnonymousCheckinRequestSchema.safeParse(req.body);
+    if (!parsed.success) { reply.code(400); return { error: 'Datos inválidos.' }; }
+    const { activityId } = parsed.data;
+    const staff = guard.ctx.staff;
+
+    try {
+      const out = await db.transaction().execute(async (tx) => {
+        const attendanceId = randomUUID();
+        // Claim de la Idempotency-Key (transaccional) con TTL 24h. Si la key existe
+        // y NO expiró → no actualiza → RETURNING vacío → replay. Si EXPIRÓ → se
+        // reclama (DO UPDATE WHERE expires_at<=now()) y se procesa como nueva.
+        const ttl = sql<string>`now() + interval '24 hours'`;
+        const claimed = await tx
+          .insertInto('checkin_idempotency')
+          .values({ organization_id: orgId, endpoint: ANON_ENDPOINT, idempotency_key: key, attendance_id: attendanceId, expires_at: ttl })
+          .onConflict((oc) =>
+            oc
+              .columns(['organization_id', 'endpoint', 'idempotency_key'])
+              .doUpdateSet({ attendance_id: attendanceId, expires_at: ttl })
+              .where(sql<boolean>`checkin_idempotency.expires_at <= now()`),
+          )
+          .returning('attendance_id')
+          .executeTakeFirst();
+        if (!claimed) {
+          // Key ya usada (commit previo) → devolver el resultado ORIGINAL.
+          const prev = await tx
+            .selectFrom('checkin_idempotency').select('attendance_id')
+            .where('organization_id', '=', orgId).where('endpoint', '=', ANON_ENDPOINT).where('idempotency_key', '=', key)
+            .executeTakeFirstOrThrow();
+          const act = await tx
+            .selectFrom('attendance')
+            .innerJoin('activities', 'activities.id', 'attendance.activity_id')
+            .select(['attendance.id as aid', 'activities.id as actid', 'activities.name as actname'])
+            .where('attendance.id', '=', prev.attendance_id)
+            .executeTakeFirst();
+          return { replay: true, attendanceId: prev.attendance_id, activity: act ? { id: act.actid, name: act.actname } : null };
+        }
+        // Nueva: reserva cupo (partySize 1) + asistencia anónima + auditoría.
+        const reserved = await reserveCapacity(tx, orgId, activityId, 1);
+        await tx.insertInto('attendance').values({
+          id: attendanceId, organization_id: orgId, user_id: null, user_code: null,
+          activity_id: reserved.id, activity_name: reserved.name, companions_children: 0,
+          checked_in_at: new Date().toISOString(), anonymous: true,
+        }).execute();
+        await writeCheckinAudit(tx, {
+          orgId, staff: { id: staff.id, email: staff.email, role: staff.role },
+          action: 'checkin.anonymous', activityId: reserved.id, attendanceId,
+          mode: 'anonymous', ip: req.ip, ua: req.headers['user-agent'] ?? null,
+        });
+        return { replay: false, attendanceId, activity: reserved };
+      });
+
+      if (!out.activity) { reply.code(409); return { error: 'No se pudo recuperar el registro original.' }; }
+      reply.code(out.replay ? 200 : 201);
+      const body: AdminAnonymousCheckinResponse = {
+        attendanceId: out.attendanceId, activity: out.activity, mode: 'anonymous', replay: out.replay,
+      };
+      return body;
+    } catch (e) {
+      if (e instanceof CheckinError) { reply.code(e.status); return { error: e.message }; }
+      throw e;
+    }
   });
 };

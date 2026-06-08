@@ -224,6 +224,19 @@ export interface InvitationsTable {
   created_at: CreatedAt;
 }
 
+// Dedup transaccional del "+1 sin credencial" por Idempotency-Key del cliente
+// (migración 025, aditiva). PK (organization_id, endpoint, idempotency_key);
+// attendance_id = resultado a devolver en un replay.
+export interface CheckinIdempotencyTable {
+  organization_id: string;
+  endpoint: string;
+  idempotency_key: string;
+  attendance_id: string;
+  // TTL: una key EXPIRADA (expires_at <= now()) puede reclamarse de nuevo.
+  expires_at: RequiredTs;
+  created_at: CreatedAt;
+}
+
 export interface Database {
   organizations: OrganizationsTable;
   staff_members: StaffMembersTable;
@@ -235,4 +248,5 @@ export interface Database {
   activities: ActivitiesTable;
   attendance: AttendanceTable;
   invitations: InvitationsTable;
+  checkin_idempotency: CheckinIdempotencyTable;
 }

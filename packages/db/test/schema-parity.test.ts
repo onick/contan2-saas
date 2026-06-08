@@ -68,6 +68,9 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'id', 'organization_id', 'activity_id', 'user_id', 'token', 'status',
     'sent_at', 'responded_at', 'expires_at', 'created_at',
   ],
+  checkin_idempotency: [
+    'organization_id', 'endpoint', 'idempotency_key', 'attendance_id', 'expires_at', 'created_at',
+  ],
 };
 
 run('schema parity · información_schema vs tipos declarados', () => {
