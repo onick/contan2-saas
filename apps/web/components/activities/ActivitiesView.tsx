@@ -6,6 +6,7 @@
 // page.tsx sigue siendo Server Component (hace el fetch); esto es client.
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Search, List, LayoutGrid } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
 import {
@@ -15,6 +16,7 @@ import {
 import { ActivitiesTable } from './ActivitiesTable';
 import { ActivitiesGrid } from './ActivitiesGrid';
 import { ActivityDetailDrawer } from './ActivityDetailDrawer';
+import { EditActivityDrawer } from './EditActivityDrawer';
 import { Button, Card, cn, focusRing } from '../ui';
 
 const SELECT_CLS = cn(
@@ -42,6 +44,13 @@ export function ActivitiesView({ activities, total }: ActivitiesViewProps) {
   const [date, setDate] = useState<DateFilter>('todas');
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [selected, setSelected] = useState<Activity | null>(null);
+  const [editing, setEditing] = useState<Activity | null>(null);
+  const router = useRouter();
+
+  // Tras editar/transicionar (200), cerrar drawers y refrescar el Server
+  // Component (re-fetch real). Los filtros/búsqueda/página/vista son estado
+  // cliente de este componente → SOBREVIVEN al router.refresh().
+  const afterMutation = () => { setEditing(null); setSelected(null); router.refresh(); };
 
   const categories = useMemo(() => uniqueCategories(activities), [activities]);
 
@@ -134,7 +143,13 @@ export function ActivitiesView({ activities, total }: ActivitiesViewProps) {
         </span>
       </div>
 
-      <ActivityDetailDrawer activity={selected} onClose={() => setSelected(null)} />
+      <ActivityDetailDrawer
+        activity={selected}
+        onClose={() => setSelected(null)}
+        onEdit={(a) => { setSelected(null); setEditing(a); }}
+        onChanged={afterMutation}
+      />
+      <EditActivityDrawer activity={editing} onClose={() => setEditing(null)} onSaved={afterMutation} />
     </>
   );
 }

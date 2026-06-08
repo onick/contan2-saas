@@ -1,7 +1,10 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import { ActivitiesView } from './ActivitiesView';
 import { ACTIVITIES } from '../../lib/activities/demoData';
+
+// Lifecycle B: ActivitiesView usa useRouter().refresh() tras editar/transicionar.
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 afterEach(cleanup);
 

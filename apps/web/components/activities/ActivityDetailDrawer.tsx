@@ -6,18 +6,23 @@
 // abrir y restaura al cerrar, backdrop clickeable. CERO edición, cero escrituras.
 
 import { useEffect, useId, useRef } from 'react';
-import { X, CalendarDays, MapPin, Tag, Users, ImageOff } from 'lucide-react';
+import { X, CalendarDays, MapPin, Tag, Users, ImageOff, Pencil } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
 import { StatusBadge } from './StatusBadge';
 import { CoverThumb } from './CoverThumb';
-import { IconButton, cn, focusRing } from '../ui';
+import { StatusActions } from './StatusActions';
+import { Button, IconButton, cn, focusRing } from '../ui';
 
 export interface ActivityDetailDrawerProps {
   activity: Activity | null;
   onClose: () => void;
+  // Lifecycle B: abrir el drawer de edición para esta actividad (sólo reales).
+  onEdit?: (activity: Activity) => void;
+  // Tras cambiar el estado (200): el contenedor cierra + router.refresh().
+  onChanged?: () => void;
 }
 
-export function ActivityDetailDrawer({ activity, onClose }: ActivityDetailDrawerProps) {
+export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: ActivityDetailDrawerProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const open = activity !== null;
@@ -110,10 +115,28 @@ export function ActivityDetailDrawer({ activity, onClose }: ActivityDetailDrawer
             </div>
           ) : null}
 
-          <p className="mt-6 rounded-lg bg-surface-container px-3 py-2 text-[12px] text-faint">
-            Vista de solo lectura. La edición de actividades llega en un paso siguiente.
-          </p>
         </div>
+
+        {/* Acciones (Lifecycle B) · sólo para actividades REALES (statusRaw). En
+            demo no hay id real que editar/transicionar → vista de solo lectura. */}
+        {activity.statusRaw && (onEdit || onChanged) ? (
+          <footer className="space-y-3 border-t border-line px-5 py-4">
+            {onEdit ? (
+              <Button type="button" variant="secondary" className="w-full" onClick={() => onEdit(activity)}>
+                <Pencil size={16} strokeWidth={2} aria-hidden="true" /> Editar actividad
+              </Button>
+            ) : null}
+            {onChanged ? (
+              <StatusActions id={activity.id} statusRaw={activity.statusRaw} onChanged={onChanged} />
+            ) : null}
+          </footer>
+        ) : (
+          <footer className="border-t border-line px-5 py-4">
+            <p className="rounded-lg bg-surface-container px-3 py-2 text-[12px] text-faint">
+              Vista de solo lectura (datos de demostración).
+            </p>
+          </footer>
+        )}
       </div>
     </div>
   );

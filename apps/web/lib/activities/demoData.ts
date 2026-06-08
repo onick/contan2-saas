@@ -23,6 +23,13 @@ export interface Activity {
   // proyecta → las actividades reales caen al fallback de ícono; se muestra en
   // demo. Opcional: undefined/null → sin portada.
   imageUrl?: string | null;
+  // Tipo crudo de la API (enum: concierto/cine/…) — para precargar el form de
+  // edición. Sólo en items REALES; undefined en demo.
+  type?: string;
+  // Estado crudo de la API — habilita la matriz de acciones (Editar/Finalizar/
+  // Cancelar/Reactivar). Sólo en items REALES (Lifecycle B); undefined en demo →
+  // sin acciones de escritura (no hay id real que PATCHear).
+  statusRaw?: 'activa' | 'finalizada' | 'cancelada';
 }
 
 export interface StatusTab {
