@@ -181,7 +181,25 @@ body {
   .drawer-panel { animation-name: drawer-in-right; }
 }
 
+/* Drawer · salida simétrica a la entrada. El panel se desliza hacia abajo
+   (bottom-sheet) o hacia la derecha (lateral md+) y el backdrop hace fade-out. El
+   componente desmonta al terminar (animationend). curva de entrada inversa
+   (ease-in cuártico) para que "se vaya" con intención. */
+@keyframes drawer-out-down { from { transform: translateY(0); } to { transform: translateY(100%); } }
+@keyframes drawer-out-right { from { transform: translateX(0); } to { transform: translateX(100%); } }
+@keyframes drawer-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+/* Doble clase → especificidad (0,2,0) para ganarle SIEMPRE a la animación de
+   entrada `.drawer-panel`/`.drawer-backdrop` (0,1,0), sin depender del orden de
+   fuente tras el pipeline de Tailwind. Si no, el panel no animaría la salida. */
+.drawer-panel.drawer-panel--closing { animation: drawer-out-down 0.26s cubic-bezier(0.64, 0, 0.78, 0) both; }
+.drawer-backdrop.drawer-backdrop--closing { animation: drawer-backdrop-out 0.26s ease both; }
+@media (min-width: 768px) {
+  .drawer-panel.drawer-panel--closing { animation-name: drawer-out-right; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .drawer-panel.drawer-panel--closing { animation: none; }
+  .drawer-backdrop.drawer-backdrop--closing { animation: none; }
   .kiosk-pulse { animation: none; }
   .kiosk-card-in { animation: none; }
   .app-reveal { animation: none; }

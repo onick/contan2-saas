@@ -25,7 +25,7 @@ import { ActivityUpdateRequestSchema, ACTIVITY_TYPES, type ActivityDetail } from
 import type { ZodIssue } from 'zod';
 import type { Activity } from '../../lib/activities/demoData';
 import { fetchActivityDetail } from '../../lib/api/activity-detail';
-import { IconButton, Button, cn, focusRing } from '../ui';
+import { IconButton, Button, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 const TYPE_LABELS: Record<string, string> = {
   exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
@@ -101,10 +101,14 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
   const baseId = useId();
   const titleId = `${baseId}-title`;
   const noticeId = `${baseId}-notice`;
-  const panelRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const open = activity !== null;
   const activityId = activity?.id ?? null;
+  // Snapshot del último activity no-nulo: se retiene durante la animación de salida
+  // (activity ya es null) para que el encabezado no parpadee/crashee al cerrar.
+  const shownRef = useRef(activity);
+  if (activity) shownRef.current = activity;
+  const shown = shownRef.current;
 
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -138,19 +142,10 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
   const requestClose = useRef(() => {});
   requestClose.current = () => { if (!busyRef.current) onClose(); };
 
-  useEffect(() => {
-    if (!open) return;
-    const prevActive = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') requestClose.current(); };
-    document.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-      prevActive?.focus?.();
-    };
-  }, [open]);
+  // Cierre animado (scroll-lock/Escape/foco los maneja el hook).
+  const { mounted, closing, panelRef } = useDrawerLifecycle({
+    open, onEscape: () => requestClose.current(),
+  });
 
   // Campos modificados (por string de form, robusto al round-trip de fechas).
   const dirty = useMemo(() => {
@@ -158,7 +153,7 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
     return keys.filter((k) => form[k] !== initial[k]);
   }, [form, initial]);
 
-  if (!open || typeof document === 'undefined') return null;
+  if (!mounted || typeof document === 'undefined') return null;
 
   const set = (key: FieldKey, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -259,17 +254,17 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
     errors[k] ? <span id={errId(k)} className="mt-1 block text-xs text-danger-fg">{errors[k]}</span> : null;
 
   return createPortal(
-    <div ref={panelRef} tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => requestClose.current()}
-        className="drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity" />
-      <div className={cn(
+        className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
+      <div ref={panelRef} className={cn(
         'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
         'md:inset-y-0 md:right-0 md:left-auto md:h-dvh md:w-full md:max-w-lg md:rounded-none md:border-l md:border-t-0',
-        'flex flex-col')}>
+        'flex flex-col', closing && 'drawer-panel--closing')}>
         <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0">
             <p className={labelCls}>Editar actividad</p>
-            <h2 id={titleId} className="mt-1 truncate text-lg font-bold leading-tight tracking-tight text-ink">{activity.title}</h2>
+            <h2 id={titleId} className="mt-1 truncate text-lg font-bold leading-tight tracking-tight text-ink">{shown?.title}</h2>
           </div>
           <IconButton label="Cerrar" variant="outline" size="sm" onClick={() => requestClose.current()} disabled={busy}>
             <X size={18} strokeWidth={2} aria-hidden="true" />

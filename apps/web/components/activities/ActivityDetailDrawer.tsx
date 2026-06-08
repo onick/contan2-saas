@@ -12,7 +12,7 @@ import { fetchActivityDetail } from '../../lib/api/activity-detail';
 import { StatusBadge } from './StatusBadge';
 import { CoverThumb } from './CoverThumb';
 import { StatusActions } from './StatusActions';
-import { Button, IconButton, cn, focusRing } from '../ui';
+import { Button, IconButton, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 export interface ActivityDetailDrawerProps {
   activity: Activity | null;
@@ -25,8 +25,12 @@ export interface ActivityDetailDrawerProps {
 
 export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: ActivityDetailDrawerProps) {
   const titleId = useId();
-  const panelRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const open = activity !== null;
+  // Snapshot del último activity no-nulo: se retiene durante la animación de salida.
+  const shownRef = useRef(activity);
+  if (activity) shownRef.current = activity;
+  const shown = shownRef.current;
 
   // Detalle completo (Lifecycle A2): el listado no proyecta `description`. Para
   // items REALES (statusRaw) lo traemos bajo demanda y lo mostramos con estado
@@ -45,28 +49,16 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
     return () => { ignore = true; };
   }, [realId]);
 
-  // Escape para cerrar + bloqueo de scroll del body + foco al panel; restaura
-  // el foco previo al cerrar.
-  useEffect(() => {
-    if (!open) return;
-    const prevActive = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    panelRef.current?.focus();
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-      prevActive?.focus?.();
-    };
-  }, [open, onClose]);
+  // Cierre animado (scroll-lock/Escape/foco-restore los maneja el hook).
+  const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: onClose });
+  // Foco inicial al contenedor del diálogo al abrir.
+  useEffect(() => { if (mounted) containerRef.current?.focus(); }, [mounted]);
 
-  if (!activity) return null;
+  if (!mounted || !shown) return null;
 
   return (
     <div
-      ref={panelRef}
+      ref={containerRef}
       tabIndex={-1}
       className="fixed inset-0 z-50 outline-none"
       role="dialog"
@@ -79,20 +71,22 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
         aria-label="Cerrar"
         tabIndex={-1}
         onClick={onClose}
-        className="drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity"
+        className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')}
       />
       {/* Panel: bottom-sheet en mobile, lateral derecho en md+ */}
       <div
+        ref={panelRef}
         className={cn(
           'drawer-panel absolute inset-x-0 bottom-0 max-h-[88dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
           'md:inset-y-0 md:right-0 md:left-auto md:h-dvh md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
           'flex flex-col',
+          closing && 'drawer-panel--closing',
         )}
       >
         <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Detalle de actividad</p>
-            <h2 id={titleId} className="mt-1 text-lg font-bold leading-tight tracking-tight text-ink">{activity.title}</h2>
+            <h2 id={titleId} className="mt-1 text-lg font-bold leading-tight tracking-tight text-ink">{shown.title}</h2>
           </div>
           <IconButton label="Cerrar detalle" variant="outline" size="sm" onClick={onClose}>
             <X size={18} strokeWidth={2} aria-hidden="true" />
@@ -103,7 +97,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
           {/* Portada 16:9 (fallback si no hay imagen) */}
           <div className="mb-4 aspect-video w-full overflow-hidden rounded-xl bg-surface-container">
             <CoverThumb
-              src={activity.imageUrl ?? null}
+              src={shown.imageUrl ?? null}
               alt=""
               className="h-full w-full object-cover"
               fallback={
@@ -113,28 +107,28 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
               }
             />
           </div>
-          <div className="mb-4"><StatusBadge status={activity.status} label={activity.statusLabel} /></div>
+          <div className="mb-4"><StatusBadge status={shown.status} label={shown.statusLabel} /></div>
           <dl className="space-y-3">
-            <Row icon={CalendarDays} label="Fecha">{activity.date}</Row>
-            <Row icon={MapPin} label="Lugar">{activity.location}</Row>
-            <Row icon={Tag} label="Categoría">{activity.category}</Row>
+            <Row icon={CalendarDays} label="Fecha">{shown.date}</Row>
+            <Row icon={MapPin} label="Lugar">{shown.location}</Row>
+            <Row icon={Tag} label="Categoría">{shown.category}</Row>
             <Row icon={Users} label="Ocupación">
-              {activity.occupancyPct === null
+              {shown.occupancyPct === null
                 ? <span className="text-faint">Sin datos</span>
-                : <span className="tabular-nums">{activity.registered} / {activity.capacity} <span className="text-faint">· {activity.occupancyPct}%</span></span>}
+                : <span className="tabular-nums">{shown.registered} / {shown.capacity} <span className="text-faint">· {shown.occupancyPct}%</span></span>}
             </Row>
           </dl>
 
-          {activity.occupancyPct !== null ? (
+          {shown.occupancyPct !== null ? (
             <div className="mt-4">
               <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container">
-                <div className="h-full rounded-full bg-brand" style={{ width: `${activity.occupancyPct}%` }} />
+                <div className="h-full rounded-full bg-brand" style={{ width: `${shown.occupancyPct}%` }} />
               </div>
             </div>
           ) : null}
 
           {/* Descripción · del detalle completo (Lifecycle A2). Estado honesto. */}
-          {activity.statusRaw ? (
+          {shown.statusRaw ? (
             <div className="mt-5">
               <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
                 <FileText size={13} strokeWidth={1.75} aria-hidden="true" /> Descripción
@@ -157,15 +151,15 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
 
         {/* Acciones (Lifecycle B) · sólo para actividades REALES (statusRaw). En
             demo no hay id real que editar/transicionar → vista de solo lectura. */}
-        {activity.statusRaw && (onEdit || onChanged) ? (
+        {shown.statusRaw && (onEdit || onChanged) ? (
           <footer className="space-y-3 border-t border-line px-5 py-4">
             {onEdit ? (
-              <Button type="button" variant="secondary" className="w-full" onClick={() => onEdit(activity)}>
+              <Button type="button" variant="secondary" className="w-full" onClick={() => onEdit(shown)}>
                 <Pencil size={16} strokeWidth={2} aria-hidden="true" /> Editar actividad
               </Button>
             ) : null}
             {onChanged ? (
-              <StatusActions id={activity.id} statusRaw={activity.statusRaw} onChanged={onChanged} />
+              <StatusActions id={shown.id} statusRaw={shown.statusRaw} onChanged={onChanged} />
             ) : null}
           </footer>
         ) : (
