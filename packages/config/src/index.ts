@@ -25,6 +25,10 @@ const envSchema = z.object({
   // contador se comparte entre réplicas y persiste a redeploys. No se despliega
   // Redis aún; esto sólo habilita el backend cuando exista la infra.
   REDIS_URL: z.string().optional(),
+  // Override explícito del flag `Secure` de las cookies de sesión. OPCIONAL:
+  // sin setear, Secure se activa solo en staging/production (HTTPS) y queda
+  // apagado en development/test (HTTP local). Ver apps/api-v2/src/cookies.ts.
+  COOKIE_SECURE: z.enum(['true', 'false']).optional(),
 });
 
 export type Config = z.infer<typeof envSchema>;
