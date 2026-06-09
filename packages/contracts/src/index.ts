@@ -627,3 +627,10 @@ export const TeamListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export type TeamListResponse = z.infer<typeof TeamListResponseSchema>;
+
+export const TeamRoleUpdateRequestSchema = z.object({ role: z.enum(['owner', 'admin', 'operator']) }).strict();
+export type TeamRoleUpdateRequest = z.infer<typeof TeamRoleUpdateRequestSchema>;
+export const TeamStatusUpdateRequestSchema = z.object({ status: z.enum(['active', 'suspended']) }).strict();
+export type TeamStatusUpdateRequest = z.infer<typeof TeamStatusUpdateRequestSchema>;
+export const TeamMutationResponseSchema = z.object({ id: z.string(), role: z.string().optional(), status: z.string().optional() });
+export type TeamMutationResponse = z.infer<typeof TeamMutationResponseSchema>;
