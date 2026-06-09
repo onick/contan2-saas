@@ -17,7 +17,7 @@ export function TopActivities({ activities }: TopActivitiesProps) {
           <h3 className="text-[15px] font-semibold tracking-tight text-ink">Top actividades</h3>
           <p className="text-xs text-faint">Las de mayor asistencia del período</p>
         </div>
-        <a href="#" className={cn('inline-flex items-center gap-1 rounded text-[13px] font-semibold text-brand', focusRing)}>
+        <a href="/app/actividades" className={cn('inline-flex items-center gap-1 rounded text-[13px] font-semibold text-brand', focusRing)}>
           Ver todas <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
         </a>
       </div>

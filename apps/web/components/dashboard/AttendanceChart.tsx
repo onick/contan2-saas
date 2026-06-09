@@ -40,11 +40,9 @@ export function AttendanceChart() {
           <h3 className="text-[15px] font-semibold tracking-tight text-ink">Asistencia por semana</h3>
           <p className="text-xs text-faint">Personas registradas en puerta</p>
         </div>
-        <div className="hidden rounded-full bg-surface-container p-0.5 text-xs font-medium text-muted sm:flex">
-          <span className="rounded-full px-3 py-1">Semana</span>
-          <span className="rounded-full bg-surface px-3 py-1 font-semibold text-ink shadow-sm">Mes</span>
-          <span className="rounded-full px-3 py-1">Año</span>
-        </div>
+        {/* Período fijo (este mes). El switch Semana/Mes/Año llega cuando exista el
+            endpoint de series por período; hasta entonces no mostramos tabs inertes. */}
+        <span className="hidden rounded-full bg-surface-container px-3 py-1 text-xs font-medium text-muted sm:inline-block">Este mes</span>
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mt-4 h-[200px] w-full">

@@ -21,7 +21,7 @@ export function RecentVisitors({ visitors }: RecentVisitorsProps) {
           <h3 className="text-[15px] font-semibold tracking-tight text-ink">Últimos visitantes</h3>
           <p className="text-xs text-faint">Registrados recientemente</p>
         </div>
-        <a href="#" className={cn('inline-flex items-center gap-1 rounded text-[13px] font-semibold text-brand', focusRing)}>
+        <a href="/app/usuarios" className={cn('inline-flex items-center gap-1 rounded text-[13px] font-semibold text-brand', focusRing)}>
           Ver todos <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
         </a>
       </div>
