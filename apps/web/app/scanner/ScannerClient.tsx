@@ -13,13 +13,11 @@
 // se usa el código y el número de visita que devuelve la respuesta.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import jsQR from 'jsqr';
 import { Camera, Check, LogOut, ScanLine, TriangleAlert, X } from 'lucide-react';
 import { isValidCode, normalizeScannedCode } from '../../lib/scanner/code';
+import { useQrCamera } from '../../lib/scanner/useQrCamera';
 import { classifyCheckin, type CheckinOutcome } from '../../lib/scanner/checkin';
 import type { ScannerActivity } from '../../lib/scanner/types';
-
-const SCAN_COOLDOWN_MS = 2200;
 
 type Screen = 'pin' | 'select' | 'scan';
 
@@ -56,11 +54,9 @@ export function ScannerClient({ initialAuthed, activities, brandName }: Props) {
   const [manual, setManual] = useState('');
   const [outcome, setOutcome] = useState<CheckinOutcome | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const lastScanRef = useRef(0);
   const busyRef = useRef(false);
 
   // ── PIN: login ──────────────────────────────────────────────────────────
@@ -146,66 +142,13 @@ export function ScannerClient({ initialAuthed, activities, brandName }: Props) {
   }
 
   // ── Cámara: getUserMedia + loop jsQR (sólo en pantalla de escaneo) ───────
-  useEffect(() => {
-    if (screen !== 'scan') return;
-    let raf = 0;
-    let stream: MediaStream | null = null;
-    let cancelled = false;
-    setCameraError(null);
-
-    const onDecode = (raw: string) => {
-      const now = Date.now();
-      if (now - lastScanRef.current < SCAN_COOLDOWN_MS) return;
-      lastScanRef.current = now;
-      void submitCode(raw);
-    };
-
-    function loop() {
-      raf = requestAnimationFrame(loop);
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!video || !canvas || video.readyState < 2) return;
-      const w = video.videoWidth;
-      const h = video.videoHeight;
-      if (!w || !h) return;
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) return;
-      ctx.drawImage(video, 0, 0, w, h);
-      const img = ctx.getImageData(0, 0, w, h);
-      const found = jsQR(img.data, w, h, { inversionAttempts: 'dontInvert' });
-      if (found?.data) onDecode(found.data);
-    }
-
-    async function start() {
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-        setCameraError('Cámara no disponible. Usa la entrada manual.');
-        return;
-      }
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      } catch {
-        setCameraError('No pudimos acceder a la cámara. Revisa los permisos o usa la entrada manual.');
-        return;
-      }
-      const video = videoRef.current;
-      if (cancelled || !video) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      video.srcObject = stream;
-      await video.play().catch(() => {});
-      loop();
-    }
-
-    void start();
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(raf);
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-    };
-  }, [screen, submitCode]);
+  // Motor compartido con la consola de check-in admin (lib/scanner/useQrCamera).
+  const { cameraError } = useQrCamera({
+    enabled: screen === 'scan',
+    videoRef,
+    canvasRef,
+    onDecode: submitCode,
+  });
 
   // El banner de resultado se limpia solo tras unos segundos (salvo invalid/error
   // que conviene que persistan un poco más). Mantiene el visor despejado.
