@@ -12,6 +12,7 @@ import { Pagination } from '../../../components/admin/Pagination';
 import { CohortPills } from '../../../components/usuarios/CohortPills';
 import { ProfileProvider } from '../../../components/usuarios/ProfileProvider';
 import { getLocalBranding } from '../../../lib/branding/config';
+import { getAdminGate } from '../../../lib/auth/session';
 import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
 import { getUsersPage, getUsersFacets } from '../../../lib/api/users';
 import {
@@ -37,6 +38,9 @@ export default async function UsuariosPage({
 }) {
   const sp = await searchParams;
   const branding = getLocalBranding();
+  // Rol del staff → editar sólo owner/admin (la API igual arbitra el rol con 403).
+  const gate = await getAdminGate();
+  const canWrite = gate.status === 'ok' && (gate.staff.role === 'owner' || gate.staff.role === 'admin');
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.pageSize);
   const q = parseQ(sp.q);
@@ -82,7 +86,7 @@ export default async function UsuariosPage({
       <>
         <DemoBanner />
         <SectionHeader level={1} title="Usuarios" subtitle="Visitantes registrados del centro" actions={actions} />
-        <ProfileProvider><div className="mt-4"><UsersTable users={USERS} /></div></ProfileProvider>
+        <ProfileProvider canEdit={canWrite}><div className="mt-4"><UsersTable users={USERS} /></div></ProfileProvider>
       </>,
     );
   }
@@ -119,7 +123,7 @@ export default async function UsuariosPage({
           />
         </Card>
       ) : (
-        <ProfileProvider><div className="mt-4"><UsersTable users={view.users} /></div></ProfileProvider>
+        <ProfileProvider canEdit={canWrite}><div className="mt-4"><UsersTable users={view.users} /></div></ProfileProvider>
       )}
 
       <Pagination total={view.total} page={page} pageSize={pageSize} />

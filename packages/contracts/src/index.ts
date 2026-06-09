@@ -290,6 +290,22 @@ export type UsersFacetsResponse = z.infer<typeof UsersFacetsResponseSchema>;
 export const UserDetailResponseSchema = z.object({ user: UserListItemSchema });
 export type UserDetailResponse = z.infer<typeof UserDetailResponseSchema>;
 
+// Edición de visitante (UI-2 · F2B). PATCH PARCIAL: sólo los campos presentes se
+// actualizan. Rechaza claves no editables (code/visitCount/credential/organizationId)
+// vía `.strict()`. email/phone admiten null (limpiar). Al menos un campo. Sólo
+// owner/admin (la API arbitra el rol). El email respeta unicidad por tenant.
+export const AdminUserUpdateRequestSchema = z
+  .object({
+    firstName: z.string().trim().min(1, 'El nombre es obligatorio').max(120),
+    lastName: z.string().trim().max(120),
+    email: z.string().trim().email('Email inválido').max(255).nullable(),
+    phone: z.string().trim().max(60).nullable(),
+  })
+  .partial()
+  .strict()
+  .refine((o) => Object.keys(o).length > 0, { message: 'No hay cambios para guardar' });
+export type AdminUserUpdateRequest = z.infer<typeof AdminUserUpdateRequestSchema>;
+
 // Historial de actividades del visitante (UI-2). Incluye TODAS sus inscripciones
 // (RSVP) y asistencias: `checkedInAt` es null si registró pero no asistió.
 export const UserActivityHistoryItemSchema = z.object({

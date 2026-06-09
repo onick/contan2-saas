@@ -21,7 +21,7 @@ export function useOpenProfile() { return useContext(OpenProfileCtx); }
 // deep-link: jamás abrimos algo que no parezca un código (anti-inyección de URL).
 const CODE_RE = /^[A-Za-z]{2,6}-[A-Za-z0-9]{4,10}$/;
 
-export function ProfileProvider({ children }: { children: ReactNode }) {
+export function ProfileProvider({ children, canEdit = false }: { children: ReactNode; canEdit?: boolean }) {
   const [code, setCode] = useState<string | null>(null);
   const open = useCallback((c: string) => setCode(c), []);
   const sp = useSearchParams();
@@ -58,7 +58,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   return (
     <OpenProfileCtx.Provider value={open}>
       <div onClick={onWrapClick} onKeyDown={onWrapKeyDown}>{children}</div>
-      <UserProfileDrawer code={code} onClose={() => setCode(null)} />
+      <UserProfileDrawer code={code} onClose={() => setCode(null)} canEdit={canEdit} />
     </OpenProfileCtx.Provider>
   );
 }

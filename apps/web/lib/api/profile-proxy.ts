@@ -32,10 +32,35 @@ async function relayGet(path: string, netError: string): Promise<Response> {
   });
 }
 
+// PATCH (editar): reenvía cookie + forwarded + body JSON; relay exacto.
+async function relayPatch(path: string, body: string, netError: string): Promise<Response> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+        ...(await forwardingHeaders()),
+      },
+      body,
+      cache: 'no-store',
+    });
+  } catch {
+    return Response.json({ error: netError }, { status: 502 });
+  }
+  const text = await upstream.text();
+  return new Response(text, { status: upstream.status, headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' } });
+}
+
 const enc = encodeURIComponent;
 
 export const proxyUserDetail = (code: string) =>
   relayGet(`/api/v2/users/${enc(code)}`, 'No pudimos cargar el visitante.');
+
+export const proxyUserUpdate = (code: string, body: string) =>
+  relayPatch(`/api/v2/users/${enc(code)}`, body, 'No pudimos guardar los cambios.');
 
 export const proxyUserActivities = (code: string, search: string) =>
   relayGet(`/api/v2/users/${enc(code)}/activities${search}`, 'No pudimos cargar el historial.');
