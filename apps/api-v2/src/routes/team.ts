@@ -7,10 +7,13 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { getDb } from '@contan2/db';
 import type { TeamListResponse } from '@contan2/contracts';
+import { TeamRoleUpdateRequestSchema, TeamStatusUpdateRequestSchema } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { readTeam, TEAM_PAGE_MAX } from '../services/team-read.js';
+import { changeRole, changeStatus, TeamWriteError } from '../services/team-write.js';
 
 const CAN_VIEW_TEAM = new Set(['owner', 'admin']);
+const CAN_MANAGE_TEAM = new Set(['owner', 'admin']);
 
 export const teamRoute: FastifyPluginAsync = async (app) => {
   app.get('/org/team', async (req, reply) => {
@@ -35,5 +38,49 @@ export const teamRoute: FastifyPluginAsync = async (app) => {
 
     const body: TeamListResponse = page;
     return body;
+  });
+
+  // PATCH /org/team/:id/role · cambia el rol (invariantes RBAC en team-write).
+  app.patch('/org/team/:id/role', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const { org, staff } = guard.ctx;
+    if (!CAN_MANAGE_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar el equipo.' }; }
+    const parsed = TeamRoleUpdateRequestSchema.safeParse(req.body);
+    if (!parsed.success) { reply.code(400); return { error: 'Rol inválido.' }; }
+    try {
+      const r = await changeRole(
+        { db, orgId: org.id, actor: { id: staff.id, email: staff.email, role: staff.role }, ip: req.ip, ua: req.headers['user-agent'] ?? null },
+        (req.params as { id: string }).id,
+        parsed.data.role,
+      );
+      return r;
+    } catch (e) {
+      if (e instanceof TeamWriteError) { reply.code(e.status); return { error: e.message }; }
+      throw e;
+    }
+  });
+
+  // PATCH /org/team/:id/status · activar/suspender (revoca sesiones al suspender).
+  app.patch('/org/team/:id/status', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const { org, staff } = guard.ctx;
+    if (!CAN_MANAGE_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar el equipo.' }; }
+    const parsed = TeamStatusUpdateRequestSchema.safeParse(req.body);
+    if (!parsed.success) { reply.code(400); return { error: 'Estado inválido.' }; }
+    try {
+      const r = await changeStatus(
+        { db, orgId: org.id, actor: { id: staff.id, email: staff.email, role: staff.role }, ip: req.ip, ua: req.headers['user-agent'] ?? null },
+        (req.params as { id: string }).id,
+        parsed.data.status,
+      );
+      return r;
+    } catch (e) {
+      if (e instanceof TeamWriteError) { reply.code(e.status); return { error: e.message }; }
+      throw e;
+    }
   });
 };
