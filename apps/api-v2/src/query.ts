@@ -1,5 +1,15 @@
 // apps/api-v2/src/query.ts · parseo de paginación de query params (read-only).
 
+import { USER_COHORTS, type UserCohort } from '@contan2/contracts';
+
+// Cohorte del listado de usuarios. Tolerante: ausente/desconocido → 'all' (no
+// rompe ante URLs viejas). Espejo de USER_COHORTS de @contan2/contracts.
+export function parseCohort(raw: unknown): UserCohort {
+  return typeof raw === 'string' && (USER_COHORTS as readonly string[]).includes(raw)
+    ? (raw as UserCohort)
+    : 'all';
+}
+
 export interface Page {
   limit: number;
   offset: number;
