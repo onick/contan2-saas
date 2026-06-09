@@ -16,6 +16,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  // El teclado virtual ENCOGE el viewport (no lo tapa): los formularios en drawer
+  // (check-in "Crear y registrar", scanner manual, login) mantienen sus botones de
+  // acción visibles encima del teclado en tablet/móvil, sin scroll. dvh se reajusta.
+  interactiveWidget: 'resizes-content',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
