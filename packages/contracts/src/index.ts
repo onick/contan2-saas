@@ -609,3 +609,21 @@ export const AuditLogResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export type AuditLogResponse = z.infer<typeof AuditLogResponseSchema>;
+
+// ── Mi equipo · staff_members (F5) ─────────────────────────────────────────
+export const TeamMemberSchema = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  email: z.string(),
+  role: z.string(),
+  status: z.string(),
+  lastLoginAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type TeamMember = z.infer<typeof TeamMemberSchema>;
+
+export const TeamListResponseSchema = z.object({
+  items: z.array(TeamMemberSchema),
+  nextCursor: z.string().nullable(),
+});
+export type TeamListResponse = z.infer<typeof TeamListResponseSchema>;
