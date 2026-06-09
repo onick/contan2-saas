@@ -65,7 +65,7 @@ export function UsersTable({ users }: UsersTableProps) {
             {users.map((u, i) => {
               const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
               return (
-                <tr key={u.id} className="border-t border-line align-middle hover:bg-page">
+                <tr key={u.id} data-user-row={u.code} className="cursor-pointer border-t border-line align-middle hover:bg-page">
                   <td className="px-5 py-4 md:px-6">
                     <div className="flex items-center gap-3">
                       <span className={`grid h-10 w-10 flex-none place-items-center rounded-full text-[12px] font-semibold ${avatar}`}>
