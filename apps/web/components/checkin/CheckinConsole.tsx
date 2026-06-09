@@ -9,10 +9,11 @@
 // sin credencial" con Idempotency-Key reutilizada en reintentos del MISMO click.
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Search, X, UserPlus, Users, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle } from 'lucide-react';
+import { Search, X, UserPlus, Users, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine } from 'lucide-react';
 import type { CheckinMetricsResponse, CheckinActivityItem, CheckinVisitorItem } from '@contan2/contracts';
 import { getCheckinMetrics, getCheckinActivities, searchCheckinVisitors, postCheckin, postCheckinAnonymous } from '../../lib/api/checkin-client';
 import { NewVisitorDrawer } from './NewVisitorDrawer';
+import { CheckinScanModal } from './CheckinScanModal';
 import { Button, Card, Chip, IconButton, cn, focusRing } from '../ui';
 
 type Async<T> = { phase: 'loading' | 'ready' | 'error'; data?: T; error?: string };
@@ -36,6 +37,7 @@ export function CheckinConsole() {
   const [pendingAnon, setPendingAnon] = useState<{ activityId: string; activityName: string; key: string } | null>(null);
   const [anonBusy, setAnonBusy] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,6 +110,25 @@ export function CheckinConsole() {
 
   const selectVisitor = (v: CheckinVisitorItem) => { setSelected(v); setQuery(''); setResults({ phase: 'idle', items: [] }); };
 
+  // ── Escaneo de credencial → resolver visitante ──
+  // El QR no registra: trae el código y la consola lo busca. Coincidencia exacta
+  // de código → selecciona directo; si no, rellena la búsqueda para que el staff
+  // elija (o cree el visitante). El check-in real lo hace luego por actividad.
+  async function onScanDetect(code: string) {
+    setScanOpen(false);
+    const r = await searchCheckinVisitors(code).catch(() => null);
+    const exact = r?.ok ? r.data.items.find((v) => v.code.toUpperCase() === code.toUpperCase()) : undefined;
+    if (exact) {
+      selectVisitor(exact);
+      flash({ kind: 'success', msg: `${exact.firstName} ${exact.lastName} seleccionado desde la credencial.` });
+      return;
+    }
+    setQuery(code); // rellena la búsqueda → muestra coincidencias o el estado vacío
+    if (r?.ok && r.data.items.length === 0) {
+      flash({ kind: 'error', msg: `Credencial ${code}: sin coincidencias. Verificá o creá el visitante.` });
+    }
+  }
+
   // ── check-in de visitante EXISTENTE ──
   async function registerExisting(act: CheckinActivityItem) {
     if (!selected || busyActivity || act.full) return;
@@ -170,11 +191,16 @@ export function CheckinConsole() {
         <div className="flex min-w-0 flex-col gap-4">
           {/* Buscar / seleccionar visitante */}
           <Card padding="lg">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Encontrar visitante</p>
-              <Button variant="secondary" size="sm" onClick={() => setNewOpen(true)}>
-                <UserPlus size={16} strokeWidth={2} aria-hidden="true" /> Nuevo visitante
-              </Button>
+              <div className="flex flex-none items-center gap-2">
+                <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
+                  <ScanLine size={16} strokeWidth={2} aria-hidden="true" /> Escanear
+                </Button>
+                <Button variant="primary" size="sm" onClick={() => setNewOpen(true)}>
+                  <UserPlus size={16} strokeWidth={2} aria-hidden="true" /> Nuevo visitante
+                </Button>
+              </div>
             </div>
 
             {selected ? (
@@ -313,6 +339,8 @@ export function CheckinConsole() {
           </div>
         </div>
       ) : null}
+
+      <CheckinScanModal open={scanOpen} onClose={() => setScanOpen(false)} onDetect={onScanDetect} />
 
       <NewVisitorDrawer
         open={newOpen}

@@ -173,4 +173,24 @@ describe('CheckinConsole', () => {
     render(<CheckinConsole />);
     expect(document.querySelector('[role="status"][aria-live="polite"]')).toBeTruthy();
   });
+
+  it('Escanear abre el escáner de credencial', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs() });
+    render(<CheckinConsole />);
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: /Escanear/i }));
+    expect(screen.getByRole('dialog', { name: /Escanear credencial/i })).toBeInTheDocument();
+  });
+
+  it('credencial escaneada con coincidencia exacta selecciona al visitante', async () => {
+    const fn = installFetch({ metrics: okMetrics, activities: okActs(), visitors: () => J(200, { items: [visitor] }) });
+    render(<CheckinConsole />);
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: /Escanear/i }));
+    fireEvent.change(screen.getByLabelText('Código de credencial manual'), { target: { value: 'CCB-7K2P9Q' } });
+    fireEvent.click(screen.getByRole('button', { name: /Usar código/i }));
+    await waitFor(() => expect(screen.getByText('Sofía Méndez')).toBeInTheDocument()); // seleccionado
+    expect(screen.queryByRole('dialog')).toBeNull(); // modal cerró
+    expect(fn.mock.calls.some((c) => String(c[0]).includes('q=CCB-7K2P9Q'))).toBe(true);
+  });
 });
