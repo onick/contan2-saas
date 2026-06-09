@@ -1,0 +1,254 @@
+'use client';
+
+// components/usuarios/UserProfileDrawer.tsx · perfil READ-ONLY del visitante en un
+// drawer accesible (UI-2a). Reutiliza useDrawerLifecycle (cierre animado, Escape,
+// scroll-lock, foco). Al abrir, carga en paralelo detalle + historial (1ª página) +
+// afinidad, cada sección con estado honesto (loading/error/empty). Copiar código con
+// feedback accesible. SIN acciones de escritura (editar/reenviar/archivar) en UI-2a.
+
+import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { X, Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles } from 'lucide-react';
+import type { UserListItem, UserActivityHistoryItem, UserAffinityResponse, AffinityBucket } from '@contan2/contracts';
+import { getUserDetail, getUserActivities, getUserAffinity } from '../../lib/api/profile-client';
+import { Button, IconButton, Chip, cn, focusRing, useDrawerLifecycle, type ChipTone } from '../ui';
+
+type Async<T> = { phase: 'loading' } | { phase: 'error'; error: string } | { phase: 'ready'; data: T };
+const HISTORY_PAGE = 10;
+
+const ABS = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric' });
+function relAgo(iso: string | null): string {
+  if (!iso) return 'Nunca';
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days <= 0) return 'hoy';
+  if (days === 1) return 'ayer';
+  if (days < 7) return `hace ${days} días`;
+  const w = Math.floor(days / 7);
+  if (w < 5) return w === 1 ? 'hace 1 semana' : `hace ${w} semanas`;
+  const m = Math.floor(days / 30);
+  return m === 1 ? 'hace 1 mes' : `hace ${m} meses`;
+}
+const STATUS: Record<'active' | 'dormant', { label: string; tone: ChipTone }> = {
+  active: { label: 'Activo', tone: 'success' },
+  dormant: { label: 'Dormido', tone: 'neutral' },
+};
+function credentialChip(u: UserListItem): { label: string; tone: ChipTone } {
+  if (u.credentialSentAt) return { label: 'Credencial enviada', tone: 'success' };
+  if (u.email) return { label: 'Credencial pendiente', tone: 'warning' };
+  return { label: 'Sin email', tone: 'neutral' };
+}
+
+export interface UserProfileDrawerProps {
+  code: string | null;
+  onClose: () => void;
+}
+
+export function UserProfileDrawer({ code, onClose }: UserProfileDrawerProps) {
+  const titleId = useId();
+  const open = code !== null;
+  const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: onClose });
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Snapshot del último code no-nulo: retiene el contenido durante la animación de cierre.
+  const shownRef = useRef(code);
+  if (code) shownRef.current = code;
+  const shown = shownRef.current;
+
+  const [detail, setDetail] = useState<Async<UserListItem>>({ phase: 'loading' });
+  const [affinity, setAffinity] = useState<Async<UserAffinityResponse>>({ phase: 'loading' });
+  const [history, setHistory] = useState<Async<UserActivityHistoryItem[]>>({ phase: 'loading' });
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Carga al abrir / cambiar de visitante. AbortController descarta respuestas obsoletas.
+  useEffect(() => {
+    if (!code) return;
+    const ac = new AbortController();
+    setDetail({ phase: 'loading' }); setAffinity({ phase: 'loading' });
+    setHistory({ phase: 'loading' }); setHistoryTotal(0); setCopied(false);
+    void getUserDetail(code, ac.signal).then((r) => { if (!ac.signal.aborted) setDetail(r.ok ? { phase: 'ready', data: r.data.user } : { phase: 'error', error: r.error }); }).catch(() => {});
+    void getUserAffinity(code, ac.signal).then((r) => { if (!ac.signal.aborted) setAffinity(r.ok ? { phase: 'ready', data: r.data } : { phase: 'error', error: r.error }); }).catch(() => {});
+    void getUserActivities(code, HISTORY_PAGE, 0, ac.signal).then((r) => {
+      if (ac.signal.aborted) return;
+      if (r.ok) { setHistory({ phase: 'ready', data: r.data.items }); setHistoryTotal(r.data.total); }
+      else setHistory({ phase: 'error', error: r.error });
+    }).catch(() => {});
+    return () => ac.abort();
+  }, [code]);
+
+  // Foco inicial al contenedor al abrir.
+  useEffect(() => { if (mounted) containerRef.current?.focus(); }, [mounted]);
+
+  async function loadMore() {
+    if (!shown || history.phase !== 'ready' || loadingMore) return;
+    setLoadingMore(true);
+    const r = await getUserActivities(shown, HISTORY_PAGE, history.data.length);
+    setLoadingMore(false);
+    if (r.ok) { setHistory({ phase: 'ready', data: [...history.data, ...r.data.items] }); setHistoryTotal(r.data.total); }
+  }
+
+  async function copyCode() {
+    if (!shown) return;
+    try { await navigator.clipboard.writeText(shown); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* sin clipboard */ }
+  }
+
+  if (!mounted || !shown || typeof document === 'undefined') return null;
+
+  const labelCls = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-faint';
+
+  return createPortal(
+    <div ref={containerRef} tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={onClose}
+        className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
+      <div ref={panelRef} className={cn(
+        'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
+        'md:inset-y-0 md:right-0 md:left-auto md:h-dvh md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
+        'flex flex-col', closing && 'drawer-panel--closing')}>
+        {/* aria-live para el feedback de copiar */}
+        <div aria-live="polite" className="sr-only">{copied ? 'Código copiado al portapapeles' : ''}</div>
+
+        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+          <div className="min-w-0">
+            <p className={labelCls}>Perfil del visitante</p>
+            <h2 id={titleId} className="mt-1 truncate text-lg font-bold leading-tight tracking-tight text-ink">
+              {detail.phase === 'ready' ? `${detail.data.firstName} ${detail.data.lastName}`.trim() : '…'}
+            </h2>
+            <div className="mt-1 flex items-center gap-2">
+              <code className="text-[13px] tabular-nums text-muted">{shown}</code>
+              <button type="button" onClick={copyCode}
+                className={cn('inline-flex items-center gap-1 rounded px-1 text-[12px] font-semibold text-brand', focusRing)}>
+                {copied ? <><Check size={13} strokeWidth={2.5} aria-hidden="true" /> Copiado</> : <><Copy size={13} strokeWidth={2} aria-hidden="true" /> Copiar</>}
+              </button>
+            </div>
+          </div>
+          <IconButton label="Cerrar perfil" variant="outline" size="sm" onClick={onClose}>
+            <X size={18} strokeWidth={2} aria-hidden="true" />
+          </IconButton>
+        </header>
+
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          {detail.phase === 'error' ? (
+            <p role="alert" className="rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{detail.error}</p>
+          ) : null}
+
+          {/* Chips de estado + credencial */}
+          {detail.phase === 'ready' ? (
+            <div className="flex flex-wrap gap-2">
+              {detail.data.status ? <Chip tone={STATUS[detail.data.status].tone} dot>{STATUS[detail.data.status].label}</Chip> : null}
+              <Chip tone={credentialChip(detail.data).tone} dot>{credentialChip(detail.data).label}</Chip>
+            </div>
+          ) : null}
+
+          {/* Métricas */}
+          <dl className="grid grid-cols-3 gap-3">
+            <Metric label="Visitas" value={detail.phase === 'ready' ? String(detail.data.visitCount) : '—'} />
+            <Metric label="Última visita" value={detail.phase === 'ready' ? relAgo(detail.data.lastVisitAt) : '—'} />
+            <Metric label="Registro" value={detail.phase === 'ready' ? relAgo(detail.data.createdAt) : '—'} />
+          </dl>
+
+          {/* Contacto */}
+          {detail.phase === 'ready' ? (
+            <div className="space-y-2">
+              <p className={labelCls}>Contacto</p>
+              <Row icon={Mail}>{detail.data.email ?? <span className="text-faint">Sin email</span>}</Row>
+              <Row icon={Phone}>{detail.data.phone ?? <span className="text-faint">Sin teléfono</span>}</Row>
+            </div>
+          ) : null}
+
+          {/* Afinidad / intereses */}
+          <div className="space-y-2">
+            <p className={cn(labelCls, 'flex items-center gap-1.5')}><Sparkles size={13} strokeWidth={1.75} aria-hidden="true" /> Intereses y ubicaciones</p>
+            {affinity.phase === 'loading' ? <SkeletonLine /> :
+             affinity.phase === 'error' ? <p className="text-[13px] text-faint">{affinity.error}</p> :
+             affinity.data.totalAttended === 0 ? <p className="text-[13px] text-faint">Aún sin asistencias registradas.</p> : (
+              <div className="space-y-3">
+                <Bars title="Tipos de actividad" buckets={affinity.data.byType} icon={Tag} />
+                {affinity.data.byCategory.length ? <Bars title="Categorías" buckets={affinity.data.byCategory} icon={Tag} /> : null}
+                {affinity.data.byLocation.length ? (
+                  <div>
+                    <p className="mb-1 flex items-center gap-1.5 text-[12px] font-medium text-muted"><MapPin size={12} strokeWidth={2} aria-hidden="true" /> Ubicaciones frecuentes</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {affinity.data.byLocation.map((b) => <Chip key={b.key} tone="neutral">{b.key} · {b.count}</Chip>)}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          {/* Historial */}
+          <div className="space-y-2">
+            <p className={cn(labelCls, 'flex items-center gap-1.5')}><FileText size={13} strokeWidth={1.75} aria-hidden="true" /> Historial de actividades{historyTotal ? ` (${historyTotal})` : ''}</p>
+            {history.phase === 'loading' ? <SkeletonLine /> :
+             history.phase === 'error' ? <p className="text-[13px] text-faint">{history.error}</p> :
+             history.data.length === 0 ? <p className="text-[13px] text-faint">Todavía no participó en actividades.</p> : (
+              <>
+                <ul className="space-y-2">
+                  {history.data.map((h, i) => (
+                    <li key={`${h.activityId}-${i}`} className="rounded-lg border border-line bg-surface px-3 py-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-ink">{h.name}</p>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-faint">
+                            <span className="inline-flex items-center gap-1"><CalendarDays size={11} strokeWidth={2} aria-hidden="true" /> {ABS.format(new Date(h.checkedInAt ?? h.registeredAt))}</span>
+                            <span className="inline-flex items-center gap-1"><MapPin size={11} strokeWidth={2} aria-hidden="true" /> {h.location}</span>
+                            {h.companionsChildren > 0 ? <span className="inline-flex items-center gap-1"><Users size={11} strokeWidth={2} aria-hidden="true" /> +{h.companionsChildren}</span> : null}
+                          </p>
+                        </div>
+                        <Chip tone={h.attended ? 'success' : 'neutral'}>{h.attended ? 'Asistió' : 'Registrado'}</Chip>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {history.data.length < historyTotal ? (
+                  <Button type="button" variant="secondary" className="w-full" onClick={loadMore} disabled={loadingMore}>
+                    {loadingMore ? <><Loader2 size={15} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Cargando…</> : `Cargar más (${historyTotal - history.data.length})`}
+                  </Button>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-surface-container px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{value}</p>
+    </div>
+  );
+}
+function Row({ icon: Icon, children }: { icon: typeof Mail; children: React.ReactNode }) {
+  return (
+    <p className="flex items-center gap-2 text-sm text-ink">
+      <Icon size={15} strokeWidth={1.75} aria-hidden="true" className="flex-none text-faint" /> <span className="min-w-0 truncate">{children}</span>
+    </p>
+  );
+}
+function SkeletonLine() {
+  return <div className="app-shimmer h-12 w-full rounded-lg" aria-busy="true" />;
+}
+function Bars({ title, buckets, icon: Icon }: { title: string; buckets: AffinityBucket[]; icon: typeof Tag }) {
+  const max = Math.max(...buckets.map((b) => b.count), 1);
+  return (
+    <div>
+      <p className="mb-1 flex items-center gap-1.5 text-[12px] font-medium text-muted"><Icon size={12} strokeWidth={2} aria-hidden="true" /> {title}</p>
+      <div className="space-y-1">
+        {buckets.map((b) => (
+          <div key={b.key} className="flex items-center gap-2">
+            <span className="w-28 flex-none truncate text-[12px] text-ink">{b.key}</span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-container">
+              <div className="h-full rounded-full bg-brand" style={{ width: `${Math.round((b.count / max) * 100)}%` }} />
+            </div>
+            <span className="w-6 flex-none text-right text-[12px] tabular-nums text-faint">{b.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

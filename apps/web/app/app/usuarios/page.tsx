@@ -10,6 +10,7 @@ import { DemoBanner } from '../../../components/shell/DemoBanner';
 import { SearchBar } from '../../../components/admin/SearchBar';
 import { Pagination } from '../../../components/admin/Pagination';
 import { CohortPills } from '../../../components/usuarios/CohortPills';
+import { ProfileProvider } from '../../../components/usuarios/ProfileProvider';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
 import { getUsersPage, getUsersFacets } from '../../../lib/api/users';
@@ -81,7 +82,7 @@ export default async function UsuariosPage({
       <>
         <DemoBanner />
         <SectionHeader level={1} title="Usuarios" subtitle="Visitantes registrados del centro" actions={actions} />
-        <div className="mt-4"><UsersTable users={USERS} /></div>
+        <ProfileProvider><div className="mt-4"><UsersTable users={USERS} /></div></ProfileProvider>
       </>,
     );
   }
@@ -118,7 +119,7 @@ export default async function UsuariosPage({
           />
         </Card>
       ) : (
-        <div className="mt-4"><UsersTable users={view.users} /></div>
+        <ProfileProvider><div className="mt-4"><UsersTable users={view.users} /></div></ProfileProvider>
       )}
 
       <Pagination total={view.total} page={page} pageSize={pageSize} />
