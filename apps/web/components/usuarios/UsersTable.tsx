@@ -2,6 +2,7 @@ import { ChevronDown, SearchX } from 'lucide-react';
 import type { UserRow, UserStatus } from '../../lib/usuarios/demoData';
 import { Card, Chip, EmptyState, type ChipTone } from '../ui';
 import { ProfileLink } from './ProfileProvider';
+import { RowActions } from './RowActions';
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -25,12 +26,13 @@ const STATUS_TONE: Record<UserStatus, ChipTone> = {
 
 export interface UsersTableProps {
   users: UserRow[];
+  canWrite?: boolean; // owner/admin → habilita acciones de escritura por fila
 }
 
 // Tabla de usuarios · estilo Google/Material: avatar con iniciales (color por
 // índice), código, visitas, última visita y chip de estado con punto. En mobile
 // se ocultan Código y Última visita. Server Component. Datos demo (no PII).
-export function UsersTable({ users }: UsersTableProps) {
+export function UsersTable({ users, canWrite = false }: UsersTableProps) {
   if (users.length === 0) {
     return (
       <EmptyState
@@ -108,6 +110,7 @@ export function UsersTable({ users }: UsersTableProps) {
                   <td className="whitespace-nowrap px-4 py-4">
                     <div className="flex items-center justify-end gap-1">
                       <ProfileLink code={u.code} />
+                      <RowActions code={u.code} email={u.email === '—' ? null : u.email} archived={!!u.archived} canWrite={canWrite} />
                     </div>
                   </td>
                 </tr>

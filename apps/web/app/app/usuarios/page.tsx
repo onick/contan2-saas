@@ -88,7 +88,7 @@ export default async function UsuariosPage({
       <>
         <DemoBanner />
         <SectionHeader level={1} title="Usuarios" subtitle="Visitantes registrados del centro" actions={actions} />
-        <ProfileProvider canEdit={canWrite}><div className="mt-4"><UsersTable users={USERS} /></div></ProfileProvider>
+        <ProfileProvider canEdit={canWrite}><div className="mt-4"><UsersTable users={USERS} canWrite={canWrite} /></div></ProfileProvider>
       </>,
     );
   }
@@ -126,7 +126,7 @@ export default async function UsuariosPage({
           />
         </Card>
       ) : (
-        <ProfileProvider canEdit={canWrite}><div className="mt-4"><UsersTable users={view.users} /></div></ProfileProvider>
+        <ProfileProvider canEdit={canWrite}><div className="mt-4"><UsersTable users={view.users} canWrite={canWrite} /></div></ProfileProvider>
       )}
 
       <Pagination total={view.total} page={page} pageSize={pageSize} />
