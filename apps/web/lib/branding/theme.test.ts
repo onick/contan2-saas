@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { brandingToCssVars, CSS_VAR_BRAND, CSS_VAR_BRAND_ACCENT } from './theme';
+import { brandingToCssVars, CSS_VAR_BRAND, CSS_VAR_BRAND_ACCENT, CSS_VAR_BRAND_STRONG } from './theme';
+import { contrastRatio } from './contrast';
 import { getLocalBranding, DEFAULT_BRANDING } from './config';
 
 describe('brandingToCssVars', () => {
@@ -13,9 +14,16 @@ describe('brandingToCssVars', () => {
     expect(vars[CSS_VAR_BRAND_ACCENT]).toBe('#445566');
   });
 
-  it('produce exactamente las dos CSS vars esperadas', () => {
+  it('deriva --color-brand-strong AA-safe (texto blanco ≥4.5) por tenant', () => {
+    // #f39228 (claro) → el strong derivado pasa AA con blanco, aunque el primario no.
+    const vars = brandingToCssVars({ ...DEFAULT_BRANDING, primaryColor: '#f39228' });
+    expect(vars[CSS_VAR_BRAND]).toBe('#f39228'); // el primario se respeta (acento)
+    expect(contrastRatio('#ffffff', vars[CSS_VAR_BRAND_STRONG])).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('produce exactamente las tres CSS vars esperadas', () => {
     const vars = brandingToCssVars(DEFAULT_BRANDING);
-    expect(Object.keys(vars).sort()).toEqual([CSS_VAR_BRAND, CSS_VAR_BRAND_ACCENT].sort());
+    expect(Object.keys(vars).sort()).toEqual([CSS_VAR_BRAND, CSS_VAR_BRAND_ACCENT, CSS_VAR_BRAND_STRONG].sort());
   });
 });
 
