@@ -1,7 +1,7 @@
-import { CalendarDays, Clock, MapPin, Eye, Mail, FileText } from 'lucide-react';
+import { CalendarDays, Clock, MapPin } from 'lucide-react';
 import type { FeaturedActivity as FeaturedActivityData } from '../../lib/dashboard/demoData';
 import { CategoryChip } from '../CategoryChip';
-import { Card, Button } from '../ui';
+import { Card } from '../ui';
 
 export interface FeaturedActivityProps {
   activity: FeaturedActivityData;
@@ -51,19 +51,6 @@ export function FeaturedActivity({ activity }: FeaturedActivityProps) {
             <div className="app-bar-grow h-full rounded-full bg-brand-accent" style={{ width: `${pct}%` }} />
           </div>
         </div>
-      </div>
-
-      {/* Acciones */}
-      <div className="flex flex-none flex-col gap-2 md:w-40">
-        <Button size="sm" className="w-full">
-          <Eye size={16} strokeWidth={2} aria-hidden="true" /> Ver detalle
-        </Button>
-        <Button variant="secondary" size="sm" className="w-full">
-          <Mail size={16} strokeWidth={2} aria-hidden="true" /> Invitar
-        </Button>
-        <Button variant="secondary" size="sm" className="w-full">
-          <FileText size={16} strokeWidth={2} aria-hidden="true" /> Reporte
-        </Button>
       </div>
     </Card>
   );

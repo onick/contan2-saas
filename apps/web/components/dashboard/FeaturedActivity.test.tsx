@@ -13,10 +13,10 @@ describe('FeaturedActivity', () => {
     expect(screen.getByText(/13 \/ 60 inscritos/)).toBeInTheDocument();
   });
 
-  it('expone las acciones principales', () => {
+  it('NO expone botones inertes (ver detalle/invitar/reporte aún sin backend)', () => {
     render(<FeaturedActivity activity={FEATURED_ACTIVITY} />);
-    expect(screen.getByRole('button', { name: /ver detalle/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /invitar/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reporte/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ver detalle/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /invitar/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /reporte/i })).toBeNull();
   });
 });
