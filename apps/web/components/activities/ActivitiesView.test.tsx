@@ -57,8 +57,9 @@ describe('ActivitiesView · interacciones (sin escrituras)', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Ver' })[0]!);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('Detalle de actividad')).toBeInTheDocument();
-    // cierra con Escape
+    // cierra con Escape (cierre animado: desmonta al terminar animationend)
     fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.animationEnd(document.querySelector('.drawer-panel')!);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 

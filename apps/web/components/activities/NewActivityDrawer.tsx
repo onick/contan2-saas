@@ -20,7 +20,7 @@ import { X, Loader2, ImagePlus, RefreshCw, Sparkles, AlertTriangle } from 'lucid
 import { ActivityCreateRequestSchema, ACTIVITY_TYPES, type ActivityType } from '@contan2/contracts';
 import type { ZodIssue } from 'zod';
 import { optimizeCover, OptimizeError, formatBytes, type OptimizeResult } from '../../lib/images/optimizeCover';
-import { IconButton, Button, cn, focusRing } from '../ui';
+import { IconButton, Button, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 const TYPE_LABELS: Record<ActivityType, string> = {
   exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
@@ -75,7 +75,6 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
   const baseId = useId();
   const titleId = `${baseId}-title`;
   const noticeId = `${baseId}-notice`;
-  const panelRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -96,29 +95,22 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
     setForm(EMPTY); setErrors({}); setBusy(false); setCoverErr(null);
     setPreview(null); setCover({ phase: 'empty' });
   };
-  const success = () => { reset(); onCreated(); };
+  // Éxito (201): el padre cierra (open→false) y el reset/liberación del object URL
+  // corre al final de la animación de salida (onClosed), no a mitad del slide.
+  const success = () => { onCreated(); };
 
   const busyRef = useRef(busy); busyRef.current = busy;
   const requestClose = useRef(() => {});
-  requestClose.current = () => { if (busyRef.current) return; reset(); onClose(); };
+  requestClose.current = () => { if (busyRef.current) return; onClose(); };
 
-  useEffect(() => {
-    if (!open) return;
-    const prevActive = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') requestClose.current(); };
-    document.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-      prevActive?.focus?.();
-    };
-  }, [open]);
-  // Liberar el preview al desmontar.
+  // Cierre animado: el reset (incl. revoke del preview) corre al final.
+  const { mounted, closing, panelRef } = useDrawerLifecycle({
+    open, onEscape: () => requestClose.current(), onClosed: reset,
+  });
+  // Liberar el preview al desmontar el componente (red de seguridad).
   useEffect(() => () => setPreview(null), []);
 
-  if (!open || typeof document === 'undefined') return null;
+  if (!mounted || typeof document === 'undefined') return null;
 
   const set = (key: FieldKey, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -231,12 +223,12 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
   const canSubmit = !busy && cover.phase === 'ready';
 
   return createPortal(
-    <div ref={panelRef} tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => requestClose.current()} className="drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity" />
-      <div className={cn(
+    <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => requestClose.current()} className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
+      <div ref={panelRef} className={cn(
         'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
         'md:inset-y-0 md:right-0 md:left-auto md:h-dvh md:w-full md:max-w-lg md:rounded-none md:border-l md:border-t-0',
-        'flex flex-col')}>
+        'flex flex-col', closing && 'drawer-panel--closing')}>
         <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0">
             <p className={labelCls}>Nueva actividad</p>

@@ -53,6 +53,12 @@ describe('NewActivityButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /Crear actividad/ }));
 
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole('dialog')).toBeNull(); // se cerró
+    // cierre animado tras el éxito: desmonta al terminar la animación de salida.
+    // Re-disparamos animationend hasta que el ciclo de cierre lo recoja y desmonte.
+    await waitFor(() => {
+      const panel = document.querySelector('.drawer-panel');
+      if (panel) fireEvent.animationEnd(panel);
+      expect(screen.queryByRole('dialog')).toBeNull(); // se cerró
+    });
   });
 });

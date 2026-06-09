@@ -169,4 +169,17 @@ describe('NewActivityDrawer · portada obligatoria', () => {
     await selectCover(); // reemplaza → revoca el anterior
     expect(revoked.length).toBeGreaterThan(0); // se revocó el object URL previo
   });
+
+  it('submit en vuelo (busy) bloquea el cierre: ni Cancelar ni Escape cierran', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise<Response>(() => {}))); // cuelga → busy
+    const { onClose } = renderDrawer();
+    await selectCover(); fillFields();
+    fireEvent.click(createBtn()); // entra en busy (Creando…)
+    expect(screen.getByRole('button', { name: /Creando/ })).toBeDisabled();
+    // Cancelar y Escape NO cierran mientras está enviando.
+    fireEvent.click(screen.getByRole('button', { name: /Cancelar/ }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.querySelector('.drawer-panel')).toBeInTheDocument(); // sigue montado
+  });
 });

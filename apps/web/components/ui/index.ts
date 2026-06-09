@@ -10,3 +10,4 @@ export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { BorderBeam, type BorderBeamProps } from './BorderBeam';
+export { useDrawerLifecycle, type DrawerLifecycle } from './useDrawerLifecycle';
