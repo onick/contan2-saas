@@ -8,9 +8,9 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles, Pencil } from 'lucide-react';
-import type { UserListItem, UserActivityHistoryItem, UserAffinityResponse, AffinityBucket, AdminUserUpdateRequest } from '@contan2/contracts';
-import { getUserDetail, getUserActivities, getUserAffinity, updateUser } from '../../lib/api/profile-client';
+import { X, Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles, Pencil, Send } from 'lucide-react';
+import type { UserListItem, UserActivityHistoryItem, UserAffinityResponse, AffinityBucket, AdminUserUpdateRequest, AdminCredentialResendResponse } from '@contan2/contracts';
+import { getUserDetail, getUserActivities, getUserAffinity, updateUser, resendCredential } from '../../lib/api/profile-client';
 import { Button, IconButton, Chip, cn, focusRing, useDrawerLifecycle, type ChipTone } from '../ui';
 
 type Async<T> = { phase: 'loading' } | { phase: 'error'; error: string } | { phase: 'ready'; data: T };
@@ -37,6 +37,15 @@ function credentialChip(u: UserListItem): { label: string; tone: ChipTone } {
   if (u.email) return { label: 'Credencial pendiente', tone: 'warning' };
   return { label: 'Sin email', tone: 'neutral' };
 }
+function maskEmail(e: string): string { const at = e.indexOf('@'); return at <= 0 ? '***' : `${e.slice(0, 1)}***@${e.slice(at + 1)}`; }
+// Tono honesto del resultado de reenvío (NUNCA "enviado" verde en dry-run).
+const RESEND_TONE: Record<AdminCredentialResendResponse['result'], string> = {
+  sent: 'bg-success-bg text-success-fg',
+  'dry-run': 'bg-surface-container text-muted',
+  replayed: 'bg-surface-container text-muted',
+  skipped: 'bg-accent-soft text-[#b35400]',
+  error: 'bg-danger-bg text-danger-fg',
+};
 
 export interface UserProfileDrawerProps {
   code: string | null;
@@ -65,6 +74,12 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Reenvío de credencial (F2C)
+  const [resendOpen, setResendOpen] = useState(false);
+  const [resendKey, setResendKey] = useState('');
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendResult, setResendResult] = useState<AdminCredentialResendResponse | null>(null);
+  const [resendError, setResendError] = useState<string | null>(null);
 
   // Carga al abrir / cambiar de visitante. AbortController descarta respuestas obsoletas.
   useEffect(() => {
@@ -73,6 +88,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
     setDetail({ phase: 'loading' }); setAffinity({ phase: 'loading' });
     setHistory({ phase: 'loading' }); setHistoryTotal(0); setCopied(false);
     setEditing(false); setSaveError(null);
+    setResendOpen(false); setResendResult(null); setResendError(null);
     void getUserDetail(code, ac.signal).then((r) => { if (!ac.signal.aborted) setDetail(r.ok ? { phase: 'ready', data: r.data.user } : { phase: 'error', error: r.error }); }).catch(() => {});
     void getUserAffinity(code, ac.signal).then((r) => { if (!ac.signal.aborted) setAffinity(r.ok ? { phase: 'ready', data: r.data } : { phase: 'error', error: r.error }); }).catch(() => {});
     void getUserActivities(code, HISTORY_PAGE, 0, ac.signal).then((r) => {
@@ -123,6 +139,22 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
     setSaving(false);
     if (r.ok) { setDetail({ phase: 'ready', data: r.data.user }); setEditing(false); }
     else setSaveError(r.error);
+  }
+
+  // Reenviar credencial: genera la Idempotency-Key al ABRIR el confirm; se REUSA en
+  // reintentos/doble-click; una acción nueva genera otra key.
+  function openResend() {
+    setResendKey(crypto.randomUUID()); setResendResult(null); setResendError(null); setResendOpen(true);
+  }
+  async function confirmResend() {
+    if (!shown || resendBusy) return;
+    setResendBusy(true); setResendError(null);
+    const r = await resendCredential(shown, resendKey); // MISMA key en reintentos
+    setResendBusy(false);
+    if (r.ok) {
+      setResendResult(r.data); setResendOpen(false);
+      if (detail.phase === 'ready') setDetail({ phase: 'ready', data: { ...detail.data, credentialSentAt: r.data.credentialSentAt } });
+    } else setResendError(r.error); // mantiene el confirm; reintento reusa la key
   }
 
   if (!mounted || !shown || typeof document === 'undefined') return null;
@@ -176,6 +208,34 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
             <div className="flex flex-wrap gap-2">
               {detail.data.status ? <Chip tone={STATUS[detail.data.status].tone} dot>{STATUS[detail.data.status].label}</Chip> : null}
               <Chip tone={credentialChip(detail.data).tone} dot>{credentialChip(detail.data).label}</Chip>
+            </div>
+          ) : null}
+
+          {/* Reenviar credencial (F2C) · sólo owner/admin + con email; confirmación
+              explícita con email enmascarado; Idempotency-Key reusada en reintentos. */}
+          {detail.phase === 'ready' && canEdit && detail.data.email && !editing ? (
+            <div className="space-y-2">
+              {!resendOpen ? (
+                <Button type="button" variant="secondary" size="sm" onClick={openResend}>
+                  <Send size={14} strokeWidth={2} aria-hidden="true" /> Reenviar credencial
+                </Button>
+              ) : (
+                <div className="rounded-lg border border-line bg-surface-container p-3">
+                  <p className="text-[13px] text-ink">¿Reenviar la credencial a <strong className="font-semibold">{maskEmail(detail.data.email)}</strong>?</p>
+                  {resendError ? <p role="alert" className="mt-2 text-[12px] text-danger-fg">{resendError}</p> : null}
+                  <div className="mt-2 flex items-center justify-end gap-2">
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setResendOpen(false)} disabled={resendBusy}>Cancelar</Button>
+                    <Button type="button" size="sm" onClick={confirmResend} disabled={resendBusy}>
+                      {resendBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Enviando…</> : 'Sí, reenviar'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {resendResult ? (
+                <p role="status" aria-live="polite" className={cn('rounded-lg px-3 py-2 text-[12px]', RESEND_TONE[resendResult.result])}>
+                  {resendResult.message}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
