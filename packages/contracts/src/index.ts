@@ -235,13 +235,55 @@ export const UserSchema = z.object({
 });
 export type User = z.infer<typeof UserSchema>;
 
+// Cohortes del listado de usuarios (User Intelligence UI-1). Reglas:
+//   all          → sin filtro
+//   frequent     → visit_count >= 3 (regla v1 fija)
+//   new7d        → created_at en los últimos 7 días
+//   noEmail      → email IS NULL
+//   noCredential → email IS NOT NULL AND credential_sent_at IS NULL
+//   active       → última visita (MAX checked_in_at) dentro de 30 días
+//   dormant      → última visita > 90 días O NUNCA visitó
+// Zona intermedia 31–90 días: SIN etiqueta active/dormant (status = null).
+export const USER_COHORTS = ['all', 'frequent', 'new7d', 'noEmail', 'noCredential', 'active', 'dormant'] as const;
+export const UserCohortSchema = z.enum(USER_COHORTS);
+export type UserCohort = z.infer<typeof UserCohortSchema>;
+
+// Estado derivado de actividad (solo lectura). null = zona intermedia 31–90 días.
+export const UserActivityStatusSchema = z.enum(['active', 'dormant']);
+export type UserActivityStatus = z.infer<typeof UserActivityStatusSchema>;
+
+// Fila del listado: User + enriquecimiento de inteligencia (última visita, estado
+// de credencial, estado de actividad derivado). El detalle (UserDetailResponse)
+// sigue usando UserSchema crudo (el perfil completo es UI-2).
+export const UserListItemSchema = UserSchema.extend({
+  lastVisitAt: z.string().nullable(),       // ISO 8601 | null (nunca visitó)
+  credentialSentAt: z.string().nullable(),  // ISO 8601 | null (sin enviar / sin email)
+  status: UserActivityStatusSchema.nullable(), // null = intermedia 31–90 días
+});
+export type UserListItem = z.infer<typeof UserListItemSchema>;
+
 export const UsersListResponseSchema = z.object({
-  items: z.array(UserSchema),
+  items: z.array(UserListItemSchema),
   total: z.number().int(),
   limit: z.number().int(),
   offset: z.number().int(),
 });
 export type UsersListResponse = z.infer<typeof UsersListResponseSchema>;
+
+// Conteos exactos por cohorte (endpoint facets), tenant-scoped, dentro de la
+// búsqueda `q` vigente (no del cohorte vigente: cada pill muestra su propio total).
+export const UsersFacetsResponseSchema = z.object({
+  counts: z.object({
+    all: z.number().int(),
+    frequent: z.number().int(),
+    new7d: z.number().int(),
+    noEmail: z.number().int(),
+    noCredential: z.number().int(),
+    active: z.number().int(),
+    dormant: z.number().int(),
+  }),
+});
+export type UsersFacetsResponse = z.infer<typeof UsersFacetsResponseSchema>;
 
 export const UserDetailResponseSchema = z.object({ user: UserSchema });
 export type UserDetailResponse = z.infer<typeof UserDetailResponseSchema>;

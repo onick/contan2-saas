@@ -4,6 +4,9 @@
 // hardcodean datos reales.
 
 export type UserStatus = 'activo' | 'nuevo' | 'inactivo';
+// Tono visual reutilizado del Chip (evita acoplar demoData a components/ui en
+// runtime; es solo el conjunto de literales).
+export type RowTone = 'neutral' | 'success' | 'danger' | 'warning' | 'brand';
 
 export interface UserRow {
   id: string;
@@ -17,6 +20,11 @@ export interface UserRow {
   lastVisit: string;
   status: UserStatus;
   statusLabel: string;
+  // Enriquecimiento real (UI-1). Opcionales → el demo los omite y la tabla cae a
+  // "—". `statusLabel` vacío = zona intermedia 31–90 días (sin etiqueta).
+  statusTone?: RowTone;
+  credentialLabel?: string;
+  credentialTone?: RowTone;
 }
 
 export interface UserKpi {

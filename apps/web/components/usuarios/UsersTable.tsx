@@ -15,7 +15,7 @@ const AVATAR_COLORS = [
   'bg-[#fdeaf0] text-[#b03060]',
 ];
 
-// Estado → tono de Chip (activo=verde, nuevo=naranja, inactivo=neutral).
+// Estado → tono de Chip (fallback para demo; los datos reales traen statusTone).
 const STATUS_TONE: Record<UserStatus, ChipTone> = {
   activo: 'success',
   nuevo: 'warning',
@@ -43,7 +43,7 @@ export function UsersTable({ users }: UsersTableProps) {
   return (
     <Card padding="none" className="overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] border-collapse">
+        <table className="w-full min-w-[900px] border-collapse">
           <thead>
             <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
               <th className="px-5 py-3 md:px-6">Usuario</th>
@@ -55,6 +55,7 @@ export function UsersTable({ users }: UsersTableProps) {
               </th>
               <th className="px-4 py-3">Visitas</th>
               <th className="hidden px-4 py-3 md:table-cell">Última visita</th>
+              <th className="hidden px-4 py-3 lg:table-cell">Credencial</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3" />
             </tr>
@@ -86,8 +87,19 @@ export function UsersTable({ users }: UsersTableProps) {
                     </span>
                   </td>
                   <td className="hidden whitespace-nowrap px-4 py-4 text-[13px] text-muted md:table-cell">{u.lastVisit}</td>
+                  <td className="hidden px-4 py-4 lg:table-cell">
+                    {u.credentialLabel ? (
+                      <Chip tone={(u.credentialTone ?? 'neutral') as ChipTone} dot>{u.credentialLabel}</Chip>
+                    ) : (
+                      <span className="text-[13px] text-faint">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-4">
-                    <Chip tone={STATUS_TONE[u.status]} dot>{u.statusLabel}</Chip>
+                    {u.statusLabel ? (
+                      <Chip tone={(u.statusTone as ChipTone | undefined) ?? STATUS_TONE[u.status]} dot>{u.statusLabel}</Chip>
+                    ) : (
+                      <span className="text-[13px] text-faint" title="Última visita hace 31–90 días">—</span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4">
                     <div className="flex items-center justify-end gap-1">

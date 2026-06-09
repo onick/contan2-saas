@@ -9,11 +9,12 @@ import { Unavailable } from '../../../components/shell/Unavailable';
 import { DemoBanner } from '../../../components/shell/DemoBanner';
 import { SearchBar } from '../../../components/admin/SearchBar';
 import { Pagination } from '../../../components/admin/Pagination';
+import { CohortPills } from '../../../components/usuarios/CohortPills';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
-import { getUsersPage } from '../../../lib/api/users';
+import { getUsersPage, getUsersFacets } from '../../../lib/api/users';
 import {
-  parsePage, parsePageSize, parseQ, qForApi, computeOffset, totalPages,
+  parsePage, parsePageSize, parseQ, parseCohort, qForApi, computeOffset, totalPages,
   patchSearchParams, recordToSearchParams, type Raw,
 } from '../../../lib/admin/list-params';
 import { USERS } from '../../../lib/usuarios/demoData';
@@ -38,12 +39,14 @@ export default async function UsuariosPage({
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.pageSize);
   const q = parseQ(sp.q);
+  const cohort = parseCohort(sp.cohort);
 
-  const view = await getUsersPage({
-    limit: pageSize,
-    offset: computeOffset(page, pageSize),
-    q: qForApi(q),
-  });
+  // Listado (filtrado por cohorte + búsqueda) + conteos por cohorte (facets, solo
+  // dentro de la búsqueda vigente) en paralelo. Los facets son best-effort.
+  const [view, facets] = await Promise.all([
+    getUsersPage({ limit: pageSize, offset: computeOffset(page, pageSize), q: qForApi(q), cohort }),
+    getUsersFacets(qForApi(q)),
+  ]);
 
   // Página fuera de rango (URL vieja / datos borrados): normaliza preservando
   // filtros. total=0 → página 1; offset ≥ total>0 → última página válida.
@@ -91,10 +94,11 @@ export default async function UsuariosPage({
         subtitle={`${view.total.toLocaleString('en-US')} visitantes registrados`}
         actions={actions}
       />
-      <Card padding="none" className="mt-6 p-4">
+      <Card padding="none" className="mt-6 space-y-3 p-4">
+        <CohortPills counts={facets} />
         <div className="flex items-center gap-2">
           <div className="ml-auto min-w-0 flex-1 sm:flex-none">
-            <SearchBar label="Buscar por nombre, email o código" placeholder="Buscar por nombre, email o código…" />
+            <SearchBar label="Buscar por nombre, email, código o teléfono" placeholder="Buscar por nombre, email, código o teléfono…" />
           </div>
         </div>
       </Card>
@@ -104,7 +108,13 @@ export default async function UsuariosPage({
           <EmptyState
             icon={SearchX}
             title="Sin resultados"
-            description={q.trim() ? 'No encontramos usuarios para tu búsqueda. Probá con otro término.' : 'Aún no hay visitantes registrados.'}
+            description={
+              q.trim()
+                ? 'No encontramos usuarios para tu búsqueda. Probá con otro término.'
+                : cohort !== 'all'
+                  ? 'No hay usuarios en esta cohorte.'
+                  : 'Aún no hay visitantes registrados.'
+            }
           />
         </Card>
       ) : (

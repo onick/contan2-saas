@@ -1,7 +1,9 @@
 // apps/web/lib/admin/list-params.ts · helpers PUROS para los list-views (SSR).
-// La URL es la ÚNICA fuente de verdad: page/pageSize/q/activityId/dateFrom/dateTo.
+// La URL es la ÚNICA fuente de verdad: page/pageSize/q/cohort/activityId/dateFrom/dateTo.
 // Sin estado cliente: la página los parsea de searchParams y arma la query del
 // API; los controles (client) sólo reescriben la URL.
+
+import { USER_COHORTS, type UserCohort } from '@contan2/contracts';
 
 export const PAGE_SIZES = [10, 20, 50, 100] as const;
 export type PageSize = (typeof PAGE_SIZES)[number];
@@ -10,6 +12,13 @@ export const MAX_Q_LEN = 100; // espejo del límite del API
 
 export type Raw = string | string[] | undefined;
 const first = (v: Raw): string | undefined => (Array.isArray(v) ? v[0] : v);
+
+// Cohorte de usuarios desde la URL. Tolerante: ausente/desconocido → 'all'.
+// Espejo de USER_COHORTS de @contan2/contracts.
+export function parseCohort(raw: Raw): UserCohort {
+  const s = first(raw);
+  return s && (USER_COHORTS as readonly string[]).includes(s) ? (s as UserCohort) : 'all';
+}
 
 // page ≥ 1 (default 1). Valores basura → 1.
 export function parsePage(raw: Raw): number {
@@ -67,6 +76,7 @@ export interface ApiListParams {
   limit: number;
   offset: number;
   q?: string;
+  cohort?: UserCohort; // omitido si 'all'
   activityId?: string;
   dateFrom?: string; // ISO completo
   dateTo?: string; // ISO completo
@@ -76,6 +86,7 @@ export function toApiQuery(p: ApiListParams): string {
   sp.set('limit', String(p.limit));
   sp.set('offset', String(p.offset));
   if (p.q) sp.set('q', p.q);
+  if (p.cohort && p.cohort !== 'all') sp.set('cohort', p.cohort);
   if (p.activityId) sp.set('activityId', p.activityId);
   if (p.dateFrom) sp.set('dateFrom', p.dateFrom);
   if (p.dateTo) sp.set('dateTo', p.dateTo);
