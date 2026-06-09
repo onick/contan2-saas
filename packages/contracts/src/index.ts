@@ -306,6 +306,22 @@ export const AdminUserUpdateRequestSchema = z
   .refine((o) => Object.keys(o).length > 0, { message: 'No hay cambios para guardar' });
 export type AdminUserUpdateRequest = z.infer<typeof AdminUserUpdateRequestSchema>;
 
+// Reenvío de credencial (UI-2 · F2C). Sin body (el código va en la URL); requiere
+// header Idempotency-Key. Respuesta honesta:
+//   sent      → enviado de verdad por Resend (credential_sent_at actualizado)
+//   dry-run   → sin RESEND_API_KEY → NO se envió ni se marcó (staging por defecto)
+//   skipped   → no se pudo (p. ej. sin email) — la API igual exige email (422)
+//   replayed  → misma Idempotency-Key (retry/doble-click) → no se reenvió
+//   error     → fallo de envío
+export const AdminCredentialResendResultSchema = z.enum(['sent', 'dry-run', 'skipped', 'replayed', 'error']);
+export type AdminCredentialResendResult = z.infer<typeof AdminCredentialResendResultSchema>;
+export const AdminCredentialResendResponseSchema = z.object({
+  result: AdminCredentialResendResultSchema,
+  credentialSentAt: z.string().nullable(),
+  message: z.string(),
+});
+export type AdminCredentialResendResponse = z.infer<typeof AdminCredentialResendResponseSchema>;
+
 // Historial de actividades del visitante (UI-2). Incluye TODAS sus inscripciones
 // (RSVP) y asistencias: `checkedInAt` es null si registró pero no asistió.
 export const UserActivityHistoryItemSchema = z.object({

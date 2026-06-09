@@ -4,8 +4,9 @@
 
 import {
   UserDetailResponseSchema, UserActivityHistoryResponseSchema, UserAffinityResponseSchema,
+  AdminCredentialResendResponseSchema,
   type UserDetailResponse, type UserActivityHistoryResponse, type UserAffinityResponse,
-  type AdminUserUpdateRequest,
+  type AdminUserUpdateRequest, type AdminCredentialResendResponse,
 } from '@contan2/contracts';
 import type { ZodTypeAny, z } from 'zod';
 
@@ -57,3 +58,19 @@ export const getUserActivities = (code: string, limit: number, offset: number, s
 
 export const getUserAffinity = (code: string, signal?: AbortSignal): Promise<Result<UserAffinityResponse>> =>
   getJson(`${base(code)}/affinity`, UserAffinityResponseSchema, signal);
+
+// Reenviar credencial. `idempotencyKey` DEBE reusarse en reintentos/doble-click
+// (misma key → el server replica sin reenviar). Una acción nueva = key nueva.
+export async function resendCredential(code: string, idempotencyKey: string): Promise<Result<AdminCredentialResendResponse>> {
+  let res: Response;
+  try {
+    res = await fetch(`${base(code)}/credential`, { method: 'POST', headers: { 'idempotency-key': idempotencyKey } });
+  } catch {
+    return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' };
+  }
+  let body: { error?: string } | unknown = null;
+  try { body = await res.json(); } catch { /* */ }
+  if (!res.ok) return { ok: false, status: res.status, error: (body as { error?: string })?.error ?? 'No pudimos reenviar.' };
+  try { return { ok: true, data: AdminCredentialResendResponseSchema.parse(body) }; }
+  catch { return { ok: false, status: res.status, error: 'Respuesta inválida del servidor.' }; }
+}

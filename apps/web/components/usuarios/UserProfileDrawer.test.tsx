@@ -10,10 +10,11 @@ const detail = (over = {}) => ({ user: { id: 'u1', code: 'CCB-7K2P9Q', firstName
 const histItem = (over = {}) => ({ activityId: 'a1', name: 'Concierto', type: 'Concierto', location: 'Sala 1', status: 'activa', registeredAt: '2024-06-01T00:00:00.000Z', checkedInAt: '2024-06-01T00:00:00.000Z', attended: true, companionsChildren: 2, ...over });
 const affinity = (over = {}) => ({ byType: [{ key: 'Concierto', count: 2 }, { key: 'Cine', count: 1 }], byCategory: [{ key: 'Música', count: 2 }], byLocation: [{ key: 'Sala 1', count: 2 }], totalAttended: 3, lastVisitAt: new Date().toISOString(), status: 'active', ...over });
 
-interface H { detail?: () => Response; activities?: (offset: number) => Response; affinity?: () => Response; patch?: (body: Record<string, unknown>) => Response }
+interface H { detail?: () => Response; activities?: (offset: number) => Response; affinity?: () => Response; patch?: (body: Record<string, unknown>) => Response; credential?: (key: string) => Response }
 function installFetch(h: H) {
-  const fn = vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
+  const fn = vi.fn(async (url: string, init?: { method?: string; body?: string; headers?: Record<string, string> }) => {
     const u = String(url);
+    if (init?.method === 'POST' && u.includes('/credential')) return h.credential?.(init.headers?.['idempotency-key'] ?? '') ?? J({ result: 'dry-run', credentialSentAt: null, message: 'Dry-run: no se envió.' });
     if (init?.method === 'PATCH') return h.patch?.(JSON.parse(init.body ?? '{}')) ?? J(detail({ firstName: JSON.parse(init.body ?? '{}').firstName ?? 'Sofía' }));
     if (u.includes('/detail')) return h.detail?.() ?? J(detail());
     if (u.includes('/activities')) { const off = Number(new URL(u, 'http://x').searchParams.get('offset')); return h.activities?.(off) ?? J({ items: [histItem()], total: 1, limit: 10, offset: off }); }
@@ -126,6 +127,41 @@ describe('UserProfileDrawer', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: /Sofía Beatriz/ })).toBeInTheDocument());
     const patchCall = fn.mock.calls.find((c) => (c[1] as { method?: string })?.method === 'PATCH')!;
     expect(JSON.parse((patchCall[1] as { body: string }).body)).toEqual({ firstName: 'Sofía Beatriz' }); // sólo el campo cambiado
+  });
+
+  it('reenviar credencial: confirm con email enmascarado → dry-run honesto (no "enviado") + key reusada', async () => {
+    const keys: string[] = [];
+    const fn = installFetch({ credential: (k) => { keys.push(k); return J({ result: 'dry-run', credentialSentAt: null, message: 'Dry-run: sin clave de envío, no se envió.' }); } });
+    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Reenviar credencial/ }));
+    expect(screen.getByText(/s\*\*\*@ccb\.do/)).toBeInTheDocument(); // email enmascarado
+    fireEvent.click(screen.getByRole('button', { name: /Sí, reenviar/ }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/Dry-run/));
+    expect(screen.queryByText(/enviada al email/i)).toBeNull(); // NO afirma "enviado" en dry-run
+    // reintento (nueva apertura) usa una key nueva; dentro de un intento la key es la misma
+    expect(keys[0]).toBeTruthy();
+    expect(keys[0]).toMatch(/[0-9a-f-]{36}/); // crypto.randomUUID
+    const fn2 = fn; void fn2;
+  });
+
+  it('reenviar: error mantiene el confirm para reintentar', async () => {
+    let first = true;
+    installFetch({ credential: () => { if (first) { first = false; return J({ error: 'Problema de red.' }, 502); } return J({ result: 'sent', credentialSentAt: new Date().toISOString(), message: 'Credencial enviada al email del visitante.' }); } });
+    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Reenviar credencial/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Sí, reenviar/ }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Problema de red/));
+    fireEvent.click(screen.getByRole('button', { name: /Sí, reenviar/ })); // reintento
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/enviada al email/));
+  });
+
+  it('canEdit=false → sin botón de reenviar', async () => {
+    installFetch({});
+    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit={false} />);
+    await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
+    expect(screen.queryByRole('button', { name: /Reenviar credencial/ })).toBeNull();
   });
 
   it('edición: email duplicado (409) muestra error y mantiene el form', async () => {

@@ -62,6 +62,30 @@ export const proxyUserDetail = (code: string) =>
 export const proxyUserUpdate = (code: string, body: string) =>
   relayPatch(`/api/v2/users/${enc(code)}`, body, 'No pudimos guardar los cambios.');
 
+// POST reenviar credencial: reenvía la Idempotency-Key (evita reenvíos por retry).
+async function relayPost(path: string, idempotencyKey: string, netError: string): Promise<Response> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        ...(idempotencyKey ? { 'idempotency-key': idempotencyKey } : {}),
+        ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+        ...(await forwardingHeaders()),
+      },
+      cache: 'no-store',
+    });
+  } catch {
+    return Response.json({ error: netError }, { status: 502 });
+  }
+  const text = await upstream.text();
+  return new Response(text, { status: upstream.status, headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' } });
+}
+
+export const proxyUserCredential = (code: string, idempotencyKey: string) =>
+  relayPost(`/api/v2/users/${enc(code)}/credential`, idempotencyKey, 'No pudimos reenviar la credencial.');
+
 export const proxyUserActivities = (code: string, search: string) =>
   relayGet(`/api/v2/users/${enc(code)}/activities${search}`, 'No pudimos cargar el historial.');
 

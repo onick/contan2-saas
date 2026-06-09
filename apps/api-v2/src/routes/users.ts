@@ -7,12 +7,20 @@ import type {
   UserActivityHistoryResponse, UserAffinityResponse, AffinityBucket,
 } from '@contan2/contracts';
 import { AdminUserUpdateRequestSchema } from '@contan2/contracts';
+import type { AdminCredentialResendResponse, AdminCredentialResendResult } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { writeUserAudit } from '../services/user-audit.js';
+import { deliverCredential } from '../services/credential-delivery.js';
+import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { parsePage, parseSearch, parseCohort, likeContains } from '../query.js';
 
-// Editar/archivar visitantes es administrativo: sólo owner/admin (operator → 403).
+// Editar/archivar/reenviar credencial es administrativo: sólo owner/admin (operator → 403).
 const CAN_WRITE_USER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+
+// Reenvío de credencial: idempotencia en checkin_idempotency (endpoint dedicado) +
+// rate-limit por tenant + actor + IP. NUNCA envío masivo (1 visitante por request).
+const CRED_ENDPOINT = 'credential.resend';
+const credLimiter = createRateLimiter({ max: 5, windowMs: 60_000, prefix: endpointPrefix('credential-resend') });
 
 // Columnas calificadas (listado y detalle hacen join con el agregado de última visita).
 const LIST_COLUMNS = [
@@ -464,6 +472,91 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       .where('users.id', '=', target.id)
       .executeTakeFirstOrThrow();
     const body: UserDetailResponse = { user: toListItem(row as ListRow) };
+    return body;
+  });
+
+  // POST /api/v2/users/:code/credential · reenviar credencial (UI-2 · F2C). Sólo
+  // owner/admin. Exige email válido (422) e Idempotency-Key (400). Rate-limit por
+  // tenant+actor+IP (429). Idempotencia transaccional (checkin_idempotency): misma
+  // key → replay SIN reenviar. deliverCredential genera el PNG con el código exacto
+  // y envía por Resend; en dry-run (sin RESEND_API_KEY) NO envía ni marca
+  // credential_sent_at. Auditoría sin PII del visitante. Jamás envío masivo.
+  app.post('/users/:code/credential', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) {
+      reply.code(403);
+      return { error: 'No tenés permiso para reenviar credenciales.' };
+    }
+    const orgId = guard.ctx.org.id;
+    const staff = guard.ctx.staff;
+
+    if ((await credLimiter.hit(`${orgId}:${staff.id}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: 'Demasiados reenvíos. Esperá un momento e intentá de nuevo.' };
+    }
+    const key = String(req.headers['idempotency-key'] ?? '').trim();
+    if (!key || key.length > 200) {
+      reply.code(400);
+      return { error: 'Falta el header Idempotency-Key (string del cliente).' };
+    }
+    const code = normalizeCodeForLookup((req.params as { code: string }).code);
+    if (!isValidCode(code)) {
+      reply.code(404);
+      return { error: 'Usuario no encontrado' };
+    }
+    const user = await db.selectFrom('users').select(['id', 'code', 'email', 'first_name', 'last_name'])
+      .where('organization_id', '=', orgId).where('code', '=', code).where('deleted_at', 'is', null)
+      .executeTakeFirst();
+    if (!user) {
+      reply.code(404);
+      return { error: 'Usuario no encontrado' };
+    }
+    if (!user.email) {
+      reply.code(422);
+      return { error: 'El visitante no tiene email; no se puede enviar la credencial.' };
+    }
+
+    // Claim idempotente (TTL 24h). Si la key existe y no expiró → replay (no reenvía).
+    const claim = await db.transaction().execute(async (tx) => {
+      const ttl = sql<string>`now() + interval '24 hours'`;
+      const claimed = await tx.insertInto('checkin_idempotency')
+        .values({ organization_id: orgId, endpoint: CRED_ENDPOINT, idempotency_key: key, attendance_id: user.id, expires_at: ttl })
+        .onConflict((oc) => oc
+          .columns(['organization_id', 'endpoint', 'idempotency_key'])
+          .doUpdateSet({ attendance_id: user.id, expires_at: ttl })
+          .where(sql<boolean>`checkin_idempotency.expires_at <= now()`))
+        .returning('attendance_id')
+        .executeTakeFirst();
+      return { fresh: !!claimed };
+    });
+
+    const currentCredAt = async (): Promise<string | null> => {
+      const u = await db.selectFrom('users').select('credential_sent_at').where('id', '=', user.id).executeTakeFirstOrThrow();
+      return u.credential_sent_at ? toIso(u.credential_sent_at) : null;
+    };
+
+    if (!claim.fresh) {
+      const body: AdminCredentialResendResponse = { result: 'replayed', credentialSentAt: await currentCredAt(), message: 'Ya procesado (no se reenvió).' };
+      return body;
+    }
+
+    // Entrega real (fuera de tx): PNG + Resend + marca credential_sent_at sólo si sent.
+    const result = await deliverCredential(db, orgId, { id: user.id, code: user.code, email: user.email, firstName: user.first_name, lastName: user.last_name }, {});
+    let outcome: AdminCredentialResendResult;
+    let message: string;
+    if ('sent' in result && result.sent === true) { outcome = 'sent'; message = 'Credencial enviada al email del visitante.'; }
+    else if ('skipped' in result && result.skipped && /RESEND/i.test(result.reason ?? '')) { outcome = 'dry-run'; message = 'Dry-run: sin clave de envío configurada, no se envió ni se marcó como enviada.'; }
+    else if ('skipped' in result && result.skipped) { outcome = 'skipped'; message = `No se envió (${result.reason ?? 'omitido'}).`; }
+    else { outcome = 'error'; message = 'No pudimos enviar la credencial. Intentá de nuevo.'; }
+
+    await writeUserAudit(db, { orgId, staff, action: 'credential.resent', targetUserId: user.id, metadata: { result: outcome }, ip: req.ip, ua: req.headers['user-agent'] ?? null });
+
+    const body: AdminCredentialResendResponse = { result: outcome, credentialSentAt: await currentCredAt(), message };
     return body;
   });
 };
