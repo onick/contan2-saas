@@ -285,8 +285,46 @@ export const UsersFacetsResponseSchema = z.object({
 });
 export type UsersFacetsResponse = z.infer<typeof UsersFacetsResponseSchema>;
 
-export const UserDetailResponseSchema = z.object({ user: UserSchema });
+// Detalle del perfil (UI-2): mismo enriquecimiento que el listado (última visita,
+// credencial, estado de actividad). Sin organizationId ni campos internos.
+export const UserDetailResponseSchema = z.object({ user: UserListItemSchema });
 export type UserDetailResponse = z.infer<typeof UserDetailResponseSchema>;
+
+// Historial de actividades del visitante (UI-2). Incluye TODAS sus inscripciones
+// (RSVP) y asistencias: `checkedInAt` es null si registró pero no asistió.
+export const UserActivityHistoryItemSchema = z.object({
+  activityId: z.string(),
+  name: z.string(),
+  type: z.string(),
+  location: z.string(),
+  status: ActivityStatusSchema,        // estado actual de la actividad
+  registeredAt: z.string(),            // ISO 8601 (alta de la inscripción)
+  checkedInAt: z.string().nullable(),  // ISO 8601 | null (no asistió / sólo RSVP)
+  attended: z.boolean(),               // checked_in_at IS NOT NULL
+  companionsChildren: z.number().int(),
+});
+export type UserActivityHistoryItem = z.infer<typeof UserActivityHistoryItemSchema>;
+export const UserActivityHistoryResponseSchema = z.object({
+  items: z.array(UserActivityHistoryItemSchema),
+  total: z.number().int(),
+  limit: z.number().int(),
+  offset: z.number().int(),
+});
+export type UserActivityHistoryResponse = z.infer<typeof UserActivityHistoryResponseSchema>;
+
+// Afinidad/intereses derivados ON-DEMAND (UI-2): agregados de las actividades a las
+// que el visitante REALMENTE asistió (checked_in_at IS NOT NULL). Sin materializar.
+export const AffinityBucketSchema = z.object({ key: z.string(), count: z.number().int() });
+export type AffinityBucket = z.infer<typeof AffinityBucketSchema>;
+export const UserAffinityResponseSchema = z.object({
+  byType: z.array(AffinityBucketSchema),
+  byCategory: z.array(AffinityBucketSchema),
+  byLocation: z.array(AffinityBucketSchema),
+  totalAttended: z.number().int(),
+  lastVisitAt: z.string().nullable(),
+  status: UserActivityStatusSchema.nullable(),
+});
+export type UserAffinityResponse = z.infer<typeof UserAffinityResponseSchema>;
 
 // Registro de asistencia (con datos del visitante por join; null si anónimo).
 export const AttendanceListItemSchema = z.object({

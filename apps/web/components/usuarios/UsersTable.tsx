@@ -1,6 +1,7 @@
-import { MoreHorizontal, ChevronDown, SearchX } from 'lucide-react';
+import { ChevronDown, SearchX } from 'lucide-react';
 import type { UserRow, UserStatus } from '../../lib/usuarios/demoData';
-import { Card, Chip, IconButton, EmptyState, cn, focusRing, type ChipTone } from '../ui';
+import { Card, Chip, EmptyState, type ChipTone } from '../ui';
+import { ProfileLink } from './ProfileProvider';
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -103,10 +104,7 @@ export function UsersTable({ users }: UsersTableProps) {
                   </td>
                   <td className="whitespace-nowrap px-4 py-4">
                     <div className="flex items-center justify-end gap-1">
-                      <a href="#" className={cn('rounded px-1 text-[13px] font-semibold text-brand', focusRing)}>Ver</a>
-                      <IconButton label="Más acciones" variant="ghost" size="sm">
-                        <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
-                      </IconButton>
+                      <ProfileLink code={u.code} />
                     </div>
                   </td>
                 </tr>

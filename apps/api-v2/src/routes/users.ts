@@ -4,13 +4,12 @@ import { normalizeCodeForLookup, isValidCode } from '@contan2/codes';
 import type {
   User, UserListItem, UserActivityStatus, UserCohort,
   UsersListResponse, UsersFacetsResponse, UserDetailResponse,
+  UserActivityHistoryResponse, UserAffinityResponse, AffinityBucket,
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { parsePage, parseSearch, parseCohort, likeContains } from '../query.js';
 
-// Detalle (UserSchema crudo, sin enriquecimiento). Una sola tabla → sin join.
-const DETAIL_COLUMNS = ['id', 'code', 'first_name', 'last_name', 'email', 'phone', 'visit_count', 'created_at'] as const;
-// Listado: columnas calificadas (hay join con el agregado de última visita).
+// Columnas calificadas (listado y detalle hacen join con el agregado de última visita).
 const LIST_COLUMNS = [
   'users.id', 'users.code', 'users.first_name', 'users.last_name', 'users.email',
   'users.phone', 'users.visit_count', 'users.created_at', 'users.credential_sent_at',
@@ -220,6 +219,8 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     return body;
   });
 
+  // GET /api/v2/users/:code · detalle ENRIQUECIDO (UserListItem: + última visita,
+  // credencial, estado). Misma agregación de última visita que el listado.
   app.get('/users/:code', async (req, reply) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
@@ -228,24 +229,153 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
-
-    // Normaliza igual que el check-in v1 (trim + uppercase) vía @contan2/codes.
     const code = normalizeCodeForLookup((req.params as { code: string }).code);
     if (!isValidCode(code)) {
       reply.code(404);
       return { error: 'Usuario no encontrado' };
     }
 
-    const row = await db.selectFrom('users').select(DETAIL_COLUMNS)
-      .where('organization_id', '=', orgId)
-      .where('code', '=', code)
+    const row = await db.selectFrom('users')
+      .leftJoin(
+        (eb) => eb.selectFrom('attendance')
+          .select(['attendance.user_id'])
+          .select((e) => e.fn.max('attendance.checked_in_at').as('last_visit_at'))
+          .where('attendance.organization_id', '=', orgId)
+          .where('attendance.checked_in_at', 'is not', null)
+          .groupBy('attendance.user_id')
+          .as('lv'),
+        (join) => join.onRef('lv.user_id', '=', 'users.id'),
+      )
+      .select([...LIST_COLUMNS, 'lv.last_visit_at'])
+      .where('users.organization_id', '=', orgId)
+      .where('users.code', '=', code)
       .executeTakeFirst();
     if (!row) {
       reply.code(404);
       return { error: 'Usuario no encontrado' };
     }
+    const body: UserDetailResponse = { user: toListItem(row as ListRow) };
+    return body;
+  });
 
-    const body: UserDetailResponse = { user: toUser(row) };
+  // GET /api/v2/users/:code/activities · historial paginado del visitante (RSVP +
+  // asistencias; checkedInAt null = registró pero no asistió). Una query + count.
+  app.get('/users/:code/activities', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    const orgId = guard.ctx.org.id;
+    const code = normalizeCodeForLookup((req.params as { code: string }).code);
+    if (!isValidCode(code)) {
+      reply.code(404);
+      return { error: 'Usuario no encontrado' };
+    }
+    const user = await db.selectFrom('users').select('id')
+      .where('organization_id', '=', orgId).where('code', '=', code).executeTakeFirst();
+    if (!user) {
+      reply.code(404);
+      return { error: 'Usuario no encontrado' };
+    }
+    const { limit, offset } = parsePage((req.query ?? {}) as Record<string, unknown>, 10, 50);
+
+    const base = db.selectFrom('attendance')
+      .innerJoin('activities', 'activities.id', 'attendance.activity_id')
+      .where('attendance.organization_id', '=', orgId)
+      .where('attendance.user_id', '=', user.id);
+    const [rows, count] = await Promise.all([
+      base
+        .select([
+          'attendance.activity_id as activityId',
+          'activities.name as name',
+          'activities.type as type',
+          'activities.location as location',
+          'activities.status as status',
+          'attendance.registered_at as registeredAt',
+          'attendance.checked_in_at as checkedInAt',
+          'attendance.companions_children as companionsChildren',
+        ])
+        // Orden determinista: por asistencia/registro desc, desempate por activity_id.
+        .orderBy(sql`coalesce(attendance.checked_in_at, attendance.registered_at) desc`)
+        .orderBy('attendance.activity_id', 'desc')
+        .limit(limit).offset(offset).execute(),
+      base.select(db.fn.countAll<string>().as('n')).executeTakeFirstOrThrow(),
+    ]);
+    const body: UserActivityHistoryResponse = {
+      items: rows.map((r) => ({
+        activityId: r.activityId,
+        name: r.name,
+        type: r.type,
+        location: r.location,
+        status: r.status,
+        registeredAt: toIso(r.registeredAt),
+        checkedInAt: r.checkedInAt ? toIso(r.checkedInAt) : null,
+        attended: r.checkedInAt != null,
+        companionsChildren: r.companionsChildren,
+      })),
+      total: Number(count.n),
+      limit,
+      offset,
+    };
+    return body;
+  });
+
+  // GET /api/v2/users/:code/affinity · intereses/ubicaciones DERIVADOS on-demand de
+  // las asistencias REALES (checked_in_at IS NOT NULL). Agregaciones, sin N+1, sin
+  // materializar ni cachear PII.
+  app.get('/users/:code/affinity', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    const orgId = guard.ctx.org.id;
+    const code = normalizeCodeForLookup((req.params as { code: string }).code);
+    if (!isValidCode(code)) {
+      reply.code(404);
+      return { error: 'Usuario no encontrado' };
+    }
+    const user = await db.selectFrom('users').select('id')
+      .where('organization_id', '=', orgId).where('code', '=', code).executeTakeFirst();
+    if (!user) {
+      reply.code(404);
+      return { error: 'Usuario no encontrado' };
+    }
+
+    const TOP = 6;
+    const base = () => db.selectFrom('attendance')
+      .innerJoin('activities', 'activities.id', 'attendance.activity_id')
+      .where('attendance.organization_id', '=', orgId)
+      .where('attendance.user_id', '=', user.id)
+      .where('attendance.checked_in_at', 'is not', null);
+
+    const [byType, byCategory, byLocation, agg] = await Promise.all([
+      base().select(['activities.type as key']).select(db.fn.countAll<string>().as('count'))
+        .groupBy('activities.type').orderBy(sql`count(*) desc`).orderBy('activities.type').limit(TOP).execute(),
+      base().select(['activities.category as key']).select(db.fn.countAll<string>().as('count'))
+        .where('activities.category', 'is not', null)
+        .groupBy('activities.category').orderBy(sql`count(*) desc`).orderBy('activities.category').limit(TOP).execute(),
+      base().select(['activities.location as key']).select(db.fn.countAll<string>().as('count'))
+        .groupBy('activities.location').orderBy(sql`count(*) desc`).orderBy('activities.location').limit(TOP).execute(),
+      base().select(db.fn.countAll<string>().as('total'))
+        .select((e) => e.fn.max('attendance.checked_in_at').as('lastVisit')).executeTakeFirstOrThrow(),
+    ]);
+
+    const toBuckets = (rows: Array<{ key: string | null; count: string }>): AffinityBucket[] =>
+      rows.filter((r) => r.key != null && r.key !== '').map((r) => ({ key: r.key as string, count: Number(r.count) }));
+    const lastVisit = agg.lastVisit ? new Date(agg.lastVisit) : null;
+
+    const body: UserAffinityResponse = {
+      byType: toBuckets(byType),
+      byCategory: toBuckets(byCategory),
+      byLocation: toBuckets(byLocation),
+      totalAttended: Number(agg.total),
+      lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
+      status: deriveStatus(lastVisit),
+    };
     return body;
   });
 };
