@@ -9,20 +9,22 @@ import { forwardingHeaders } from './forwarded';
 const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:3001';
 const SESSION_COOKIE = 'contan2_session';
 
-export async function proxyTeam(search: string): Promise<Response> {
+async function relay(path: string, init: { method: string; body?: string }, netError: string): Promise<Response> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   let upstream: Response;
   try {
-    upstream = await fetch(`${API_BASE_URL}/api/v2/org/team${search}`, {
-      method: 'GET',
+    upstream = await fetch(`${API_BASE_URL}${path}`, {
+      method: init.method,
       headers: {
+        ...(init.body !== undefined ? { 'content-type': 'application/json' } : {}),
         ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
         ...(await forwardingHeaders()),
       },
+      ...(init.body !== undefined ? { body: init.body } : {}),
       cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'No pudimos cargar el equipo.' }, { status: 502 });
+    return Response.json({ error: netError }, { status: 502 });
   }
   const text = await upstream.text();
   return new Response(text, {
@@ -30,3 +32,12 @@ export async function proxyTeam(search: string): Promise<Response> {
     headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
   });
 }
+
+export const proxyTeam = (search: string) =>
+  relay(`/api/v2/org/team${search}`, { method: 'GET' }, 'No pudimos cargar el equipo.');
+
+// id ya viene de params (server-side); se encodea por las dudas.
+export const proxyTeamRole = (id: string, body: string) =>
+  relay(`/api/v2/org/team/${encodeURIComponent(id)}/role`, { method: 'PATCH', body }, 'No pudimos cambiar el rol.');
+export const proxyTeamStatus = (id: string, body: string) =>
+  relay(`/api/v2/org/team/${encodeURIComponent(id)}/status`, { method: 'PATCH', body }, 'No pudimos cambiar el estado.');
