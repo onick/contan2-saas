@@ -1,25 +1,21 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import HistorialPage from './page';
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+const emptyAudit = () => new Response('{"items":[],"nextCursor":null}', { status: 200, headers: { 'content-type': 'application/json' } });
 
 describe('/app/historial', () => {
-  it('renderiza el encabezado y los grupos por día', () => {
+  it('renderiza el encabezado y el feed real (filtros server-side)', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(emptyAudit()));
     render(<HistorialPage />);
     expect(screen.getByRole('heading', { name: 'Historial' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Hoy' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Ayer' })).toBeInTheDocument();
-  });
-
-  it('muestra eventos de auditoría con actor y objetivo', () => {
-    render(<HistorialPage />);
-    expect(screen.getByText('actualizó la identidad de marca')).toBeInTheDocument();
-    expect(screen.getByText('Suscriptores frecuentes')).toBeInTheDocument();
-    expect(screen.getByText(/eventos en los últimos 7 días/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Tipo de evento')).toBeInTheDocument(); // generador real, no demo
   });
 
   it('marca "Historial" como ítem activo del sidebar', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(emptyAudit()));
     render(<HistorialPage />);
     expect(screen.getByRole('link', { name: 'Historial' })).toHaveAttribute('aria-current', 'page');
   });
