@@ -8,11 +8,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, Loader2, Users } from 'lucide-react';
 import { Card, Chip, cn, focusRing, type ChipTone } from '../ui';
+import { TeamRowActions } from './TeamRowActions';
 
 interface Member {
   id: string; fullName: string; email: string; role: string; status: string; lastLoginAt: string | null; createdAt: string;
 }
 interface Filters { q: string; role: string; status: string }
+
+export interface TeamTableProps {
+  // Staff actual (de la sesión, server-side): habilita el gating de las acciones.
+  currentStaffId?: string;
+  currentRole?: string;
+}
 
 const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador' };
 const ROLE_TONE: Record<string, ChipTone> = { owner: 'warning', admin: 'success', operator: 'neutral' };
@@ -22,7 +29,7 @@ const STATUS_TONE: Record<string, ChipTone> = { active: 'success', suspended: 'd
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('es-DO', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
-export function TeamTable() {
+export function TeamTable({ currentStaffId, currentRole }: TeamTableProps = {}) {
   const [filters, setFilters] = useState<Filters>({ q: '', role: '', status: '' });
   const [items, setItems] = useState<Member[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -112,6 +119,7 @@ export function TeamTable() {
                       <th className="px-4 py-3">Estado</th>
                       <th className="hidden px-4 py-3 md:table-cell">Último acceso</th>
                       <th className="hidden px-4 py-3 lg:table-cell">Alta</th>
+                      <th className="px-4 py-3" />
                     </tr>
                   </thead>
                   <tbody>
@@ -130,6 +138,11 @@ export function TeamTable() {
                         <td className="px-4 py-3.5"><Chip tone={STATUS_TONE[m.status] ?? 'neutral'} dot>{STATUS_LABEL[m.status] ?? m.status}</Chip></td>
                         <td className="hidden whitespace-nowrap px-4 py-3.5 text-[13px] text-muted md:table-cell">{fmtDate(m.lastLoginAt)}</td>
                         <td className="hidden whitespace-nowrap px-4 py-3.5 text-[13px] text-muted lg:table-cell">{fmtDate(m.createdAt)}</td>
+                        <td className="whitespace-nowrap px-4 py-3.5 text-right">
+                          {currentStaffId && currentRole ? (
+                            <TeamRowActions member={m} currentStaffId={currentStaffId} currentRole={currentRole} onChanged={() => void load(filters, null)} />
+                          ) : null}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
