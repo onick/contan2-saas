@@ -588,3 +588,24 @@ export const ReportAttendanceByActivityResponseSchema = z.object({
   rows: z.array(ReportAttendanceRowSchema),
 });
 export type ReportAttendanceByActivityResponse = z.infer<typeof ReportAttendanceByActivityResponseSchema>;
+
+// ── Historial · log de auditoría del tenant (F5) ───────────────────────────
+export const AuditLogItemSchema = z.object({
+  id: z.string(),
+  category: z.string(),
+  action: z.string(),
+  actorEmailMasked: z.string().nullable(),
+  actorRole: z.string().nullable(),
+  targetType: z.string().nullable(),
+  targetId: z.string().nullable(),
+  targetLabel: z.string().nullable(),
+  metadata: z.record(z.string(), z.unknown()),
+  createdAt: z.string(),
+});
+export type AuditLogItem = z.infer<typeof AuditLogItemSchema>;
+
+export const AuditLogResponseSchema = z.object({
+  items: z.array(AuditLogItemSchema),
+  nextCursor: z.string().nullable(),
+});
+export type AuditLogResponse = z.infer<typeof AuditLogResponseSchema>;
