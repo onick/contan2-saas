@@ -51,13 +51,15 @@ export interface UserProfileDrawerProps {
   code: string | null;
   onClose: () => void;
   canEdit?: boolean; // owner/admin → habilita editar (el API igual arbitra el rol)
+  initialEdit?: boolean; // abrir directo en modo edición (acción "Editar" de la fila)
 }
 
-export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfileDrawerProps) {
+export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit = false }: UserProfileDrawerProps) {
   const titleId = useId();
   const open = code !== null;
   const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: onClose });
   const containerRef = useRef<HTMLDivElement>(null);
+  const editIntentConsumed = useRef(false);
   // Snapshot del último code no-nulo: retiene el contenido durante la animación de cierre.
   const shownRef = useRef(code);
   if (code) shownRef.current = code;
@@ -91,7 +93,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
     const ac = new AbortController();
     setDetail({ phase: 'loading' }); setAffinity({ phase: 'loading' });
     setHistory({ phase: 'loading' }); setHistoryTotal(0); setCopied(false);
-    setEditing(false); setSaveError(null);
+    setEditing(false); setSaveError(null); editIntentConsumed.current = false;
     setResendOpen(false); setResendResult(null); setResendError(null);
     setArchiveConfirm(false); setArchiveError(null);
     void getUserDetail(code, ac.signal).then((r) => { if (!ac.signal.aborted) setDetail(r.ok ? { phase: 'ready', data: r.data.user } : { phase: 'error', error: r.error }); }).catch(() => {});
@@ -106,6 +108,16 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
 
   // Foco inicial al contenedor al abrir.
   useEffect(() => { if (mounted) containerRef.current?.focus(); }, [mounted]);
+
+  // Acción "Editar" de la fila: entra directo en modo edición cuando el detalle
+  // queda listo (una sola vez por apertura, y sólo con permiso).
+  useEffect(() => {
+    if (canEdit && initialEdit && detail.phase === 'ready' && !editIntentConsumed.current && !editing) {
+      editIntentConsumed.current = true;
+      startEdit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEdit, detail.phase, canEdit]);
 
   async function loadMore() {
     if (!shown || history.phase !== 'ready' || loadingMore) return;

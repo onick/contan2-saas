@@ -1,5 +1,13 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+
+// RowActions (por fila) usa useRouter; ProfileProvider, useSearchParams.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
+  usePathname: () => '/app/usuarios',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 import { UsersTable } from './UsersTable';
 import { USERS } from '../../lib/usuarios/demoData';
 
