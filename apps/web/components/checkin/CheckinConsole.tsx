@@ -193,8 +193,10 @@ export function CheckinConsole() {
           <Card padding="lg">
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Encontrar visitante</p>
 
-            {/* Input y acciones (Escanear / Nuevo) alineados en la MISMA fila; apila en móvil */}
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            {/* Input y acciones (Escanear / Nuevo) en una fila SOLO en desktop (xl, cuando
+                el grid pasa a 2 columnas). En tablet/móvil los botones bajan DEBAJO del
+                input, a ancho completo (touch-friendly). */}
+            <div className="mt-3 flex flex-col gap-2 xl:flex-row xl:items-center">
               {selected ? (
                 <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface-container px-4 py-2.5">
                   <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-primary-container text-[12px] font-semibold text-on-primary-container">
@@ -227,10 +229,10 @@ export function CheckinConsole() {
                 </label>
               )}
               <div className="flex flex-none items-stretch gap-2">
-                <Button variant="secondary" size="md" onClick={() => setScanOpen(true)} className="flex-1 sm:flex-none">
+                <Button variant="secondary" size="md" onClick={() => setScanOpen(true)} className="flex-1 xl:flex-none">
                   <ScanLine size={16} strokeWidth={2} aria-hidden="true" /> Escanear
                 </Button>
-                <Button variant="primary" size="md" onClick={() => setNewOpen(true)} className="flex-1 sm:flex-none">
+                <Button variant="primary" size="md" onClick={() => setNewOpen(true)} className="flex-1 xl:flex-none">
                   <UserPlus size={16} strokeWidth={2} aria-hidden="true" /> Nuevo visitante
                 </Button>
               </div>
