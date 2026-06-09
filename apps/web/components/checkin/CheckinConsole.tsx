@@ -191,37 +191,28 @@ export function CheckinConsole() {
         <div className="flex min-w-0 flex-col gap-4">
           {/* Buscar / seleccionar visitante */}
           <Card padding="lg">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Encontrar visitante</p>
-              <div className="flex flex-none items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
-                  <ScanLine size={16} strokeWidth={2} aria-hidden="true" /> Escanear
-                </Button>
-                <Button variant="primary" size="sm" onClick={() => setNewOpen(true)}>
-                  <UserPlus size={16} strokeWidth={2} aria-hidden="true" /> Nuevo visitante
-                </Button>
-              </div>
-            </div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Encontrar visitante</p>
 
-            {selected ? (
-              <div className="mt-3 flex items-center gap-3 rounded-xl border border-line bg-surface-container px-4 py-3">
-                <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-primary-container text-[12px] font-semibold text-on-primary-container">
-                  {(selected.firstName[0] ?? '') + (selected.lastName[0] ?? '')}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink">{selected.firstName} {selected.lastName}</p>
-                  <p className="truncate text-xs text-faint">
-                    <span className="tabular-nums">{selected.code}</span>
-                    <span className="ml-2 inline-flex items-center gap-1">{selected.visitCount >= 10 ? <Crown size={11} aria-hidden="true" /> : null}{selected.visitCount} {selected.visitCount === 1 ? 'visita' : 'visitas'}</span>
-                  </p>
+            {/* Input y acciones (Escanear / Nuevo) alineados en la MISMA fila; apila en móvil */}
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+              {selected ? (
+                <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface-container px-4 py-2.5">
+                  <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-primary-container text-[12px] font-semibold text-on-primary-container">
+                    {(selected.firstName[0] ?? '') + (selected.lastName[0] ?? '')}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-ink">{selected.firstName} {selected.lastName}</p>
+                    <p className="truncate text-xs text-faint">
+                      <span className="tabular-nums">{selected.code}</span>
+                      <span className="ml-2 inline-flex items-center gap-1">{selected.visitCount >= 10 ? <Crown size={11} aria-hidden="true" /> : null}{selected.visitCount} {selected.visitCount === 1 ? 'visita' : 'visitas'}</span>
+                    </p>
+                  </div>
+                  <IconButton label="Quitar visitante" variant="outline" size="sm" onClick={() => setSelected(null)}>
+                    <X size={16} strokeWidth={2} aria-hidden="true" />
+                  </IconButton>
                 </div>
-                <IconButton label="Quitar visitante" variant="outline" size="sm" onClick={() => setSelected(null)}>
-                  <X size={16} strokeWidth={2} aria-hidden="true" />
-                </IconButton>
-              </div>
-            ) : (
-              <>
-                <label className="relative mt-3 block">
+              ) : (
+                <label className="relative block min-w-0 flex-1">
                   <span className="sr-only">Buscar visitante por código, nombre, email o teléfono</span>
                   <Search size={18} strokeWidth={1.75} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
                   <input
@@ -234,35 +225,43 @@ export function CheckinConsole() {
                   />
                   {results.phase === 'searching' ? <Loader2 size={16} aria-hidden="true" className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-faint" /> : null}
                 </label>
+              )}
+              <div className="flex flex-none items-stretch gap-2">
+                <Button variant="secondary" size="md" onClick={() => setScanOpen(true)} className="flex-1 sm:flex-none">
+                  <ScanLine size={16} strokeWidth={2} aria-hidden="true" /> Escanear
+                </Button>
+                <Button variant="primary" size="md" onClick={() => setNewOpen(true)} className="flex-1 sm:flex-none">
+                  <UserPlus size={16} strokeWidth={2} aria-hidden="true" /> Nuevo visitante
+                </Button>
+              </div>
+            </div>
 
-                {query.trim().length >= 2 ? (
-                  <div className="mt-2">
-                    {results.phase === 'error' ? (
-                      <p className="px-1 py-2 text-[13px] text-danger-fg">{results.error}</p>
-                    ) : results.phase === 'ready' && results.items.length === 0 ? (
-                      <p className="px-1 py-2 text-[13px] text-faint">Sin coincidencias. Probá otro dato o creá el visitante.</p>
-                    ) : (
-                      <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
-                        {results.items.map((v) => (
-                          <li key={v.id}>
-                            <button type="button" onClick={() => selectVisitor(v)} className={cn('flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-container', focusRing)}>
-                              <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-primary-container text-[11px] font-semibold text-on-primary-container">{(v.firstName[0] ?? '') + (v.lastName[0] ?? '')}</span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-medium text-ink">{v.firstName} {v.lastName}</span>
-                                <span className="block truncate text-xs text-faint"><span className="tabular-nums">{v.code}</span>{v.email ? ` · ${v.email}` : ''}</span>
-                              </span>
-                              <Chip tone="neutral" className="flex-none tabular-nums">{v.visitCount === 1 ? '1ª vez' : `${v.visitCount}v`}</Chip>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+            {!selected && (query.trim().length >= 2 ? (
+              <div className="mt-2">
+                {results.phase === 'error' ? (
+                  <p className="px-1 py-2 text-[13px] text-danger-fg">{results.error}</p>
+                ) : results.phase === 'ready' && results.items.length === 0 ? (
+                  <p className="px-1 py-2 text-[13px] text-faint">Sin coincidencias. Probá otro dato o creá el visitante.</p>
                 ) : (
-                  <p className="mt-3 text-[13px] text-muted">Buscá por código o datos del visitante (mín. 2 caracteres).</p>
+                  <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
+                    {results.items.map((v) => (
+                      <li key={v.id}>
+                        <button type="button" onClick={() => selectVisitor(v)} className={cn('flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-container', focusRing)}>
+                          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-primary-container text-[11px] font-semibold text-on-primary-container">{(v.firstName[0] ?? '') + (v.lastName[0] ?? '')}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-ink">{v.firstName} {v.lastName}</span>
+                            <span className="block truncate text-xs text-faint"><span className="tabular-nums">{v.code}</span>{v.email ? ` · ${v.email}` : ''}</span>
+                          </span>
+                          <Chip tone="neutral" className="flex-none tabular-nums">{v.visitCount === 1 ? '1ª vez' : `${v.visitCount}v`}</Chip>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </>
-            )}
+              </div>
+            ) : (
+              <p className="mt-3 text-[13px] text-muted">Buscá por código o datos del visitante (mín. 2 caracteres).</p>
+            ))}
           </Card>
 
           {/* Actividades activas (reales) */}
