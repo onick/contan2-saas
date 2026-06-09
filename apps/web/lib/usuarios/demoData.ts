@@ -25,6 +25,7 @@ export interface UserRow {
   statusTone?: RowTone;
   credentialLabel?: string;
   credentialTone?: RowTone;
+  archived?: boolean; // F2D: visitante archivado (deleted_at)
 }
 
 export interface UserKpi {

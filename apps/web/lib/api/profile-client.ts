@@ -4,9 +4,9 @@
 
 import {
   UserDetailResponseSchema, UserActivityHistoryResponseSchema, UserAffinityResponseSchema,
-  AdminCredentialResendResponseSchema,
+  AdminCredentialResendResponseSchema, AdminUserArchiveResponseSchema,
   type UserDetailResponse, type UserActivityHistoryResponse, type UserAffinityResponse,
-  type AdminUserUpdateRequest, type AdminCredentialResendResponse,
+  type AdminUserUpdateRequest, type AdminCredentialResendResponse, type AdminUserArchiveResponse,
 } from '@contan2/contracts';
 import type { ZodTypeAny, z } from 'zod';
 
@@ -74,3 +74,16 @@ export async function resendCredential(code: string, idempotencyKey: string): Pr
   try { return { ok: true, data: AdminCredentialResendResponseSchema.parse(body) }; }
   catch { return { ok: false, status: res.status, error: 'Respuesta inválida del servidor.' }; }
 }
+
+async function postArchive(code: string, action: 'archive' | 'reactivate'): Promise<Result<AdminUserArchiveResponse>> {
+  let res: Response;
+  try { res = await fetch(`${base(code)}/${action}`, { method: 'POST' }); }
+  catch { return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' }; }
+  let body: { error?: string } | unknown = null;
+  try { body = await res.json(); } catch { /* */ }
+  if (!res.ok) return { ok: false, status: res.status, error: (body as { error?: string })?.error ?? 'No se pudo completar.' };
+  try { return { ok: true, data: AdminUserArchiveResponseSchema.parse(body) }; }
+  catch { return { ok: false, status: res.status, error: 'Respuesta inválida del servidor.' }; }
+}
+export const archiveUser = (code: string) => postArchive(code, 'archive');
+export const reactivateUser = (code: string) => postArchive(code, 'reactivate');

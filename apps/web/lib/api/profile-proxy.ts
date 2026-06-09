@@ -86,6 +86,12 @@ async function relayPost(path: string, idempotencyKey: string, netError: string)
 export const proxyUserCredential = (code: string, idempotencyKey: string) =>
   relayPost(`/api/v2/users/${enc(code)}/credential`, idempotencyKey, 'No pudimos reenviar la credencial.');
 
+export const proxyUserArchive = (code: string) =>
+  relayPost(`/api/v2/users/${enc(code)}/archive`, '', 'No pudimos archivar el visitante.');
+
+export const proxyUserReactivate = (code: string) =>
+  relayPost(`/api/v2/users/${enc(code)}/reactivate`, '', 'No pudimos reactivar el visitante.');
+
 export const proxyUserActivities = (code: string, search: string) =>
   relayGet(`/api/v2/users/${enc(code)}/activities${search}`, 'No pudimos cargar el historial.');
 

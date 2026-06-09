@@ -7,12 +7,12 @@ import type {
   UserActivityHistoryResponse, UserAffinityResponse, AffinityBucket,
 } from '@contan2/contracts';
 import { AdminUserUpdateRequestSchema } from '@contan2/contracts';
-import type { AdminCredentialResendResponse, AdminCredentialResendResult } from '@contan2/contracts';
+import type { AdminCredentialResendResponse, AdminCredentialResendResult, AdminUserArchiveResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { writeUserAudit } from '../services/user-audit.js';
 import { deliverCredential } from '../services/credential-delivery.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
-import { parsePage, parseSearch, parseCohort, likeContains } from '../query.js';
+import { parsePage, parseSearch, parseCohort, parseUserStatusFilter, likeContains, type UserStatusFilter } from '../query.js';
 
 // Editar/archivar/reenviar credencial es administrativo: sólo owner/admin (operator → 403).
 const CAN_WRITE_USER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
@@ -25,7 +25,7 @@ const credLimiter = createRateLimiter({ max: 5, windowMs: 60_000, prefix: endpoi
 // Columnas calificadas (listado y detalle hacen join con el agregado de última visita).
 const LIST_COLUMNS = [
   'users.id', 'users.code', 'users.first_name', 'users.last_name', 'users.email',
-  'users.phone', 'users.visit_count', 'users.created_at', 'users.credential_sent_at',
+  'users.phone', 'users.visit_count', 'users.created_at', 'users.credential_sent_at', 'users.deleted_at',
 ] as const;
 
 const DAY_MS = 86_400_000;
@@ -57,6 +57,7 @@ function deriveStatus(lastVisit: Date | null): UserActivityStatus | null {
 
 interface ListRow extends DetailRow {
   credential_sent_at: Date | null;
+  deleted_at: Date | null;
   last_visit_at: Date | string | null;
 }
 function toListItem(r: ListRow): UserListItem {
@@ -66,6 +67,7 @@ function toListItem(r: ListRow): UserListItem {
     lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
     credentialSentAt: r.credential_sent_at ? toIso(r.credential_sent_at) : null,
     status: deriveStatus(lastVisit),
+    deletedAt: r.deleted_at ? toIso(r.deleted_at) : null,
   };
 }
 
@@ -81,6 +83,14 @@ function cohortCondition(cohort: UserCohort) {
     case 'dormant': return sql<boolean>`lv.last_visit_at is null or lv.last_visit_at < now() - interval '90 days'`;
     default: return null;
   }
+}
+
+// Condición de archivado. Default 'active' = no archivados (deleted_at IS NULL).
+// null = 'all' (sin filtro).
+function statusCondition(status: UserStatusFilter) {
+  if (status === 'active') return sql<boolean>`users.deleted_at is null`;
+  if (status === 'archived') return sql<boolean>`users.deleted_at is not null`;
+  return null;
 }
 
 // GET /api/v2/users (listado + cohortes), /users/facets (conteos) y /users/:code.
@@ -103,6 +113,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     const pattern = search.q ? likeContains(search.q) : undefined;
     const cohort = parseCohort(query.cohort);
     const cohortCond = cohortCondition(cohort);
+    const statusCond = statusCondition(parseUserStatusFilter(query.status));
 
     // Última visita por usuario en UNA agregación (LEFT JOIN a MAX agrupado), no
     // N+1. lv.last_visit_at es NULL para quien nunca asistió. organizationId
@@ -153,6 +164,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       ]));
     }
     if (cohortCond) { rowsQ = rowsQ.where(cohortCond); countQ = countQ.where(cohortCond); }
+    if (statusCond) { rowsQ = rowsQ.where(statusCond); countQ = countQ.where(statusCond); }
 
     const [rows, count] = await Promise.all([
       rowsQ.orderBy('users.created_at', 'desc').orderBy('users.id', 'desc').limit(limit).offset(offset).execute(),
@@ -186,6 +198,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: 'Parámetro de búsqueda inválido.' };
     }
     const pattern = search.q ? likeContains(search.q) : undefined;
+    const statusCond = statusCondition(parseUserStatusFilter(query.status));
 
     let q = db.selectFrom('users')
       .leftJoin(
@@ -208,6 +221,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
         eb('users.phone', 'ilike', pattern),
       ]));
     }
+    if (statusCond) q = q.where(statusCond);
     const row = await q.select([
       sql<string>`count(*)`.as('all'),
       sql<string>`count(*) filter (where users.visit_count >= 3)`.as('frequent'),
@@ -557,6 +571,57 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     await writeUserAudit(db, { orgId, staff, action: 'credential.resent', targetUserId: user.id, metadata: { result: outcome }, ip: req.ip, ua: req.headers['user-agent'] ?? null });
 
     const body: AdminCredentialResendResponse = { result: outcome, credentialSentAt: await currentCredAt(), message };
+    return body;
+  });
+
+  // POST /api/v2/users/:code/archive · soft-archive (UI-2 · F2D). Sólo owner/admin.
+  // Set deleted_at = now(); JAMÁS hard-delete. Historial/asistencias se preservan.
+  // Auditoría sin PII.
+  app.post('/users/:code/archive', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para archivar visitantes.' }; }
+    const orgId = guard.ctx.org.id;
+    const code = normalizeCodeForLookup((req.params as { code: string }).code);
+    if (!isValidCode(code)) { reply.code(404); return { error: 'Usuario no encontrado' }; }
+    const user = await db.selectFrom('users').select(['id'])
+      .where('organization_id', '=', orgId).where('code', '=', code).where('deleted_at', 'is', null).executeTakeFirst();
+    if (!user) { reply.code(404); return { error: 'Usuario no encontrado' }; }
+    const deletedAt = new Date().toISOString();
+    await db.transaction().execute(async (tx) => {
+      await tx.updateTable('users').set({ deleted_at: deletedAt, updated_at: deletedAt }).where('id', '=', user.id).where('organization_id', '=', orgId).execute();
+      await writeUserAudit(tx, { orgId, staff: guard.ctx.staff, action: 'user.archived', targetUserId: user.id, ip: req.ip, ua: req.headers['user-agent'] ?? null });
+    });
+    const body: AdminUserArchiveResponse = { archived: true, deletedAt };
+    return body;
+  });
+
+  // POST /api/v2/users/:code/reactivate · reactivar un archivado (UI-2 · F2D). Sólo
+  // owner/admin. Valida que el email no colisione con un visitante ACTIVO (409).
+  app.post('/users/:code/reactivate', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para reactivar visitantes.' }; }
+    const orgId = guard.ctx.org.id;
+    const code = normalizeCodeForLookup((req.params as { code: string }).code);
+    if (!isValidCode(code)) { reply.code(404); return { error: 'Usuario no encontrado' }; }
+    const user = await db.selectFrom('users').select(['id', 'email'])
+      .where('organization_id', '=', orgId).where('code', '=', code).where('deleted_at', 'is not', null).executeTakeFirst();
+    if (!user) { reply.code(404); return { error: 'Usuario archivado no encontrado' }; }
+    if (user.email) {
+      const dup = await db.selectFrom('users').select('id')
+        .where('organization_id', '=', orgId).where('id', '!=', user.id).where('deleted_at', 'is', null)
+        .where(sql<boolean>`lower(btrim(users.email)) = lower(btrim(${user.email}))`).executeTakeFirst();
+      if (dup) { reply.code(409); return { error: 'Otro visitante activo ya usa ese email; no se puede reactivar.' }; }
+    }
+    const now = new Date().toISOString();
+    await db.transaction().execute(async (tx) => {
+      await tx.updateTable('users').set({ deleted_at: null, updated_at: now }).where('id', '=', user.id).where('organization_id', '=', orgId).execute();
+      await writeUserAudit(tx, { orgId, staff: guard.ctx.staff, action: 'user.reactivated', targetUserId: user.id, ip: req.ip, ua: req.headers['user-agent'] ?? null });
+    });
+    const body: AdminUserArchiveResponse = { archived: false, deletedAt: null };
     return body;
   });
 };

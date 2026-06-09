@@ -72,11 +72,19 @@ export function totalPages(total: number, pageSize: number): number {
 }
 
 // Query string del API omitiendo params vacíos.
+// Filtro de archivado de usuarios (F2D). Default 'active'.
+export type UserStatusFilter = 'active' | 'archived' | 'all';
+export function parseUserStatus(raw: Raw): UserStatusFilter {
+  const s = first(raw);
+  return s === 'archived' || s === 'all' ? s : 'active';
+}
+
 export interface ApiListParams {
   limit: number;
   offset: number;
   q?: string;
   cohort?: UserCohort; // omitido si 'all'
+  status?: UserStatusFilter; // omitido si 'active'
   activityId?: string;
   dateFrom?: string; // ISO completo
   dateTo?: string; // ISO completo
@@ -87,6 +95,7 @@ export function toApiQuery(p: ApiListParams): string {
   sp.set('offset', String(p.offset));
   if (p.q) sp.set('q', p.q);
   if (p.cohort && p.cohort !== 'all') sp.set('cohort', p.cohort);
+  if (p.status && p.status !== 'active') sp.set('status', p.status);
   if (p.activityId) sp.set('activityId', p.activityId);
   if (p.dateFrom) sp.set('dateFrom', p.dateFrom);
   if (p.dateTo) sp.set('dateTo', p.dateTo);
