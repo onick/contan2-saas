@@ -7,8 +7,8 @@ import { AttendanceChart } from '../../components/dashboard/AttendanceChart';
 import { HighlightCard } from '../../components/dashboard/HighlightCard';
 import { TopActivities } from '../../components/dashboard/TopActivities';
 import { RecentVisitors } from '../../components/dashboard/RecentVisitors';
-import { Plus } from 'lucide-react';
-import { SectionHeader, Button, Card, Skeleton } from '../../components/ui';
+import { NewActivityButton } from '../../components/activities/NewActivityButton';
+import { SectionHeader, Card, Skeleton } from '../../components/ui';
 import { Unavailable } from '../../components/shell/Unavailable';
 import { DemoBanner } from '../../components/shell/DemoBanner';
 import { getLocalBranding } from '../../lib/branding/config';
@@ -111,11 +111,7 @@ export default function TenantAdminDashboard() {
           level={1}
           title={branding.name}
           subtitle={`Actividad cultural · ${DASHBOARD_PERIOD.toLowerCase()}`}
-          actions={
-            <Button>
-              <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Nueva actividad
-            </Button>
-          }
+          actions={<NewActivityButton />}
         />
 
         {/* KPIs · reales (read-only) con skeleton de carga · 375:1 · 768:2 · 1280:4 */}
