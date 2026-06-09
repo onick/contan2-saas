@@ -18,6 +18,7 @@ import { usersRoute } from './routes/users.js';
 import { attendanceRoute } from './routes/attendance.js';
 import { checkinRoute } from './routes/checkin.js';
 import { reportsRoute } from './routes/reports.js';
+import { auditRoute } from './routes/audit.js';
 import { publicRoute } from './routes/public.js';
 import { scannerRoute } from './routes/scanner.js';
 
@@ -70,6 +71,7 @@ export function buildApp(): FastifyInstance {
   app.register(attendanceRoute, { prefix: '/api/v2' });
   app.register(checkinRoute, { prefix: '/api/v2' });
   app.register(reportsRoute, { prefix: '/api/v2' });
+  app.register(auditRoute, { prefix: '/api/v2' });
   // Slice público read-only (kiosko): tenant por host, SIN auth de staff.
   app.register(publicRoute, { prefix: '/api/v2' });
   // Auth del scanner (gate por PIN de staff → cookie firmada).
