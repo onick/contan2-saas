@@ -78,6 +78,24 @@ export const OrgBrandingResponseSchema = z.object({
 
 export type OrgBrandingResponse = z.infer<typeof OrgBrandingResponseSchema>;
 
+// PATCH /api/v2/org/branding (F5 Identidad). Solo campos permitidos, validados.
+// logoUrl: null (quitar), una ruta /uploads/… o una URL https:// (sin javascript:
+// ni datos arbitrarios). Colores hex #RRGGBB. SIN CSS/HTML arbitrario.
+const BrandHex = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Color hex #RRGGBB');
+const BrandLogo = z.union([
+  z.null(),
+  z.string().regex(/^\/uploads\/[\w./-]{1,200}$/),
+  z.string().regex(/^https:\/\/[\w.\-/?=&%:]{1,300}$/),
+]);
+export const AdminBrandingUpdateRequestSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  primaryColor: BrandHex.optional(),
+  secondaryColor: BrandHex.optional(),
+  sidebarTheme: z.enum(['brand', 'dark', 'light']).optional(),
+  logoUrl: BrandLogo.optional(),
+}).strict();
+export type AdminBrandingUpdateRequest = z.infer<typeof AdminBrandingUpdateRequestSchema>;
+
 // ─────────────────────────────────────────────────────────────────────────
 // Endpoints READ-ONLY de api-v2 (PR v2/api-readonly-endpoints).
 // Proyecciones camelCase de las tablas de negocio v1 (snake_case en la DB).
