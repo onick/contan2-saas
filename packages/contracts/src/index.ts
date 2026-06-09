@@ -557,3 +557,34 @@ export const AdminAnonymousCheckinResponseSchema = z.object({
   replay: z.boolean(), // true si devolvió el resultado original (Idempotency-Key repetida)
 });
 export type AdminAnonymousCheckinResponse = z.infer<typeof AdminAnonymousCheckinResponseSchema>;
+
+// ── Reportes operativos (F4) ──────────────────────────────────────────────
+export const ReportAttendanceRowSchema = z.object({
+  activityId: z.string(),
+  name: z.string(),
+  date: z.string(), // ISO
+  location: z.string(),
+  category: z.string().nullable(),
+  status: z.string(),
+  capacity: z.number().int(),
+  enrolledCount: z.number().int(),
+  attendances: z.number().int(),
+  people: z.number().int(),
+  anonymous: z.number().int(),
+  occupancyPct: z.number().int(),
+});
+export type ReportAttendanceRow = z.infer<typeof ReportAttendanceRowSchema>;
+
+export const ReportAttendanceByActivityResponseSchema = z.object({
+  period: z.object({ from: z.string(), to: z.string() }),
+  totals: z.object({
+    activities: z.number().int(),
+    attendances: z.number().int(),
+    people: z.number().int(),
+    anonymous: z.number().int(),
+    capacity: z.number().int(),
+    occupancyPct: z.number().int(),
+  }),
+  rows: z.array(ReportAttendanceRowSchema),
+});
+export type ReportAttendanceByActivityResponse = z.infer<typeof ReportAttendanceByActivityResponseSchema>;
