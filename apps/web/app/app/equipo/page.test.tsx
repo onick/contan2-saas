@@ -1,26 +1,21 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import EquipoPage from './page';
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+const emptyTeam = () => new Response('{"items":[],"nextCursor":null}', { status: 200, headers: { 'content-type': 'application/json' } });
 
 describe('/app/equipo', () => {
-  it('renderiza el encabezado, miembros y roles', () => {
+  it('renderiza el encabezado y la lista real (filtros server-side, sin demo)', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(emptyTeam()));
     render(<EquipoPage />);
     expect(screen.getByRole('heading', { name: 'Mi equipo' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Miembros' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Roles y permisos' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Invitar miembro/ })).toBeInTheDocument();
-  });
-
-  it('muestra un miembro con invitación pendiente y roles RBAC', () => {
-    render(<EquipoPage />);
-    expect(screen.getByText('Invitación pendiente')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Propietario' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Recepción' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Filtrar por rol')).toBeInTheDocument(); // tabla real, no demo
   });
 
   it('marca "Mi equipo" como ítem activo del sidebar', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(emptyTeam()));
     render(<EquipoPage />);
     expect(screen.getByRole('link', { name: 'Mi equipo' })).toHaveAttribute('aria-current', 'page');
   });
