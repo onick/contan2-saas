@@ -10,10 +10,11 @@ const detail = (over = {}) => ({ user: { id: 'u1', code: 'CCB-7K2P9Q', firstName
 const histItem = (over = {}) => ({ activityId: 'a1', name: 'Concierto', type: 'Concierto', location: 'Sala 1', status: 'activa', registeredAt: '2024-06-01T00:00:00.000Z', checkedInAt: '2024-06-01T00:00:00.000Z', attended: true, companionsChildren: 2, ...over });
 const affinity = (over = {}) => ({ byType: [{ key: 'Concierto', count: 2 }, { key: 'Cine', count: 1 }], byCategory: [{ key: 'Música', count: 2 }], byLocation: [{ key: 'Sala 1', count: 2 }], totalAttended: 3, lastVisitAt: new Date().toISOString(), status: 'active', ...over });
 
-interface H { detail?: () => Response; activities?: (offset: number) => Response; affinity?: () => Response }
+interface H { detail?: () => Response; activities?: (offset: number) => Response; affinity?: () => Response; patch?: (body: Record<string, unknown>) => Response }
 function installFetch(h: H) {
-  const fn = vi.fn(async (url: string) => {
+  const fn = vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
     const u = String(url);
+    if (init?.method === 'PATCH') return h.patch?.(JSON.parse(init.body ?? '{}')) ?? J(detail({ firstName: JSON.parse(init.body ?? '{}').firstName ?? 'Sofía' }));
     if (u.includes('/detail')) return h.detail?.() ?? J(detail());
     if (u.includes('/activities')) { const off = Number(new URL(u, 'http://x').searchParams.get('offset')); return h.activities?.(off) ?? J({ items: [histItem()], total: 1, limit: 10, offset: off }); }
     if (u.includes('/affinity')) return h.affinity?.() ?? J(affinity());
@@ -105,5 +106,36 @@ describe('UserProfileDrawer', () => {
     installFetch({});
     render(<UserProfileDrawer code={null} onClose={() => {}} />);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('canEdit=false → sin botón Editar', async () => {
+    installFetch({});
+    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit={false} />);
+    await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
+    expect(screen.queryByRole('button', { name: /^Editar$/ })).toBeNull();
+  });
+
+  it('canEdit: Editar → form → Guardar envía PATCH parcial y actualiza el detalle', async () => {
+    const fn = installFetch({ patch: (b) => J(detail({ firstName: String(b.firstName), lastName: 'Méndez' })) });
+    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    await waitFor(() => screen.getByRole('heading', { name: /Sofía Méndez/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Editar$/ }));
+    const nombre = within(screen.getByRole('dialog')).getByLabelText('Nombre');
+    fireEvent.change(nombre, { target: { value: 'Sofía Beatriz' } });
+    fireEvent.click(screen.getByRole('button', { name: /Guardar cambios/ }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Sofía Beatriz/ })).toBeInTheDocument());
+    const patchCall = fn.mock.calls.find((c) => (c[1] as { method?: string })?.method === 'PATCH')!;
+    expect(JSON.parse((patchCall[1] as { body: string }).body)).toEqual({ firstName: 'Sofía Beatriz' }); // sólo el campo cambiado
+  });
+
+  it('edición: email duplicado (409) muestra error y mantiene el form', async () => {
+    installFetch({ patch: () => J({ error: 'Ya existe un visitante con ese email.' }, 409) });
+    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Editar$/ }));
+    fireEvent.change(within(screen.getByRole('dialog')).getByLabelText('Email'), { target: { value: 'otra@ccb.do' } });
+    fireEvent.click(screen.getByRole('button', { name: /Guardar cambios/ }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Ya existe un visitante/));
+    expect(within(screen.getByRole('dialog')).getByLabelText('Email')).toBeInTheDocument(); // sigue en edición
   });
 });

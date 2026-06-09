@@ -6,8 +6,13 @@ import type {
   UsersListResponse, UsersFacetsResponse, UserDetailResponse,
   UserActivityHistoryResponse, UserAffinityResponse, AffinityBucket,
 } from '@contan2/contracts';
+import { AdminUserUpdateRequestSchema } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
+import { writeUserAudit } from '../services/user-audit.js';
 import { parsePage, parseSearch, parseCohort, likeContains } from '../query.js';
+
+// Editar/archivar visitantes es administrativo: sólo owner/admin (operator → 403).
+const CAN_WRITE_USER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 
 // Columnas calificadas (listado y detalle hacen join con el agregado de última visita).
 const LIST_COLUMNS = [
@@ -376,6 +381,89 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
       status: deriveStatus(lastVisit),
     };
+    return body;
+  });
+
+  // PATCH /api/v2/users/:code · editar visitante (UI-2 · F2B). Sólo owner/admin
+  // (operator 403). Parcial: sólo los campos presentes. Unicidad de email por
+  // tenant. Auditoría (sin PII). Sólo usuarios ACTIVOS (no archivados). Devuelve el
+  // detalle enriquecido actualizado. organizationId/code/visitCount jamás del body.
+  app.patch('/users/:code', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) {
+      reply.code(403);
+      return { error: 'No tenés permiso para editar visitantes.' };
+    }
+    const orgId = guard.ctx.org.id;
+    const code = normalizeCodeForLookup((req.params as { code: string }).code);
+    if (!isValidCode(code)) {
+      reply.code(404);
+      return { error: 'Usuario no encontrado' };
+    }
+    const parsed = AdminUserUpdateRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      reply.code(400);
+      return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+    }
+    const patch = parsed.data;
+
+    const target = await db.selectFrom('users').select(['id'])
+      .where('organization_id', '=', orgId).where('code', '=', code).where('deleted_at', 'is', null)
+      .executeTakeFirst();
+    if (!target) {
+      reply.code(404);
+      return { error: 'Usuario no encontrado' };
+    }
+
+    // Unicidad de email por tenant (case-insensitive), excluyendo al propio y a archivados.
+    if (patch.email) {
+      const dup = await db.selectFrom('users').select('id')
+        .where('organization_id', '=', orgId)
+        .where('id', '!=', target.id)
+        .where('deleted_at', 'is', null)
+        .where(sql<boolean>`lower(btrim(users.email)) = lower(btrim(${patch.email}))`)
+        .executeTakeFirst();
+      if (dup) {
+        reply.code(409);
+        return { error: 'Ya existe un visitante con ese email.' };
+      }
+    }
+
+    const set: { first_name?: string; last_name?: string; email?: string | null; phone?: string | null; updated_at: string } = {
+      updated_at: new Date().toISOString(),
+    };
+    if (patch.firstName !== undefined) set.first_name = patch.firstName;
+    if (patch.lastName !== undefined) set.last_name = patch.lastName;
+    if (patch.email !== undefined) set.email = patch.email; // null limpia
+    if (patch.phone !== undefined) set.phone = patch.phone;
+
+    const ip = req.ip ?? null;
+    const ua = (req.headers['user-agent'] as string | undefined) ?? null;
+    await db.transaction().execute(async (tx) => {
+      await tx.updateTable('users').set(set).where('id', '=', target.id).where('organization_id', '=', orgId).execute();
+      await writeUserAudit(tx, { orgId, staff: guard.ctx.staff, action: 'user.updated', targetUserId: target.id, metadata: { fields: Object.keys(patch) }, ip, ua });
+    });
+
+    const row = await db.selectFrom('users')
+      .leftJoin(
+        (eb) => eb.selectFrom('attendance')
+          .select(['attendance.user_id'])
+          .select((e) => e.fn.max('attendance.checked_in_at').as('last_visit_at'))
+          .where('attendance.organization_id', '=', orgId)
+          .where('attendance.checked_in_at', 'is not', null)
+          .groupBy('attendance.user_id')
+          .as('lv'),
+        (join) => join.onRef('lv.user_id', '=', 'users.id'),
+      )
+      .select([...LIST_COLUMNS, 'lv.last_visit_at'])
+      .where('users.id', '=', target.id)
+      .executeTakeFirstOrThrow();
+    const body: UserDetailResponse = { user: toListItem(row as ListRow) };
     return body;
   });
 };

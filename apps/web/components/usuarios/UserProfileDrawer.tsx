@@ -8,9 +8,9 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles } from 'lucide-react';
-import type { UserListItem, UserActivityHistoryItem, UserAffinityResponse, AffinityBucket } from '@contan2/contracts';
-import { getUserDetail, getUserActivities, getUserAffinity } from '../../lib/api/profile-client';
+import { X, Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles, Pencil } from 'lucide-react';
+import type { UserListItem, UserActivityHistoryItem, UserAffinityResponse, AffinityBucket, AdminUserUpdateRequest } from '@contan2/contracts';
+import { getUserDetail, getUserActivities, getUserAffinity, updateUser } from '../../lib/api/profile-client';
 import { Button, IconButton, Chip, cn, focusRing, useDrawerLifecycle, type ChipTone } from '../ui';
 
 type Async<T> = { phase: 'loading' } | { phase: 'error'; error: string } | { phase: 'ready'; data: T };
@@ -41,9 +41,10 @@ function credentialChip(u: UserListItem): { label: string; tone: ChipTone } {
 export interface UserProfileDrawerProps {
   code: string | null;
   onClose: () => void;
+  canEdit?: boolean; // owner/admin → habilita editar (el API igual arbitra el rol)
 }
 
-export function UserProfileDrawer({ code, onClose }: UserProfileDrawerProps) {
+export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfileDrawerProps) {
   const titleId = useId();
   const open = code !== null;
   const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: onClose });
@@ -59,6 +60,11 @@ export function UserProfileDrawer({ code, onClose }: UserProfileDrawerProps) {
   const [historyTotal, setHistoryTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Edición (F2B)
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Carga al abrir / cambiar de visitante. AbortController descarta respuestas obsoletas.
   useEffect(() => {
@@ -66,6 +72,7 @@ export function UserProfileDrawer({ code, onClose }: UserProfileDrawerProps) {
     const ac = new AbortController();
     setDetail({ phase: 'loading' }); setAffinity({ phase: 'loading' });
     setHistory({ phase: 'loading' }); setHistoryTotal(0); setCopied(false);
+    setEditing(false); setSaveError(null);
     void getUserDetail(code, ac.signal).then((r) => { if (!ac.signal.aborted) setDetail(r.ok ? { phase: 'ready', data: r.data.user } : { phase: 'error', error: r.error }); }).catch(() => {});
     void getUserAffinity(code, ac.signal).then((r) => { if (!ac.signal.aborted) setAffinity(r.ok ? { phase: 'ready', data: r.data } : { phase: 'error', error: r.error }); }).catch(() => {});
     void getUserActivities(code, HISTORY_PAGE, 0, ac.signal).then((r) => {
@@ -90,6 +97,32 @@ export function UserProfileDrawer({ code, onClose }: UserProfileDrawerProps) {
   async function copyCode() {
     if (!shown) return;
     try { await navigator.clipboard.writeText(shown); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* sin clipboard */ }
+  }
+
+  function startEdit() {
+    if (detail.phase !== 'ready') return;
+    const d = detail.data;
+    setForm({ firstName: d.firstName, lastName: d.lastName, email: d.email ?? '', phone: d.phone ?? '' });
+    setSaveError(null); setEditing(true);
+  }
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!shown || detail.phase !== 'ready' || saving) return;
+    const d = detail.data;
+    // PATCH PARCIAL: sólo los campos modificados.
+    const patch: AdminUserUpdateRequest = {};
+    if (form.firstName.trim() !== d.firstName) patch.firstName = form.firstName.trim();
+    if (form.lastName.trim() !== d.lastName) patch.lastName = form.lastName.trim();
+    const email = form.email.trim();
+    if (email !== (d.email ?? '')) patch.email = email === '' ? null : email;
+    const phone = form.phone.trim();
+    if (phone !== (d.phone ?? '')) patch.phone = phone === '' ? null : phone;
+    if (Object.keys(patch).length === 0) { setEditing(false); return; }
+    setSaving(true); setSaveError(null);
+    const r = await updateUser(shown, patch);
+    setSaving(false);
+    if (r.ok) { setDetail({ phase: 'ready', data: r.data.user }); setEditing(false); }
+    else setSaveError(r.error);
   }
 
   if (!mounted || !shown || typeof document === 'undefined') return null;
@@ -121,9 +154,16 @@ export function UserProfileDrawer({ code, onClose }: UserProfileDrawerProps) {
               </button>
             </div>
           </div>
-          <IconButton label="Cerrar perfil" variant="outline" size="sm" onClick={onClose}>
-            <X size={18} strokeWidth={2} aria-hidden="true" />
-          </IconButton>
+          <div className="flex flex-none items-center gap-1.5">
+            {canEdit && detail.phase === 'ready' && !editing ? (
+              <Button type="button" variant="secondary" size="sm" onClick={startEdit}>
+                <Pencil size={15} strokeWidth={2} aria-hidden="true" /> Editar
+              </Button>
+            ) : null}
+            <IconButton label="Cerrar perfil" variant="outline" size="sm" onClick={onClose}>
+              <X size={18} strokeWidth={2} aria-hidden="true" />
+            </IconButton>
+          </div>
         </header>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
@@ -146,8 +186,23 @@ export function UserProfileDrawer({ code, onClose }: UserProfileDrawerProps) {
             <Metric label="Registro" value={detail.phase === 'ready' ? relAgo(detail.data.createdAt) : '—'} />
           </dl>
 
-          {/* Contacto */}
-          {detail.phase === 'ready' ? (
+          {/* Contacto · lectura o edición (F2B) */}
+          {detail.phase === 'ready' && editing ? (
+            <form onSubmit={save} className="space-y-3">
+              <p className={labelCls}>Editar datos</p>
+              {saveError ? <p role="alert" className="rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{saveError}</p> : null}
+              <fieldset disabled={saving} className="m-0 grid grid-cols-1 gap-3 border-0 p-0 sm:grid-cols-2">
+                <Field label="Nombre" value={form.firstName} onChange={(v) => setForm((f) => ({ ...f, firstName: v }))} />
+                <Field label="Apellido" value={form.lastName} onChange={(v) => setForm((f) => ({ ...f, lastName: v }))} />
+                <Field label="Email" type="email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} className="sm:col-span-2" />
+                <Field label="Teléfono" type="tel" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} className="sm:col-span-2" />
+              </fieldset>
+              <div className="flex items-center justify-end gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(false)} disabled={saving}>Cancelar</Button>
+                <Button type="submit" size="sm" disabled={saving}>{saving ? <><Loader2 size={15} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Guardando…</> : 'Guardar cambios'}</Button>
+              </div>
+            </form>
+          ) : detail.phase === 'ready' ? (
             <div className="space-y-2">
               <p className={labelCls}>Contacto</p>
               <Row icon={Mail}>{detail.data.email ?? <span className="text-faint">Sin email</span>}</Row>
@@ -221,6 +276,15 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</p>
       <p className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{value}</p>
     </div>
+  );
+}
+function Field({ label, value, onChange, type = 'text', className }: { label: string; value: string; onChange: (v: string) => void; type?: string; className?: string }) {
+  return (
+    <label className={cn('block', className)}>
+      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</span>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
+        className={cn('mt-1 min-h-10 w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink', focusRing)} />
+    </label>
   );
 }
 function Row({ icon: Icon, children }: { icon: typeof Mail; children: React.ReactNode }) {

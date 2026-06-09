@@ -5,10 +5,29 @@
 import {
   UserDetailResponseSchema, UserActivityHistoryResponseSchema, UserAffinityResponseSchema,
   type UserDetailResponse, type UserActivityHistoryResponse, type UserAffinityResponse,
+  type AdminUserUpdateRequest,
 } from '@contan2/contracts';
 import type { ZodTypeAny, z } from 'zod';
 
 export type Result<T> = { ok: true; data: T } | { ok: false; status: number; error: string };
+
+// PATCH editar visitante. Devuelve el detalle enriquecido actualizado o un Result
+// de error honesto (400 validación, 403 permiso, 409 email duplicado, 502 red).
+export async function updateUser(code: string, patch: AdminUserUpdateRequest): Promise<Result<UserDetailResponse>> {
+  let res: Response;
+  try {
+    res = await fetch(`/app/usuarios/api/${encodeURIComponent(code)}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch),
+    });
+  } catch {
+    return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' };
+  }
+  let body: { error?: string } | unknown = null;
+  try { body = await res.json(); } catch { /* */ }
+  if (!res.ok) return { ok: false, status: res.status, error: (body as { error?: string })?.error ?? 'No pudimos guardar.' };
+  try { return { ok: true, data: UserDetailResponseSchema.parse(body) }; }
+  catch { return { ok: false, status: res.status, error: 'Respuesta inválida del servidor.' }; }
+}
 
 async function getJson<S extends ZodTypeAny>(url: string, schema: S, signal?: AbortSignal): Promise<Result<z.infer<S>>> {
   let res: Response;
