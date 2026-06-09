@@ -170,6 +170,9 @@ export interface UsersTable {
   credential_sent_at: NullableTs;
   created_at: CreatedAt;
   updated_at: UpdatedAt;
+  // Soft-archive (migración 026): NULL = activo; timestamp = archivado. v2 filtra
+  // deleted_at IS NULL por defecto; v1 la ignora. No hay hard-delete.
+  deleted_at: NullableTs;
 }
 
 export interface ActivitiesTable {
