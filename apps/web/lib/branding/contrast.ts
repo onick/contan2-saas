@@ -42,3 +42,23 @@ export function textOn(bgHex: string): TextOnResult {
 }
 
 export const isHex6 = (s: string): boolean => /^#[0-9a-fA-F]{6}$/.test(s);
+
+const clampByte = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+const toHex = (r: number, g: number, b: number) => `#${[r, g, b].map((x) => clampByte(x).toString(16).padStart(2, '0')).join('')}`;
+
+// Relleno de marca AA-safe para texto BLANCO (≥4.5:1): devuelve el primario si ya
+// cumple, si no una versión oscurecida que sí cumple (caso #f39228 → blanco 2.35:1
+// → se oscurece). Sirve para derivar --color-brand-strong por tenant sin romper AA.
+// Fallback seguro al brand-strong por defecto si el hex es inválido.
+export function strongFill(primaryHex: string): string {
+  if (!isHex6(primaryHex)) return '#c44400';
+  if (contrastRatio('#ffffff', primaryHex) >= 4.5) return primaryHex;
+  const h = primaryHex.replace('#', '');
+  let r = parseInt(h.slice(0, 2), 16);
+  let g = parseInt(h.slice(2, 4), 16);
+  let b = parseInt(h.slice(4, 6), 16);
+  for (let i = 0; i < 24 && contrastRatio('#ffffff', toHex(r, g, b)) < 4.5; i++) {
+    r *= 0.9; g *= 0.9; b *= 0.9;
+  }
+  return toHex(r, g, b);
+}
