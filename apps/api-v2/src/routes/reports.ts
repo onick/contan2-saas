@@ -14,9 +14,11 @@ import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { attendanceByActivity, parseRange, ReportError } from '../services/report-data.js';
 import { CSV_BOM, csvRow, safeFilename } from '../services/csv.js';
 import { buildAttendanceWorkbook } from '../services/report-excel.js';
+import { buildAttendancePdf } from '../services/report-pdf.js';
 import { writeReportAudit } from '../services/report-audit.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const FORMATS = new Set(['json', 'csv', 'xlsx', 'pdf']);
 
 const CAN_GENERATE_REPORTS = new Set(['owner', 'admin']);
 const reportLimiter = createRateLimiter({ max: 20, windowMs: 60_000, prefix: endpointPrefix('reports') });
@@ -43,9 +45,9 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
 
     const q = req.query as Record<string, unknown>;
     const format = String(q.format ?? 'json').toLowerCase();
-    if (format !== 'json' && format !== 'csv' && format !== 'xlsx') {
+    if (!FORMATS.has(format)) {
       reply.code(400);
-      return { error: 'Formato inválido: usá json, csv o xlsx.' };
+      return { error: 'Formato inválido: usá json, csv, xlsx o pdf.' };
     }
 
     let report;
@@ -90,6 +92,14 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       const buf = await buildAttendanceWorkbook(report, { name: org.name, primaryColor: org.primaryColor });
       const filename = safeFilename(`asistencia-por-actividad_${report.period.from}_${report.period.to}.xlsx`);
       reply.header('content-type', XLSX_MIME);
+      reply.header('content-disposition', `attachment; filename="${filename}"`);
+      return buf;
+    }
+
+    if (format === 'pdf') {
+      const buf = await buildAttendancePdf(report, { name: org.name, primaryColor: org.primaryColor });
+      const filename = safeFilename(`asistencia-por-actividad_${report.period.from}_${report.period.to}.pdf`);
+      reply.header('content-type', 'application/pdf');
       reply.header('content-disposition', `attachment; filename="${filename}"`);
       return buf;
     }

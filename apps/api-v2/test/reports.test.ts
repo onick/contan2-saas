@@ -164,6 +164,17 @@ run('GET /reports/attendance-by-activity', () => {
     expect(maliciousIsText).toBe(true); // el nombre con '=' es texto, NO fórmula
   });
 
+  it('pdf: application/pdf + Content-Disposition + magic bytes; formato inválido → 400', async () => {
+    const res = await get(`?from=${FROM}&to=${TO}&format=pdf`, TOK.admin);
+    expect(res.statusCode).toBe(200);
+    expect(String(res.headers['content-type'])).toContain('application/pdf');
+    expect(String(res.headers['content-disposition'])).toContain('asistencia-por-actividad_2026-03-01_2026-03-31.pdf"');
+    const buf = res.rawPayload;
+    expect(buf.length).toBeGreaterThan(500);
+    expect(buf.subarray(0, 5).toString('latin1')).toBe('%PDF-'); // PDF válido
+    expect((await get(`?from=${FROM}&to=${TO}&format=foo`, TOK.admin)).statusCode).toBe(400);
+  });
+
   it('auditoría: una fila report.generated, actor enmascarado, sin PII', async () => {
     const before = Number((await db.selectFrom('tenant_audit_log').select(db.fn.countAll<number>().as('n')).where('organization_id', '=', orgAId).where('action', '=', 'report.generated').executeTakeFirstOrThrow()).n);
     await get(`?from=${FROM}&to=${TO}`, TOK.admin);
