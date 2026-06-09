@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
+import ExcelJS from 'exceljs';
 import { createDb, type Database } from '@contan2/db';
 import { hashToken } from '@contan2/auth';
 import { buildApp } from '../src/server.js';
@@ -141,6 +142,26 @@ run('GET /reports/attendance-by-activity', () => {
     expect(body).toContain(`'=cmd()|calc`); // nombre con fórmula → prefijado (no ejecuta)
     expect(body).not.toContain('\n=cmd()|calc'); // jamás una celda cruda que empiece con =
     expect(body).toContain('TOTAL');
+  });
+
+  it('xlsx: content-type + Content-Disposition + workbook branded + sin fórmulas', async () => {
+    const res = await get(`?from=${FROM}&to=${TO}&format=xlsx`, TOK.admin);
+    expect(res.statusCode).toBe(200);
+    expect(String(res.headers['content-type'])).toContain('spreadsheetml');
+    expect(String(res.headers['content-disposition'])).toContain('asistencia-por-actividad_2026-03-01_2026-03-31.xlsx"');
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(res.rawPayload);
+    const ws = wb.worksheets[0];
+    expect(String(ws.getCell(1, 1).value)).toContain('Asistencia por actividad'); // título branded
+    let jazz = false;
+    let maliciousIsText = true;
+    ws.eachRow((row) => {
+      const v0 = String(row.getCell(1).value ?? '');
+      if (v0 === 'Concierto Jazz') jazz = true;
+      if (v0 === MALICIOUS_NAME && row.getCell(1).type === ExcelJS.ValueType.Formula) maliciousIsText = false;
+    });
+    expect(jazz).toBe(true);
+    expect(maliciousIsText).toBe(true); // el nombre con '=' es texto, NO fórmula
   });
 
   it('auditoría: una fila report.generated, actor enmascarado, sin PII', async () => {
