@@ -96,11 +96,14 @@ export function UsersTable({ users }: UsersTableProps) {
                     )}
                   </td>
                   <td className="px-4 py-4">
-                    {u.statusLabel ? (
-                      <Chip tone={(u.statusTone as ChipTone | undefined) ?? STATUS_TONE[u.status]} dot>{u.statusLabel}</Chip>
-                    ) : (
-                      <span className="text-[13px] text-faint" title="Última visita hace 31–90 días">—</span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {u.archived ? <Chip tone="neutral" dot>Archivado</Chip> : null}
+                      {u.statusLabel ? (
+                        <Chip tone={(u.statusTone as ChipTone | undefined) ?? STATUS_TONE[u.status]} dot>{u.statusLabel}</Chip>
+                      ) : !u.archived ? (
+                        <span className="text-[13px] text-faint" title="Última visita hace 31–90 días">—</span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="whitespace-nowrap px-4 py-4">
                     <div className="flex items-center justify-end gap-1">

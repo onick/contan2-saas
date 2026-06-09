@@ -10,7 +10,7 @@ import {
   type UserListItem, type UsersFacetsResponse, type UserCohort,
 } from '@contan2/contracts';
 import { apiGet } from './client';
-import { toApiQuery } from '../admin/list-params';
+import { toApiQuery, type UserStatusFilter } from '../admin/list-params';
 import type { UserRow, RowTone } from '../usuarios/demoData';
 
 const DATE_FMT = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -62,6 +62,7 @@ function toUserRow(u: UserListItem): UserRow {
     statusTone: st.tone,
     credentialLabel: cred.label,
     credentialTone: cred.tone,
+    archived: !!u.deletedAt,
   };
 }
 
@@ -77,6 +78,7 @@ export interface UsersPageParams {
   offset: number;
   q?: string;
   cohort?: UserCohort;
+  status?: UserStatusFilter;
 }
 
 // Página de Usuarios (paginación + búsqueda + cohorte SERVER-SIDE). `total` es el
@@ -84,7 +86,7 @@ export interface UsersPageParams {
 // página muestra Unavailable (jamás demo, salvo dev con flag).
 export async function getUsersPage(params: UsersPageParams): Promise<UsersPage | null> {
   try {
-    const qs = toApiQuery({ limit: params.limit, offset: params.offset, q: params.q, cohort: params.cohort });
+    const qs = toApiQuery({ limit: params.limit, offset: params.offset, q: params.q, cohort: params.cohort, status: params.status });
     const { items, total, limit, offset } = await apiGet(
       `/api/v2/users?${qs}`,
       UsersListResponseSchema,
@@ -97,10 +99,11 @@ export async function getUsersPage(params: UsersPageParams): Promise<UsersPage |
 
 // Conteos exactos por cohorte (para las pills), dentro de la búsqueda `q` vigente.
 // null si falla → la UI oculta los conteos pero las pills siguen navegables.
-export async function getUsersFacets(q?: string): Promise<UsersFacetsResponse['counts'] | null> {
+export async function getUsersFacets(q?: string, status?: UserStatusFilter): Promise<UsersFacetsResponse['counts'] | null> {
   try {
     const sp = new URLSearchParams();
     if (q) sp.set('q', q);
+    if (status && status !== 'active') sp.set('status', status);
     const { counts } = await apiGet(`/api/v2/users/facets?${sp.toString()}`, UsersFacetsResponseSchema);
     return counts;
   } catch {

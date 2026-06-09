@@ -10,6 +10,13 @@ export function parseCohort(raw: unknown): UserCohort {
     : 'all';
 }
 
+// Filtro de archivado del listado de usuarios. Default 'active' (los archivados se
+// ocultan). 'archived' = sólo archivados; 'all' = ambos.
+export type UserStatusFilter = 'active' | 'archived' | 'all';
+export function parseUserStatusFilter(raw: unknown): UserStatusFilter {
+  return raw === 'archived' || raw === 'all' ? raw : 'active';
+}
+
 export interface Page {
   limit: number;
   offset: number;

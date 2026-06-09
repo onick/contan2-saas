@@ -10,13 +10,14 @@ import { DemoBanner } from '../../../components/shell/DemoBanner';
 import { SearchBar } from '../../../components/admin/SearchBar';
 import { Pagination } from '../../../components/admin/Pagination';
 import { CohortPills } from '../../../components/usuarios/CohortPills';
+import { UserStatusFilter } from '../../../components/usuarios/UserStatusFilter';
 import { ProfileProvider } from '../../../components/usuarios/ProfileProvider';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { getAdminGate } from '../../../lib/auth/session';
 import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
 import { getUsersPage, getUsersFacets } from '../../../lib/api/users';
 import {
-  parsePage, parsePageSize, parseQ, parseCohort, qForApi, computeOffset, totalPages,
+  parsePage, parsePageSize, parseQ, parseCohort, parseUserStatus, qForApi, computeOffset, totalPages,
   patchSearchParams, recordToSearchParams, type Raw,
 } from '../../../lib/admin/list-params';
 import { USERS } from '../../../lib/usuarios/demoData';
@@ -45,12 +46,13 @@ export default async function UsuariosPage({
   const pageSize = parsePageSize(sp.pageSize);
   const q = parseQ(sp.q);
   const cohort = parseCohort(sp.cohort);
+  const status = parseUserStatus(sp.status);
 
-  // Listado (filtrado por cohorte + búsqueda) + conteos por cohorte (facets, solo
-  // dentro de la búsqueda vigente) en paralelo. Los facets son best-effort.
+  // Listado (filtrado por estado + cohorte + búsqueda) + conteos por cohorte
+  // (facets, dentro de búsqueda+estado vigentes) en paralelo. Best-effort.
   const [view, facets] = await Promise.all([
-    getUsersPage({ limit: pageSize, offset: computeOffset(page, pageSize), q: qForApi(q), cohort }),
-    getUsersFacets(qForApi(q)),
+    getUsersPage({ limit: pageSize, offset: computeOffset(page, pageSize), q: qForApi(q), cohort, status }),
+    getUsersFacets(qForApi(q), status),
   ]);
 
   // Página fuera de rango (URL vieja / datos borrados): normaliza preservando
@@ -101,7 +103,8 @@ export default async function UsuariosPage({
       />
       <Card padding="none" className="mt-6 space-y-3 p-4">
         <CohortPills counts={facets} />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <UserStatusFilter />
           <div className="ml-auto min-w-0 flex-1 sm:flex-none">
             <SearchBar label="Buscar por nombre, email, código o teléfono" placeholder="Buscar por nombre, email, código o teléfono…" />
           </div>

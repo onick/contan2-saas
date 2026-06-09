@@ -10,7 +10,7 @@ const J = (obj: unknown) => new Response(JSON.stringify(obj), { status: 200, hea
 function installFetch() {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     const u = String(url);
-    if (u.includes('/detail')) return J({ user: { id: 'u1', code: decodeURIComponent(u.split('/').slice(-2)[0] ?? ''), firstName: 'Sofía', lastName: 'Méndez', email: null, phone: null, visitCount: 1, createdAt: '2024-01-15T00:00:00.000Z', lastVisitAt: null, credentialSentAt: null, status: 'dormant' } });
+    if (u.includes('/detail')) return J({ user: { id: 'u1', code: decodeURIComponent(u.split('/').slice(-2)[0] ?? ''), firstName: 'Sofía', lastName: 'Méndez', email: null, phone: null, visitCount: 1, createdAt: '2024-01-15T00:00:00.000Z', lastVisitAt: null, credentialSentAt: null, status: 'dormant', deletedAt: null } });
     if (u.includes('/activities')) return J({ items: [], total: 0, limit: 10, offset: 0 });
     if (u.includes('/affinity')) return J({ byType: [], byCategory: [], byLocation: [], totalAttended: 0, lastVisitAt: null, status: 'dormant' });
     return J({});

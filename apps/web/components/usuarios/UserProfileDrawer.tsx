@@ -8,9 +8,9 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles, Pencil, Send } from 'lucide-react';
+import { X, Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles, Pencil, Send, Archive, ArchiveRestore } from 'lucide-react';
 import type { UserListItem, UserActivityHistoryItem, UserAffinityResponse, AffinityBucket, AdminUserUpdateRequest, AdminCredentialResendResponse } from '@contan2/contracts';
-import { getUserDetail, getUserActivities, getUserAffinity, updateUser, resendCredential } from '../../lib/api/profile-client';
+import { getUserDetail, getUserActivities, getUserAffinity, updateUser, resendCredential, archiveUser, reactivateUser } from '../../lib/api/profile-client';
 import { Button, IconButton, Chip, cn, focusRing, useDrawerLifecycle, type ChipTone } from '../ui';
 
 type Async<T> = { phase: 'loading' } | { phase: 'error'; error: string } | { phase: 'ready'; data: T };
@@ -80,6 +80,10 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
   const [resendBusy, setResendBusy] = useState(false);
   const [resendResult, setResendResult] = useState<AdminCredentialResendResponse | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
+  // Archivar/reactivar (F2D)
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   // Carga al abrir / cambiar de visitante. AbortController descarta respuestas obsoletas.
   useEffect(() => {
@@ -89,6 +93,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
     setHistory({ phase: 'loading' }); setHistoryTotal(0); setCopied(false);
     setEditing(false); setSaveError(null);
     setResendOpen(false); setResendResult(null); setResendError(null);
+    setArchiveConfirm(false); setArchiveError(null);
     void getUserDetail(code, ac.signal).then((r) => { if (!ac.signal.aborted) setDetail(r.ok ? { phase: 'ready', data: r.data.user } : { phase: 'error', error: r.error }); }).catch(() => {});
     void getUserAffinity(code, ac.signal).then((r) => { if (!ac.signal.aborted) setAffinity(r.ok ? { phase: 'ready', data: r.data } : { phase: 'error', error: r.error }); }).catch(() => {});
     void getUserActivities(code, HISTORY_PAGE, 0, ac.signal).then((r) => {
@@ -157,6 +162,23 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
     } else setResendError(r.error); // mantiene el confirm; reintento reusa la key
   }
 
+  async function doArchive() {
+    if (!shown || archiveBusy) return;
+    setArchiveBusy(true); setArchiveError(null);
+    const r = await archiveUser(shown);
+    setArchiveBusy(false);
+    if (r.ok) { setArchiveConfirm(false); if (detail.phase === 'ready') setDetail({ phase: 'ready', data: { ...detail.data, deletedAt: r.data.deletedAt } }); }
+    else setArchiveError(r.error);
+  }
+  async function doReactivate() {
+    if (!shown || archiveBusy) return;
+    setArchiveBusy(true); setArchiveError(null);
+    const r = await reactivateUser(shown);
+    setArchiveBusy(false);
+    if (r.ok) { if (detail.phase === 'ready') setDetail({ phase: 'ready', data: { ...detail.data, deletedAt: null } }); }
+    else setArchiveError(r.error);
+  }
+
   if (!mounted || !shown || typeof document === 'undefined') return null;
 
   const labelCls = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-faint';
@@ -206,6 +228,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
           {/* Chips de estado + credencial */}
           {detail.phase === 'ready' ? (
             <div className="flex flex-wrap gap-2">
+              {detail.data.deletedAt ? <Chip tone="neutral" dot>Archivado</Chip> : null}
               {detail.data.status ? <Chip tone={STATUS[detail.data.status].tone} dot>{STATUS[detail.data.status].label}</Chip> : null}
               <Chip tone={credentialChip(detail.data).tone} dot>{credentialChip(detail.data).label}</Chip>
             </div>
@@ -323,6 +346,33 @@ export function UserProfileDrawer({ code, onClose, canEdit = false }: UserProfil
               </>
             )}
           </div>
+
+          {/* Archivar/reactivar (F2D) · acción separada al final, confirmación explícita. */}
+          {detail.phase === 'ready' && canEdit ? (
+            <div className="space-y-2 border-t border-line pt-4">
+              <p className={labelCls}>Estado del visitante</p>
+              {archiveError ? <p role="alert" className="text-[12px] text-danger-fg">{archiveError}</p> : null}
+              {detail.data.deletedAt ? (
+                <Button type="button" variant="secondary" size="sm" onClick={doReactivate} disabled={archiveBusy}>
+                  {archiveBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Reactivando…</> : <><ArchiveRestore size={14} strokeWidth={2} aria-hidden="true" /> Reactivar visitante</>}
+                </Button>
+              ) : !archiveConfirm ? (
+                <Button type="button" variant="secondary" size="sm" className="text-danger-fg" onClick={() => { setArchiveError(null); setArchiveConfirm(true); }}>
+                  <Archive size={14} strokeWidth={2} aria-hidden="true" /> Archivar visitante
+                </Button>
+              ) : (
+                <div className="rounded-lg border border-line bg-surface-container p-3">
+                  <p className="text-[13px] text-ink">¿Archivar a este visitante? Se ocultará del listado; su historial y asistencias se preservan. Podés reactivarlo luego.</p>
+                  <div className="mt-2 flex items-center justify-end gap-2">
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setArchiveConfirm(false)} disabled={archiveBusy}>Cancelar</Button>
+                    <Button type="button" size="sm" className="text-danger-fg" onClick={doArchive} disabled={archiveBusy}>
+                      {archiveBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Archivando…</> : 'Sí, archivar'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>,

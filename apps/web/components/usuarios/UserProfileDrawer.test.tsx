@@ -6,7 +6,7 @@ import { UserProfileDrawer } from './UserProfileDrawer';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); document.body.style.overflow = ''; });
 
 const J = (obj: unknown, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json' } });
-const detail = (over = {}) => ({ user: { id: 'u1', code: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', email: 'sofia@ccb.do', phone: '809-555-1', visitCount: 4, createdAt: '2024-01-15T00:00:00.000Z', lastVisitAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), credentialSentAt: '2024-02-01T00:00:00.000Z', status: 'active', ...over } });
+const detail = (over = {}) => ({ user: { id: 'u1', code: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', email: 'sofia@ccb.do', phone: '809-555-1', visitCount: 4, createdAt: '2024-01-15T00:00:00.000Z', lastVisitAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), credentialSentAt: '2024-02-01T00:00:00.000Z', status: 'active', deletedAt: null, ...over } });
 const histItem = (over = {}) => ({ activityId: 'a1', name: 'Concierto', type: 'Concierto', location: 'Sala 1', status: 'activa', registeredAt: '2024-06-01T00:00:00.000Z', checkedInAt: '2024-06-01T00:00:00.000Z', attended: true, companionsChildren: 2, ...over });
 const affinity = (over = {}) => ({ byType: [{ key: 'Concierto', count: 2 }, { key: 'Cine', count: 1 }], byCategory: [{ key: 'Música', count: 2 }], byLocation: [{ key: 'Sala 1', count: 2 }], totalAttended: 3, lastVisitAt: new Date().toISOString(), status: 'active', ...over });
 
@@ -14,6 +14,8 @@ interface H { detail?: () => Response; activities?: (offset: number) => Response
 function installFetch(h: H) {
   const fn = vi.fn(async (url: string, init?: { method?: string; body?: string; headers?: Record<string, string> }) => {
     const u = String(url);
+    if (init?.method === 'POST' && u.includes('/archive')) return J({ archived: true, deletedAt: new Date().toISOString() });
+    if (init?.method === 'POST' && u.includes('/reactivate')) return J({ archived: false, deletedAt: null });
     if (init?.method === 'POST' && u.includes('/credential')) return h.credential?.(init.headers?.['idempotency-key'] ?? '') ?? J({ result: 'dry-run', credentialSentAt: null, message: 'Dry-run: no se envió.' });
     if (init?.method === 'PATCH') return h.patch?.(JSON.parse(init.body ?? '{}')) ?? J(detail({ firstName: JSON.parse(init.body ?? '{}').firstName ?? 'Sofía' }));
     if (u.includes('/detail')) return h.detail?.() ?? J(detail());
@@ -155,6 +157,25 @@ describe('UserProfileDrawer', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Problema de red/));
     fireEvent.click(screen.getByRole('button', { name: /Sí, reenviar/ })); // reintento
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/enviada al email/));
+  });
+
+  it('archivar: confirm → "Sí, archivar" → muestra chip Archivado + botón Reactivar', async () => {
+    installFetch({});
+    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Archivar visitante/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Sí, archivar/ }));
+    await waitFor(() => expect(screen.getByText('Archivado')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /Reactivar visitante/ })).toBeInTheDocument();
+  });
+
+  it('reactivar: visitante archivado → "Reactivar" lo vuelve activo', async () => {
+    installFetch({ detail: () => J(detail({ deletedAt: new Date().toISOString() })) });
+    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    await waitFor(() => expect(screen.getByText('Archivado')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Reactivar visitante/ }));
+    await waitFor(() => expect(screen.queryByText('Archivado')).toBeNull());
+    expect(screen.getByRole('button', { name: /Archivar visitante/ })).toBeInTheDocument();
   });
 
   it('canEdit=false → sin botón de reenviar', async () => {

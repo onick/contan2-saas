@@ -259,6 +259,7 @@ export const UserListItemSchema = UserSchema.extend({
   lastVisitAt: z.string().nullable(),       // ISO 8601 | null (nunca visitó)
   credentialSentAt: z.string().nullable(),  // ISO 8601 | null (sin enviar / sin email)
   status: UserActivityStatusSchema.nullable(), // null = intermedia 31–90 días
+  deletedAt: z.string().nullable(),         // ISO 8601 | null (archivado · F2D)
 });
 export type UserListItem = z.infer<typeof UserListItemSchema>;
 
@@ -321,6 +322,14 @@ export const AdminCredentialResendResponseSchema = z.object({
   message: z.string(),
 });
 export type AdminCredentialResendResponse = z.infer<typeof AdminCredentialResendResponseSchema>;
+
+// Archivar / reactivar visitante (UI-2 · F2D). Soft-archive (deleted_at); jamás
+// hard-delete. Respuesta mínima con el estado resultante.
+export const AdminUserArchiveResponseSchema = z.object({
+  archived: z.boolean(),
+  deletedAt: z.string().nullable(),
+});
+export type AdminUserArchiveResponse = z.infer<typeof AdminUserArchiveResponseSchema>;
 
 // Historial de actividades del visitante (UI-2). Incluye TODAS sus inscripciones
 // (RSVP) y asistencias: `checkedInAt` es null si registró pero no asistió.
