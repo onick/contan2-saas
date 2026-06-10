@@ -166,6 +166,28 @@ run('PATCH /activities/:id (+/status) · ciclo de vida', () => {
     expect(activity.capacity).toBe(100);
   });
 
+  it('imagePosY: persiste, vuelve en el detalle y null lo limpia (centro)', async () => {
+    const id = await seed({ imageUrl: '/uploads/x.webp' });
+    const res = await patch(id, { imagePosY: 25 }, hostA, TOK.admin);
+    expect(res.statusCode).toBe(200);
+    expect(ActivityCreateResponseSchema.parse(res.json()).activity.imagePosY).toBe(25);
+
+    const row = await db.selectFrom('activities').select('image_pos_y').where('id', '=', id).executeTakeFirstOrThrow();
+    expect(row.image_pos_y).toBe(25);
+
+    const clear = await patch(id, { imagePosY: null }, hostA, TOK.admin);
+    expect(clear.statusCode).toBe(200);
+    expect(ActivityCreateResponseSchema.parse(clear.json()).activity.imagePosY).toBe(null);
+  });
+
+  it('imagePosY fuera de rango (0–100) o no entero → 400', async () => {
+    const id = await seed();
+    for (const bad of [-1, 101, 12.5]) {
+      const res = await patch(id, { imagePosY: bad }, hostA, TOK.admin);
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
   it('endDate null limpia la fecha de cierre', async () => {
     const id = await seed({ endDate: future(8) });
     const res = await patch(id, { endDate: null }, hostA, TOK.admin);

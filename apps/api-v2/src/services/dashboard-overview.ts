@@ -37,6 +37,7 @@ export interface OverviewInsight {
 export interface OverviewActivity {
   id: string; name: string; type: string; category: string | null; location: string;
   date: string; capacity: number; enrolledCount: number; imageUrl: string | null;
+  imagePosY: number | null;
 }
 
 export interface DashboardOverview {
@@ -117,7 +118,7 @@ export async function dashboardOverview(
     ]).executeTakeFirstOrThrow(),
     // Próxima actividad activa futura.
     db.selectFrom('activities')
-      .select(['id', 'name', 'type', 'category', 'location', 'date', 'capacity', 'enrolled_count', 'image_url'])
+      .select(['id', 'name', 'type', 'category', 'location', 'date', 'capacity', 'enrolled_count', 'image_url', 'image_pos_y'])
       .where('organization_id', '=', orgId).where('status', '=', 'activa')
       .where('date', '>', sql<Date>`now()`)
       .orderBy('date', 'asc').limit(1).executeTakeFirst(),
@@ -127,10 +128,10 @@ export async function dashboardOverview(
         .onRef('att.activity_id', '=', 'a.id')
         .on('att.registered_at', '>=', start)
         .on('att.registered_at', '<', end))
-      .select(['a.id', 'a.name', 'a.type', 'a.category', 'a.location', 'a.date', 'a.capacity', 'a.enrolled_count', 'a.image_url'])
+      .select(['a.id', 'a.name', 'a.type', 'a.category', 'a.location', 'a.date', 'a.capacity', 'a.enrolled_count', 'a.image_url', 'a.image_pos_y'])
       .select((eb) => eb.fn.count('att.id').as('n'))
       .where('a.organization_id', '=', orgId)
-      .groupBy(['a.id', 'a.name', 'a.type', 'a.category', 'a.location', 'a.date', 'a.capacity', 'a.enrolled_count', 'a.image_url'])
+      .groupBy(['a.id', 'a.name', 'a.type', 'a.category', 'a.location', 'a.date', 'a.capacity', 'a.enrolled_count', 'a.image_url', 'a.image_pos_y'])
       .orderBy('n', 'desc').limit(1).executeTakeFirst(),
     // Activas futuras sin inscritos (insight).
     db.selectFrom('activities').select(db.fn.countAll<string>().as('n'))
@@ -161,7 +162,7 @@ export async function dashboardOverview(
   const toActivity = (r: NonNullable<typeof upcomingRow>): OverviewActivity => ({
     id: r.id, name: r.name, type: r.type, category: r.category, location: r.location,
     date: (r.date instanceof Date ? r.date : new Date(r.date as unknown as string)).toISOString(),
-    capacity: Number(r.capacity), enrolledCount: Number(r.enrolled_count), imageUrl: r.image_url,
+    capacity: Number(r.capacity), enrolledCount: Number(r.enrolled_count), imageUrl: r.image_url, imagePosY: r.image_pos_y,
   });
 
   const upcoming = upcomingRow ? toActivity(upcomingRow) : null;

@@ -15,7 +15,7 @@ import type { ActivityCreateRequest, ActivityUpdateRequest, ActivityDetail } fro
 // cover comparten esta proyección + el mapper de abajo).
 export const ACTIVITY_DETAIL_COLUMNS = [
   'id', 'name', 'type', 'location', 'date', 'end_date', 'capacity',
-  'enrolled_count', 'status', 'description', 'image_url', 'category',
+  'enrolled_count', 'status', 'description', 'image_url', 'image_pos_y', 'category',
   'created_at', 'updated_at',
 ] as const;
 
@@ -32,6 +32,7 @@ export interface ActivityDetailRow {
   status: ActivityDetail['status'];
   description: string;
   image_url: string | null;
+  image_pos_y: number | null;
   category: string | null;
   created_at: Date;
   updated_at: Date;
@@ -50,6 +51,7 @@ export function mapActivityDetailRow(r: ActivityDetailRow): ActivityDetail {
     status: r.status,
     description: r.description,
     imageUrl: r.image_url,
+    imagePosY: r.image_pos_y,
     category: r.category,
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
@@ -79,6 +81,7 @@ export interface ActivityUpdateSet {
   capacity?: number;
   description?: string;
   category?: string | null;
+  image_pos_y?: number | null;
 }
 
 export function normalizeActivityUpdate(data: ActivityUpdateRequest): ActivityUpdateSet {
@@ -94,6 +97,7 @@ export function normalizeActivityUpdate(data: ActivityUpdateRequest): ActivityUp
     const c = data.category?.trim();
     set.category = c ? c.toLowerCase().replace(/\s+/g, ' ') : null;
   }
+  if (data.imagePosY !== undefined) set.image_pos_y = data.imagePosY; // null = centro
   return set;
 }
 
