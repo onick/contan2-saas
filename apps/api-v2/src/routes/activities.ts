@@ -24,7 +24,7 @@ import {
   persistCover,
   CoverError,
 } from '../services/cover-upload.js';
-import { ensureWritableRoot, StorageError } from '../storage.js';
+import { ensureWritableRoot, deletePreviousCoverIfV2, StorageError } from '../storage.js';
 
 const STATUSES: ReadonlySet<ActivityStatus> = new Set(['activa', 'finalizada', 'cancelada']);
 
@@ -37,7 +37,8 @@ const ACTIVITY_DATE_PAST_GRACE_MS = 60_000;
 
 // Transiciones de estado permitidas (paridad acordada). Mismo estado = idempotente
 // (se maneja aparte). Reactivar (finalizada|cancelada → activa) se permite AUNQUE
-// la fecha haya pasado. No hay hard-delete: "cancelar" es el soft-delete.
+// la fecha haya pasado. El hard-delete existe pero GUARDADO (paridad v1): con
+// asistencias registradas exige cancelar primero; ver DELETE /activities/:id.
 const ALLOWED_TRANSITIONS: Record<ActivityStatus, ReadonlySet<ActivityStatus>> = {
   activa: new Set(['finalizada', 'cancelada']),
   finalizada: new Set(['activa']),
@@ -594,5 +595,85 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     reply.code(200);
     const body: ActivityCreateResponse = { activity: mapActivityDetailRow(row) };
     return body;
+  });
+
+  // DELETE /api/v2/activities/:id · ESCRITURA destructiva, GUARDADA (paridad v1):
+  //   · sólo owner/admin (operator 403); cross-tenant/inexistente → 404;
+  //   · con asistencias y estado ≠ cancelada → 409 "cancelala primero";
+  //   · cancelada (o sin asistencias) → purga attendance + borra la actividad en
+  //     UNA transacción, audita activity.deleted y borra el archivo de portada v2
+  //     (best-effort, fuera de la tx; archivos legacy v1 se preservan). 204.
+  // visit_count de los usuarios NO se toca (paridad v1: sólo purga attendance).
+  app.delete('/activities/:id', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
+      reply.code(403);
+      return { error: 'No tenés permiso para eliminar actividades.' };
+    }
+    const orgId = guard.ctx.org.id;
+    const id = (req.params as { id: string }).id;
+
+    const existing = await db
+      .selectFrom('activities')
+      .select(['id', 'name', 'status', 'image_url'])
+      .where('organization_id', '=', orgId)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!existing) {
+      reply.code(404);
+      return { error: 'Actividad no encontrada.' };
+    }
+
+    const att = await db
+      .selectFrom('attendance')
+      .select(db.fn.countAll<number>().as('n'))
+      .where('organization_id', '=', orgId)
+      .where('activity_id', '=', id)
+      .executeTakeFirstOrThrow();
+    const attendanceCount = Number(att.n);
+
+    if (attendanceCount > 0 && existing.status !== 'cancelada') {
+      reply.code(409);
+      return { error: 'La actividad tiene asistencias registradas. Cancelala primero y luego podrás eliminarla.' };
+    }
+
+    await db.transaction().execute(async (tx) => {
+      if (attendanceCount > 0) {
+        await tx.deleteFrom('attendance').where('organization_id', '=', orgId).where('activity_id', '=', id).execute();
+      }
+      await tx.deleteFrom('activities').where('organization_id', '=', orgId).where('id', '=', id).execute();
+      // Auditoría (sin PII: nombre de la actividad no es PII de visitantes).
+      await tx
+        .insertInto('tenant_audit_log')
+        .values({
+          organization_id: orgId,
+          actor_staff_id: guard.ctx.staff.id,
+          actor_email_masked: null,
+          actor_role: guard.ctx.staff.role,
+          action: 'activity.deleted',
+          target_type: 'activity',
+          target_id: id,
+          metadata: JSON.stringify({ name: existing.name, attendancePurged: attendanceCount }),
+        })
+        .execute();
+    });
+
+    // Archivo de portada v2 (best-effort, fuera de la tx; legacy v1 intacto).
+    if (existing.image_url) {
+      try {
+        const root = await ensureWritableRoot();
+        await deletePreviousCoverIfV2(root, existing.image_url);
+      } catch (e) {
+        req.log.warn({ err: e }, 'no se pudo borrar el archivo de portada al eliminar la actividad');
+      }
+    }
+
+    reply.code(204);
+    return null;
   });
 };

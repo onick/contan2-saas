@@ -352,14 +352,10 @@ run('PATCH /activities/:id (+/status) · ciclo de vida', () => {
 
   // ---- No hard-delete -----------------------------------------------------
 
-  it('NO existe endpoint DELETE de actividades (404 de ruta)', async () => {
+  it('DELETE existe pero GUARDADO: sin cookie → 401 y nada se borra (cobertura completa en activities-delete.test)', async () => {
     const id = await seed();
-    const res = await app.inject({
-      method: 'DELETE', url: `/api/v2/activities/${id}`,
-      headers: { host: hostA }, cookies: { contan2_session: TOK.admin },
-    });
-    expect(res.statusCode).toBe(404);
-    // La actividad sigue ahí.
+    const res = await app.inject({ method: 'DELETE', url: `/api/v2/activities/${id}`, headers: { host: hostA } });
+    expect(res.statusCode).toBe(401);
     const row = await db.selectFrom('activities').select('id').where('id', '=', id).executeTakeFirst();
     expect(row).toBeTruthy();
   });
