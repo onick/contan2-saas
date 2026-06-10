@@ -264,6 +264,53 @@ export const ActivitySummarySchema = z.object({
 });
 export type ActivitySummary = z.infer<typeof ActivitySummarySchema>;
 export const ActivitySummaryResponseSchema = z.object({ summary: ActivitySummarySchema });
+export type ActivitySummaryResponseT = z.infer<typeof ActivitySummaryResponseSchema>;
+
+// ── Segmentos de audiencia (paridad v1 /insights/segments + mejoras) ────────
+// Segmentos calculados EN VIVO del historial de asistencias (afinidad), no sólo
+// de visit_count: VIPs, nuevos (1 asistencia), activos/dormidos, fans por TIPO
+// (umbral 2 cine/taller · 3 resto) y fans por CATEGORÍA dinámica (≥1 visita al
+// ciclo). El id es URL-safe (p. ej. fans-cine, fans-cat-5to-ciclo-...).
+export const SegmentGroupSchema = z.enum(['engagement', 'afinidad', 'categorias', 'contacto']);
+export type SegmentGroup = z.infer<typeof SegmentGroupSchema>;
+
+export const SegmentSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  description: z.string(),
+  group: SegmentGroupSchema,
+  count: z.number().int(),
+});
+export type Segment = z.infer<typeof SegmentSchema>;
+
+export const SegmentsResponseSchema = z.object({
+  segments: z.array(SegmentSchema),
+  totalVisitors: z.number().int(), // visitantes activos (no archivados) del tenant
+});
+export type SegmentsResponse = z.infer<typeof SegmentsResponseSchema>;
+
+// Miembro de un segmento, con su afinidad resumida (paridad v1 segments/:id).
+export const SegmentMemberSchema = z.object({
+  id: z.string(),
+  code: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  visitCount: z.number().int(),
+  totalAttendances: z.number().int(),
+  lastAttendanceAt: z.string().nullable(), // ISO
+  daysSinceLastVisit: z.number().int().nullable(),
+  status: z.enum(['nuevo', 'activo', 'regular', 'dormido']),
+});
+export type SegmentMember = z.infer<typeof SegmentMemberSchema>;
+
+export const SegmentMembersResponseSchema = z.object({
+  segment: SegmentSchema,
+  members: z.array(SegmentMemberSchema),
+  total: z.number().int(),
+});
+export type SegmentMembersResponse = z.infer<typeof SegmentMembersResponseSchema>;
 export type ActivitySummaryResponse = z.infer<typeof ActivitySummaryResponseSchema>;
 export type ActivityCreateResponse = z.infer<typeof ActivityCreateResponseSchema>;
 
