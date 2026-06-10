@@ -3,26 +3,22 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 // Mock del cliente HTTP → no toca red ni next/headers.
 vi.mock('./client', () => ({ apiGet: vi.fn() }));
 import { apiGet } from './client';
-import { getDashboardMetricCards, getRecentVisitors } from './dashboard';
+import { getDashboardOverview, getRecentVisitors } from './dashboard';
 
 afterEach(() => vi.clearAllMocks());
 
-describe('getDashboardMetricCards', () => {
-  it('mapea las métricas reales a 4 tarjetas (formateadas, sin tendencias)', async () => {
-    vi.mocked(apiGet).mockResolvedValue({
-      metrics: { totalUsers: 1842, totalActivities: 7, activeActivities: 2, totalAttendance: 510, checkedIn: 48 },
-    });
-    const cards = await getDashboardMetricCards();
-    expect(cards).not.toBeNull();
-    expect(cards!.map((c) => c.label)).toEqual(['Asistencias', 'Visitantes', 'Actividades activas', 'Check-ins']);
-    expect(cards!.find((c) => c.label === 'Asistencias')!.value).toBe('510');
-    expect(cards!.find((c) => c.label === 'Visitantes')!.value).toBe('1,842'); // toLocaleString
-    expect(cards!.every((c) => c.trend === undefined)).toBe(true);
+describe('getDashboardOverview', () => {
+  it('pasa el period a la API y devuelve el overview tal cual', async () => {
+    const overview = { period: '7d', series: [], attendance: { current: 3, previous: 1, deltaPct: 200 } };
+    vi.mocked(apiGet).mockResolvedValue(overview);
+    const r = await getDashboardOverview('7d');
+    expect(vi.mocked(apiGet).mock.calls[0]![0]).toBe('/api/v2/dashboard/overview?period=7d');
+    expect(r).toBe(overview);
   });
 
-  it('devuelve null si la API falla → la página cae a demoData', async () => {
+  it('devuelve null si la API falla → indisponibilidad honesta (nunca demo)', async () => {
     vi.mocked(apiGet).mockRejectedValue(new Error('401'));
-    expect(await getDashboardMetricCards()).toBeNull();
+    expect(await getDashboardOverview('30d')).toBeNull();
   });
 });
 

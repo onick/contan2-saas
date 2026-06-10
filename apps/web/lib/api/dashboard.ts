@@ -3,20 +3,16 @@
 // consume MetricCard. Devuelve null si no hay datos reales (sin sesión /
 // api-v2 caído) → la página cae a demoData.
 
-import { DashboardMetricsResponseSchema, UsersListResponseSchema } from '@contan2/contracts';
+import { UsersListResponseSchema, DashboardOverviewResponseSchema, type DashboardOverviewResponse } from '@contan2/contracts';
 import { apiGet } from './client';
-import type { DashboardMetric, RecentVisitor } from '../dashboard/demoData';
+import type { RecentVisitor } from '../dashboard/demoData';
 
-export async function getDashboardMetricCards(): Promise<DashboardMetric[] | null> {
+// Overview período-aware (S2, paridad v1): serie + deltas + upcoming + insights.
+// null si no hay datos reales (sin sesión / api caída) → indisponibilidad
+// honesta, nunca demo.
+export async function getDashboardOverview(period: string): Promise<DashboardOverviewResponse | null> {
   try {
-    const { metrics } = await apiGet('/api/v2/dashboard/metrics', DashboardMetricsResponseSchema);
-    // Sin tendencias: la API entrega conteos crudos, no series → no inventamos %.
-    return [
-      { key: 'asistencias', label: 'Asistencias', value: metrics.totalAttendance.toLocaleString('en-US') },
-      { key: 'visitantes', label: 'Visitantes', value: metrics.totalUsers.toLocaleString('en-US') },
-      { key: 'activas', label: 'Actividades activas', value: String(metrics.activeActivities) },
-      { key: 'checkins', label: 'Check-ins', value: metrics.checkedIn.toLocaleString('en-US') },
-    ];
+    return await apiGet(`/api/v2/dashboard/overview?period=${encodeURIComponent(period)}`, DashboardOverviewResponseSchema);
   } catch {
     return null;
   }
