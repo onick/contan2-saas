@@ -271,6 +271,34 @@ export type ActivitySummaryResponseT = z.infer<typeof ActivitySummaryResponseSch
 // de visit_count: VIPs, nuevos (1 asistencia), activos/dormidos, fans por TIPO
 // (umbral 2 cine/taller · 3 resto) y fans por CATEGORÍA dinámica (≥1 visita al
 // ciclo). El id es URL-safe (p. ej. fans-cine, fans-cat-5to-ciclo-...).
+// ── Auth S1: recuperación/cambio de contraseña + sesiones (paridad v1) ──────
+export const ForgotPasswordRequestSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254) }).strict();
+export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordRequestSchema>;
+
+export const ResetPasswordRequestSchema = z.object({
+  token: z.string().min(20).max(200),
+  newPassword: z.string().min(1).max(200),
+}).strict();
+export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;
+
+export const ChangePasswordRequestSchema = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: z.string().min(1).max(200),
+}).strict();
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequestSchema>;
+
+export const StaffSessionInfoSchema = z.object({
+  id: z.string(),
+  current: z.boolean(),
+  rememberMe: z.boolean(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+  userAgent: z.string().nullable(),
+});
+export type StaffSessionInfo = z.infer<typeof StaffSessionInfoSchema>;
+export const StaffSessionsResponseSchema = z.object({ sessions: z.array(StaffSessionInfoSchema) });
+export type StaffSessionsResponse = z.infer<typeof StaffSessionsResponseSchema>;
+
 export const SegmentGroupSchema = z.enum(['engagement', 'afinidad', 'categorias', 'contacto']);
 export type SegmentGroup = z.infer<typeof SegmentGroupSchema>;
 

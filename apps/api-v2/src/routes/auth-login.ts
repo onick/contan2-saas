@@ -9,10 +9,10 @@
 // (trustProxy=1 → req.ip). owner/admin/operator pueden ingresar; los permisos
 // de escritura se gatean por endpoint (p. ej. activities exige owner/admin).
 //
-// NOTA de alcance: el lockout por CUENTA de v1 (423, failed_attempts/locked_until)
-// NO se porta acá — requeriría ESCRIBIR en staff_members, fuera del alcance de
-// este PR (sólo se escribe staff_auth_sessions). El rate-limit por IP cubre la
-// fuerza bruta a nivel de este PR.
+// LOCKOUT por CUENTA (S1, paridad v1): 5 intentos fallidos en 15 min → 423 con
+// bloqueo escalado 30 min → 1 h → 24 h (services/lockout.ts, mismas columnas de
+// staff_members que usa v1 → ambas versiones comparten el estado). El éxito
+// resetea contadores. El rate-limit por IP sigue activo como primera capa.
 
 import { createHash } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
@@ -30,6 +30,7 @@ import {
 } from '@contan2/contracts';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
 import { verifyStaffPassword } from '../services/password.js';
+import { isLocked, lockedMessage, registerFailedAttempt, type LockoutState } from '../services/lockout.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { baseCookieOptions } from '../cookies.js';
 
@@ -84,8 +85,36 @@ export const authLoginRoute: FastifyPluginAsync = async (app) => {
       return { error: 'Credenciales inválidas.' };
     }
 
+    // 4.b) Lockout por cuenta ANTES de verificar el password (si está bloqueada
+    // ni se intenta, paridad v1 → 423).
+    const lockRow = await db.selectFrom('staff_members')
+      .select(['failed_attempts', 'locked_until', 'lock_level', 'last_attempt_at'])
+      .where('id', '=', staff.id)
+      .executeTakeFirstOrThrow();
+    const lockState: LockoutState = {
+      failedAttempts: lockRow.failed_attempts,
+      lockedUntil: lockRow.locked_until ? new Date(lockRow.locked_until) : null,
+      lockLevel: lockRow.lock_level,
+      lastAttemptAt: lockRow.last_attempt_at ? new Date(lockRow.last_attempt_at) : null,
+    };
+    if (isLocked(lockState)) {
+      reply.code(423);
+      return { error: lockedMessage(lockState) };
+    }
+
     const ok = await verifyStaffPassword(staff.password_hash, password);
     if (!ok) {
+      const next = registerFailedAttempt(lockState);
+      await db.updateTable('staff_members').set({
+        failed_attempts: next.failedAttempts,
+        locked_until: next.lockedUntil ? next.lockedUntil.toISOString() : null,
+        lock_level: next.lockLevel,
+        last_attempt_at: new Date().toISOString(),
+      }).where('id', '=', staff.id).execute();
+      if (next.locked) {
+        reply.code(423);
+        return { error: lockedMessage({ ...lockState, lockedUntil: next.lockedUntil }) };
+      }
       reply.code(401);
       return { error: 'Credenciales inválidas.' };
     }
@@ -94,6 +123,13 @@ export const authLoginRoute: FastifyPluginAsync = async (app) => {
     if (staff.status !== 'active') {
       reply.code(403);
       return { error: 'Cuenta no activa.' };
+    }
+
+    // 5.b) Login exitoso → resetea el estado de lockout (paridad v1).
+    if (lockRow.failed_attempts > 0 || lockRow.lock_level > 0 || lockRow.locked_until) {
+      await db.updateTable('staff_members')
+        .set({ failed_attempts: 0, locked_until: null, lock_level: 0, last_attempt_at: new Date().toISOString() })
+        .where('id', '=', staff.id).execute();
     }
 
     // 6) Crear sesión byte-compatible + setear cookie.

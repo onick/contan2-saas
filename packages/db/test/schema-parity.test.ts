@@ -46,6 +46,10 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'id', 'platform_admin_id', 'token_hash', 'expires_at', 'remember_me',
     'ip_hash', 'user_agent', 'created_at', 'revoked_at',
   ],
+  staff_password_resets: [
+    'id', 'staff_member_id', 'token_hash', 'expires_at', 'used_at',
+    'requested_ip_hash', 'requested_user_agent', 'created_at',
+  ],
   tenant_audit_log: [
     'id', 'organization_id', 'actor_staff_id', 'actor_email_masked',
     'actor_role', 'action', 'target_type', 'target_id', 'target_label',
