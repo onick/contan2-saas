@@ -266,6 +266,45 @@ export type ActivitySummary = z.infer<typeof ActivitySummarySchema>;
 export const ActivitySummaryResponseSchema = z.object({ summary: ActivitySummarySchema });
 export type ActivitySummaryResponseT = z.infer<typeof ActivitySummaryResponseSchema>;
 
+// ── Invitaciones de staff (S1, paridad v1 staffManagement + auth) ───────────
+export const StaffInvitationSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  fullName: z.string().nullable(),
+  role: z.enum(['owner', 'admin', 'operator']),
+  status: z.enum(['pending', 'accepted', 'revoked', 'expired']),
+  expiresAt: z.string(),
+  createdAt: z.string(),
+});
+export type StaffInvitation = z.infer<typeof StaffInvitationSchema>;
+export const StaffInvitationsListResponseSchema = z.object({ invitations: z.array(StaffInvitationSchema) });
+export type StaffInvitationsListResponse = z.infer<typeof StaffInvitationsListResponseSchema>;
+
+export const StaffInviteCreateRequestSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  fullName: z.string().trim().max(120).optional(),
+  role: z.enum(['owner', 'admin', 'operator']),
+}).strict();
+export type StaffInviteCreateRequest = z.infer<typeof StaffInviteCreateRequestSchema>;
+
+export const InvitationPreviewResponseSchema = z.object({
+  invitation: z.object({
+    email: z.string(),
+    fullName: z.string().nullable(),
+    role: z.enum(['owner', 'admin', 'operator']),
+    expiresAt: z.string(),
+    organization: z.object({ slug: z.string(), name: z.string() }).nullable(),
+  }),
+});
+export type InvitationPreviewResponse = z.infer<typeof InvitationPreviewResponseSchema>;
+
+export const AcceptInvitationRequestSchema = z.object({
+  token: z.string().min(20).max(200),
+  password: z.string().min(1).max(200),
+  fullName: z.string().trim().max(120).optional(),
+}).strict();
+export type AcceptInvitationRequest = z.infer<typeof AcceptInvitationRequestSchema>;
+
 // ── Segmentos de audiencia (paridad v1 /insights/segments + mejoras) ────────
 // Segmentos calculados EN VIVO del historial de asistencias (afinidad), no sólo
 // de visit_count: VIPs, nuevos (1 asistencia), activos/dormidos, fans por TIPO

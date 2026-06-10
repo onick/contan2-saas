@@ -131,6 +131,25 @@ export interface PlatformSessionsTable {
   revoked_at: NullableTs;
 }
 
+// staff_invitations (migración v1 021): invitaciones de equipo con token one-shot.
+export interface StaffInvitationsTable {
+  id: Generated<string>;
+  organization_id: string;
+  email: string;
+  role: string;
+  full_name: string | null;
+  token_hash: string;
+  invited_by_staff_id: string | null;
+  expires_at: RequiredTs;
+  status: ColumnType<'pending' | 'accepted' | 'revoked' | 'expired', string | undefined, string>;
+  accepted_by_staff_id: string | null;
+  accepted_at: NullableTs;
+  revoked_at: NullableTs;
+  created_at: CreatedAt;
+  // Actualizable (el server la bumpea en cada transición).
+  updated_at: ColumnType<Date, string | undefined, string>;
+}
+
 // staff_password_resets (migración v1 016): tokens de recovery one-shot.
 export interface StaffPasswordResetsTable {
   id: Generated<string>;
@@ -261,6 +280,7 @@ export interface Database {
   staff_auth_sessions: StaffAuthSessionsTable;
   platform_admins: PlatformAdminsTable;
   platform_sessions: PlatformSessionsTable;
+  staff_invitations: StaffInvitationsTable;
   staff_password_resets: StaffPasswordResetsTable;
   tenant_audit_log: TenantAuditLogTable;
   users: UsersTable;

@@ -46,6 +46,11 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'id', 'platform_admin_id', 'token_hash', 'expires_at', 'remember_me',
     'ip_hash', 'user_agent', 'created_at', 'revoked_at',
   ],
+  staff_invitations: [
+    'id', 'organization_id', 'email', 'role', 'full_name', 'token_hash',
+    'invited_by_staff_id', 'expires_at', 'status', 'accepted_by_staff_id',
+    'accepted_at', 'revoked_at', 'created_at', 'updated_at',
+  ],
   staff_password_resets: [
     'id', 'staff_member_id', 'token_hash', 'expires_at', 'used_at',
     'requested_ip_hash', 'requested_user_agent', 'created_at',
