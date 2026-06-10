@@ -8,15 +8,19 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles, Pencil, Send, Archive, ArchiveRestore } from 'lucide-react';
+import { X, Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles, Pencil, Send, Archive, ArchiveRestore, Printer } from 'lucide-react';
 import type { UserListItem, UserActivityHistoryItem, UserAffinityResponse, AffinityBucket, AdminUserUpdateRequest, AdminCredentialResendResponse } from '@contan2/contracts';
 import { getUserDetail, getUserActivities, getUserAffinity, updateUser, resendCredential, archiveUser, reactivateUser } from '../../lib/api/profile-client';
+import { initials, avatarFor } from './UsersTable';
 import { Button, IconButton, Chip, cn, focusRing, useDrawerLifecycle, type ChipTone } from '../ui';
 
 type Async<T> = { phase: 'loading' } | { phase: 'error'; error: string } | { phase: 'ready'; data: T };
 const HISTORY_PAGE = 10;
 
 const ABS = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric' });
+const TIME = new Intl.DateTimeFormat('es', { hour: 'numeric', minute: '2-digit' });
+// "9 jun 2026 · 4:12 p. m." (paridad v1: fecha + hora exacta del evento).
+const fmtDateTime = (iso: string): string => { const d = new Date(iso); return `${ABS.format(d)} · ${TIME.format(d)}`; };
 function relAgo(iso: string | null): string {
   if (!iso) return 'Nunca';
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
@@ -206,30 +210,30 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
         {/* aria-live para el feedback de copiar */}
         <div aria-live="polite" className="sr-only">{copied ? 'Código copiado al portapapeles' : ''}</div>
 
+        {/* Header con avatar (mismo color-hash que la tabla) · paridad v1. La acción
+            Editar vive en el footer fijo (siempre visible), no acá. */}
         <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
-          <div className="min-w-0">
-            <p className={labelCls}>Perfil del visitante</p>
-            <h2 id={titleId} className="mt-1 truncate text-lg font-bold leading-tight tracking-tight text-ink">
-              {detail.phase === 'ready' ? `${detail.data.firstName} ${detail.data.lastName}`.trim() : '…'}
-            </h2>
-            <div className="mt-1 flex items-center gap-2">
-              <code className="text-[13px] tabular-nums text-muted">{shown}</code>
-              <button type="button" onClick={copyCode}
-                className={cn('inline-flex items-center gap-1 rounded px-1 text-[12px] font-semibold text-brand', focusRing)}>
-                {copied ? <><Check size={13} strokeWidth={2.5} aria-hidden="true" /> Copiado</> : <><Copy size={13} strokeWidth={2} aria-hidden="true" /> Copiar</>}
-              </button>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className={cn('grid h-12 w-12 flex-none place-items-center rounded-full text-[15px] font-bold', avatarFor(shown))}>
+              {detail.phase === 'ready' ? initials(`${detail.data.firstName} ${detail.data.lastName}`) : '…'}
+            </span>
+            <div className="min-w-0">
+              <p className={labelCls}>Perfil del visitante</p>
+              <h2 id={titleId} className="mt-0.5 truncate text-lg font-bold leading-tight tracking-tight text-ink">
+                {detail.phase === 'ready' ? `${detail.data.firstName} ${detail.data.lastName}`.trim() : '…'}
+              </h2>
+              <div className="mt-0.5 flex items-center gap-2">
+                <code className="text-[13px] tabular-nums text-muted">{shown}</code>
+                <button type="button" onClick={copyCode}
+                  className={cn('inline-flex items-center gap-1 rounded px-1 text-[12px] font-semibold text-brand', focusRing)}>
+                  {copied ? <><Check size={13} strokeWidth={2.5} aria-hidden="true" /> Copiado</> : <><Copy size={13} strokeWidth={2} aria-hidden="true" /> Copiar</>}
+                </button>
+              </div>
             </div>
           </div>
-          <div className="flex flex-none items-center gap-1.5">
-            {canEdit && detail.phase === 'ready' && !editing ? (
-              <Button type="button" variant="secondary" size="sm" onClick={startEdit}>
-                <Pencil size={15} strokeWidth={2} aria-hidden="true" /> Editar
-              </Button>
-            ) : null}
-            <IconButton label="Cerrar perfil" variant="outline" size="sm" onClick={onClose}>
-              <X size={18} strokeWidth={2} aria-hidden="true" />
-            </IconButton>
-          </div>
+          <IconButton label="Cerrar perfil" variant="outline" size="sm" onClick={onClose}>
+            <X size={18} strokeWidth={2} aria-hidden="true" />
+          </IconButton>
         </header>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
@@ -237,35 +241,54 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
             <p role="alert" className="rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{detail.error}</p>
           ) : null}
 
-          {/* Chips de estado + credencial */}
+          {/* Chips de estado */}
           {detail.phase === 'ready' ? (
             <div className="flex flex-wrap gap-2">
               {detail.data.deletedAt ? <Chip tone="neutral" dot>Archivado</Chip> : null}
               {detail.data.status ? <Chip tone={STATUS[detail.data.status].tone} dot>{STATUS[detail.data.status].label}</Chip> : null}
-              <Chip tone={credentialChip(detail.data).tone} dot>{credentialChip(detail.data).label}</Chip>
             </div>
           ) : null}
 
-          {/* Reenviar credencial (F2C) · sólo owner/admin + con email; confirmación
-              explícita con email enmascarado; Idempotency-Key reusada en reintentos. */}
-          {detail.phase === 'ready' && canEdit && detail.data.email && !editing ? (
+          {/* Credencial · TARJETA de estado (paridad v1): icono + estado + fecha/hora
+              exacta del envío + acción inline. El confirm (con email enmascarado e
+              Idempotency-Key reusada en reintentos, F2C) se despliega dentro. */}
+          {detail.phase === 'ready' && !editing ? (
             <div className="space-y-2">
-              {!resendOpen ? (
-                <Button type="button" variant="secondary" size="sm" onClick={openResend}>
-                  <Send size={14} strokeWidth={2} aria-hidden="true" /> Reenviar credencial
-                </Button>
-              ) : (
-                <div className="rounded-lg border border-line bg-surface-container p-3">
-                  <p className="text-[13px] text-ink">¿Reenviar la credencial a <strong className="font-semibold">{maskEmail(detail.data.email)}</strong>?</p>
-                  {resendError ? <p role="alert" className="mt-2 text-[12px] text-danger-fg">{resendError}</p> : null}
-                  <div className="mt-3 flex items-center justify-end gap-2">
-                    <Button type="button" variant="secondary" size="sm" onClick={() => setResendOpen(false)} disabled={resendBusy}>Cancelar</Button>
-                    <Button type="button" size="sm" onClick={confirmResend} disabled={resendBusy}>
-                      {resendBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Enviando…</> : 'Sí, reenviar'}
-                    </Button>
+              <p className={labelCls}>Credencial</p>
+              <div className={cn('rounded-xl border p-3', detail.data.credentialSentAt ? 'border-success-fg/25 bg-success-bg/40' : detail.data.email ? 'border-line bg-accent-soft/50' : 'border-line bg-surface-container')}>
+                <div className="flex items-center gap-3">
+                  <span className={cn('grid h-9 w-9 flex-none place-items-center rounded-full', detail.data.credentialSentAt ? 'bg-success-fg text-white' : detail.data.email ? 'bg-[#b35400] text-white' : 'bg-surface text-faint')}>
+                    {detail.data.credentialSentAt ? <Check size={16} strokeWidth={2.5} aria-hidden="true" /> : <Send size={14} strokeWidth={2} aria-hidden="true" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-ink">{credentialChip(detail.data).label}</p>
+                    <p className="text-xs text-muted">
+                      {detail.data.credentialSentAt
+                        ? fmtDateTime(detail.data.credentialSentAt)
+                        : detail.data.email
+                          ? 'Aún no se envió a su email.'
+                          : 'Agregá un email para enviarle su credencial QR.'}
+                    </p>
                   </div>
+                  {canEdit && detail.data.email && !resendOpen ? (
+                    <Button type="button" variant="secondary" size="sm" className="flex-none" onClick={openResend}>
+                      <Send size={13} strokeWidth={2} aria-hidden="true" /> {detail.data.credentialSentAt ? 'Reenviar' : 'Enviar'}
+                    </Button>
+                  ) : null}
                 </div>
-              )}
+                {resendOpen ? (
+                  <div className="mt-3 border-t border-line pt-3">
+                    <p className="text-[13px] text-ink">¿{detail.data.credentialSentAt ? 'Reenviar' : 'Enviar'} la credencial a <strong className="font-semibold">{maskEmail(detail.data.email ?? '')}</strong>?</p>
+                    {resendError ? <p role="alert" className="mt-2 text-[12px] text-danger-fg">{resendError}</p> : null}
+                    <div className="mt-3 flex items-center justify-end gap-2">
+                      <Button type="button" variant="secondary" size="sm" onClick={() => setResendOpen(false)} disabled={resendBusy}>Cancelar</Button>
+                      <Button type="button" size="sm" onClick={confirmResend} disabled={resendBusy}>
+                        {resendBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Enviando…</> : 'Sí, enviar'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               {resendResult ? (
                 <p role="status" aria-live="polite" className={cn('rounded-lg px-3 py-2 text-[12px]', RESEND_TONE[resendResult.result])}>
                   {resendResult.message}
@@ -274,8 +297,8 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
             </div>
           ) : null}
 
-          {/* Métricas */}
-          <dl className="grid grid-cols-3 gap-3">
+          {/* Métricas · fila con divisores (paridad v1, más liviana que cajas) */}
+          <dl className="grid grid-cols-3 divide-x divide-line rounded-xl border border-line">
             <Metric label="Visitas" value={detail.phase === 'ready' ? String(detail.data.visitCount) : '—'} />
             <Metric label="Última visita" value={detail.phase === 'ready' ? relAgo(detail.data.lastVisitAt) : '—'} />
             <Metric label="Registro" value={detail.phase === 'ready' ? relAgo(detail.data.createdAt) : '—'} />
@@ -302,8 +325,8 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
           ) : detail.phase === 'ready' ? (
             <div className="space-y-2">
               <p className={labelCls}>Contacto</p>
-              <Row icon={Mail}>{detail.data.email ?? <span className="text-faint">Sin email</span>}</Row>
-              <Row icon={Phone}>{detail.data.phone ?? <span className="text-faint">Sin teléfono</span>}</Row>
+              <CopyRow icon={Mail} value={detail.data.email} empty="Sin email" />
+              <CopyRow icon={Phone} value={detail.data.phone} empty="Sin teléfono" />
             </div>
           ) : null}
 
@@ -342,7 +365,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-ink">{h.name}</p>
                           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-faint">
-                            <span className="inline-flex items-center gap-1"><CalendarDays size={11} strokeWidth={2} aria-hidden="true" /> {ABS.format(new Date(h.checkedInAt ?? h.registeredAt))}</span>
+                            <span className="inline-flex items-center gap-1"><CalendarDays size={11} strokeWidth={2} aria-hidden="true" /> {fmtDateTime(h.checkedInAt ?? h.registeredAt)}</span>
                             <span className="inline-flex items-center gap-1"><MapPin size={11} strokeWidth={2} aria-hidden="true" /> {h.location}</span>
                             {h.companionsChildren > 0 ? <span className="inline-flex items-center gap-1"><Users size={11} strokeWidth={2} aria-hidden="true" /> +{h.companionsChildren}</span> : null}
                           </p>
@@ -388,6 +411,23 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
             </div>
           ) : null}
         </div>
+
+        {/* Footer FIJO (paridad v1): acciones principales siempre visibles.
+            Imprimir abre el PNG REAL de la credencial (mismo que el email) listo
+            para imprimir. En edición se oculta (mandan Cancelar/Guardar del form). */}
+        {!editing ? (
+          <footer className="flex flex-none items-center gap-2 border-t border-line px-5 py-4">
+            <a href={`/api/credentials/${encodeURIComponent(shown)}.png`} target="_blank" rel="noopener noreferrer"
+              className={cn('inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-line bg-surface px-4 text-sm font-semibold text-muted transition-colors hover:bg-page hover:text-ink', focusRing)}>
+              <Printer size={16} strokeWidth={2} aria-hidden="true" /> Imprimir credencial
+            </a>
+            {canEdit && detail.phase === 'ready' && !detail.data.deletedAt ? (
+              <Button type="button" className="flex-1" onClick={startEdit}>
+                <Pencil size={15} strokeWidth={2} aria-hidden="true" /> Editar
+              </Button>
+            ) : null}
+          </footer>
+        ) : null}
       </div>
     </div>,
     document.body,
@@ -396,7 +436,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-surface-container px-3 py-2">
+    <div className="px-3 py-2.5">
       <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</p>
       <p className="mt-0.5 text-sm font-semibold tabular-nums text-ink">{value}</p>
     </div>
@@ -411,11 +451,28 @@ function Field({ label, value, onChange, type = 'text', className }: { label: st
     </label>
   );
 }
-function Row({ icon: Icon, children }: { icon: typeof Mail; children: React.ReactNode }) {
+// Fila de contacto con COPIAR (paridad v1): icono en caja + valor + botón copy
+// con feedback accesible propio. Sin valor → texto tenue, sin botón.
+function CopyRow({ icon: Icon, value, empty }: { icon: typeof Mail; value: string | null; empty: string }) {
+  const [done, setDone] = useState(false);
+  async function copy() {
+    if (!value) return;
+    try { await navigator.clipboard.writeText(value); setDone(true); setTimeout(() => setDone(false), 1800); } catch { /* sin clipboard */ }
+  }
   return (
-    <p className="flex items-center gap-2 text-sm text-ink">
-      <Icon size={15} strokeWidth={1.75} aria-hidden="true" className="flex-none text-faint" /> <span className="min-w-0 truncate">{children}</span>
-    </p>
+    <div className="flex items-center gap-2.5">
+      <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-surface-container text-faint">
+        <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
+      </span>
+      <span className={cn('min-w-0 flex-1 truncate text-sm', value ? 'text-ink' : 'text-faint')}>{value ?? empty}</span>
+      {value ? (
+        <button type="button" onClick={copy} aria-label={done ? 'Copiado' : `Copiar ${empty.replace('Sin ', '')}`}
+          className={cn('grid h-8 w-8 flex-none place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-muted', focusRing)}>
+          {done ? <Check size={14} strokeWidth={2.5} aria-hidden="true" className="text-success-fg" /> : <Copy size={14} strokeWidth={1.75} aria-hidden="true" />}
+        </button>
+      ) : null}
+      <span aria-live="polite" className="sr-only">{done ? 'Copiado al portapapeles' : ''}</span>
+    </div>
   );
 }
 function SkeletonLine() {
