@@ -24,5 +24,8 @@ describe('AppShell', () => {
     const main = screen.getByRole('main');
     expect(main).toBeInTheDocument();
     expect(main).toHaveTextContent('contenido hijo');
+    // Shell de colapso presente (expandido por defecto sin cookie) + toggle accesible.
+    expect(document.querySelector('[data-sidebar="expanded"]')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Colapsar navegación' })).toBeInTheDocument();
   });
 });
