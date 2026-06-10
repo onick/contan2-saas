@@ -19,7 +19,7 @@ beforeEach(() => apiGetMock.mockReset());
 
 const activity = (over: Record<string, unknown> = {}) => ({
   id: 'a1', name: 'Cine Foro', type: 'Cine', category: null, location: 'Sala',
-  date: new Date().toISOString(), capacity: 80, enrolledCount: 10, imageUrl: '/x.jpg', ...over,
+  date: new Date().toISOString(), capacity: 80, enrolledCount: 10, imageUrl: '/x.jpg', imagePosY: null, ...over,
 });
 
 describe('mappers', () => {

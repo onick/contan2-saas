@@ -63,7 +63,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
 
     let rowsQ = db
       .selectFrom('activities')
-      .select(['id', 'name', 'type', 'location', 'date', 'capacity', 'enrolled_count', 'status', 'category', 'image_url'])
+      .select(['id', 'name', 'type', 'location', 'date', 'capacity', 'enrolled_count', 'status', 'category', 'image_url', 'image_pos_y'])
       .where('organization_id', '=', orgId);
     let countQ = db
       .selectFrom('activities')
@@ -90,6 +90,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       status: r.status,
       category: r.category,
       imageUrl: r.image_url,
+      imagePosY: r.image_pos_y,
     }));
 
     const body: ActivitiesListResponse = { items, total: Number(count.n), limit, offset };
@@ -164,6 +165,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
         capacity: input.capacity,
         description: input.description,
         image_url: null,
+        image_pos_y: parsed.data.imagePosY ?? null,
         category: input.category,
         status: 'activa',
         // enrolled_count: omitido → default 0.
@@ -238,7 +240,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     }
 
     // Campos prohibidos del cliente → 400 (no se derivan del body).
-    for (const k of ['organizationId', 'organization_id', 'status', 'imageUrl', 'image_url', 'enrolledCount', 'enrolled_count', 'id']) {
+    for (const k of ['organizationId', 'organization_id', 'status', 'imageUrl', 'image_url', 'image_pos_y', 'enrolledCount', 'enrolled_count', 'id']) {
       if (k in fields) {
         reply.code(400);
         return { error: `Campo no permitido: ${k}.` };
@@ -343,7 +345,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     // La actividad debe existir DENTRO del tenant (cross-tenant → 404).
     const existing = await db
       .selectFrom('activities')
-      .select(['id', 'image_url'])
+      .select(['id', 'image_url', 'image_pos_y'])
       .where('organization_id', '=', orgId)
       .where('id', '=', id)
       .executeTakeFirst();

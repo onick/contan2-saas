@@ -62,7 +62,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
 
     const rows = await db
       .selectFrom('activities')
-      .select(['id', 'name', 'type', 'category', 'location', 'date', 'capacity', 'enrolled_count', 'image_url'])
+      .select(['id', 'name', 'type', 'category', 'location', 'date', 'capacity', 'enrolled_count', 'image_url', 'image_pos_y'])
       .where('organization_id', '=', t.orgId)
       .where('status', '=', 'activa')
       .orderBy('date', 'asc')
@@ -81,6 +81,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
         capacity: r.capacity,
         enrolledCount: r.enrolled_count,
         imageUrl: r.image_url,
+        imagePosY: r.image_pos_y,
       }));
 
     const body: PublicActivitiesResponse = { activities, total: activities.length };

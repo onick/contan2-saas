@@ -192,6 +192,9 @@ export interface ActivitiesTable {
   status: DefaultedEnum<ActivityStatus>;
   organization_id: string;
   category: string | null;
+  // SMALLINT NULL (migración 027): encuadre vertical de la portada (0–100;
+  // NULL = centro). v1 la ignora.
+  image_pos_y: number | null;
   created_at: CreatedAt;
   updated_at: UpdatedAt;
 }

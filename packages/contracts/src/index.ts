@@ -127,6 +127,7 @@ export const ActivityListItemSchema = z.object({
   status: ActivityStatusSchema,
   category: z.string().nullable(),
   imageUrl: z.string().nullable(), // ruta de portada (/uploads/...) o null
+  imagePosY: z.number().int().nullable(), // encuadre vertical 0–100 (null = centro)
 });
 export type ActivityListItem = z.infer<typeof ActivityListItemSchema>;
 
@@ -167,6 +168,8 @@ export const ActivityCreateRequestSchema = z
     capacity: z.number().int().min(1).max(10000),
     description: z.string().max(1000).optional(),
     category: z.string().max(60).optional(),
+    // Encuadre vertical de la portada (0–100; omitido = centro). Migración 027.
+    imagePosY: z.number().int().min(0).max(100).optional(),
   })
   .superRefine((data, ctx) => {
     const start = new Date(data.date).getTime();
@@ -207,6 +210,8 @@ export const ActivityUpdateRequestSchema = z
     capacity: z.number().int().min(1).max(10000),
     description: z.string().max(1000),
     category: z.string().max(60).nullable(),
+    // Encuadre vertical de la portada (0–100; null = volver al centro).
+    imagePosY: z.number().int().min(0).max(100).nullable(),
   })
   .partial()
   .strict();
@@ -231,6 +236,7 @@ export const ActivityDetailSchema = z.object({
   status: ActivityStatusSchema,
   description: z.string(),
   imageUrl: z.string().nullable(),
+  imagePosY: z.number().int().nullable(), // encuadre vertical 0–100 (null = centro)
   category: z.string().nullable(),
   createdAt: z.string(), // ISO 8601
   updatedAt: z.string(), // ISO 8601
@@ -455,6 +461,7 @@ export const PublicActivitySchema = z.object({
   capacity: z.number().int(),
   enrolledCount: z.number().int(),
   imageUrl: z.string().nullable(),
+  imagePosY: z.number().int().nullable(), // encuadre vertical 0–100 (null = centro)
 });
 export type PublicActivity = z.infer<typeof PublicActivitySchema>;
 
@@ -614,7 +621,7 @@ const OverviewMetricSchema = z.object({ current: z.number(), previous: z.number(
 const OverviewActivitySchema = z.object({
   id: z.string(), name: z.string(), type: z.string(), category: z.string().nullable(),
   location: z.string(), date: z.string(), capacity: z.number().int(),
-  enrolledCount: z.number().int(), imageUrl: z.string().nullable(),
+  enrolledCount: z.number().int(), imageUrl: z.string().nullable(), imagePosY: z.number().int().nullable(),
 });
 export const DashboardOverviewResponseSchema = z.object({
   period: z.enum(['today', '7d', '30d', '90d']),

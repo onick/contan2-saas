@@ -16,7 +16,7 @@ const ACT: Activity = {
 const DETAIL = {
   id: 'A1', name: 'Concierto de prueba', type: 'concierto', location: 'Sala 2',
   date: '2030-06-10T19:00:00.000Z', endDate: null, capacity: 100, enrolledCount: 10,
-  status: 'activa', description: 'Descripción real cargada', category: 'Música', imageUrl: null,
+  status: 'activa', description: 'Descripción real cargada', category: 'Música', imageUrl: null, imagePosY: null,
   createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
