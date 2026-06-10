@@ -58,6 +58,31 @@ export function proxyUpdateStatus(id: string, body: unknown): Promise<Response> 
   );
 }
 
+// DELETE /api/v2/activities/:id · hard-delete GUARDADO (api-v2 arbitra: 409 si
+// tiene asistencias y no está cancelada; 403 operator; 404 cross-tenant). 204.
+export async function proxyDeleteActivity(id: string): Promise<Response> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE_URL}/api/v2/activities/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: {
+        ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+        ...(await forwardingHeaders()),
+      },
+      cache: 'no-store',
+    });
+  } catch {
+    return Response.json({ error: 'No pudimos eliminar la actividad. Intentá de nuevo.' }, { status: 502 });
+  }
+  if (upstream.status === 204) return new Response(null, { status: 204 });
+  const text = await upstream.text();
+  return new Response(text, {
+    status: upstream.status,
+    headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
+  });
+}
+
 // GET /api/v2/activities/:id · detalle COMPLETO (description/endDate/imageUrl que
 // el listado no proyecta). Reenvía con cookie + forwarded headers y relaya status
 // + body. Lo usa el drawer/edición para precarga full-fidelity (Lifecycle A2/B).
