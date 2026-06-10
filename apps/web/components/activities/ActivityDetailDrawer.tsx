@@ -77,8 +77,8 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
       <div
         ref={panelRef}
         className={cn(
-          'drawer-panel absolute inset-x-0 bottom-0 max-h-[88dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
-          'md:inset-y-0 md:right-0 md:left-auto md:h-dvh md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
+          'drawer-panel absolute inset-x-0 bottom-0 max-h-[88dvh] md:max-h-none rounded-t-2xl border-t border-line bg-surface shadow-xl',
+          'md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
           'flex flex-col',
           closing && 'drawer-panel--closing',
         )}

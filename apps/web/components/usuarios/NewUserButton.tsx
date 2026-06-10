@@ -86,7 +86,7 @@ export function NewUserButton() {
         ? createPortal(
             <div className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
               <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => requestClose.current()} className="absolute inset-0 bg-ink/40" />
-              <div className={cn('absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl', 'md:inset-y-0 md:right-0 md:left-auto md:h-dvh md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0', 'flex flex-col')}>
+              <div className={cn('absolute inset-x-0 bottom-0 max-h-[92dvh] md:max-h-none rounded-t-2xl border-t border-line bg-surface shadow-xl', 'md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0', 'flex flex-col')}>
                 <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
                   <div className="min-w-0">
                     <p className={labelCls}>Padrón de visitantes</p>
