@@ -37,12 +37,15 @@ function demoLookup(query: string): KioskVisitor | null {
 }
 
 // Lookup API (modo api): proxy same-origin. 200 { visitor } (hallado) o
-// { visitor: null } (no encontrado); status no-ok (502) = error → throw.
-async function apiLookup(query: string): Promise<KioskVisitor | null> {
+// { visitor: null } (no encontrado); { matches } (homónimos por nombre, 2..5);
+// status no-ok (502) = error → throw.
+export type LookupOutcome = { visitor: KioskVisitor } | { matches: KioskVisitor[] } | null;
+async function apiLookup(query: string): Promise<LookupOutcome> {
   const res = await fetch(`/kiosko/lookup?q=${encodeURIComponent(query.trim())}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`lookup ${res.status}`);
-  const data = (await res.json()) as { visitor: KioskVisitor | null };
-  return data.visitor;
+  const data = (await res.json()) as { visitor: KioskVisitor | null; matches?: KioskVisitor[] };
+  if (data.matches?.length) return { matches: data.matches };
+  return data.visitor ? { visitor: data.visitor } : null;
 }
 
 // Cuerpo del check-in público: el visitante se identifica por código (hallado) o
@@ -116,7 +119,7 @@ export function KioskClient({
   const confirmVisitor = (v: KioskVisitor) => { setVisitor(v); setScreen('confirmation'); };
 
   // Lookup según el modo (sin mezclar). En demo se envuelve en Promise.
-  const lookup = source === 'api' ? apiLookup : (q: string) => Promise.resolve(demoLookup(q));
+  const lookup = source === 'api' ? apiLookup : (q: string) => { const v = demoLookup(q); return Promise.resolve(v ? { visitor: v } : null); };
 
   // Confirmar VISITANTE HALLADO. Demo → presentacional. API → check-in real {code}.
   const confirmFound = async (found: KioskVisitor) => {

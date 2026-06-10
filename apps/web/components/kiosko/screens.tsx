@@ -315,8 +315,9 @@ export function CodeScreen({
   onLookup, onFound, submitting, onNew, onBack,
 }: {
   // Async: en modo API resuelve por la red; en demo es Promise.resolve(local).
-  // null = no encontrado (404/inválido). throw = error real (api caído/5xx/red).
-  onLookup: (query: string) => Promise<KioskVisitor | null>;
+  // null = no encontrado (404/inválido); { matches } = homónimos por nombre
+  // (el visitante elige). throw = error real (api caído/5xx/red).
+  onLookup: (query: string) => Promise<{ visitor: KioskVisitor } | { matches: KioskVisitor[] } | null>;
   onFound: (v: KioskVisitor) => void;
   submitting?: boolean; // confirmando el check-in real (modo API)
   onNew: () => void;
@@ -324,6 +325,7 @@ export function CodeScreen({
 }) {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<KioskVisitor | null>(null);
+  const [matches, setMatches] = useState<KioskVisitor[] | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -332,11 +334,11 @@ export function CodeScreen({
   const search = async (e: FormEvent) => {
     e.preventDefault();
     if (query.trim().length < 3 || loading) return;
-    setLoading(true); setError(false); setNotFound(false); setResult(null);
+    setLoading(true); setError(false); setNotFound(false); setResult(null); setMatches(null);
     try {
-      const found = await onLookup(query.trim());
-      setResult(found);
-      setNotFound(!found);
+      const out = await onLookup(query.trim());
+      if (out && 'matches' in out) { setMatches(out.matches); }
+      else { setResult(out?.visitor ?? null); setNotFound(!out); }
     } catch {
       // En modo API un error NO cae a demo: mostramos "intentá de nuevo".
       setError(true);
@@ -356,13 +358,13 @@ export function CodeScreen({
           </h1>
         </div>
         <form onSubmit={search} className="mt-8 flex flex-col gap-3">
-          <label htmlFor="k-code" className="text-sm font-medium text-[#a2a5b4]">Código (CCB-XXXXXX) o correo</label>
+          <label htmlFor="k-code" className="text-sm font-medium text-[#a2a5b4]">Código (CCB-XXXXXX), correo, o tu nombre y apellido</label>
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               id="k-code"
               value={query}
-              onChange={(e) => { setQuery(e.target.value); setNotFound(false); setResult(null); setError(false); }}
-              placeholder="CCB-7F3K2P"
+              onChange={(e) => { setQuery(e.target.value); setNotFound(false); setResult(null); setMatches(null); setError(false); }}
+              placeholder="CCB-7F3K2P · ana@mail.com · Ana Pérez"
               autoComplete="off"
               className={inputCls}
             />
@@ -393,6 +395,29 @@ export function CodeScreen({
               <KioskButton variant="secondary" disabled={submitting} onClick={() => { setResult(null); setQuery(''); setKids(0); }}>
                 <X size={20} aria-hidden="true" /> No soy yo
               </KioskButton>
+            </div>
+          </div>
+        ) : null}
+
+        {matches ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-[#191b22] p-5">
+            <p className="text-center text-[#f4f5f8]">Encontramos varias personas con ese nombre.</p>
+            <p className="mt-1 text-center text-sm text-[#a2a5b4]">¿Cuál eres tú? Verifica por tu código o número de visitas.</p>
+            <div className="mt-4 flex flex-col gap-2">
+              {matches.map((m) => (
+                <button
+                  key={m.code}
+                  type="button"
+                  onClick={() => { setMatches(null); setResult(m); }}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#11131a] px-4 py-3 text-left transition hover:border-[#ff8a3d]/60 hover:bg-white/5"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-[#f4f5f8]">{m.firstName} {m.lastName}</span>
+                    <span className="block text-sm tabular-nums text-[#a2a5b4]">{m.code}</span>
+                  </span>
+                  <span className="shrink-0 text-sm tabular-nums text-[#a2a5b4]">{m.visitCount} {m.visitCount === 1 ? 'visita' : 'visitas'}</span>
+                </button>
+              ))}
             </div>
           </div>
         ) : null}

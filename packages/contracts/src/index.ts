@@ -474,7 +474,12 @@ export const PublicVisitorSchema = z.object({
 });
 export type PublicVisitor = z.infer<typeof PublicVisitorSchema>;
 
-export const PublicVisitorLookupResponseSchema = z.object({ visitor: PublicVisitorSchema });
+// Respuesta del lookup: 1 hallado → { visitor }; HOMÓNIMOS por nombre completo
+// (2..5) → { matches } para que el visitante elija en el kiosko.
+export const PublicVisitorLookupResponseSchema = z.union([
+  z.object({ visitor: PublicVisitorSchema }),
+  z.object({ matches: z.array(PublicVisitorSchema).min(2).max(5) }),
+]);
 export type PublicVisitorLookupResponse = z.infer<typeof PublicVisitorLookupResponseSchema>;
 
 // Check-in público (escritura · POST /api/v2/public/checkin). El visitante se
