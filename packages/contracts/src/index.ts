@@ -604,6 +604,31 @@ export const AdminAnonymousCheckinResponseSchema = z.object({
 });
 export type AdminAnonymousCheckinResponse = z.infer<typeof AdminAnonymousCheckinResponseSchema>;
 
+// ── Dashboard overview · período + deltas + serie (S2, paridad v1 stats) ──
+const OverviewMetricSchema = z.object({ current: z.number(), previous: z.number(), deltaPct: z.number() });
+const OverviewActivitySchema = z.object({
+  id: z.string(), name: z.string(), type: z.string(), category: z.string().nullable(),
+  location: z.string(), date: z.string(), capacity: z.number().int(),
+  enrolledCount: z.number().int(), imageUrl: z.string().nullable(),
+});
+export const DashboardOverviewResponseSchema = z.object({
+  period: z.enum(['today', '7d', '30d', '90d']),
+  series: z.array(z.object({ date: z.string(), value: z.number().int() })),
+  attendance: OverviewMetricSchema,
+  newVisitors: OverviewMetricSchema,
+  avgOccupancyPct: OverviewMetricSchema,
+  returnRatePct: OverviewMetricSchema,
+  upcoming: OverviewActivitySchema.nullable(),
+  featured: OverviewActivitySchema.extend({ periodAttendances: z.number().int() }).nullable(),
+  insights: z.array(z.object({
+    type: z.enum(['low_enrollment', 'near_full', 'empty_activities']),
+    severity: z.enum(['warning', 'info']),
+    title: z.string(),
+    message: z.string(),
+  })),
+});
+export type DashboardOverviewResponse = z.infer<typeof DashboardOverviewResponseSchema>;
+
 // ── Reportes operativos (F4) ──────────────────────────────────────────────
 export const ReportAttendanceRowSchema = z.object({
   activityId: z.string(),

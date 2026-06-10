@@ -1,11 +1,28 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { getDb } from '@contan2/db';
-import type { DashboardMetricsResponse } from '@contan2/contracts';
+import type { DashboardMetricsResponse, DashboardOverviewResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
+import { dashboardOverview, parsePeriod } from '../services/dashboard-overview.js';
+import { resolveCheckinTz } from './checkin.js';
+
+const TZ = resolveCheckinTz();
 
 // GET /api/v2/dashboard/metrics · KPIs agregados del tenant (read-only).
+// GET /api/v2/dashboard/overview?period= · agregado período-aware (paridad v1).
 // Cada count está filtrado por organization_id (frontera de seguridad pre-RLS).
 export const dashboardMetricsRoute: FastifyPluginAsync = async (app) => {
+  app.get('/dashboard/overview', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    const period = parsePeriod((req.query as Record<string, unknown>).period);
+    const body: DashboardOverviewResponse = await dashboardOverview(db, guard.ctx.org.id, period, TZ);
+    return body;
+  });
+
   app.get('/dashboard/metrics', async (req, reply) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
