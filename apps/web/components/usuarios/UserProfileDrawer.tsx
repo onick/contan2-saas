@@ -204,8 +204,8 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
       <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={onClose}
         className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
       <div ref={panelRef} className={cn(
-        'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
-        'md:inset-y-0 md:right-0 md:left-auto md:h-dvh md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
+        'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] md:max-h-none rounded-t-2xl border-t border-line bg-surface shadow-xl',
+        'md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
         'flex flex-col', closing && 'drawer-panel--closing')}>
         {/* aria-live para el feedback de copiar */}
         <div aria-live="polite" className="sr-only">{copied ? 'Código copiado al portapapeles' : ''}</div>
