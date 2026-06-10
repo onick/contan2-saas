@@ -1,13 +1,14 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { getDb, sql } from '@contan2/db';
-import { normalizeCodeForLookup, isValidCode } from '@contan2/codes';
+import { normalizeCodeForLookup, isValidCode, generateUserCode } from '@contan2/codes';
 import type {
   User, UserListItem, UserActivityStatus, UserCohort,
   UsersListResponse, UsersFacetsResponse, UserDetailResponse,
   UserActivityHistoryResponse, UserAffinityResponse, AffinityBucket,
 } from '@contan2/contracts';
-import { AdminUserUpdateRequestSchema } from '@contan2/contracts';
-import type { AdminCredentialResendResponse, AdminCredentialResendResult, AdminUserArchiveResponse } from '@contan2/contracts';
+import { AdminUserUpdateRequestSchema, AdminUserCreateRequestSchema } from '@contan2/contracts';
+import type { AdminCredentialResendResponse, AdminCredentialResendResult, AdminUserArchiveResponse, AdminUserCreateResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { writeUserAudit } from '../services/user-audit.js';
 import { deliverCredential } from '../services/credential-delivery.js';
@@ -21,6 +22,10 @@ const CAN_WRITE_USER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 // rate-limit por tenant + actor + IP. NUNCA envío masivo (1 visitante por request).
 const CRED_ENDPOINT = 'credential.resend';
 const credLimiter = createRateLimiter({ max: 5, windowMs: 60_000, prefix: endpointPrefix('credential-resend') });
+
+// Alta de visitante: 30/min por org+IP (operación de puerta, paridad con el ritmo
+// del check-in; suficiente para registro en evento, frena scripting).
+const createLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('user-create') });
 
 // Columnas calificadas (listado y detalle hacen join con el agregado de última visita).
 const LIST_COLUMNS = [
@@ -402,6 +407,100 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       totalAttended: Number(agg.total),
       lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
       status: deriveStatus(lastVisit),
+    };
+    return body;
+  });
+
+  // POST /api/v2/users · alta de visitante desde el padrón (S1 · paridad v1).
+  // CUALQUIER staff autenticado (operator registra gente en puerta, igual que v1;
+  // a diferencia de editar/archivar que son owner/admin). El código se genera
+  // server-side con el code_prefix REAL del tenant (mismo algoritmo que v1 →
+  // continuidad de credenciales; retry anti-colisión vía unique (org,code)).
+  // visit_count arranca en 0 (registrar ≠ visitar; el check-in es quien suma).
+  // Si trae email: unicidad por tenant (409) + envío de credencial (dry-run sin
+  // RESEND_API_KEY) con resultado honesto. Auditoría user.created (sin PII).
+  app.post('/users', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    const { org, staff } = guard.ctx;
+    if ((await createLimiter.hit(`${org.id}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: 'Demasiadas altas en poco tiempo. Esperá un momento.' };
+    }
+    const parsed = AdminUserCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      reply.code(400);
+      return { error: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
+    }
+    const p = parsed.data;
+    const email = p.email ? p.email.toLowerCase() : null;
+
+    let created: { id: string; code: string } | undefined;
+    try {
+      created = await db.transaction().execute(async (tx) => {
+        if (email) {
+          const exists = await tx
+            .selectFrom('users').select('id')
+            .where('organization_id', '=', org.id).where('email', '=', email)
+            .executeTakeFirst();
+          if (exists) throw new Error('EMAIL_TAKEN');
+        }
+        let row: { id: string; code: string } | undefined;
+        for (let attempt = 0; attempt < 5 && !row; attempt += 1) {
+          row = await tx
+            .insertInto('users')
+            .values({
+              id: randomUUID(),
+              organization_id: org.id,
+              code: generateUserCode(org.codePrefix),
+              first_name: p.firstName,
+              last_name: p.lastName,
+              email,
+              phone: p.phone ?? null,
+              visit_count: 0,
+            })
+            .onConflict((oc) => oc.columns(['organization_id', 'code']).doNothing())
+            .returning(['id', 'code'])
+            .executeTakeFirst();
+        }
+        if (!row) throw new Error('CODE_EXHAUSTED');
+        await writeUserAudit(tx, {
+          orgId: org.id, staff, action: 'user.created', targetUserId: row.id,
+          metadata: { hasEmail: !!email, hasPhone: !!p.phone },
+          ip: req.ip, ua: req.headers['user-agent'] ?? null,
+        });
+        return row;
+      });
+    } catch (e) {
+      if (e instanceof Error && e.message === 'EMAIL_TAKEN') {
+        reply.code(409);
+        return { error: 'Ese correo ya está registrado en la organización.' };
+      }
+      if (e instanceof Error && e.message === 'CODE_EXHAUSTED') {
+        reply.code(500);
+        return { error: 'No se pudo generar un código único. Intentá de nuevo.' };
+      }
+      throw e;
+    }
+
+    // Entrega de credencial (fuera de la tx, como el resend): best-effort, honesto.
+    let credential: AdminUserCreateResponse['credential'] = 'skipped';
+    if (email) {
+      const r = await deliverCredential(db, org.id, { id: created.id, code: created.code, email, firstName: p.firstName, lastName: p.lastName }, {});
+      if ('sent' in r && r.sent === true) credential = 'sent';
+      else if ('skipped' in r && r.skipped && /RESEND/i.test(r.reason ?? '')) credential = 'dry-run';
+      else if ('skipped' in r && r.skipped) credential = 'skipped';
+      else credential = 'error';
+    }
+
+    reply.code(201);
+    const body: AdminUserCreateResponse = {
+      user: { id: created.id, code: created.code, firstName: p.firstName, lastName: p.lastName, email, phone: p.phone ?? null },
+      credential,
     };
     return body;
   });
