@@ -325,6 +325,34 @@ export const AdminUserUpdateRequestSchema = z
   .refine((o) => Object.keys(o).length > 0, { message: 'No hay cambios para guardar' });
 export type AdminUserUpdateRequest = z.infer<typeof AdminUserUpdateRequestSchema>;
 
+// Alta de visitante desde el padrón (S1 · paridad v1 POST /api/users). Cualquier
+// staff autenticado (operator registra gente en puerta, igual que v1). El código
+// se genera server-side con el code_prefix REAL del tenant (@contan2/codes, mismo
+// algoritmo que v1 → continuidad de credenciales). Si trae email, se envía la
+// credencial (dry-run sin RESEND_API_KEY) y se reporta el resultado honesto.
+export const AdminUserCreateRequestSchema = z
+  .object({
+    firstName: z.string().trim().min(1, 'El nombre es obligatorio').max(120),
+    lastName: z.string().trim().min(1, 'El apellido es obligatorio').max(120),
+    email: z.string().trim().email('Email inválido').max(255).optional(),
+    phone: z.string().trim().max(60).optional(),
+  })
+  .strict();
+export type AdminUserCreateRequest = z.infer<typeof AdminUserCreateRequestSchema>;
+
+export const AdminUserCreateResponseSchema = z.object({
+  user: z.object({
+    id: z.string(),
+    code: z.string(),
+    firstName: z.string(),
+    lastName: z.string(),
+    email: z.string().nullable(),
+    phone: z.string().nullable(),
+  }),
+  credential: z.enum(['sent', 'dry-run', 'skipped', 'error']),
+});
+export type AdminUserCreateResponse = z.infer<typeof AdminUserCreateResponseSchema>;
+
 // Reenvío de credencial (UI-2 · F2C). Sin body (el código va en la URL); requiere
 // header Idempotency-Key. Respuesta honesta:
 //   sent      → enviado de verdad por Resend (credential_sent_at actualizado)

@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto';
 import type { DbClient } from '@contan2/db';
 
-export type UserAuditAction = 'user.updated' | 'credential.resent' | 'user.archived' | 'user.reactivated';
+export type UserAuditAction = 'user.created' | 'user.updated' | 'credential.resent' | 'user.archived' | 'user.reactivated';
 
 export interface UserAuditInput {
   orgId: string;
