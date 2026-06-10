@@ -5,6 +5,7 @@ import { SearchX } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { UsersTable } from '../../../components/usuarios/UsersTable';
 import { NewUserButton } from '../../../components/usuarios/NewUserButton';
+import { BulkCredentialsButton } from '../../../components/usuarios/BulkCredentialsButton';
 import { SectionHeader, Card, EmptyState } from '../../../components/ui';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { DemoBanner } from '../../../components/shell/DemoBanner';
@@ -67,9 +68,16 @@ export default async function UsuariosPage({
     }
   }
 
-  // "Nuevo usuario" REAL (S1 · POST /users). "Exportar" se quitó hasta tener su
-  // endpoint (S2): cero controles inertes en superficies visibles.
-  const actions = <NewUserButton />;
+  // "Nuevo usuario" REAL (S1 · POST /users) + envío masivo de credenciales
+  // pendientes (S1 · bulk-send; sólo owner/admin y con pendientes > 0).
+  // "Exportar" se quitó hasta tener su endpoint (S2): cero controles inertes.
+  const pendingCreds = facets?.noCredential ?? 0;
+  const actions = (
+    <span className="flex items-center gap-2">
+      {canWrite ? <BulkCredentialsButton pendingCount={pendingCreds} /> : null}
+      <NewUserButton />
+    </span>
+  );
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Usuarios" activeKey="usuarios">
       <div className="mx-auto w-full max-w-[1600px]">{children}</div>
