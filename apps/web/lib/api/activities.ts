@@ -5,6 +5,7 @@
 
 import { ActivitiesListResponseSchema, type ActivityListItem } from '@contan2/contracts';
 import { apiGet } from './client';
+import { typeLabel } from '../activities/typeLabels';
 import type { Activity, ActivityStatus } from '../activities/demoData';
 
 // status de la API (activa/finalizada/cancelada) → semáforo UI (StatusBadge).
@@ -23,7 +24,7 @@ function toActivity(it: ActivityListItem): Activity {
   return {
     id: it.id,
     title: it.name,
-    category: it.category ?? 'Otro',
+    category: it.category ?? typeLabel(it.type), // sin categoría → el TIPO (un Concierto no es 'Otro')
     date: DATE_FMT.format(new Date(it.date)),
     // Preserva el ISO real de la API (hoy se descartaba) para filtrar por fecha.
     startsAt: it.date,

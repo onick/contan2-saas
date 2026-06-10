@@ -41,7 +41,7 @@ describe('getActivitiesView', () => {
     const a = v.activities[0]!;
     expect(a.title).toBe('Los Congos de Villa Mella');
     expect(a.statusLabel).toBe('Finalizada');
-    expect(v.activities[1]!.category).toBe('Otro'); // null → Otro
+    expect(v.activities[1]!.category).toBe('Concierto'); // sin categoría → cae al TIPO (fix: un Concierto no es 'Otro')
   });
 
   it('mapea la portada: imageUrl real → imageUrl; ausente → null', async () => {

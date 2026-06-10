@@ -1,14 +1,22 @@
 'use client';
 
 // apps/web/components/activities/ActivityDetailDrawer.tsx · detalle READ-ONLY de
-// una actividad en un drawer lateral (bottom-sheet/fullscreen en mobile).
+// una actividad en un drawer lateral ANCHO (bottom-sheet/fullscreen en mobile).
 // Accesible: role=dialog + aria-modal, cierra con Escape y con botón, foco al
 // abrir y restaura al cerrar, backdrop clickeable. CERO edición, cero escrituras.
+//
+// RESUMEN POST-EVENTO / EN VIVO (paridad v1 insights/activity-summary): tarjetas
+// de asistencias (con % de ocupación y walk-ins), nuevos visitantes (con ratio
+// sobre identificados), habituales (con promedio de visitas previas), VIPs (≥10
+// visitas) y — mejora v2 — personas en sala contando niños acompañantes. La
+// sección sólo aparece cuando hay asistencias; si el fetch falla, se omite (no
+// bloquea el resto del detalle).
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { X, CalendarDays, MapPin, Tag, Users, ImageOff, Pencil, FileText, Loader2 } from 'lucide-react';
+import { X, CalendarDays, MapPin, Tag, Users, ImageOff, Pencil, FileText, Loader2, Sparkles, Repeat2, Crown, UserPlus, Baby, BarChart3 } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
-import { fetchActivityDetail } from '../../lib/api/activity-detail';
+import { fetchActivityDetail, fetchActivitySummary } from '../../lib/api/activity-detail';
+import type { ActivitySummary } from '@contan2/contracts';
 import { StatusBadge } from './StatusBadge';
 import { CoverThumb } from './CoverThumb';
 import { StatusActions } from './StatusActions';
@@ -37,15 +45,19 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
   // honesto (loading/dato/error), sin bloquear el resto del detalle.
   const realId = activity?.statusRaw ? activity.id : null;
   const [desc, setDesc] = useState<{ phase: 'loading' | 'ready' | 'error'; text: string | null }>({ phase: 'loading', text: null });
+  const [summary, setSummary] = useState<ActivitySummary | null>(null);
   useEffect(() => {
     if (!realId) return;
     let ignore = false;
     setDesc({ phase: 'loading', text: null });
+    setSummary(null);
     void fetchActivityDetail(realId).then((r) => {
       if (ignore) return;
       if (r.ok) setDesc({ phase: 'ready', text: r.detail.description });
       else setDesc({ phase: 'error', text: null });
     });
+    // Resumen en paralelo; null (error/sin datos) → la sección no se muestra.
+    void fetchActivitySummary(realId).then((sum) => { if (!ignore) setSummary(sum); });
     return () => { ignore = true; };
   }, [realId]);
 
@@ -78,7 +90,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
         ref={panelRef}
         className={cn(
           'drawer-panel absolute inset-x-0 bottom-0 max-h-[88dvh] md:max-h-none rounded-t-2xl border-t border-line bg-surface shadow-xl',
-          'md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
+          'md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-full md:max-w-xl lg:max-w-2xl md:rounded-none md:border-l md:border-t-0',
           'flex flex-col',
           closing && 'drawer-panel--closing',
         )}
@@ -109,7 +121,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
             />
           </div>
           <div className="mb-4"><StatusBadge status={shown.status} label={shown.statusLabel} /></div>
-          <dl className="space-y-3">
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Row icon={CalendarDays} label="Fecha">{shown.date}</Row>
             <Row icon={MapPin} label="Lugar">{shown.location}</Row>
             <Row icon={Tag} label="Categoría">{shown.category}</Row>
@@ -124,6 +136,58 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
             <div className="mt-4">
               <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container">
                 <div className="h-full rounded-full bg-brand" style={{ width: `${shown.occupancyPct}%` }} />
+              </div>
+            </div>
+          ) : null}
+
+          {/* Resumen post-evento / en vivo (paridad v1) · sólo con asistencias. */}
+          {shown.statusRaw && summary && summary.totalAttendances > 0 ? (
+            <div className="mt-6">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
+                <BarChart3 size={13} strokeWidth={1.75} aria-hidden="true" />
+                {shown.statusRaw === 'finalizada' ? 'Resumen post-evento' : 'Resumen en vivo'}
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                <StatTile
+                  icon={Users}
+                  label="Asistencias"
+                  value={summary.totalAttendances}
+                  extra={`${summary.occupancyPct}% ocupación${summary.anonymousCount > 0 ? ` · ${summary.anonymousCount} sin credencial` : ''}`}
+                />
+                {summary.companionsChildren > 0 ? (
+                  <StatTile
+                    icon={Baby}
+                    label="Personas en sala"
+                    value={summary.peopleInRoom}
+                    extra={`Incluye ${summary.companionsChildren} niño${summary.companionsChildren === 1 ? '' : 's'} acompañante${summary.companionsChildren === 1 ? '' : 's'}`}
+                  />
+                ) : null}
+                <StatTile
+                  icon={Sparkles}
+                  label="Nuevos visitantes"
+                  value={summary.newcomers}
+                  extra={summary.identifiedCount > 0 ? `${summary.newcomerRatio}% de ${summary.identifiedCount} identificado${summary.identifiedCount === 1 ? '' : 's'}` : 'Sin identificados'}
+                />
+                <StatTile
+                  icon={Repeat2}
+                  label="Habituales"
+                  value={summary.returning}
+                  extra={`Prom. ${summary.avgPriorAttendances} visitas previas`}
+                />
+                <StatTile
+                  icon={Crown}
+                  label="VIPs presentes"
+                  value={summary.vipCount}
+                  extra="≥10 visitas totales"
+                />
+                {summary.anonymousCount > 0 ? (
+                  <StatTile
+                    icon={UserPlus}
+                    label="Sin credencial"
+                    value={summary.anonymousCount}
+                    extra="Walk-ins registrados manualmente"
+                  />
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -153,14 +217,14 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
         {/* Acciones (Lifecycle B) · sólo para actividades REALES (statusRaw). En
             demo no hay id real que editar/transicionar → vista de solo lectura. */}
         {shown.statusRaw && (onEdit || onChanged) ? (
-          <footer className="space-y-3 border-t border-line px-5 py-4">
-            {onEdit ? (
-              <Button type="button" variant="secondary" className="w-full" onClick={() => onEdit(shown)}>
-                <Pencil size={16} strokeWidth={2} aria-hidden="true" /> Editar actividad
-              </Button>
-            ) : null}
+          <footer className="flex flex-col gap-3 border-t border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             {onChanged ? (
               <StatusActions id={shown.id} statusRaw={shown.statusRaw} onChanged={onChanged} />
+            ) : <span />}
+            {onEdit ? (
+              <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => onEdit(shown)}>
+                <Pencil size={16} strokeWidth={2} aria-hidden="true" /> Editar actividad
+              </Button>
             ) : null}
           </footer>
         ) : (
@@ -171,6 +235,20 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
           </footer>
         )}
       </div>
+    </div>
+  );
+}
+
+// Tarjeta de métrica del resumen: número grande + label + sublínea honesta
+// (los % de afinidad se leen contra IDENTIFICADOS, no contra el total).
+function StatTile({ icon: Icon, label, value, extra }: { icon: typeof CalendarDays; label: string; value: number; extra: string }) {
+  return (
+    <div className="rounded-xl border border-line bg-surface-container/60 p-3">
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-faint">
+        <Icon size={13} strokeWidth={1.75} aria-hidden="true" /> {label}
+      </p>
+      <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-ink">{value}</p>
+      <p className="mt-0.5 text-[11px] leading-snug text-muted">{extra}</p>
     </div>
   );
 }
