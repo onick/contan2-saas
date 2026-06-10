@@ -4,18 +4,26 @@ import { Card, Chip, EmptyState, type ChipTone } from '../ui';
 import { ProfileLink } from './ProfileProvider';
 import { RowActions } from './RowActions';
 
-function initials(name: string): string {
+export function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 }
 
 // Paleta de avatares (tintes suaves) por índice → da vida sin romper coherencia.
-const AVATAR_COLORS = [
+// Exportada: el drawer de perfil usa el MISMO avatar (índice estable por código).
+export const AVATAR_COLORS = [
   'bg-[#ffe6d2] text-[#7a3300]',
   'bg-[#e3f4f1] text-[#0f7a6b]',
   'bg-[#efe9fb] text-[#6b3fb8]',
   'bg-[#e8f0fe] text-[#1a56b0]',
   'bg-[#fdeaf0] text-[#b03060]',
 ];
+
+// Índice estable por código (el drawer no conoce el índice de fila).
+export function avatarFor(code: string): string {
+  let h = 0;
+  for (let i = 0; i < code.length; i += 1) h = (h * 31 + code.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]!;
+}
 
 // Estado → tono de Chip (fallback para demo; los datos reales traen statusTone).
 const STATUS_TONE: Record<UserStatus, ChipTone> = {

@@ -49,7 +49,7 @@ describe('UserProfileDrawer', () => {
     installFetch({});
     render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Copiar/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('CCB-7K2P9Q'));
     await waitFor(() => expect(screen.getByText(/Código copiado/)).toBeInTheDocument());
   });
@@ -136,9 +136,9 @@ describe('UserProfileDrawer', () => {
     const fn = installFetch({ credential: (k) => { keys.push(k); return J({ result: 'dry-run', credentialSentAt: null, message: 'Dry-run: sin clave de envío, no se envió.' }); } });
     render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Reenviar credencial/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reenviar' }));
     expect(screen.getByText(/s\*\*\*@ccb\.do/)).toBeInTheDocument(); // email enmascarado
-    fireEvent.click(screen.getByRole('button', { name: /Sí, reenviar/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Sí, enviar/ }));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/Dry-run/));
     expect(screen.queryByText(/enviada al email/i)).toBeNull(); // NO afirma "enviado" en dry-run
     // reintento (nueva apertura) usa una key nueva; dentro de un intento la key es la misma
@@ -152,10 +152,10 @@ describe('UserProfileDrawer', () => {
     installFetch({ credential: () => { if (first) { first = false; return J({ error: 'Problema de red.' }, 502); } return J({ result: 'sent', credentialSentAt: new Date().toISOString(), message: 'Credencial enviada al email del visitante.' }); } });
     render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Reenviar credencial/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Sí, reenviar/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reenviar' }));
+    fireEvent.click(screen.getByRole('button', { name: /Sí, enviar/ }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Problema de red/));
-    fireEvent.click(screen.getByRole('button', { name: /Sí, reenviar/ })); // reintento
+    fireEvent.click(screen.getByRole('button', { name: /Sí, enviar/ })); // reintento
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/enviada al email/));
   });
 
@@ -182,7 +182,7 @@ describe('UserProfileDrawer', () => {
     installFetch({});
     render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit={false} />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
-    expect(screen.queryByRole('button', { name: /Reenviar credencial/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reenviar' })).toBeNull();
   });
 
   it('edición: email duplicado (409) muestra error y mantiene el form', async () => {
