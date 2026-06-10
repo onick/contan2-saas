@@ -11,6 +11,7 @@ import {
   Globe,
   UserCog,
   History,
+  UserRound,
 } from 'lucide-react';
 
 // Navegación del shell tenant-admin · refleja el menú real de v1, mejorado:
@@ -47,6 +48,7 @@ export const NAV_ITEMS: NavItem[] = [
   // Equipo
   { key: 'equipo', label: 'Mi equipo', icon: UserCog, group: 'Equipo', href: '/app/equipo' },
   { key: 'historial', label: 'Historial', icon: History, group: 'Equipo', href: '/app/historial' },
+  { key: 'cuenta', label: 'Mi cuenta', icon: UserRound, group: 'Equipo', href: '/app/cuenta' },
 ];
 
 export const NAV_GROUPS: NavGroup[] = ['Principal', 'Audiencia', 'Operación', 'Equipo'];
