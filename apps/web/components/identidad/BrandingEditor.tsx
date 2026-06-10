@@ -124,7 +124,8 @@ export function BrandingEditor({ initial, canEdit }: Props) {
           ) : null}
 
           {canEdit ? (
-            <div className="mt-4 flex items-center justify-end gap-3">
+            // Separador + aire: los botones nunca tocan el focus ring del último campo.
+            <div className="mt-4 flex items-center justify-end gap-3 border-t border-line pt-4">
               {dirty ? <button type="button" onClick={() => { setForm(saved); setMsg(null); }} className={cn('rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-muted hover:bg-surface-container', focusRing)}>Descartar</button> : null}
               <Button onClick={save} disabled={!dirty || !valid || phase === 'saving'}>
                 {phase === 'saving' ? <><Loader2 size={15} className="animate-spin" aria-hidden="true" /> Guardando…</> : 'Guardar cambios'}
