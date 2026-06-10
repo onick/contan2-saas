@@ -33,6 +33,15 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @contan2/api-v2... build
 
 FROM base AS runtime
+# Fuentes para el render de SVG→PNG (sharp/librsvg→pango→fontconfig): la
+# credencial dibuja texto y sin fuentes sale en tofu (□□□). Mismo set que el
+# Dockerfile v1 del root (fonts-inter = la familia que usa el badge;
+# liberation = sustitutos métricos de Arial/Helvetica + Liberation Mono).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    fontconfig \
+    fonts-inter \
+    fonts-liberation \
+  && rm -rf /var/lib/apt/lists/*
 ARG SOURCE_COMMIT=unknown
 LABEL org.opencontainers.image.revision="$SOURCE_COMMIT"
 ENV BUILD_SHA="$SOURCE_COMMIT"
