@@ -244,6 +244,27 @@ export const ActivityDetailSchema = z.object({
 export type ActivityDetail = z.infer<typeof ActivityDetailSchema>;
 
 export const ActivityCreateResponseSchema = z.object({ activity: ActivityDetailSchema });
+
+// GET /activities/:id/summary · resumen post-evento/en vivo (paridad v1
+// /insights/activity-summary + mejoras v2). Las métricas de afinidad
+// (nuevos/habituales/VIPs) se miden sobre IDENTIFICADOS; el total incluye
+// anónimos (walk-ins). peopleInRoom suma niños acompañantes (companions, v2).
+export const ActivitySummarySchema = z.object({
+  totalAttendances: z.number().int(), // todas las asistencias (incl. anónimos)
+  identifiedCount: z.number().int(),
+  anonymousCount: z.number().int(),
+  occupancyPct: z.number().int(),
+  newcomers: z.number().int(), // identificados cuya PRIMERA visita fue esta
+  returning: z.number().int(), // identificados con visitas previas
+  vipCount: z.number().int(), // identificados con ≥10 asistencias totales
+  avgPriorAttendances: z.number(), // promedio de visitas previas (1 decimal)
+  newcomerRatio: z.number().int(), // % nuevos sobre identificados
+  companionsChildren: z.number().int(), // niños acompañantes (suma)
+  peopleInRoom: z.number().int(), // asistencias + acompañantes
+});
+export type ActivitySummary = z.infer<typeof ActivitySummarySchema>;
+export const ActivitySummaryResponseSchema = z.object({ summary: ActivitySummarySchema });
+export type ActivitySummaryResponse = z.infer<typeof ActivitySummaryResponseSchema>;
 export type ActivityCreateResponse = z.infer<typeof ActivityCreateResponseSchema>;
 
 // Visitante · PII real visible para staff autenticado del MISMO tenant.

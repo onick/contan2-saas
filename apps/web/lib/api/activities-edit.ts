@@ -107,3 +107,27 @@ export async function proxyGetActivity(id: string): Promise<Response> {
     headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
   });
 }
+
+// GET /api/v2/activities/:id/summary · resumen post-evento/en vivo (lo consume
+// el drawer de detalle; mismo relay que el GET de detalle).
+export async function proxyGetActivitySummary(id: string): Promise<Response> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE_URL}/api/v2/activities/${encodeURIComponent(id)}/summary`, {
+      method: 'GET',
+      headers: {
+        ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+        ...(await forwardingHeaders()),
+      },
+      cache: 'no-store',
+    });
+  } catch {
+    return Response.json({ error: 'No pudimos cargar la actividad.' }, { status: 502 });
+  }
+  const text = await upstream.text();
+  return new Response(text, {
+    status: upstream.status,
+    headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
+  });
+}

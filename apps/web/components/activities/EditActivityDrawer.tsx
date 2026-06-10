@@ -31,6 +31,7 @@ import { ActivityUpdateRequestSchema, ACTIVITY_TYPES, type ActivityDetail } from
 import type { ZodIssue } from 'zod';
 import type { Activity } from '../../lib/activities/demoData';
 import { fetchActivityDetail } from '../../lib/api/activity-detail';
+import { TYPE_LABELS } from '../../lib/activities/typeLabels';
 import { optimizeCover, OptimizeError, formatBytes, type OptimizeResult } from '../../lib/images/optimizeCover';
 import { CoverReframe } from './CoverReframe';
 import { IconButton, Button, cn, focusRing, useDrawerLifecycle } from '../ui';
@@ -44,10 +45,7 @@ type CoverState =
   | { phase: 'optimizing' }
   | { phase: 'ready'; result: OptimizeResult; previewUrl: string; filename: string };
 
-const TYPE_LABELS: Record<string, string> = {
-  exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
-  teatro: 'Teatro', conferencia: 'Conferencia', otro: 'Otro',
-};
+
 
 interface FormState {
   name: string; type: string; location: string; date: string;

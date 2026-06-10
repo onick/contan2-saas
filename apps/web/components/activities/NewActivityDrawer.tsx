@@ -17,16 +17,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, ImagePlus, RefreshCw, Sparkles, AlertTriangle } from 'lucide-react';
-import { ActivityCreateRequestSchema, ACTIVITY_TYPES, type ActivityType } from '@contan2/contracts';
+import { ActivityCreateRequestSchema, ACTIVITY_TYPES } from '@contan2/contracts';
 import type { ZodIssue } from 'zod';
+import { TYPE_LABELS } from '../../lib/activities/typeLabels';
 import { optimizeCover, OptimizeError, formatBytes, type OptimizeResult } from '../../lib/images/optimizeCover';
 import { CoverReframe } from './CoverReframe';
 import { IconButton, Button, cn, focusRing, useDrawerLifecycle } from '../ui';
 
-const TYPE_LABELS: Record<ActivityType, string> = {
-  exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
-  teatro: 'Teatro', conferencia: 'Conferencia', otro: 'Otro',
-};
+
 const ACCEPT = 'image/jpeg,image/png,image/webp';
 
 interface FormState { name: string; type: string; location: string; date: string; endDate: string; capacity: string; category: string; description: string; }

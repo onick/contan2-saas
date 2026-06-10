@@ -8,6 +8,7 @@ import {
   type ActivitiesListResponse,
   type ActivityListItem,
   type ActivityCreateResponse,
+  type ActivitySummaryResponse,
 } from '@contan2/contracts';
 import type { ActivityStatus } from '@contan2/db';
 import { requireTenantStaff } from '../guard.js';
@@ -594,6 +595,94 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
 
     reply.code(200);
     const body: ActivityCreateResponse = { activity: mapActivityDetailRow(row) };
+    return body;
+  });
+
+  // GET /api/v2/activities/:id/summary · resumen post-evento/en vivo (paridad
+  // v1 /insights/activity-summary, reescrito set-based: v1 hacía N+1 por
+  // asistente). Cualquier staff del tenant (read-only). Métricas:
+  //   · total = TODAS las asistencias (los anónimos cuentan: estuvieron en sala);
+  //   · nuevos/habituales/VIPs sólo sobre identificados (afinidad);
+  //   · "previas" = asistencias totales del usuario en la org − esta;
+  //   · mejora v2: companions/peopleInRoom (niños acompañantes del kiosko).
+  app.get('/activities/:id/summary', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    const orgId = guard.ctx.org.id;
+    const id = (req.params as { id: string }).id;
+
+    const activity = await db
+      .selectFrom('activities')
+      .select(['id', 'capacity', 'enrolled_count'])
+      .where('organization_id', '=', orgId)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!activity) {
+      reply.code(404);
+      return { error: 'Actividad no encontrada.' };
+    }
+
+    const atts = await db
+      .selectFrom('attendance')
+      .select(['user_id', 'companions_children'])
+      .where('organization_id', '=', orgId)
+      .where('activity_id', '=', id)
+      .execute();
+
+    const totalAttendances = atts.length;
+    const identifiedRows = atts.filter((a) => a.user_id !== null);
+    const anonymousCount = totalAttendances - identifiedRows.length;
+    // Único por (org,user,activity) en DB → cada fila identificada es un usuario.
+    const identifiedIds = [...new Set(identifiedRows.map((a) => a.user_id!))];
+    const identifiedCount = identifiedIds.length;
+    const companionsChildren = atts.reduce((sum, a) => sum + (a.companions_children ?? 0), 0);
+
+    // Asistencias TOTALES por usuario identificado (en toda la org), en un solo
+    // GROUP BY — define nuevo (=1), habitual (>1) y VIP (>=10).
+    let newcomers = 0;
+    let returning = 0;
+    let vipCount = 0;
+    let priorSum = 0;
+    if (identifiedCount > 0) {
+      const counts = await db
+        .selectFrom('attendance')
+        .select(['user_id', db.fn.countAll<number>().as('n')])
+        .where('organization_id', '=', orgId)
+        .where('user_id', 'in', identifiedIds)
+        .groupBy('user_id')
+        .execute();
+      for (const c of counts) {
+        const n = Number(c.n);
+        if (n <= 1) newcomers += 1;
+        else returning += 1;
+        if (n >= 10) vipCount += 1;
+        priorSum += Math.max(0, n - 1);
+      }
+    }
+
+    const occupancyPct = activity.capacity > 0
+      ? Math.round((activity.enrolled_count / activity.capacity) * 100)
+      : 0;
+
+    const body: ActivitySummaryResponse = {
+      summary: {
+        totalAttendances,
+        identifiedCount,
+        anonymousCount,
+        occupancyPct,
+        newcomers,
+        returning,
+        vipCount,
+        avgPriorAttendances: identifiedCount > 0 ? Math.round((priorSum / identifiedCount) * 10) / 10 : 0,
+        newcomerRatio: identifiedCount > 0 ? Math.round((newcomers / identifiedCount) * 100) : 0,
+        companionsChildren,
+        peopleInRoom: totalAttendances + companionsChildren,
+      },
+    };
     return body;
   });
 
