@@ -9,15 +9,24 @@
 // sin credencial" con Idempotency-Key reutilizada en reintentos del MISMO click.
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Search, X, UserPlus, Users, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine } from 'lucide-react';
-import type { CheckinMetricsResponse, CheckinActivityItem, CheckinVisitorItem } from '@contan2/contracts';
-import { getCheckinMetrics, getCheckinActivities, searchCheckinVisitors, postCheckin, postCheckinAnonymous } from '../../lib/api/checkin-client';
+import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History } from 'lucide-react';
+import type { CheckinMetricsResponse, CheckinActivityItem, CheckinVisitorItem, AttendanceListItem } from '@contan2/contracts';
+import { getCheckinMetrics, getCheckinActivities, searchCheckinVisitors, postCheckin, postCheckinAnonymous, getRecentCheckins } from '../../lib/api/checkin-client';
 import { NewVisitorDrawer } from './NewVisitorDrawer';
 import { CheckinScanModal } from './CheckinScanModal';
 import { Button, Card, Chip, IconButton, cn, focusRing } from '../ui';
 
 type Async<T> = { phase: 'loading' | 'ready' | 'error'; data?: T; error?: string };
 type Toast = { kind: 'success' | 'error'; msg: string } | null;
+
+// Hora relativa corta para el feed ("ahora", "hace 5 min", "hace 2 h").
+function timeAgo(iso: string): string {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (min < 1) return 'ahora';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  return `hace ${h} h`;
+}
 
 const METRIC_LABELS: { key: keyof CheckinMetricsResponse['metrics']; label: string }[] = [
   { key: 'checkinsToday', label: 'Check-ins hoy' },
@@ -38,6 +47,7 @@ export function CheckinConsole() {
   const [anonBusy, setAnonBusy] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [recent, setRecent] = useState<Async<AttendanceListItem[]>>({ phase: 'loading' });
 
   const searchRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,15 +70,22 @@ export function CheckinConsole() {
     if (r.ok) setActivities({ phase: 'ready', data: r.data.items });
     else setActivities((prev) => (prev.data ? { ...prev, phase: 'ready' } : { phase: 'error', error: r.error }));
   }, []);
+  // Feed de recepción (check-ins de HOY, recientes primero) — paridad v1.
+  const loadRecent = useCallback(async () => {
+    const r = await getRecentCheckins();
+    if (r.ok) setRecent({ phase: 'ready', data: r.data.items });
+    else setRecent((prev) => (prev.data ? { ...prev, phase: 'ready' } : { phase: 'error', error: r.error }));
+  }, []);
 
   useEffect(() => {
     void loadMetrics();
     void loadActivities();
-    const id = setInterval(() => { void loadMetrics(); }, 30_000);
+    void loadRecent();
+    const id = setInterval(() => { void loadMetrics(); void loadRecent(); }, 30_000);
     return () => clearInterval(id);
-  }, [loadMetrics, loadActivities]);
+  }, [loadMetrics, loadActivities, loadRecent]);
 
-  const refreshLive = useCallback(() => { void loadMetrics(); void loadActivities(); }, [loadMetrics, loadActivities]);
+  const refreshLive = useCallback(() => { void loadMetrics(); void loadActivities(); void loadRecent(); }, [loadMetrics, loadActivities, loadRecent]);
 
   // ── búsqueda: debounce 300ms + abort de respuestas obsoletas ──
   useEffect(() => {
@@ -308,19 +325,47 @@ export function CheckinConsole() {
           </Card>
         </div>
 
-        {/* Toast visible (además del aria-live) */}
-        <div className="min-w-0">
+        {/* Panel derecho: toast (si hay) + FEED de check-ins de hoy (paridad v1) */}
+        <div className="min-w-0 space-y-4">
           {toast ? (
             <div role="alert" className={cn('flex items-start gap-2 rounded-xl border px-4 py-3 text-[13px]', toast.kind === 'success' ? 'border-success-fg/30 bg-success-bg text-success-fg' : 'border-danger-fg/30 bg-danger-bg text-danger-fg')}>
               {toast.kind === 'success' ? <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" className="mt-0.5 flex-none" /> : <AlertTriangle size={16} strokeWidth={2} aria-hidden="true" className="mt-0.5 flex-none" />}
               <span>{toast.msg}</span>
             </div>
-          ) : (
-            <Card padding="lg" className="text-[13px] text-faint">
-              <p className="flex items-center gap-2 font-medium text-muted"><Users size={16} strokeWidth={1.75} aria-hidden="true" /> Consola de recepción</p>
-              <p className="mt-2">Buscá o creá un visitante y registralo en una actividad. Cada registro queda auditado.</p>
-            </Card>
-          )}
+          ) : null}
+
+          <Card padding="none">
+            <div className="flex items-center justify-between px-5 py-4">
+              <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-ink">
+                <History size={16} strokeWidth={1.75} aria-hidden="true" /> Check-ins de hoy
+              </h3>
+              {recent.data ? <Chip tone="neutral" className="tabular-nums">{recent.data.length}</Chip> : null}
+            </div>
+            {recent.phase === 'error' && !recent.data ? (
+              <p className="px-5 pb-5 text-[13px] text-danger-fg">{recent.error ?? 'No pudimos cargar el feed.'}</p>
+            ) : recent.phase === 'loading' ? (
+              <p className="px-5 pb-5 text-[13px] text-faint">Cargando…</p>
+            ) : recent.data && recent.data.length === 0 ? (
+              <p className="px-5 pb-5 text-[13px] text-faint">Aún no hay check-ins hoy. Buscá o creá un visitante y registralo: aparecerá acá al instante.</p>
+            ) : (
+              <ul>
+                {recent.data?.map((r) => (
+                  <li key={r.id} className="flex items-center gap-3 border-t border-line px-5 py-2.5">
+                    <span className={cn('grid h-8 w-8 flex-none place-items-center rounded-full text-[11px] font-semibold', r.anonymous ? 'bg-surface-container text-faint' : 'bg-primary-container text-on-primary-container')}>
+                      {r.anonymous ? <Sparkle size={13} strokeWidth={2} aria-hidden="true" /> : `${r.firstName?.[0] ?? ''}${r.lastName?.[0] ?? ''}`}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-medium text-ink">
+                        {r.anonymous ? '+1 sin credencial' : `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim()}
+                      </span>
+                      <span className="block truncate text-[11px] text-faint">{r.activityName}</span>
+                    </span>
+                    <span className="flex-none text-[11px] tabular-nums text-faint">{timeAgo(r.registeredAt)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         </div>
       </div>
 

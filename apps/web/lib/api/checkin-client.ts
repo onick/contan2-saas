@@ -9,12 +9,14 @@ import {
   CheckinVisitorsResponseSchema,
   AdminCheckinResponseSchema,
   AdminAnonymousCheckinResponseSchema,
+  AttendanceListResponseSchema,
   type CheckinMetricsResponse,
   type CheckinActivitiesResponse,
   type CheckinVisitorsResponse,
   type AdminCheckinResponse,
   type AdminAnonymousCheckinResponse,
   type AdminCheckinRequest,
+  type AttendanceListResponse,
 } from '@contan2/contracts';
 import type { ZodTypeAny, z } from 'zod';
 
@@ -61,6 +63,11 @@ export const getCheckinActivities = (signal?: AbortSignal): Promise<Result<Check
   getJson('/app/check-in/api/activities', CheckinActivitiesResponseSchema, signal);
 export const searchCheckinVisitors = (q: string, signal?: AbortSignal): Promise<Result<CheckinVisitorsResponse>> =>
   getJson(`/app/check-in/api/visitors?q=${encodeURIComponent(q)}&limit=12`, CheckinVisitorsResponseSchema, signal);
+// Feed de recepción: registros de HOY (medianoche local del operador), recientes primero.
+export const getRecentCheckins = (signal?: AbortSignal): Promise<Result<AttendanceListResponse>> => {
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  return getJson(`/app/check-in/api/recent?limit=8&dateFrom=${encodeURIComponent(midnight.toISOString())}`, AttendanceListResponseSchema, signal);
+};
 
 export const postCheckin = (body: AdminCheckinRequest): Promise<Result<AdminCheckinResponse>> =>
   postJson('/app/check-in/api/checkin', body, AdminCheckinResponseSchema);

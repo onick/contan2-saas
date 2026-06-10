@@ -14,11 +14,13 @@ const visitor = { id: 'u1', code: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: '
 interface H {
   metrics?: () => Response; activities?: () => Response; visitors?: (q: string) => Response;
   checkin?: (b: Record<string, unknown>) => Response; anonymous?: (b: Record<string, unknown>, key: string | null) => Response;
+  recent?: () => Response;
 }
 function installFetch(h: H) {
   const fn = vi.fn(async (url: string, init?: { body?: string; headers?: Record<string, string> }) => {
     const u = String(url);
     if (u.includes('/api/metrics')) return h.metrics?.() ?? J(502, {});
+    if (u.includes('/api/recent')) return h.recent?.() ?? J(200, { items: [], total: 0, limit: 8, offset: 0 });
     if (u.includes('/api/activities')) return h.activities?.() ?? J(502, {});
     if (u.includes('/api/visitors')) return h.visitors?.(new URL(u, 'http://x').searchParams.get('q') ?? '') ?? J(200, { items: [] });
     if (u.includes('/api/checkin')) return h.checkin?.(JSON.parse(init?.body ?? '{}')) ?? J(502, {});
@@ -172,6 +174,30 @@ describe('CheckinConsole', () => {
     installFetch({ metrics: okMetrics, activities: okActs() });
     render(<CheckinConsole />);
     expect(document.querySelector('[role="status"][aria-live="polite"]')).toBeTruthy();
+  });
+
+  it('feed "Check-ins de hoy": muestra registros (nombre y anónimo) con su actividad', async () => {
+    installFetch({
+      metrics: okMetrics, activities: okActs(),
+      recent: () => J(200, {
+        items: [
+          { id: 'r1', userCode: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', activityId: 'A1', activityName: 'Concierto', anonymous: false, checkedInAt: new Date().toISOString(), registeredAt: new Date().toISOString() },
+          { id: 'r2', userCode: null, firstName: null, lastName: null, activityId: 'A1', activityName: 'Concierto', anonymous: true, checkedInAt: new Date().toISOString(), registeredAt: new Date(Date.now() - 5 * 60_000).toISOString() },
+        ],
+        total: 2, limit: 8, offset: 0,
+      }),
+    });
+    render(<CheckinConsole />);
+    await waitFor(() => expect(screen.getByText('Check-ins de hoy')).toBeInTheDocument());
+    expect(await screen.findByText('Sofía Méndez')).toBeInTheDocument();
+    expect(screen.getByText('+1 sin credencial', { selector: 'span' })).toBeInTheDocument(); // fila anónima del feed
+    expect(screen.getByText('hace 5 min')).toBeInTheDocument();
+  });
+
+  it('feed vacío → estado honesto (sin demo)', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs(), recent: () => J(200, { items: [], total: 0, limit: 8, offset: 0 }) });
+    render(<CheckinConsole />);
+    await waitFor(() => expect(screen.getByText(/Aún no hay check-ins hoy/i)).toBeInTheDocument());
   });
 
   it('Escanear abre el escáner de credencial', async () => {
