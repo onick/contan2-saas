@@ -124,7 +124,7 @@ run('POST /activities/:id/cover · escritura de portada', () => {
   const imageUrlOf = async (id: string) =>
     (await db.selectFrom('activities').select('image_url').where('id', '=', id).executeTakeFirstOrThrow()).image_url;
 
-  it('admin sube PNG válido → 200, image_url v2 persistido, archivo WebP 1600×900 en disco', async () => {
+  it('admin sube PNG válido → 200, image_url v2 persistido, archivo WebP sin recorte en disco', async () => {
     expect(await imageUrlOf(actA)).toBe(null); // crear sin portada funciona (baseline)
     const res = await postCover(actA, multipart(await realPng(), 'foto.png', 'image/png'), TOK.admin);
     expect(res.statusCode).toBe(200);
@@ -136,7 +136,7 @@ run('POST /activities/:id/cover · escritura de portada', () => {
     const meta = await sharp(onDisk).metadata();
     expect(meta.format).toBe('webp');
     expect(meta.width).toBe(1600);
-    expect(meta.height).toBe(900);
+    expect(meta.height).toBe(1600); // realPng es 100×100: proporción 1:1 preservada (sin recorte)
   });
 
   it('MIME falso (PNG real con content-type image/jpeg) → 200 (decide por bytes)', async () => {

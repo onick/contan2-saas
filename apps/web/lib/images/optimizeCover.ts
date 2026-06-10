@@ -5,8 +5,10 @@
 //
 // Reglas:
 //  · Entrada máx 25 MB; sólo JPEG/PNG/WebP; rechaza dimensiones/píxeles peligrosos.
-//  · ≤5 MB y válida → se CONSERVA tal cual (el server recorta a 1600×900).
-//  · >5 MB → decode (createImageBitmap, auto-orientación) → cover 1600×900 → WebP,
+//  · ≤5 MB y válida → se CONSERVA tal cual (el server reescala SIN recorte).
+//  · >5 MB → decode (createImageBitmap, auto-orientación) → escala SIN RECORTE
+//    dentro de 1600×2400 (se conserva la proporción: el encuadre vertical del
+//    admin necesita el excedente; el recorte visual lo hace CSS) → WebP,
 //    escalera de calidad 0.92→0.78; el primero que quede <5 MB gana. Si ninguno
 //    baja de 5 MB → error claro.
 //  · Procesa con OffscreenCanvas si está disponible (fuera del árbol DOM) y cede
@@ -19,7 +21,7 @@
 export const MAX_INPUT_BYTES = 25 * 1024 * 1024; // 25 MB
 export const TARGET_BYTES = 5 * 1024 * 1024; // 5 MB
 export const COVER_W = 1600;
-export const COVER_H = 900;
+export const COVER_MAX_H = 2400; // tope de alto; NUNCA recorta (escala inside)
 export const MAX_PIXELS = 40_000_000; // ~40 MP: por encima, riesgo de congelar el móvil
 export const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const QUALITY_LADDER = [0.92, 0.88, 0.84, 0.8, 0.78];
@@ -43,8 +45,8 @@ export interface OptimizeResult {
   height: number;
 }
 
-// Seam inyectable: carga la imagen (dimensiones naturales) y renderiza cover
-// 1600×900 a WebP con la calidad pedida.
+// Seam inyectable: carga la imagen (dimensiones naturales) y la renderiza SIN
+// recorte (inside 1600×2400) a WebP con la calidad pedida.
 export interface CoverCodec {
   readonly width: number;
   readonly height: number;
@@ -78,7 +80,7 @@ export async function optimizeCover(file: File, makeCodec: CodecFactory = browse
     if (codec.width * codec.height > MAX_PIXELS) {
       throw new OptimizeError('dangerous_dimensions', 'La imagen tiene dimensiones demasiado grandes.');
     }
-    // ≤5 MB y válida → conservar original (el server recorta a 1600×900).
+    // ≤5 MB y válida → conservar original (el server reescala sin recorte).
     if (file.size <= TARGET_BYTES) {
       return { blob: file, originalSize: file.size, finalSize: file.size, optimized: false, width: codec.width, height: codec.height };
     }
@@ -86,7 +88,8 @@ export async function optimizeCover(file: File, makeCodec: CodecFactory = browse
     for (let i = 0; i < QUALITY_LADDER.length; i++) {
       const blob = await codec.render(QUALITY_LADDER[i]!);
       if (blob.size < TARGET_BYTES) {
-        return { blob, originalSize: file.size, finalSize: blob.size, optimized: true, width: COVER_W, height: COVER_H };
+        const { w, h } = insideDims(codec.width, codec.height);
+        return { blob, originalSize: file.size, finalSize: blob.size, optimized: true, width: w, height: h };
       }
       if (i < QUALITY_LADDER.length - 1) await yieldToBrowser();
     }
@@ -94,6 +97,14 @@ export async function optimizeCover(file: File, makeCodec: CodecFactory = browse
   } finally {
     codec.dispose();
   }
+}
+
+// Dimensiones de salida "inside": escala (arriba o abajo) hasta tocar el lienzo
+// 1600×2400 por dentro, conservando proporción. Paridad con sharp fit:'inside'
+// + withoutEnlargement:false del server.
+export function insideDims(width: number, height: number): { w: number; h: number } {
+  const scale = Math.min(COVER_W / width, COVER_MAX_H / height);
+  return { w: Math.max(1, Math.round(width * scale)), h: Math.max(1, Math.round(height * scale)) };
 }
 
 // Codec real del navegador. createImageBitmap auto-orienta por EXIF; OffscreenCanvas
@@ -110,25 +121,21 @@ const browserCoverCodec: CodecFactory = async (file) => {
     width,
     height,
     async render(quality: number): Promise<Blob> {
-      // cover-crop centrado a COVER_W×COVER_H.
-      const scale = Math.max(COVER_W / width, COVER_H / height);
-      const dw = width * scale;
-      const dh = height * scale;
-      const dx = (COVER_W - dw) / 2;
-      const dy = (COVER_H - dh) / 2;
+      // SIN recorte: lienzo del tamaño escalado de la imagen completa.
+      const { w, h } = insideDims(width, height);
       if (typeof OffscreenCanvas !== 'undefined') {
-        const canvas = new OffscreenCanvas(COVER_W, COVER_H);
+        const canvas = new OffscreenCanvas(w, h);
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new OptimizeError('decode_failed', 'No se pudo procesar la imagen.');
-        ctx.drawImage(bitmap, dx, dy, dw, dh);
+        ctx.drawImage(bitmap, 0, 0, w, h);
         return canvas.convertToBlob({ type: 'image/webp', quality });
       }
       const canvas = document.createElement('canvas');
-      canvas.width = COVER_W;
-      canvas.height = COVER_H;
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new OptimizeError('decode_failed', 'No se pudo procesar la imagen.');
-      ctx.drawImage(bitmap, dx, dy, dw, dh);
+      ctx.drawImage(bitmap, 0, 0, w, h);
       return new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((b) => (b ? resolve(b) : reject(new OptimizeError('decode_failed', 'No se pudo procesar la imagen.'))), 'image/webp', quality);
       });

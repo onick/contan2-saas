@@ -20,6 +20,7 @@ import { X, Loader2, ImagePlus, RefreshCw, Sparkles, AlertTriangle } from 'lucid
 import { ActivityCreateRequestSchema, ACTIVITY_TYPES, type ActivityType } from '@contan2/contracts';
 import type { ZodIssue } from 'zod';
 import { optimizeCover, OptimizeError, formatBytes, type OptimizeResult } from '../../lib/images/optimizeCover';
+import { CoverReframe } from './CoverReframe';
 import { IconButton, Button, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 const TYPE_LABELS: Record<ActivityType, string> = {
@@ -258,10 +259,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
 
               {cover.phase === 'ready' ? (
                 <div className="mt-1">
-                  <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-line bg-surface-container">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={cover.previewUrl} alt="Vista previa de la portada" className="h-full w-full object-cover" style={{ objectPosition: `50% ${posY}%` }} />
-                  </div>
+                  <CoverReframe src={cover.previewUrl} posY={posY} onChange={setPosY} disabled={busy} />
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <button type="button" disabled={busy} onClick={() => fileRef.current?.click()} className={cn('inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold text-ink disabled:opacity-50', focusRing)}>
                       <RefreshCw size={14} strokeWidth={2} aria-hidden="true" /> Cambiar
@@ -277,19 +275,6 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
                       ? `Original ${formatBytes(cover.result.originalSize)} → optimizada ${formatBytes(cover.result.finalSize)}`
                       : `Imagen lista · ${formatBytes(cover.result.finalSize)}`}
                   </p>
-                  <label className="mt-3 block">
-                    <span className="flex items-center justify-between text-[12px] text-muted">
-                      <span className="font-medium">Encuadre vertical</span>
-                      <span className="tabular-nums text-faint">{posY === 50 ? 'Centro' : posY < 50 ? `↑ ${50 - posY}` : `↓ ${posY - 50}`}</span>
-                    </span>
-                    <input
-                      type="range" min={0} max={100} step={1} value={posY} disabled={busy}
-                      onChange={(e) => setPosY(Number(e.target.value))}
-                      aria-label="Encuadre vertical de la portada (0 muestra la parte superior, 100 la inferior)"
-                      className="mt-1 w-full accent-brand"
-                    />
-                    <span className="flex justify-between text-[11px] text-faint"><span>Arriba</span><span>Centro</span><span>Abajo</span></span>
-                  </label>
                 </div>
               ) : cover.phase === 'optimizing' ? (
                 <div className="mt-1 flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border border-line bg-surface-container text-muted" aria-busy="true">
