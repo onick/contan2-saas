@@ -258,7 +258,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
                 <div className="rounded-lg border border-line bg-surface-container p-3">
                   <p className="text-[13px] text-ink">¿Reenviar la credencial a <strong className="font-semibold">{maskEmail(detail.data.email)}</strong>?</p>
                   {resendError ? <p role="alert" className="mt-2 text-[12px] text-danger-fg">{resendError}</p> : null}
-                  <div className="mt-2 flex items-center justify-end gap-2">
+                  <div className="mt-3 flex items-center justify-end gap-2">
                     <Button type="button" variant="secondary" size="sm" onClick={() => setResendOpen(false)} disabled={resendBusy}>Cancelar</Button>
                     <Button type="button" size="sm" onClick={confirmResend} disabled={resendBusy}>
                       {resendBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Enviando…</> : 'Sí, reenviar'}
@@ -292,7 +292,9 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
                 <Field label="Email" type="email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} className="sm:col-span-2" />
                 <Field label="Teléfono" type="tel" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} className="sm:col-span-2" />
               </fieldset>
-              <div className="flex items-center justify-end gap-2">
+              {/* Separador + aire: el focus ring del último input no debe tocar los
+                  botones (mismo lenguaje que los footers de los drawers). */}
+              <div className="flex items-center justify-end gap-2 border-t border-line pt-3">
                 <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(false)} disabled={saving}>Cancelar</Button>
                 <Button type="submit" size="sm" disabled={saving}>{saving ? <><Loader2 size={15} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Guardando…</> : 'Guardar cambios'}</Button>
               </div>
@@ -375,7 +377,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
               ) : (
                 <div className="rounded-lg border border-line bg-surface-container p-3">
                   <p className="text-[13px] text-ink">¿Archivar a este visitante? Se ocultará del listado; su historial y asistencias se preservan. Podés reactivarlo luego.</p>
-                  <div className="mt-2 flex items-center justify-end gap-2">
+                  <div className="mt-3 flex items-center justify-end gap-2">
                     <Button type="button" variant="secondary" size="sm" onClick={() => setArchiveConfirm(false)} disabled={archiveBusy}>Cancelar</Button>
                     <Button type="button" size="sm" className="text-danger-fg" onClick={doArchive} disabled={archiveBusy}>
                       {archiveBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Archivando…</> : 'Sí, archivar'}
