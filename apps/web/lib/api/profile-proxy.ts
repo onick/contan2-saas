@@ -56,6 +56,31 @@ async function relayPatch(path: string, body: string, netError: string): Promise
 
 const enc = encodeURIComponent;
 
+// POST alta de visitante (S1): body JSON, relay exacto (201/400/409/429).
+export async function proxyUserCreate(body: string): Promise<Response> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE_URL}/api/v2/users`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+        ...(await forwardingHeaders()),
+      },
+      body,
+      cache: 'no-store',
+    });
+  } catch {
+    return Response.json({ error: 'No pudimos crear el visitante.' }, { status: 502 });
+  }
+  const text = await upstream.text();
+  return new Response(text, {
+    status: upstream.status,
+    headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
+  });
+}
+
 export const proxyUserDetail = (code: string) =>
   relayGet(`/api/v2/users/${enc(code)}`, 'No pudimos cargar el visitante.');
 

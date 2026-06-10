@@ -35,3 +35,4 @@ release-evidence/
 # Next.js (apps/web)
 **/.next/
 next-env.d.ts
+outputs/
