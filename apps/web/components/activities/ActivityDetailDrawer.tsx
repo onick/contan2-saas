@@ -98,6 +98,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
           <div className="mb-4 aspect-video w-full overflow-hidden rounded-xl bg-surface-container">
             <CoverThumb
               src={shown.imageUrl ?? null}
+              posY={shown.imagePosY}
               alt=""
               className="h-full w-full object-cover"
               fallback={

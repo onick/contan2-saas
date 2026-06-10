@@ -140,7 +140,7 @@ export function UpcomingCard({ activity }: { activity: NonNullable<DashboardOver
       <div className="flex flex-col sm:flex-row">
         {activity.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={activity.imageUrl} alt="" className="h-36 w-full flex-none object-cover sm:h-auto sm:w-44" />
+          <img src={activity.imageUrl} alt="" className="h-36 w-full flex-none object-cover sm:h-auto sm:w-44" style={{ objectPosition: `50% ${activity.imagePosY ?? 50}%` }} />
         ) : (
           <div aria-hidden="true" className="grid h-36 w-full flex-none place-items-center bg-gradient-to-br from-brand-accent to-brand sm:h-auto sm:w-44">
             <CalendarDays size={28} strokeWidth={1.5} className="text-white/90" aria-hidden="true" />

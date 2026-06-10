@@ -82,6 +82,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
   const [errors, setErrors] = useState<Errors>({});
   const [cover, setCover] = useState<CoverState>({ phase: 'empty' });
   const [coverErr, setCoverErr] = useState<string | null>(null);
+  const [posY, setPosY] = useState(50); // encuadre vertical; 50 = centro (no se envía)
   const [busy, setBusy] = useState(false);
 
   // Revoca el object URL del preview al reemplazarlo o desmontar.
@@ -93,7 +94,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
 
   const reset = () => {
     setForm(EMPTY); setErrors({}); setBusy(false); setCoverErr(null);
-    setPreview(null); setCover({ phase: 'empty' });
+    setPreview(null); setCover({ phase: 'empty' }); setPosY(50);
   };
   // Éxito (201): el padre cierra (open→false) y el reset/liberación del object URL
   // corre al final de la animación de salida (onClosed), no a mitad del slide.
@@ -187,6 +188,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
 
     const fd = new FormData();
     for (const [k, val] of Object.entries(v.fields)) fd.append(k, val);
+    if (posY !== 50) fd.append('imagePosY', String(posY)); // 50 = centro = default
     fd.append('cover', cover.result.blob, cover.filename);
 
     setBusy(true);
@@ -258,7 +260,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
                 <div className="mt-1">
                   <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-line bg-surface-container">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={cover.previewUrl} alt="Vista previa de la portada" className="h-full w-full object-cover" />
+                    <img src={cover.previewUrl} alt="Vista previa de la portada" className="h-full w-full object-cover" style={{ objectPosition: `50% ${posY}%` }} />
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <button type="button" disabled={busy} onClick={() => fileRef.current?.click()} className={cn('inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold text-ink disabled:opacity-50', focusRing)}>
@@ -275,6 +277,19 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
                       ? `Original ${formatBytes(cover.result.originalSize)} → optimizada ${formatBytes(cover.result.finalSize)}`
                       : `Imagen lista · ${formatBytes(cover.result.finalSize)}`}
                   </p>
+                  <label className="mt-3 block">
+                    <span className="flex items-center justify-between text-[12px] text-muted">
+                      <span className="font-medium">Encuadre vertical</span>
+                      <span className="tabular-nums text-faint">{posY === 50 ? 'Centro' : posY < 50 ? `↑ ${50 - posY}` : `↓ ${posY - 50}`}</span>
+                    </span>
+                    <input
+                      type="range" min={0} max={100} step={1} value={posY} disabled={busy}
+                      onChange={(e) => setPosY(Number(e.target.value))}
+                      aria-label="Encuadre vertical de la portada (0 muestra la parte superior, 100 la inferior)"
+                      className="mt-1 w-full accent-brand"
+                    />
+                    <span className="flex justify-between text-[11px] text-faint"><span>Arriba</span><span>Centro</span><span>Abajo</span></span>
+                  </label>
                 </div>
               ) : cover.phase === 'optimizing' ? (
                 <div className="mt-1 flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border border-line bg-surface-container text-muted" aria-busy="true">

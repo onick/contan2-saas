@@ -50,6 +50,7 @@ export function ActivitiesGrid({ activities, onView }: ActivitiesGridProps) {
             <div className="aspect-video w-full overflow-hidden rounded-lg bg-surface-container">
               <CoverThumb
                 src={a.imageUrl ?? null}
+                posY={a.imagePosY}
                 alt=""
                 className="h-full w-full object-cover"
                 fallback={

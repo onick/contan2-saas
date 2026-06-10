@@ -26,6 +26,8 @@ export interface KioskActivity {
   // El endpoint público ya lo devuelve. null → la card cae a la banda de
   // categoría (igual que v1). En el demo solo Cine tiene póster real.
   imageUrl: string | null;
+  // Encuadre vertical 0–100; ausente = centro.
+  imagePosY?: number | null;
 }
 
 export interface KioskVisitor {
