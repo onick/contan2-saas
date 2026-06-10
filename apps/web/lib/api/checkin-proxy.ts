@@ -44,6 +44,10 @@ export const proxyCheckinActivities = () =>
 export const proxyCheckinVisitors = (search: string) =>
   relay(`/api/v2/checkin/visitors${search}`, { method: 'GET' }, 'No pudimos buscar visitantes.');
 
+// Feed de recepción: últimos registros (reusa GET /attendance, ya ordena desc).
+export const proxyCheckinRecent = (search: string) =>
+  relay(`/api/v2/attendance${search}`, { method: 'GET' }, 'No pudimos cargar los check-ins recientes.');
+
 export const proxyCheckin = (body: unknown) =>
   relay('/api/v2/checkin', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }, 'No pudimos registrar el check-in.');
 
