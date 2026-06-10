@@ -1,75 +1,99 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
+import { QrCode, BarChart3 } from 'lucide-react';
 import { AppShell } from '../../components/shell/AppShell';
-import { MetricCard } from '../../components/dashboard/MetricCard';
-import { FeaturedActivity } from '../../components/dashboard/FeaturedActivity';
-import { AttendanceChart } from '../../components/dashboard/AttendanceChart';
-import { HighlightCard } from '../../components/dashboard/HighlightCard';
-import { TopActivities } from '../../components/dashboard/TopActivities';
 import { RecentVisitors } from '../../components/dashboard/RecentVisitors';
+import { PeriodPills, InsightBanner, AttendanceHero, KpiCard, UpcomingCard, FeaturedCard, PERIOD_LABEL } from '../../components/dashboard/Overview';
 import { NewActivityButton } from '../../components/activities/NewActivityButton';
-import { SectionHeader, Card, Skeleton } from '../../components/ui';
+import { Card, Skeleton, cn, focusRing } from '../../components/ui';
 import { Unavailable } from '../../components/shell/Unavailable';
 import { DemoBanner } from '../../components/shell/DemoBanner';
 import { getLocalBranding } from '../../lib/branding/config';
 import { isDemoFallbackAllowed } from '../../lib/auth/demo';
-import { getDashboardMetricCards, getRecentVisitors } from '../../lib/api/dashboard';
-import {
-  DASHBOARD_METRICS,
-  DASHBOARD_PERIOD,
-  FEATURED_ACTIVITY,
-  HIGHLIGHT,
-  TOP_ACTIVITIES,
-  RECENT_VISITORS,
-} from '../../lib/dashboard/demoData';
+import { getDashboardOverview, getRecentVisitors } from '../../lib/api/dashboard';
+import { RECENT_VISITORS } from '../../lib/dashboard/demoData';
 
-// RUTA PROVISIONAL del tenant-admin — NO es la URL final. Los KPIs se cablean
-// read-only a GET /api/v2/dashboard/metrics (render DINÁMICO por request, vía
-// Suspense → el shell aparece al instante y los KPIs streamean con skeleton).
-// Si no hay datos reales (sin sesión / api-v2 caído) caen a demoData. El resto
-// (destacado, gráfico, top, visitantes) sigue demo: aún no hay endpoints.
+// Dashboard REAL período-aware (S2 · paridad v1 y mejor): saludo + acciones
+// rápidas, selector de período (URL fuente de verdad), alertas operativas
+// (insights), hero de asistencias con sparkline + delta vs período anterior,
+// KPIs con delta (nuevos/ocupación/retorno), próxima actividad con countdown y
+// portada, destacada real del período y últimos visitantes. Sin datos demo en
+// las secciones cableadas; API caída → indisponibilidad honesta.
 export const metadata: Metadata = {
   title: 'Contan2 v2 · tenant admin · dashboard',
   description: 'Dashboard tenant-admin · resumen de operación cultural',
 };
 
-const KPI_GRID = 'app-stagger mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4';
+export const dynamic = 'force-dynamic';
 
-// Sección de KPIs · async (toca cookies()/fetch → dinámica). Streamea dentro de
-// <Suspense>; cae a demoData si no hay datos reales.
-async function DashboardKpis() {
-  const real = await getDashboardMetricCards();
-  // api caída + demo no permitido (staging/prod) → indisponibilidad, NUNCA demo.
-  if (!real && !isDemoFallbackAllowed()) {
-    return <Unavailable inline title="KPIs no disponibles" description="No pudimos cargar las métricas. Reintentá en unos segundos." />;
+const TZ = 'America/Santo_Domingo';
+function greeting(): string {
+  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hour12: false }).format(new Date()));
+  if (h < 12) return 'Buenos días';
+  if (h < 19) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+const fmtToday = new Intl.DateTimeFormat('es', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// Sección de datos · async (streamea en <Suspense>); el shell pinta al instante.
+async function OverviewData({ period }: { period: string }) {
+  const data = await getDashboardOverview(period);
+  if (!data) {
+    return <Unavailable inline title="Dashboard no disponible" description="No pudimos cargar las métricas. Reintentá en unos segundos." />;
   }
-  const metrics = real ?? DASHBOARD_METRICS;
+  const label = PERIOD_LABEL[data.period];
   return (
-    <div className={KPI_GRID}>
-      {metrics.map((m) => (
-        <MetricCard key={m.key} metric={m} />
-      ))}
+    <>
+      {/* Alertas operativas del período (paridad v1) */}
+      {data.insights.length ? (
+        <div className="mt-4 space-y-2">
+          {data.insights.map((i) => <InsightBanner key={i.type} insight={i} />)}
+        </div>
+      ) : null}
+
+      {/* Hero asistencias (sparkline + delta) + KPIs laterales con delta */}
+      <div className="app-reveal mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
+        <AttendanceHero data={data} period={label} />
+        <div className="grid min-w-0 grid-cols-1 gap-4">
+          <KpiCard label="Visitantes nuevos" value={data.newVisitors.current.toLocaleString('en-US')} metric={data.newVisitors} help="Altas de visitantes en el período" />
+          <KpiCard label="Ocupación promedio" value={String(data.avgOccupancyPct.current)} suffix="%" metric={data.avgOccupancyPct} help="Promedio de inscritos/cupo de las actividades del período" />
+          <KpiCard label="Tasa de retorno" value={String(data.returnRatePct.current)} suffix="%" metric={data.returnRatePct} help="Asistencias de visitantes con más de una visita" />
+        </div>
+      </div>
+
+      {/* Próxima actividad (countdown + portada) */}
+      {data.upcoming ? (
+        <div className="app-reveal mt-4" style={{ animationDelay: '120ms' }}>
+          <UpcomingCard activity={data.upcoming} />
+        </div>
+      ) : null}
+
+      {/* Destacada real del período + últimos visitantes reales */}
+      <div className="app-reveal mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[1fr_1fr]" style={{ animationDelay: '180ms' }}>
+        {data.featured ? <FeaturedCard activity={data.featured} /> : <div className="hidden xl:block" />}
+        <Suspense fallback={<RecentVisitorsSkeleton />}>
+          <RecentVisitorsData />
+        </Suspense>
+      </div>
+    </>
+  );
+}
+
+function OverviewSkeleton() {
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
+      <Card padding="lg"><Skeleton className="h-3 w-32" /><Skeleton className="mt-3 h-9 w-24" /><Skeleton className="mt-4 h-28 w-full" /></Card>
+      <div className="grid grid-cols-1 gap-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} padding="md"><Skeleton className="h-3 w-28" /><Skeleton className="mt-2 h-8 w-20" /></Card>
+        ))}
+      </div>
     </div>
   );
 }
 
-// Skeleton de los KPIs (mismo grid) mientras resuelve el fetch.
-function KpiSkeleton() {
-  return (
-    <div className={KPI_GRID}>
-      {Array.from({ length: 4 }).map((_, i) => (
-        <Card key={i} padding="lg" className="flex flex-col items-start gap-3">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-9 w-20" />
-          <Skeleton className="h-5 w-16 rounded-full" />
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-// Últimos visitantes · async (GET /api/v2/users, recientes). Streamea en
-// <Suspense>; cae a demoData si no hay datos reales.
+// Últimos visitantes · async (GET /api/v2/users, recientes).
 async function RecentVisitorsData() {
   const real = await getRecentVisitors();
   if (!real && !isDemoFallbackAllowed()) {
@@ -81,17 +105,11 @@ async function RecentVisitorsData() {
 function RecentVisitorsSkeleton() {
   return (
     <Card padding="none" className="min-w-0">
-      <div className="px-5 py-4 md:px-6">
-        <Skeleton className="h-4 w-32" />
-        <Skeleton className="mt-1.5 h-3 w-24" />
-      </div>
+      <div className="px-5 py-4 md:px-6"><Skeleton className="h-4 w-32" /><Skeleton className="mt-1.5 h-3 w-24" /></div>
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 border-t border-line px-5 py-3 md:px-6">
           <Skeleton className="h-9 w-9 flex-none rounded-full" />
-          <div className="flex-1">
-            <Skeleton className="h-3.5 w-32" />
-            <Skeleton className="mt-1.5 h-3 w-40" />
-          </div>
+          <div className="flex-1"><Skeleton className="h-3.5 w-32" /><Skeleton className="mt-1.5 h-3 w-40" /></div>
           <Skeleton className="ml-auto h-5 w-14 rounded-full" />
         </div>
       ))}
@@ -99,44 +117,42 @@ function RecentVisitorsSkeleton() {
   );
 }
 
-export default function TenantAdminDashboard() {
+export default async function TenantAdminDashboard({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
+  const rawPeriod = typeof sp.period === 'string' ? sp.period : '30d';
+  const period = rawPeriod in PERIOD_LABEL ? (rawPeriod as keyof typeof PERIOD_LABEL) : '30d';
   const branding = getLocalBranding();
 
   return (
-    <AppShell branding={branding} title="Dashboard" activeKey="dashboard" meta={DASHBOARD_PERIOD}>
+    <AppShell branding={branding} title="Dashboard" activeKey="dashboard" meta={PERIOD_LABEL[period]}>
       <div className="mx-auto w-full max-w-[1600px]">
         {isDemoFallbackAllowed() ? <DemoBanner /> : null}
-        {/* Encabezado de la vista + acción primaria */}
-        <SectionHeader
-          level={1}
-          title={branding.name}
-          subtitle={`Actividad cultural · ${DASHBOARD_PERIOD.toLowerCase()}`}
-          actions={<NewActivityButton />}
-        />
 
-        {/* KPIs · reales (read-only) con skeleton de carga · 375:1 · 768:2 · 1280:4 */}
-        <Suspense fallback={<KpiSkeleton />}>
-          <DashboardKpis />
+        {/* Saludo (paridad v1) + acciones rápidas */}
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight text-ink">{greeting()} 👋</h1>
+            <p className="mt-0.5 text-sm text-muted">{cap(fmtToday.format(new Date()))} · {branding.name}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <a href="/app/check-in" className={cn('inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-line bg-surface px-4 text-sm font-semibold text-muted hover:bg-page hover:text-ink', focusRing)}>
+              <QrCode size={16} strokeWidth={2} aria-hidden="true" /> Check-in
+            </a>
+            <a href="/app/reportes" className={cn('inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-line bg-surface px-4 text-sm font-semibold text-muted hover:bg-page hover:text-ink', focusRing)}>
+              <BarChart3 size={16} strokeWidth={2} aria-hidden="true" /> Generar reporte
+            </a>
+            <NewActivityButton />
+          </div>
+        </div>
+
+        {/* Selector de período · la URL es la fuente de verdad */}
+        <div className="mt-4">
+          <PeriodPills active={period} />
+        </div>
+
+        <Suspense key={period} fallback={<OverviewSkeleton />}>
+          <OverviewData period={period} />
         </Suspense>
-
-        {/* Actividad próxima destacada (ancho completo) */}
-        <div className="app-reveal mt-4" style={{ animationDelay: '120ms' }}>
-          <FeaturedActivity activity={FEATURED_ACTIVITY} />
-        </div>
-
-        {/* Gráfico (ancho) + destacado del período */}
-        <div className="app-reveal mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]" style={{ animationDelay: '180ms' }}>
-          <AttendanceChart />
-          <HighlightCard activity={HIGHLIGHT} />
-        </div>
-
-        {/* Top actividades + últimos visitantes */}
-        <div className="app-reveal mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]" style={{ animationDelay: '240ms' }}>
-          <TopActivities activities={TOP_ACTIVITIES} />
-          <Suspense fallback={<RecentVisitorsSkeleton />}>
-            <RecentVisitorsData />
-          </Suspense>
-        </div>
       </div>
     </AppShell>
   );
