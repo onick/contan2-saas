@@ -9,11 +9,15 @@ import { getDb } from '@contan2/db';
 import type { TeamListResponse } from '@contan2/contracts';
 import { TeamRoleUpdateRequestSchema, TeamStatusUpdateRequestSchema } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
+import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { readTeam, TEAM_PAGE_MAX } from '../services/team-read.js';
 import { changeRole, changeStatus, TeamWriteError } from '../services/team-write.js';
 
 const CAN_VIEW_TEAM = new Set(['owner', 'admin']);
 const CAN_MANAGE_TEAM = new Set(['owner', 'admin']);
+
+// 20 escrituras/min por org+IP (auditoría 2026-06-10: faltaba limiter).
+const writeLimiter = createRateLimiter({ max: 20, windowMs: 60_000, prefix: endpointPrefix('team-write') });
 
 export const teamRoute: FastifyPluginAsync = async (app) => {
   app.get('/org/team', async (req, reply) => {
@@ -47,6 +51,7 @@ export const teamRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
     if (!CAN_MANAGE_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar el equipo.' }; }
+    if ((await writeLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' }; }
     const parsed = TeamRoleUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Rol inválido.' }; }
     try {
@@ -69,6 +74,7 @@ export const teamRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
     if (!CAN_MANAGE_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar el equipo.' }; }
+    if ((await writeLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' }; }
     const parsed = TeamStatusUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Estado inválido.' }; }
     try {

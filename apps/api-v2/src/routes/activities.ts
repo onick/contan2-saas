@@ -26,6 +26,14 @@ import {
   CoverError,
 } from '../services/cover-upload.js';
 import { ensureWritableRoot, deletePreviousCoverIfV2, StorageError } from '../storage.js';
+import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
+
+// Escrituras admin de actividades: 30/min por org+IP (auditoría 2026-06-10:
+// no tenían limiter; el guard ya exige owner/admin — esto frena el abuso de
+// una sesión comprometida o un script descontrolado). Las LECTURAS no se
+// limitan (la UI las usa en cada render).
+const writeLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('activities-write') });
+const LIMIT_MSG = 'Demasiadas operaciones seguidas. Espera un momento.';
 
 const STATUSES: ReadonlySet<ActivityStatus> = new Set(['activa', 'finalizada', 'cancelada']);
 
@@ -145,6 +153,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       reply.code(403);
       return { error: 'No tenés permiso para crear actividades.' };
     }
+    if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: LIMIT_MSG };
+    }
 
     const parsed = ActivityCreateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -198,6 +210,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
       return { error: 'No tenés permiso para crear actividades.' };
+    }
+    if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: LIMIT_MSG };
     }
     const orgId = guard.ctx.org.id;
 
@@ -343,6 +359,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       reply.code(403);
       return { error: 'No tenés permiso para gestionar portadas.' };
     }
+    if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: LIMIT_MSG };
+    }
     const orgId = guard.ctx.org.id;
     const id = (req.params as { id: string }).id;
 
@@ -464,6 +484,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       reply.code(403);
       return { error: 'No tenés permiso para editar actividades.' };
     }
+    if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: LIMIT_MSG };
+    }
     const orgId = guard.ctx.org.id;
     const id = (req.params as { id: string }).id;
 
@@ -550,6 +574,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
       return { error: 'No tenés permiso para cambiar el estado de actividades.' };
+    }
+    if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: LIMIT_MSG };
     }
     const orgId = guard.ctx.org.id;
     const id = (req.params as { id: string }).id;
@@ -703,6 +731,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
       return { error: 'No tenés permiso para eliminar actividades.' };
+    }
+    if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: LIMIT_MSG };
     }
     const orgId = guard.ctx.org.id;
     const id = (req.params as { id: string }).id;

@@ -5,8 +5,8 @@
 // filtra/ordena/vista/detalle 100% EN MEMORIA — cero API, cero escrituras.
 // page.tsx sigue siendo Server Component (hace el fetch); esto es client.
 
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, List, LayoutGrid } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
 import {
@@ -37,12 +37,33 @@ export interface ActivitiesViewProps {
   total: number;
 }
 
+const DATE_KEYS: ReadonlySet<string> = new Set(['todas', 'proximas', 'pasadas', 'hoy', 'semana']);
+const STATUS_KEYS: ReadonlySet<string> = new Set(['todas', 'soon', 'live', 'done', 'draft', 'cancelled']);
+
 export function ActivitiesView({ activities, total }: ActivitiesViewProps) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<StatusFilter>('todas');
-  const [category, setCategory] = useState<CategoryFilter>('todas');
-  const [date, setDate] = useState<DateFilter>('todas');
-  const [view, setView] = useState<'list' | 'grid'>('list');
+  // Filtros INICIALIZADOS desde la URL y reflejados en ella (replaceState, sin
+  // recargar): sobreviven al refresh y se pueden compartir (auditoría
+  // 2026-06-10: antes se perdían al navegar). El filtrado sigue en memoria.
+  const sp = useSearchParams();
+  const [query, setQuery] = useState(sp.get('q') ?? '');
+  const [status, setStatus] = useState<StatusFilter>(
+    STATUS_KEYS.has(sp.get('estado') ?? '') ? (sp.get('estado') as StatusFilter) : 'todas');
+  const [category, setCategory] = useState<CategoryFilter>(sp.get('cat') ?? 'todas');
+  const [date, setDate] = useState<DateFilter>(
+    DATE_KEYS.has(sp.get('fecha') ?? '') ? (sp.get('fecha') as DateFilter) : 'todas');
+  const [view, setView] = useState<'list' | 'grid'>(sp.get('vista') === 'grid' ? 'grid' : 'list');
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (query) next.set('q', query);
+    if (status !== 'todas') next.set('estado', status);
+    if (category !== 'todas') next.set('cat', String(category));
+    if (date !== 'todas') next.set('fecha', date);
+    if (view !== 'list') next.set('vista', view);
+    const qs = next.toString();
+    // replaceState: no apila historial por tipeo ni dispara re-render del server.
+    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+  }, [query, status, category, date, view]);
   const [selected, setSelected] = useState<Activity | null>(null);
   const [editing, setEditing] = useState<Activity | null>(null);
   const router = useRouter();
