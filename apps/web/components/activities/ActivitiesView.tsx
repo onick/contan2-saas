@@ -132,7 +132,7 @@ export function ActivitiesView({ activities, total }: ActivitiesViewProps) {
       {/* Lista o grid */}
       <div className="mt-4">
         {view === 'list'
-          ? <ActivitiesTable activities={filtered} onView={setSelected} />
+          ? <ActivitiesTable activities={filtered} onView={setSelected} onEdit={setEditing} onChanged={afterMutation} />
           : <ActivitiesGrid activities={filtered} onView={setSelected} />}
       </div>
 

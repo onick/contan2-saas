@@ -1,10 +1,11 @@
-import { CalendarDays, MessagesSquare, Film, Music, Image, Wrench, MoreHorizontal, CalendarSearch } from 'lucide-react';
+import { CalendarDays, MessagesSquare, Film, Music, Image, Wrench, CalendarSearch, Eye } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Activity, ActivityStatus } from '../../lib/activities/demoData';
 import { StatusBadge } from './StatusBadge';
 import { CategoryChip } from '../CategoryChip';
 import { CoverThumb } from './CoverThumb';
-import { Card, IconButton, EmptyState, cn, focusRing } from '../ui';
+import { ActivityRowMenu } from './ActivityRowMenu';
+import { Card, IconButton, EmptyState } from '../ui';
 
 // Ícono por categoría (coherente con lucide).
 const CATEGORY_ICON: Record<string, LucideIcon> = {
@@ -25,12 +26,15 @@ export interface ActivitiesTableProps {
   activities: Activity[];
   // Abre el detalle read-only (drawer). Opcional → la tabla sigue presentacional.
   onView?: (activity: Activity) => void;
+  // Menú ⋯ por fila: editar + transiciones de estado (sólo items reales).
+  onEdit?: (activity: Activity) => void;
+  onChanged?: () => void;
 }
 
 // Tabla de actividades · estilo Google/Material: columnas tituladas, ícono por
 // categoría, chip de estado, barra de ocupación, acciones. En mobile se ocultan
 // Fecha/Lugar/Estado (queda Actividad + Ocupación).
-export function ActivitiesTable({ activities, onView }: ActivitiesTableProps) {
+export function ActivitiesTable({ activities, onView, onEdit, onChanged }: ActivitiesTableProps) {
   if (activities.length === 0) {
     return (
       <EmptyState
@@ -109,16 +113,10 @@ export function ActivitiesTable({ activities, onView }: ActivitiesTableProps) {
                   {/* Acciones */}
                   <td className="whitespace-nowrap px-4 py-4">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onView?.(a)}
-                        className={cn('rounded px-1 text-[13px] font-semibold text-brand hover:underline', focusRing)}
-                      >
-                        Ver
-                      </button>
-                      <IconButton label="Más acciones" variant="ghost" size="sm">
-                        <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
+                      <IconButton label={`Ver detalle de ${a.title}`} variant="ghost" size="sm" className="text-brand" onClick={() => onView?.(a)}>
+                        <Eye size={18} strokeWidth={2} aria-hidden="true" />
                       </IconButton>
+                      <ActivityRowMenu activity={a} onView={onView} onEdit={onEdit} onChanged={onChanged} />
                     </div>
                   </td>
                 </tr>

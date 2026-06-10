@@ -52,9 +52,9 @@ describe('ActivitiesView · interacciones (sin escrituras)', () => {
     expect(screen.getByText('Los Congos de Villa Mella')).toBeInTheDocument(); // datos siguen
   });
 
-  it('"Ver" abre el drawer de detalle read-only', () => {
+  it('el ícono "Ver detalle" abre el drawer de detalle read-only', () => {
     renderView();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Ver' })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Ver detalle de/ })[0]!);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('Detalle de actividad')).toBeInTheDocument();
     // cierra con Escape (cierre animado: desmonta al terminar animationend)
