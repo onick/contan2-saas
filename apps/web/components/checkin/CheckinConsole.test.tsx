@@ -6,7 +6,7 @@ import { CheckinConsole } from './CheckinConsole';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 const J = (status: number, obj: unknown) => new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json' } });
-const metricsBody = { metrics: { checkinsToday: 7, checkinsLast10Min: 2, uniqueVisitorsToday: 5, activeActivities: 2 }, serverNow: '2030-01-01T00:00:00.000Z', timezone: 'America/Santo_Domingo' };
+const metricsBody = { metrics: { checkinsToday: 7, checkinsLast10Min: 2, uniqueVisitorsToday: 5, activeActivities: 2 }, serverNow: new Date().toISOString(), timezone: 'America/Santo_Domingo' };
 const act1 = { id: 'A1', name: 'Concierto', location: 'Sala 1', date: '2030-06-10T19:00:00.000Z', capacity: 100, enrolledCount: 40, available: 60, occupancyPct: 40, recentMovement: 2, full: false };
 const actFull = { id: 'A2', name: 'Lleno', location: 'Sala 2', date: '2030-06-10T19:00:00.000Z', capacity: 1, enrolledCount: 1, available: 0, occupancyPct: 100, recentMovement: 0, full: true };
 const visitor = { id: 'u1', code: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', email: 'sofia@ccb.do', visitCount: 4 };
@@ -182,7 +182,7 @@ describe('CheckinConsole', () => {
       recent: () => J(200, {
         items: [
           { id: 'r1', userCode: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', activityId: 'A1', activityName: 'Concierto', anonymous: false, checkedInAt: new Date().toISOString(), registeredAt: new Date().toISOString() },
-          { id: 'r2', userCode: null, firstName: null, lastName: null, activityId: 'A1', activityName: 'Concierto', anonymous: true, checkedInAt: new Date().toISOString(), registeredAt: new Date(Date.now() - 5 * 60_000).toISOString() },
+          { id: 'r2', userCode: null, firstName: null, lastName: null, activityId: 'A1', activityName: 'Concierto', anonymous: true, checkedInAt: new Date().toISOString(), registeredAt: new Date(Date.now() - 5 * 60_000 - 30_000).toISOString() },
         ],
         total: 2, limit: 8, offset: 0,
       }),

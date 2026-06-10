@@ -20,8 +20,11 @@ type Async<T> = { phase: 'loading' | 'ready' | 'error'; data?: T; error?: string
 type Toast = { kind: 'success' | 'error'; msg: string } | null;
 
 // Hora relativa corta para el feed ("ahora", "hace 5 min", "hace 2 h").
-function timeAgo(iso: string): string {
-  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+// CALIBRADA contra serverNow (patrón v1): los timestamps los sella el server; si
+// su reloj difiere del cliente, comparar contra Date.now() miente. skewMs =
+// serverNow - clientNow se recalcula en cada poll de métricas.
+function timeAgo(iso: string, skewMs: number): string {
+  const min = Math.floor((Date.now() + skewMs - new Date(iso).getTime()) / 60_000);
   if (min < 1) return 'ahora';
   if (min < 60) return `hace ${min} min`;
   const h = Math.floor(min / 60);
@@ -48,6 +51,7 @@ export function CheckinConsole() {
   const [newOpen, setNewOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [recent, setRecent] = useState<Async<AttendanceListItem[]>>({ phase: 'loading' });
+  const skewMs = useRef(0); // serverNow - clientNow (clock-skew, patrón v1)
 
   const searchRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -62,7 +66,10 @@ export function CheckinConsole() {
   // ── métricas: carga + polling 30s ──
   const loadMetrics = useCallback(async (signal?: AbortSignal) => {
     const r = await getCheckinMetrics(signal).catch((e) => { throw e; });
-    if (r.ok) setMetrics({ phase: 'ready', data: r.data.metrics });
+    if (r.ok) {
+      skewMs.current = new Date(r.data.serverNow).getTime() - Date.now();
+      setMetrics({ phase: 'ready', data: r.data.metrics });
+    }
     else setMetrics((prev) => (prev.data ? { ...prev, phase: 'ready' } : { phase: 'error', error: r.error }));
   }, []);
   const loadActivities = useCallback(async () => {
@@ -360,7 +367,7 @@ export function CheckinConsole() {
                       </span>
                       <span className="block truncate text-[11px] text-faint">{r.activityName}</span>
                     </span>
-                    <span className="flex-none text-[11px] tabular-nums text-faint">{timeAgo(r.registeredAt)}</span>
+                    <span className="flex-none text-[11px] tabular-nums text-faint">{timeAgo(r.registeredAt, skewMs.current)}</span>
                   </li>
                 ))}
               </ul>
