@@ -61,6 +61,11 @@ run('slice público read-only (kiosko)', () => {
       id: randomUUID(), organization_id: orgBId, code: 'MEM-PUB002',
       first_name: 'Ajeno', last_name: 'Tenant', email: 'ajeno@b.do', phone: null, visit_count: 9,
     }).execute();
+    // Homónimas de orgA (lookup por nombre → matches para elegir).
+    await db.insertInto('users').values([
+      { id: randomUUID(), organization_id: orgAId, code: 'CCB-ANA001', first_name: 'Ana', last_name: 'Pérez', email: null, phone: null, visit_count: 5 },
+      { id: randomUUID(), organization_id: orgAId, code: 'CCB-ANA002', first_name: 'Ana', last_name: 'Pérez', email: null, phone: null, visit_count: 1 },
+    ]).execute();
 
     const now = new Date().toISOString();
     await db.insertInto('activities').values([
@@ -134,7 +139,8 @@ run('slice público read-only (kiosko)', () => {
     expect((await get('/api/v2/public/users/lookup?q=PUB001', hostA)).statusCode).toBe(200);
     const res = await get('/api/v2/public/users/lookup?q=pub001', hostA);
     expect(res.statusCode).toBe(200);
-    expect(PublicVisitorLookupResponseSchema.parse(res.json()).visitor.code).toBe(codeU1);
+    const out = PublicVisitorLookupResponseSchema.parse(res.json());
+    expect('visitor' in out ? out.visitor.code : null).toBe(codeU1);
   });
 
   it('lookup: desconocido → 404; malformado → 400; sin q → 400', async () => {
@@ -145,6 +151,30 @@ run('slice público read-only (kiosko)', () => {
 
   it('lookup: visitante de orgB NO se encuentra desde host A (aislamiento)', async () => {
     expect((await get('/api/v2/public/users/lookup?q=MEM-PUB002', hostA)).statusCode).toBe(404);
+  });
+
+  it('lookup por NOMBRE COMPLETO: exacto, case/acentos-insensible → 200 { visitor }', async () => {
+    const res = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('carmen objio')}`, hostA); // sin acento
+    expect(res.statusCode).toBe(200);
+    const out = PublicVisitorLookupResponseSchema.parse(res.json());
+    expect('visitor' in out ? out.visitor.code : null).toBe(codeU1);
+  });
+
+  it('nombre: UNA sola palabra → 400 (anti-enumeración: exige nombre y apellido)', async () => {
+    // OJO: una palabra de EXACTAMENTE 6 alfanuméricos (p. ej. "Carmen") se trata
+    // como código corto (precedencia del contrato) → 404. Una palabra no-código:
+    expect((await get('/api/v2/public/users/lookup?q=Carmencita', hostA)).statusCode).toBe(400);
+  });
+
+  it('nombre con HOMÓNIMOS → 200 { matches } ordenados por visitas', async () => {
+    const res = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('ana perez')}`, hostA);
+    expect(res.statusCode).toBe(200);
+    const out = PublicVisitorLookupResponseSchema.parse(res.json());
+    expect('matches' in out ? out.matches.map((m) => m.code) : []).toEqual(['CCB-ANA001', 'CCB-ANA002']);
+  });
+
+  it('nombre de visitante de OTRO tenant → 404 (aislamiento)', async () => {
+    expect((await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('ajeno tenant')}`, hostA)).statusCode).toBe(404);
   });
 
   it('tenant por host: no-tenant (admin) → 404; org suspendida → 503', async () => {

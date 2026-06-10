@@ -58,9 +58,18 @@ describe('getKioskActivities (fallback)', () => {
 });
 
 describe('lookupKioskVisitor', () => {
-  it('mapea el visitante en éxito', async () => {
+  it('mapea el visitante en éxito ({ visitor })', async () => {
     apiGetMock.mockResolvedValue({ visitor: { firstName: 'C', lastName: 'O', code: 'CCB-1', visitCount: 2 } });
-    expect((await lookupKioskVisitor('CCB-1'))?.code).toBe('CCB-1');
+    const out = await lookupKioskVisitor('CCB-1');
+    expect(out && 'visitor' in out ? out.visitor.code : null).toBe('CCB-1');
+  });
+  it('homónimos por nombre → { matches } mapeados', async () => {
+    apiGetMock.mockResolvedValue({ matches: [
+      { firstName: 'Ana', lastName: 'Pérez', code: 'CCB-AAA111', visitCount: 3 },
+      { firstName: 'Ana', lastName: 'Pérez', code: 'CCB-BBB222', visitCount: 1 },
+    ] });
+    const out = await lookupKioskVisitor('ana perez');
+    expect(out && 'matches' in out ? out.matches.map((m) => m.code) : []).toEqual(['CCB-AAA111', 'CCB-BBB222']);
   });
   it('null en 404 (no encontrado) y 400 (inválido)', async () => {
     apiGetMock.mockRejectedValueOnce(new ApiError(404, 'nf'));

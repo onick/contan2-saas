@@ -101,17 +101,22 @@ export async function proxyKioskCheckin(body: unknown): Promise<Response> {
   });
 }
 
-// Lookup de visitante por código/email. Devuelve el visitante, o null si "no
-// encontrado" (404) o entrada inválida (400). Re-lanza el resto (429/5xx/red)
-// para que el route handler responda 502 y el cliente muestre error (sin caer a
-// demo: no se mezclan datos reales con demo).
-export async function lookupKioskVisitor(q: string): Promise<KioskVisitor | null> {
+// Lookup de visitante por código/email/NOMBRE COMPLETO. Resultado:
+//   { visitor }  → un único hallado (código, email o nombre sin homónimos);
+//   { matches }  → homónimos por nombre (2..5) para que el visitante elija;
+//   null         → no encontrado (404) o entrada inválida (400).
+// Re-lanza el resto (429/5xx/red) para que el route handler responda 502 y el
+// cliente muestre error (sin caer a demo: no se mezclan datos reales con demo).
+export type KioskLookupOutcome = { visitor: KioskVisitor } | { matches: KioskVisitor[] };
+
+export async function lookupKioskVisitor(q: string): Promise<KioskLookupOutcome | null> {
   try {
-    const { visitor } = await apiGet(
+    const out = await apiGet(
       `/api/v2/public/users/lookup?q=${encodeURIComponent(q)}`,
       PublicVisitorLookupResponseSchema,
     );
-    return toKioskVisitor(visitor);
+    if ('visitor' in out) return { visitor: toKioskVisitor(out.visitor) };
+    return { matches: out.matches.map(toKioskVisitor) };
   } catch (e) {
     if (e instanceof ApiError && (e.status === 404 || e.status === 400)) return null;
     throw e;

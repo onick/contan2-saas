@@ -13,7 +13,7 @@ const call = (q?: string) =>
 
 describe('GET /kiosko/lookup (proxy read-only)', () => {
   it('200 { visitor } cuando lo encuentra', async () => {
-    mock.mockResolvedValue({ firstName: 'C', lastName: 'O', code: 'CCB-1', visitCount: 1, isNew: false, companionsChildren: 0 });
+    mock.mockResolvedValue({ visitor: { firstName: 'C', lastName: 'O', code: 'CCB-1', visitCount: 1, isNew: false, companionsChildren: 0 } });
     const res = await call('CCB-1');
     expect(res.status).toBe(200);
     expect((await res.json()).visitor.code).toBe('CCB-1');
@@ -24,6 +24,18 @@ describe('GET /kiosko/lookup (proxy read-only)', () => {
     const res = await call('CCB-ZZZ999');
     expect(res.status).toBe(200);
     expect((await res.json()).visitor).toBeNull();
+  });
+
+  it('200 { matches } con homónimos por nombre (el visitante elige)', async () => {
+    mock.mockResolvedValue({ matches: [
+      { firstName: 'Ana', lastName: 'Pérez', code: 'CCB-AAA111', visitCount: 3, isNew: false, companionsChildren: 0 },
+      { firstName: 'Ana', lastName: 'Pérez', code: 'CCB-BBB222', visitCount: 1, isNew: false, companionsChildren: 0 },
+    ] });
+    const res = await call('ana perez');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.visitor).toBeNull();
+    expect(body.matches).toHaveLength(2);
   });
 
   it('400 cuando falta q', async () => {

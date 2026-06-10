@@ -8,7 +8,7 @@
 // devuelve el código real (QR = user.code).
 
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, type DbClient } from '@contan2/db';
+import { getDb, sql, type DbClient } from '@contan2/db';
 import { resolveTenantCode } from '@contan2/codes';
 import {
   PublicCheckinRequestSchema,
@@ -109,6 +109,10 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       return { error: 'Falta el parámetro q (código o correo).' };
     }
 
+    const toVisitor = (r: { code: string; first_name: string; last_name: string; visit_count: number }) => ({
+      firstName: r.first_name, lastName: r.last_name, code: r.code, visitCount: r.visit_count,
+    });
+
     let row: { code: string; first_name: string; last_name: string; visit_count: number } | undefined;
     if (q.includes('@')) {
       row = await db
@@ -121,16 +125,49 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       // Resuelve a código canónico: completo as-is, o corto + prefijo del tenant
       // (lógica en @contan2/codes · resolveTenantCode, fuente del contrato).
       const code = resolveTenantCode(q, t.codePrefix);
-      if (!code) {
-        reply.code(400);
-        return { error: 'Formato inválido. Usa tu código (CCB-XXXXXX) o tu correo.' };
+      if (code) {
+        row = await db
+          .selectFrom('users')
+          .select(['code', 'first_name', 'last_name', 'visit_count'])
+          .where('organization_id', '=', t.orgId)
+          .where('code', '=', code)
+          .executeTakeFirst();
+      } else {
+        // NOMBRE Y APELLIDO (kiosko). Anti-enumeración en endpoint público:
+        //   · exige el nombre COMPLETO (≥2 palabras) — nada de substrings de "maria";
+        //   · match EXACTO del nombre completo, case/acentos-insensible (translate
+        //     en SQL en ambos lados; la ñ se preserva);
+        //   · homónimos: hasta 5 para que el visitante elija; más → pedir código;
+        //   · excluye archivados; mismo rate-limit 15/min por org+IP.
+        const words = q.split(/\s+/).filter(Boolean);
+        if (words.length < 2) {
+          reply.code(400);
+          return { error: 'Escribe tu nombre y apellido, o usa tu código (CCB-XXXXXX) o correo.' };
+        }
+        const norm = words.join(' ');
+        const ACC = 'áéíóúüÁÉÍÓÚÜ';
+        const PLAIN = 'aeiouuAEIOUU';
+        const matches = await db
+          .selectFrom('users')
+          .select(['code', 'first_name', 'last_name', 'visit_count'])
+          .where('organization_id', '=', t.orgId)
+          .where('deleted_at', 'is', null)
+          .where(
+            sql<boolean>`lower(translate(first_name || ' ' || last_name, ${ACC}, ${PLAIN})) = lower(translate(${norm}, ${ACC}, ${PLAIN}))`,
+          )
+          .orderBy('visit_count', 'desc')
+          .limit(6)
+          .execute();
+        if (matches.length === 1) {
+          row = matches[0];
+        } else if (matches.length >= 2 && matches.length <= 5) {
+          const body: PublicVisitorLookupResponse = { matches: matches.map(toVisitor) };
+          return body;
+        } else if (matches.length > 5) {
+          reply.code(404);
+          return { error: 'Hay varias personas con ese nombre. Usa tu código (CCB-XXXXXX) o tu correo.' };
+        }
       }
-      row = await db
-        .selectFrom('users')
-        .select(['code', 'first_name', 'last_name', 'visit_count'])
-        .where('organization_id', '=', t.orgId)
-        .where('code', '=', code)
-        .executeTakeFirst();
     }
 
     if (!row) {
@@ -138,14 +175,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       return { error: 'No te encontramos con ese dato.' };
     }
 
-    const body: PublicVisitorLookupResponse = {
-      visitor: {
-        firstName: row.first_name,
-        lastName: row.last_name,
-        code: row.code,
-        visitCount: row.visit_count,
-      },
-    };
+    const body: PublicVisitorLookupResponse = { visitor: toVisitor(row) };
     return body;
   });
 
