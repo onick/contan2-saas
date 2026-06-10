@@ -66,6 +66,7 @@ export function ActivitiesTable({ activities, onView }: ActivitiesTableProps) {
                       <span className="block h-10 w-[68px] flex-none overflow-hidden rounded-lg bg-surface-container">
                         <CoverThumb
                           src={a.imageUrl ?? null}
+                          posY={a.imagePosY}
                           alt=""
                           className="h-full w-full object-cover"
                           fallback={

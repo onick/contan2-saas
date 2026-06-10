@@ -23,6 +23,8 @@ export interface Activity {
   // proyecta → las actividades reales caen al fallback de ícono; se muestra en
   // demo. Opcional: undefined/null → sin portada.
   imageUrl?: string | null;
+  // Encuadre vertical de la portada 0–100 (image_pos_y); null/undefined = centro.
+  imagePosY?: number | null;
   // Tipo crudo de la API (enum: concierto/cine/…) — para precargar el form de
   // edición. Sólo en items REALES; undefined en demo.
   type?: string;

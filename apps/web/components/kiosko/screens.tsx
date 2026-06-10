@@ -215,6 +215,7 @@ function ActivityCard({ activity: a, index, onSelect }: { activity: KioskActivit
             loading="lazy"
             onError={() => setImgError(true)}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+            style={{ objectPosition: `50% ${a.imagePosY ?? 50}%` }}
           />
         ) : (
           <div className="grid h-full w-full place-items-center" style={{ background: CAT_GRADIENT[a.category] ?? CAT_GRADIENT.Otro }}>

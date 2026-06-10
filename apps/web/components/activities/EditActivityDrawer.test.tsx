@@ -162,3 +162,44 @@ describe('EditActivityDrawer · full-fidelity', () => {
     await waitFor(() => expect(patchCalls()).toHaveLength(1));
   });
 });
+
+describe('EditActivityDrawer · portada y encuadre', () => {
+  it('sin portada: muestra el dropzone "agregar"; con portada: preview + Cambiar portada + slider', async () => {
+    mockFetch({ status: 200 });
+    renderDrawer();
+    await ready();
+    expect(screen.getByText(/no tiene portada/i)).toBeInTheDocument();
+    expect(screen.queryByRole('slider')).toBeNull();
+
+    cleanup();
+    mockFetch({ status: 200 }, { status: 200, body: { ...DETAIL, imageUrl: '/uploads/x.webp', imagePosY: 30 } });
+    renderDrawer();
+    await ready();
+    expect(screen.getByAltText(/Vista previa de la portada/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cambiar portada/ })).toBeInTheDocument();
+    expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('30');
+  });
+
+  it('mover el slider habilita Guardar y el PATCH lleva sólo imagePosY', async () => {
+    const fetchFn = mockFetch({ status: 200 }, { status: 200, body: { ...DETAIL, imageUrl: '/uploads/x.webp', imagePosY: null } });
+    const { onSaved } = renderDrawer();
+    await ready();
+    expect(saveBtn()).toBeDisabled();
+    fireEvent.change(screen.getByRole('slider'), { target: { value: '20' } });
+    expect(saveBtn()).toBeEnabled();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    const patchCall = fetchFn.mock.calls.find((c) => c[1]?.method === 'PATCH')!;
+    expect(JSON.parse(patchCall[1].body)).toEqual({ imagePosY: 20 });
+  });
+
+  it('el preview aplica el encuadre como objectPosition en vivo', async () => {
+    mockFetch({ status: 200 }, { status: 200, body: { ...DETAIL, imageUrl: '/uploads/x.webp', imagePosY: null } });
+    renderDrawer();
+    await ready();
+    const img = screen.getByAltText(/Vista previa de la portada/) as HTMLImageElement;
+    expect(img.style.objectPosition).toBe('50% 50%');
+    fireEvent.change(screen.getByRole('slider'), { target: { value: '80' } });
+    expect(img.style.objectPosition).toBe('50% 80%');
+  });
+});
