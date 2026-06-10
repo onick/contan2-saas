@@ -255,6 +255,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       date: fields.date,
       ...(fields.endDate ? { endDate: fields.endDate } : {}),
       ...(fields.capacity !== undefined && fields.capacity !== '' ? { capacity: Number(fields.capacity) } : {}),
+      ...(fields.imagePosY !== undefined && fields.imagePosY !== '' ? { imagePosY: Number(fields.imagePosY) } : {}),
       ...(fields.description ? { description: fields.description } : {}),
       ...(fields.category ? { category: fields.category } : {}),
     };
@@ -306,6 +307,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
               capacity: input.capacity,
               description: input.description,
               image_url: url,
+              image_pos_y: parsed.data.imagePosY ?? null,
               category: input.category,
               status: 'activa',
             })

@@ -137,6 +137,18 @@ run('POST /activities/with-cover · creación atómica con portada', () => {
     expect((await post(await withFile({ name: 'Otra con portada' }), TOK.owner)).statusCode).toBe(201);
   });
 
+  it('imagePosY en el multipart → persiste; inválido → 400; ausente → null', async () => {
+    const res = await post(await withFile({ imagePosY: '20' }), TOK.admin);
+    expect(res.statusCode).toBe(201);
+    expect(ActivityCreateResponseSchema.parse(res.json()).activity.imagePosY).toBe(20);
+
+    expect((await post(await withFile({ imagePosY: '101' }), TOK.admin)).statusCode).toBe(400);
+
+    const sinPos = await post(await withFile(), TOK.admin);
+    expect(sinPos.statusCode).toBe(201);
+    expect(ActivityCreateResponseSchema.parse(sinPos.json()).activity.imagePosY).toBe(null);
+  });
+
   it('falta portada → 400, sin actividad', async () => {
     const before = await countActs(orgAId);
     const res = await post(fieldParts(), TOK.admin); // sin file
