@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
-import { Download, UserPlus, SearchX } from 'lucide-react';
+import { SearchX } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { UsersTable } from '../../../components/usuarios/UsersTable';
-import { SectionHeader, Button, Card, EmptyState } from '../../../components/ui';
+import { NewUserButton } from '../../../components/usuarios/NewUserButton';
+import { SectionHeader, Card, EmptyState } from '../../../components/ui';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { DemoBanner } from '../../../components/shell/DemoBanner';
 import { SearchBar } from '../../../components/admin/SearchBar';
@@ -66,12 +67,9 @@ export default async function UsuariosPage({
     }
   }
 
-  const actions = (
-    <>
-      <Button variant="secondary"><Download size={17} strokeWidth={2} aria-hidden="true" /> Exportar</Button>
-      <Button><UserPlus size={18} strokeWidth={2} aria-hidden="true" /> Nuevo usuario</Button>
-    </>
-  );
+  // "Nuevo usuario" REAL (S1 · POST /users). "Exportar" se quitó hasta tener su
+  // endpoint (S2): cero controles inertes en superficies visibles.
+  const actions = <NewUserButton />;
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Usuarios" activeKey="usuarios">
       <div className="mx-auto w-full max-w-[1600px]">{children}</div>

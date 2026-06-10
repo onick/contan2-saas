@@ -4,13 +4,32 @@
 
 import {
   UserDetailResponseSchema, UserActivityHistoryResponseSchema, UserAffinityResponseSchema,
-  AdminCredentialResendResponseSchema, AdminUserArchiveResponseSchema,
+  AdminCredentialResendResponseSchema, AdminUserArchiveResponseSchema, AdminUserCreateResponseSchema,
   type UserDetailResponse, type UserActivityHistoryResponse, type UserAffinityResponse,
   type AdminUserUpdateRequest, type AdminCredentialResendResponse, type AdminUserArchiveResponse,
+  type AdminUserCreateRequest, type AdminUserCreateResponse,
 } from '@contan2/contracts';
 import type { ZodTypeAny, z } from 'zod';
 
 export type Result<T> = { ok: true; data: T } | { ok: false; status: number; error: string };
+
+// POST alta de visitante (S1). 201 → { user (con su código real), credential }.
+// Errores honestos: 400 validación, 409 email duplicado, 429 rate-limit, 502 red.
+export async function createUser(input: AdminUserCreateRequest): Promise<Result<AdminUserCreateResponse>> {
+  let res: Response;
+  try {
+    res = await fetch('/app/usuarios/api', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    });
+  } catch {
+    return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' };
+  }
+  let body: { error?: string } | unknown = null;
+  try { body = await res.json(); } catch { /* */ }
+  if (!res.ok) return { ok: false, status: res.status, error: (body as { error?: string })?.error ?? 'No pudimos crear el visitante.' };
+  try { return { ok: true, data: AdminUserCreateResponseSchema.parse(body) }; }
+  catch { return { ok: false, status: res.status, error: 'Respuesta inválida del servidor.' }; }
+}
 
 // PATCH editar visitante. Devuelve el detalle enriquecido actualizado o un Result
 // de error honesto (400 validación, 403 permiso, 409 email duplicado, 502 red).
