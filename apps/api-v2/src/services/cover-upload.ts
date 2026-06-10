@@ -1,7 +1,10 @@
 // apps/api-v2/src/services/cover-upload.ts · validación + procesamiento +
 // persistencia de portadas de actividad. NO confía en MIME/extensión: decide por
-// MAGIC BYTES y luego DECODE real con sharp. Salida: WebP 1600×900 (fit cover,
-// auto-orientada por EXIF). La orquestación de persistencia es atómica y hace
+// MAGIC BYTES y luego DECODE real con sharp. Salida: WebP SIN RECORTE (fit
+// inside, máx 1600×2400, auto-orientada por EXIF): se conserva la proporción
+// original para que el ENCUADRE vertical (image_pos_y + drag en el admin) tenga
+// excedente real que desplazar — el recorte a 16:9 lo hace el CSS (object-cover
+// + object-position) en cada superficie, no el servidor (no es destructivo). La orquestación de persistencia es atómica y hace
 // rollback del archivo nuevo si el UPDATE de DB falla; al reemplazar, borra el
 // archivo v2 anterior SÓLO tras el éxito (legacy preservado).
 
@@ -10,7 +13,9 @@ import { writeCoverAtomic, deleteCoverByName, deletePreviousCoverIfV2, coverUrlF
 
 export const MAX_COVER_BYTES = 5 * 1024 * 1024; // 5 MB
 export const COVER_WIDTH = 1600;
-export const COVER_HEIGHT = 900;
+// Tope de alto del lienzo (no recorta: limita la resolución de imágenes muy
+// verticales; un 9:16 entra como 1350×2400). El alto REAL depende del original.
+export const COVER_MAX_HEIGHT = 2400;
 
 export type CoverErrorCode = 'unsupported_type' | 'decode_failed' | 'update_failed';
 export class CoverError extends Error {
@@ -44,12 +49,15 @@ export function assertAllowedImage(buf: Buffer): 'jpeg' | 'png' | 'webp' {
   throw new CoverError('unsupported_type', 'Formato no permitido. Usá JPEG, PNG o WebP.');
 }
 
-// Decode REAL + normalización: auto-orient (EXIF) → cover 1600×900 → WebP.
+// Decode REAL + normalización: auto-orient (EXIF) → inside 1600×2400 (SIN
+// recorte; escala hasta tocar el lienzo por dentro, conservando proporción) →
+// WebP. withoutEnlargement:false mantiene la garantía de nitidez previa
+// (imágenes chicas se escalan hacia arriba igual que antes).
 export async function processCover(buf: Buffer): Promise<{ data: Buffer; width: number; height: number }> {
   try {
     const out = await sharp(buf)
       .rotate() // auto-orienta por EXIF y descarta metadata de orientación
-      .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'cover', position: 'centre', withoutEnlargement: false })
+      .resize(COVER_WIDTH, COVER_MAX_HEIGHT, { fit: 'inside', withoutEnlargement: false })
       .webp({ quality: 82 })
       .toBuffer({ resolveWithObject: true });
     return { data: out.data, width: out.info.width, height: out.info.height };

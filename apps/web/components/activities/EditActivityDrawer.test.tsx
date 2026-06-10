@@ -163,8 +163,8 @@ describe('EditActivityDrawer · full-fidelity', () => {
   });
 });
 
-describe('EditActivityDrawer · portada y encuadre', () => {
-  it('sin portada: muestra el dropzone "agregar"; con portada: preview + Cambiar portada + slider', async () => {
+describe('EditActivityDrawer · portada y encuadre (drag)', () => {
+  it('sin portada: dropzone "agregar"; con portada: área de reencuadre + Cambiar portada', async () => {
     mockFetch({ status: 200 });
     renderDrawer();
     await ready();
@@ -177,29 +177,51 @@ describe('EditActivityDrawer · portada y encuadre', () => {
     await ready();
     expect(screen.getByAltText(/Vista previa de la portada/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Cambiar portada/ })).toBeInTheDocument();
-    expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('30');
+    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '30');
   });
 
-  it('mover el slider habilita Guardar y el PATCH lleva sólo imagePosY', async () => {
+  it('ajustar el encuadre (flechas) habilita Guardar y el PATCH lleva sólo imagePosY', async () => {
     const fetchFn = mockFetch({ status: 200 }, { status: 200, body: { ...DETAIL, imageUrl: '/uploads/x.webp', imagePosY: null } });
     const { onSaved } = renderDrawer();
     await ready();
     expect(saveBtn()).toBeDisabled();
-    fireEvent.change(screen.getByRole('slider'), { target: { value: '20' } });
+    // jsdom no tiene layout (overflow=0): el teclado exige canPan → simular imagen
+    // con excedente medido (naturalWidth/Height + client sizes del box).
+    const box = screen.getByRole('slider');
+    const img = screen.getByAltText(/Vista previa de la portada/) as HTMLImageElement;
+    Object.defineProperty(box, 'clientWidth', { value: 640, configurable: true });
+    Object.defineProperty(box, 'clientHeight', { value: 360, configurable: true });
+    Object.defineProperty(img, 'naturalWidth', { value: 1600, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: 2400, configurable: true });
+    fireEvent.load(img); // refreshPan → canPan=true
+
+    for (let i = 0; i < 15; i++) fireEvent.keyDown(box, { key: 'ArrowDown' }); // 50 → 80
     expect(saveBtn()).toBeEnabled();
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     const patchCall = fetchFn.mock.calls.find((c) => c[1]?.method === 'PATCH')!;
-    expect(JSON.parse(patchCall[1].body)).toEqual({ imagePosY: 20 });
+    expect(JSON.parse(patchCall[1].body)).toEqual({ imagePosY: 80 });
   });
 
-  it('el preview aplica el encuadre como objectPosition en vivo', async () => {
+  it('el preview aplica el encuadre como objectPosition en vivo (drag de puntero)', async () => {
     mockFetch({ status: 200 }, { status: 200, body: { ...DETAIL, imageUrl: '/uploads/x.webp', imagePosY: null } });
     renderDrawer();
     await ready();
+    const box = screen.getByRole('slider');
     const img = screen.getByAltText(/Vista previa de la portada/) as HTMLImageElement;
     expect(img.style.objectPosition).toBe('50% 50%');
-    fireEvent.change(screen.getByRole('slider'), { target: { value: '80' } });
-    expect(img.style.objectPosition).toBe('50% 80%');
+
+    Object.defineProperty(box, 'clientWidth', { value: 640, configurable: true });
+    Object.defineProperty(box, 'clientHeight', { value: 360, configurable: true });
+    Object.defineProperty(img, 'naturalWidth', { value: 1600, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: 2400, configurable: true });
+    fireEvent.load(img);
+
+    // overflow = 640/1600*2400 − 360 = 600px → arrastrar 120px hacia arriba = +20.
+    // jsdom no implementa PointerEvent → MouseEvent con tipo pointer* (trae clientY).
+    fireEvent(box, new MouseEvent('pointerdown', { clientY: 500, bubbles: true }));
+    fireEvent(box, new MouseEvent('pointermove', { clientY: 380, bubbles: true }));
+    fireEvent(box, new MouseEvent('pointerup', { bubbles: true }));
+    expect(img.style.objectPosition).toBe('50% 70%');
   });
 });

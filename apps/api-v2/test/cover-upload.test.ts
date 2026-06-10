@@ -1,5 +1,5 @@
 // apps/api-v2/test/cover-upload.test.ts · unit (corre SIEMPRE, sin DB). Cubre
-// detección por magic bytes, decode/proceso a WebP 1600×900, path-safety,
+// detección por magic bytes, decode/proceso a WebP sin recorte (inside 1600×2400), path-safety,
 // escritura atómica, ownership v2 vs legacy, y la orquestación persistCover
 // (rollback del archivo nuevo si falla la DB; legacy preservado). Usa un
 // directorio temporal y lo limpia.
@@ -47,16 +47,28 @@ describe('detectImageKind / assertAllowedImage (magic bytes)', () => {
   });
 });
 
-describe('processCover → WebP 1600×900', () => {
-  it('re-encoda a webp exacto 1600×900', async () => {
+describe('processCover → WebP sin recorte (inside 1600×2400)', () => {
+  it('re-encoda a webp CONSERVANDO la proporción (120×80 → 1600×1067, sin recorte)', async () => {
     const out = await processCover(await png());
     expect(out.width).toBe(1600);
-    expect(out.height).toBe(900);
+    expect(out.height).toBe(1067); // 80 × (1600/120) — proporción 3:2 intacta
     expect(detectImageKind(out.data)).toBe('webp');
     const meta = await sharp(out.data).metadata();
     expect(meta.format).toBe('webp');
     expect(meta.width).toBe(1600);
-    expect(meta.height).toBe(900);
+    expect(meta.height).toBe(1067);
+  });
+  it('imagen vertical: el alto se limita a 2400 sin recortar (80×120 → 1600×2400)', async () => {
+    const tall = await sharp({ create: { width: 80, height: 120, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer();
+    const out = await processCover(tall);
+    expect(out.width).toBe(1600);
+    expect(out.height).toBe(2400);
+  });
+  it('imagen muy vertical (9:32): el alto manda y el ancho queda proporcional', async () => {
+    const sliver = await sharp({ create: { width: 90, height: 320, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer();
+    const out = await processCover(sliver);
+    expect(out.height).toBe(2400);
+    expect(out.width).toBe(675); // 90 × (2400/320)
   });
   it('lanza decode_failed con bytes inválidos', async () => {
     await expect(processCover(Buffer.from('not an image'))).rejects.toThrow(CoverError);

@@ -32,6 +32,7 @@ import type { ZodIssue } from 'zod';
 import type { Activity } from '../../lib/activities/demoData';
 import { fetchActivityDetail } from '../../lib/api/activity-detail';
 import { optimizeCover, OptimizeError, formatBytes, type OptimizeResult } from '../../lib/images/optimizeCover';
+import { CoverReframe } from './CoverReframe';
 import { IconButton, Button, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
@@ -394,15 +395,12 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
                   </div>
                 ) : cover.phase === 'ready' || loaded?.imageUrl ? (
                   <div className="mt-1">
-                    <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-line bg-surface-container">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={cover.phase === 'ready' ? cover.previewUrl : loaded!.imageUrl!}
-                        alt="Vista previa de la portada"
-                        className="h-full w-full object-cover"
-                        style={{ objectPosition: `50% ${posY}%` }}
-                      />
-                    </div>
+                    <CoverReframe
+                      src={cover.phase === 'ready' ? cover.previewUrl : loaded!.imageUrl!}
+                      posY={posY}
+                      onChange={setPosY}
+                      disabled={busy}
+                    />
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <button type="button" disabled={busy} onClick={() => fileRef.current?.click()}
                         className={cn('inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold text-ink disabled:opacity-50', focusRing)}>
@@ -415,19 +413,6 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
                         </span>
                       ) : null}
                     </div>
-                    <label className="mt-3 block">
-                      <span className="flex items-center justify-between text-[12px] text-muted">
-                        <span className="font-medium">Encuadre vertical</span>
-                        <span className="tabular-nums text-faint">{posY === 50 ? 'Centro' : posY < 50 ? `↑ ${50 - posY}` : `↓ ${posY - 50}`}</span>
-                      </span>
-                      <input
-                        type="range" min={0} max={100} step={1} value={posY} disabled={busy}
-                        onChange={(e) => setPosY(Number(e.target.value))}
-                        aria-label="Encuadre vertical de la portada (0 muestra la parte superior, 100 la inferior)"
-                        className="mt-1 w-full accent-brand"
-                      />
-                      <span className="flex justify-between text-[11px] text-faint"><span>Arriba</span><span>Centro</span><span>Abajo</span></span>
-                    </label>
                   </div>
                 ) : (
                   <button type="button" disabled={busy} aria-labelledby={`${baseId}-cover-label`} onClick={() => fileRef.current?.click()}
