@@ -32,8 +32,10 @@ function timeAgo(iso: string, skewMs: number): string {
   return `hace ${h} h`;
 }
 
-// Strip EN VIVO (paridad v1, pedido 2026-06-11): una sola línea con las 4
-// métricas en vez de 4 tarjetas — el staff las lee de un vistazo en tablet.
+// Strip de métricas (paridad v1, pedido 2026-06-11): una sola línea con las 4
+// métricas en vez de 4 tarjetas — el staff las lee de un vistazo en tablet. El
+// "EN VIVO" vive SOLO en el pill del header de la página (estaba duplicado);
+// con ese espacio entra el reloj local compacto.
 const METRIC_LABELS: { key: keyof CheckinMetricsResponse['metrics']; label: string }[] = [
   { key: 'checkinsToday', label: 'check-ins hoy' },
   { key: 'checkinsLast10Min', label: 'en últimos 10 min' },
@@ -43,7 +45,18 @@ const METRIC_LABELS: { key: keyof CheckinMetricsResponse['metrics']; label: stri
 
 
 
+// Reloj HH:MM local del dispositivo (la tablet de recepción). Tick 30s.
+function useLocalClock(): string {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  return now.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function CheckinConsole() {
+  const clock = useLocalClock();
   const [metrics, setMetrics] = useState<Async<CheckinMetricsResponse['metrics']>>({ phase: 'loading' });
   const [activities, setActivities] = useState<Async<CheckinActivityItem[]>>({ phase: 'loading' });
   const [query, setQuery] = useState('');
@@ -200,12 +213,9 @@ export function CheckinConsole() {
       {/* aria-live para feedback inmediato accesible */}
       <div id={liveId} role="status" aria-live="polite" className="sr-only">{toast?.msg ?? ''}</div>
 
-      {/* Métricas EN VIVO · strip de una línea (paridad v1; poll 30s) */}
+      {/* Métricas · strip de una línea + reloj local (paridad v1; poll 30s) */}
       <Card padding="md" className="app-reveal mt-6">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px]">
-          <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-[0.08em] text-success-fg">
-            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-success-fg motion-safe:animate-pulse" /> En vivo
-          </span>
           {metrics.phase === 'error' && !metrics.data ? (
             <span className="text-danger-fg">Métricas no disponibles — reintentá.</span>
           ) : (
@@ -221,9 +231,15 @@ export function CheckinConsole() {
               </span>
             ))
           )}
-          <IconButton label="Actualizar métricas" variant="ghost" size="sm" className="ml-auto" onClick={() => refreshLive()}>
-            <RefreshCw size={15} strokeWidth={2} aria-hidden="true" />
-          </IconButton>
+          <span className="ml-auto inline-flex items-center gap-2">
+            <span className="inline-flex items-baseline gap-1.5">
+              <span className="text-[15px] font-bold tabular-nums text-ink">{clock}</span>
+              <span className="text-[11px] text-faint">hora local</span>
+            </span>
+            <IconButton label="Actualizar métricas" variant="ghost" size="sm" onClick={() => refreshLive()}>
+              <RefreshCw size={15} strokeWidth={2} aria-hidden="true" />
+            </IconButton>
+          </span>
         </div>
       </Card>
 
