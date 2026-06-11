@@ -7,15 +7,22 @@
 // Export: el Excel branded de la actividad (#119) ya incluye a los asistentes.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, UsersRound, Search, Sparkle, FileSpreadsheet } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Loader2, UsersRound, Search, Sparkle, FileSpreadsheet, Trash2 } from 'lucide-react';
 import { AttendanceListResponseSchema, type AttendanceListItem } from '@contan2/contracts';
 import { useProfileActions } from '../usuarios/ProfileProvider';
 import { cn, focusRing } from '../ui';
 
-const HOUR = new Intl.DateTimeFormat('es-DO', { hour: '2-digit', minute: '2-digit' });
+const WHEN = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-export function AttendeesSection({ activityId, canExport }: { activityId: string; canExport: boolean }) {
+export function AttendeesSection({ activityId, canExport, onMutated }: { activityId: string; canExport: boolean; onMutated?: () => void }) {
   const { open } = useProfileActions();
+  const router = useRouter();
+  // Zafacón con confirmación en dos pasos (inline) — sólo owner/admin
+  // (canExport ≡ canWrite del gate). 204 → fila fuera, cupo devuelto en el
+  // server; refrescamos resumen del drawer (onMutated) y la página de fondo.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [items, setItems] = useState<AttendanceListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -36,6 +43,23 @@ export function AttendeesSection({ activityId, canExport }: { activityId: string
       .catch(() => { if (!ignore) setPhase('error'); });
     return () => { ignore = true; };
   }, [activityId]);
+
+  async function removeAttendance(id: string) {
+    if (deleting) return;
+    setDeleting(id);
+    try {
+      const res = await fetch(`/app/check-in/api/attendance/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (res.status === 204) {
+        setItems((prev) => prev.filter((i) => i.id !== id));
+        setTotal((t) => Math.max(0, t - 1));
+        setConfirmId(null);
+        onMutated?.();
+        router.refresh();
+      }
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -82,31 +106,51 @@ export function AttendeesSection({ activityId, canExport }: { activityId: string
           <ul className="mt-2 max-h-72 divide-y divide-line overflow-y-auto rounded-lg border border-line">
             {filtered.map((a) => (
               <li key={a.id}>
-                {a.anonymous || !a.userCode ? (
-                  <div className="flex items-center gap-3 px-3 py-2.5">
-                    <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-surface-container text-faint">
-                      <Sparkle size={14} strokeWidth={1.75} aria-hidden="true" />
-                    </span>
-                    <span className="min-w-0 flex-1 text-[13px] text-muted">Sin credencial (walk-in)</span>
-                    <Meta a={a} />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => open(a.userCode!)}
-                    className={cn('flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-page', focusRing)}
-                    aria-label={`Abrir perfil de ${a.firstName ?? ''} ${a.lastName ?? ''}`}
-                  >
-                    <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-accent-soft text-[11px] font-bold text-[#b35400]">
-                      {(a.firstName?.[0] ?? '') + (a.lastName?.[0] ?? '')}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium text-ink">{a.firstName} {a.lastName}</span>
-                      <span className="block font-mono text-[11px] tracking-wide text-faint">{a.userCode}</span>
-                    </span>
-                    <Meta a={a} />
-                  </button>
-                )}
+                <div className="flex items-center gap-2 px-3 py-2.5">
+                  {a.anonymous || !a.userCode ? (
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-surface-container text-faint">
+                        <Sparkle size={14} strokeWidth={1.75} aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1 text-[13px] text-muted">Sin credencial (walk-in)</span>
+                      <Meta a={a} />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => open(a.userCode!)}
+                      className={cn('flex min-w-0 flex-1 items-center gap-3 rounded-md text-left hover:bg-page', focusRing)}
+                      aria-label={`Abrir perfil de ${a.firstName ?? ''} ${a.lastName ?? ''}`}
+                    >
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-accent-soft text-[11px] font-bold text-[#b35400]">
+                        {(a.firstName?.[0] ?? '') + (a.lastName?.[0] ?? '')}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-medium text-ink">{a.firstName} {a.lastName}</span>
+                        <span className="block font-mono text-[11px] tracking-wide text-faint">{a.userCode}</span>
+                      </span>
+                      <Meta a={a} />
+                    </button>
+                  )}
+                  {canExport ? (
+                    confirmId === a.id ? (
+                      <span className="flex flex-none items-center gap-1">
+                        <button type="button" disabled={deleting === a.id} onClick={() => void removeAttendance(a.id)}
+                          className={cn('rounded-md bg-danger-bg px-2 py-1 text-[11px] font-semibold text-danger-fg', focusRing)}>
+                          {deleting === a.id ? 'Quitando…' : '¿Quitar?'}
+                        </button>
+                        <button type="button" onClick={() => setConfirmId(null)}
+                          className={cn('rounded-md px-1.5 py-1 text-[11px] text-faint hover:text-ink', focusRing)}>No</button>
+                      </span>
+                    ) : (
+                      <button type="button" onClick={() => setConfirmId(a.id)}
+                        aria-label="Quitar esta asistencia"
+                        className={cn('grid h-7 w-7 flex-none place-items-center rounded-md text-faint hover:bg-danger-bg hover:text-danger-fg', focusRing)}>
+                        <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+                      </button>
+                    )
+                  ) : null}
+                </div>
               </li>
             ))}
             {filtered.length === 0 ? (
@@ -126,7 +170,7 @@ export function AttendeesSection({ activityId, canExport }: { activityId: string
 function Meta({ a }: { a: AttendanceListItem }) {
   return (
     <span className="flex flex-none items-center gap-2 text-[11px] tabular-nums text-faint">
-      {HOUR.format(new Date(a.registeredAt))}
+      {WHEN.format(new Date(a.registeredAt))}
     </span>
   );
 }

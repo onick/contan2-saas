@@ -5,6 +5,7 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { ActivityDetailDrawer } from './ActivityDetailDrawer';
 import type { Activity } from '../../lib/activities/demoData';
 
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }), useSearchParams: () => new URLSearchParams(), usePathname: () => '/app/actividades' }));
 afterEach(() => { cleanup(); vi.restoreAllMocks(); document.body.style.overflow = ''; });
 
 // Actividad DEMO (statusRaw undefined) → no dispara fetchActivityDetail; footer

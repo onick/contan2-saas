@@ -49,6 +49,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
   const realId = activity?.statusRaw ? activity.id : null;
   const [desc, setDesc] = useState<{ phase: 'loading' | 'ready' | 'error'; text: string | null }>({ phase: 'loading', text: null });
   const [summary, setSummary] = useState<ActivitySummary | null>(null);
+  const [summaryKey, setSummaryKey] = useState(0); // bump al quitar asistencias
   useEffect(() => {
     if (!realId) return;
     let ignore = false;
@@ -62,7 +63,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
     // Resumen en paralelo; null (error/sin datos) → la sección no se muestra.
     void fetchActivitySummary(realId).then((sum) => { if (!ignore) setSummary(sum); });
     return () => { ignore = true; };
-  }, [realId]);
+  }, [realId, summaryKey]);
 
   // Cierre animado (scroll-lock/Escape/foco-restore los maneja el hook).
   const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: onClose });
@@ -197,7 +198,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
 
           {/* Asistentes (paridad v1 attendees, con perfil editable) · solo reales */}
           {shown.statusRaw ? (
-            <AttendeesSection activityId={shown.id} canExport={canExportAttendees} />
+            <AttendeesSection activityId={shown.id} canExport={canExportAttendees} onMutated={() => setSummaryKey((k) => k + 1)} />
           ) : null}
 
           {/* Descripción · del detalle completo (Lifecycle A2). Estado honesto. */}
