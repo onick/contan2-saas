@@ -11,10 +11,10 @@
 // aunque la fecha haya pasado. Sin DELETE. Sin botones inertes: sólo se muestran
 // las transiciones válidas del estado actual.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, XCircle, RotateCcw, Loader2, AlertTriangle } from 'lucide-react';
-import { Button, cn } from '../ui';
+import { CheckCircle2, XCircle, RotateCcw, Loader2, AlertTriangle, MoreHorizontal } from 'lucide-react';
+import { Button, IconButton, cn, focusRing } from '../ui';
 
 export type RawStatus = 'activa' | 'finalizada' | 'cancelada';
 
@@ -146,6 +146,118 @@ export function StatusActions({ id, statusRaw, onChanged }: StatusActionsProps) 
           </Button>
         ))}
       </div>
+
+      {pending ? (
+        <StatusConfirmDialog id={id} action={pending} onClose={() => setPending(null)} onChanged={onChanged} />
+      ) : null}
+    </>
+  );
+}
+
+// Variante compacta: las transiciones de estado detrás de un botón ⋯ (menú
+// accesible: aria-haspopup/expanded, role=menu, flechas ↑↓, Escape/click-afuera
+// cierran). El footer del drawer queda con las acciones primarias visibles y
+// Finalizar/Cancelar/Reactivar plegadas acá. Portal fixed anclado al botón,
+// abre hacia ARRIBA si no hay espacio abajo (el footer vive al pie del drawer).
+export function StatusActionsMenu({ id, statusRaw, onChanged }: StatusActionsProps) {
+  const btnRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pending, setPending] = useState<ActionDef | null>(null);
+
+  const actions = STATUS_ACTIONS[statusRaw] ?? [];
+
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const MENU_W = 192; // w-48
+    const estH = actions.length * 38 + 10;
+    const top = r.bottom + 4 + estH > window.innerHeight ? Math.max(8, r.top - 4 - estH) : r.bottom + 4;
+    setPos({ top, left: Math.max(8, Math.min(r.right - MENU_W, window.innerWidth - MENU_W - 8)) });
+    setOpen(true);
+  };
+  const close = () => { setOpen(false); setPos(null); };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!menuRef.current?.contains(t) && !btnRef.current?.contains(t)) close();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    const onAway = () => close();
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onAway, true);
+    window.addEventListener('resize', onAway);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onAway, true);
+      window.removeEventListener('resize', onAway);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) menuRef.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus();
+  }, [open]);
+  const onMenuKey = (e: React.KeyboardEvent) => {
+    const els = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role=menuitem]') ?? []);
+    if (els.length === 0) return;
+    const i = els.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); els[(i + 1) % els.length]?.focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); els[(i - 1 + els.length) % els.length]?.focus(); }
+    else if (e.key === 'Home') { e.preventDefault(); els[0]?.focus(); }
+    else if (e.key === 'End') { e.preventDefault(); els[els.length - 1]?.focus(); }
+  };
+
+  if (actions.length === 0) return null;
+
+  return (
+    <>
+      <div ref={btnRef} className="inline-flex">
+        <IconButton
+          label="Más acciones de la actividad"
+          variant="ghost"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => (open ? close() : openMenu())}
+        >
+          <MoreHorizontal size={18} strokeWidth={2} aria-hidden="true" />
+        </IconButton>
+      </div>
+
+      {open && pos && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label="Más acciones de la actividad"
+              onKeyDown={onMenuKey}
+              style={{ top: pos.top, left: pos.left }}
+              className="fixed z-[65] w-48 rounded-xl border border-line bg-surface p-1 shadow-xl"
+            >
+              {actions.map((a) => (
+                <button
+                  key={a.key}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { close(); setPending(a); }}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-medium',
+                    a.variant === 'danger' ? 'text-danger-fg hover:bg-danger-bg' : 'text-ink hover:bg-surface-container',
+                    focusRing,
+                  )}
+                >
+                  <a.icon size={15} strokeWidth={2} aria-hidden="true" className={a.variant === 'danger' ? undefined : 'text-muted'} />
+                  {a.label}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
 
       {pending ? (
         <StatusConfirmDialog id={id} action={pending} onClose={() => setPending(null)} onChanged={onChanged} />

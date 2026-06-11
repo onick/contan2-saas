@@ -19,7 +19,7 @@ import { fetchActivityDetail, fetchActivitySummary } from '../../lib/api/activit
 import type { ActivitySummary } from '@contan2/contracts';
 import { StatusBadge } from './StatusBadge';
 import { CoverThumb } from './CoverThumb';
-import { StatusActions } from './StatusActions';
+import { StatusActionsMenu } from './StatusActions';
 import { AttendeesSection } from './AttendeesSection';
 import { InviteAudiencePanel } from './InviteAudiencePanel';
 import { ActivityInvitationsResponseSchema, type ActivityInvitationsResponse } from '@contan2/contracts';
@@ -255,23 +255,25 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
         {/* Acciones (Lifecycle B) · sólo para actividades REALES (statusRaw). En
             demo no hay id real que editar/transicionar → vista de solo lectura. */}
         {shown.statusRaw && (onEdit || onChanged) ? (
-          <footer className="flex flex-col gap-3 border-t border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          // Primarias visibles (Invitar audiencia + Editar); Finalizar/Cancelar/
+          // Reactivar plegadas en el menú ⋯ para no saturar el pie.
+          <footer className="flex items-center justify-end gap-2 border-t border-line px-5 py-4">
             {onChanged ? (
-              <StatusActions id={shown.id} statusRaw={shown.statusRaw} onChanged={onChanged} />
-            ) : <span />}
-            <span className="flex flex-col gap-2 sm:flex-row">
-              {canExportAttendees && shown.statusRaw === 'activa' ? (
-                <Button type="button" className="w-full sm:w-auto" onClick={() => setInviteOpen(true)}
-                  style={{ backgroundColor: 'var(--color-brand-accent)' }}>
-                  <Megaphone size={16} strokeWidth={2} aria-hidden="true" /> Invitar audiencia
-                </Button>
-              ) : null}
-              {onEdit ? (
-                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => onEdit(shown)}>
-                  <Pencil size={16} strokeWidth={2} aria-hidden="true" /> Editar actividad
-                </Button>
-              ) : null}
-            </span>
+              <span className="mr-auto">
+                <StatusActionsMenu id={shown.id} statusRaw={shown.statusRaw} onChanged={onChanged} />
+              </span>
+            ) : null}
+            {canExportAttendees && shown.statusRaw === 'activa' ? (
+              <Button type="button" className="flex-1 sm:flex-none" onClick={() => setInviteOpen(true)}
+                style={{ backgroundColor: 'var(--color-brand-accent)' }}>
+                <Megaphone size={16} strokeWidth={2} aria-hidden="true" /> Invitar audiencia
+              </Button>
+            ) : null}
+            {onEdit ? (
+              <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => onEdit(shown)}>
+                <Pencil size={16} strokeWidth={2} aria-hidden="true" /> Editar actividad
+              </Button>
+            ) : null}
           </footer>
         ) : (
           <footer className="border-t border-line px-5 py-4">
