@@ -144,7 +144,9 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
   });
 
   // GET /api/v2/checkin/visitors?q=&limit= · búsqueda server-side tenant-scoped por
-  // código/nombre/apellido/email/teléfono (ILIKE). q obligatorio (≥2 chars) →
+  // código/nombre/apellido/NOMBRE COMPLETO/email/teléfono (ILIKE; el nombre
+  // completo es accent-insensitive — 'marcelino francisco' encuentra a
+  // 'Marcelino Francisco M.', mismo bug que el kiosko #122). q ≥2 chars →
   // sin resultados si está vacío/corto (evita dumps). Respuesta mínima (sin teléfono).
   app.get('/checkin/visitors', async (req, reply) => {
     const db = getDb();
@@ -174,6 +176,8 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
           eb('last_name', 'ilike', pattern),
           eb('email', 'ilike', pattern),
           eb('phone', 'ilike', pattern),
+          // Nombre COMPLETO, sin acentos en ambos lados (frases multi-palabra).
+          sql<boolean>`lower(translate(first_name || ' ' || last_name, 'áéíóúüÁÉÍÓÚÜ', 'aeiouuAEIOUU')) like '%' || lower(translate(${search.q}, 'áéíóúüÁÉÍÓÚÜ', 'aeiouuAEIOUU')) || '%'`,
         ]),
       )
       // Orden determinista: más visitas primero, desempate por created_at + id.
