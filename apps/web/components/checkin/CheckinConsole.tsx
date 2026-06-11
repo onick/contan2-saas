@@ -353,7 +353,7 @@ export function CheckinConsole() {
                       <p className="flex items-center gap-2 truncate text-sm font-medium tracking-tight text-ink">
                         <span className="truncate">{a.name}</span>
                         {isToday(a.date) ? (
-                          <span className="flex-none rounded-md bg-brand-strong px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
+                          <span className="flex-none rounded-md bg-brand-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
                         ) : null}
                       </p>
                       <p className="mt-0.5 text-xs text-faint">
@@ -364,7 +364,7 @@ export function CheckinConsole() {
                     </div>
                     <div className="flex flex-none items-center gap-2">
                       <Button size="sm" disabled={!selected || a.full || busyActivity === a.id} onClick={() => registerExisting(a)}
-                        className={selected && !a.full ? 'bg-brand-strong text-white hover:opacity-95' : undefined}>
+                        className={selected && !a.full ? 'bg-brand-accent text-white hover:opacity-95' : undefined}>
                         {busyActivity === a.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Registrar
                       </Button>
                       <Button variant="secondary" size="sm" disabled={a.full} onClick={() => openAnon(a)}>
