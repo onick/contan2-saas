@@ -136,6 +136,8 @@ run('GET /checkin/* · lectura', () => {
     expect((await visitors('beltrán')).items.some((v) => v.id === u2)).toBe(true); // apellido
     expect((await visitors('carlos@ckitest')).items.some((v) => v.id === u2)).toBe(true); // email
     expect((await visitors('333-4444')).items.some((v) => v.id === u2)).toBe(true); // teléfono
+    // NOMBRE COMPLETO multi-palabra, sin acentos (bug consola 2026-06-11):
+    expect((await visitors('sofia mendez')).items.some((v) => v.id === u1)).toBe(true);
   });
 
   it('respuesta mínima: id/código/nombre/email/visitCount, sin teléfono', async () => {
