@@ -49,6 +49,7 @@ export interface DashboardOverview {
   returnRatePct: { current: number; previous: number; deltaPct: number };
   upcoming: OverviewActivity | null;
   featured: (OverviewActivity & { periodAttendances: number }) | null;
+  topActivities: Array<OverviewActivity & { periodAttendances: number }>;
   insights: OverviewInsight[];
 }
 
@@ -65,7 +66,7 @@ export async function dashboardOverview(
   const end = sql<Date>`(${todayStart} + interval '1 day')`;
   const prevStart = sql<Date>`(${todayStart} - ${sql.lit(String(2 * days - 1))}::int * interval '1 day')`;
 
-  const [serieRows, counts, occ, ret, upcomingRow, featuredRow, emptyActive] = await Promise.all([
+  const [serieRows, counts, occ, ret, upcomingRow, topRows, emptyActive] = await Promise.all([
     // Serie diaria (día LOCAL) de asistencias del período.
     db.selectFrom('attendance')
       .select([
@@ -122,7 +123,7 @@ export async function dashboardOverview(
       .where('organization_id', '=', orgId).where('status', '=', 'activa')
       .where('date', '>', sql<Date>`now()`)
       .orderBy('date', 'asc').limit(1).executeTakeFirst(),
-    // Destacada: la de más asistencias DENTRO del período.
+    // Top del período (la #1 es la "destacada"): por asistencias DENTRO del rango.
     db.selectFrom('activities as a')
       .innerJoin('attendance as att', (j) => j
         .onRef('att.activity_id', '=', 'a.id')
@@ -132,7 +133,7 @@ export async function dashboardOverview(
       .select((eb) => eb.fn.count('att.id').as('n'))
       .where('a.organization_id', '=', orgId)
       .groupBy(['a.id', 'a.name', 'a.type', 'a.category', 'a.location', 'a.date', 'a.capacity', 'a.enrolled_count', 'a.image_url', 'a.image_pos_y'])
-      .orderBy('n', 'desc').limit(1).executeTakeFirst(),
+      .orderBy('n', 'desc').limit(5).execute(),
     // Activas futuras sin inscritos (insight).
     db.selectFrom('activities').select(db.fn.countAll<string>().as('n'))
       .where('organization_id', '=', orgId).where('status', '=', 'activa')
@@ -200,7 +201,8 @@ export async function dashboardOverview(
     avgOccupancyPct: { current: occCurr, previous: occPrev, deltaPct: deltaPct(occCurr, occPrev) },
     returnRatePct: { current: retCurrPct, previous: retPrevPct, deltaPct: deltaPct(retCurrPct, retPrevPct) },
     upcoming,
-    featured: featuredRow ? { ...toActivity(featuredRow), periodAttendances: Number(featuredRow.n) } : null,
+    featured: topRows[0] ? { ...toActivity(topRows[0]), periodAttendances: Number(topRows[0].n) } : null,
+    topActivities: topRows.map((r) => ({ ...toActivity(r), periodAttendances: Number(r.n) })),
     insights,
   };
 }
