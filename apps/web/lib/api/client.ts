@@ -39,7 +39,11 @@ export async function apiGet<T>(path: string, schema: ZodType<T>): Promise<T> {
     cache: 'no-store',
   });
   if (!res.ok) {
-    throw new ApiError(res.status, `GET ${path} → ${res.status}`);
+    // Mensaje del server si lo hay ({error}): los consumidores lo muestran al
+    // usuario (p. ej. la guía del lookup del kiosko); fallback técnico si no.
+    let serverMsg: string | null = null;
+    try { serverMsg = ((await res.json()) as { error?: string }).error ?? null; } catch { /* sin JSON */ }
+    throw new ApiError(res.status, serverMsg ?? `GET ${path} → ${res.status}`);
   }
   return schema.parse(await res.json());
 }
