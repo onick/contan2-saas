@@ -4,7 +4,7 @@
 // del flujo lo orquesta app/kiosko/page.tsx; estas reciben datos + callbacks.
 // CodeScreen y NewVisitorScreen manejan su propio estado de input local.
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import {
   Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
   Baby, Info, Minus, Plus, Film, Music, MessagesSquare, Palette, Ban, RotateCcw, type LucideIcon,
@@ -331,6 +331,13 @@ export function CodeScreen({
   const [matches, setMatches] = useState<KioskVisitor[] | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
+  // SUGERENCIAS en vivo (typeahead): sólo en el camino de NOMBRE (≥2 palabras
+  // de letras — nombre + inicio del apellido) para no permitir enumerar el
+  // padrón con prefijos sueltos; código/email siguen con Buscar explícito.
+  // Debounce 450ms + descarte de respuestas viejas; el "no encontrado" del
+  // typeahead es SILENCIOSO (la guía/notFound es del Buscar explícito).
+  const [suggests, setSuggests] = useState<KioskVisitor[] | null>(null);
+  const suggestSeq = useRef(0);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [kids, setKids] = useState(0);
@@ -338,7 +345,8 @@ export function CodeScreen({
   const search = async (e: FormEvent) => {
     e.preventDefault();
     if (query.trim().length < 3 || loading) return;
-    setLoading(true); setError(false); setNotFound(false); setResult(null); setMatches(null); setHint(null);
+    suggestSeq.current += 1; // cancela typeahead en vuelo
+    setLoading(true); setError(false); setNotFound(false); setResult(null); setMatches(null); setHint(null); setSuggests(null);
     try {
       const out = await onLookup(query.trim());
       if (out && 'matches' in out) { setMatches(out.matches); }
@@ -351,6 +359,26 @@ export function CodeScreen({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const q = query.trim();
+    const namePath = /^[\p{L}'’-]{2,}\s+[\p{L}'’-]{1,}/u.test(q) && !q.includes('@');
+    if (!namePath || loading || result || matches) { setSuggests(null); return; }
+    const mySeq = ++suggestSeq.current;
+    const t = setTimeout(async () => {
+      try {
+        const out = await onLookup(q);
+        if (mySeq !== suggestSeq.current) return;
+        if (out && 'matches' in out) setSuggests(out.matches);
+        else if (out && 'visitor' in out) setSuggests([out.visitor]);
+        else setSuggests(null);
+      } catch {
+        if (mySeq === suggestSeq.current) setSuggests(null);
+      }
+    }, 450);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   return (
     <div className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
@@ -414,6 +442,29 @@ export function CodeScreen({
                   key={m.code}
                   type="button"
                   onClick={() => { setMatches(null); setResult(m); }}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#11131a] px-4 py-3 text-left transition hover:border-[#ff8a3d]/60 hover:bg-white/5"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-[#f4f5f8]">{m.firstName} {m.lastName}</span>
+                    <span className="block text-sm tabular-nums text-[#a2a5b4]">{m.code}</span>
+                  </span>
+                  <span className="shrink-0 text-sm tabular-nums text-[#a2a5b4]">{m.visitCount} {m.visitCount === 1 ? 'visita' : 'visitas'}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {suggests && !matches && !result ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-[#191b22] p-5">
+            <p className="text-center text-[#f4f5f8]">¿Eres tú?</p>
+            <p className="mt-1 text-center text-sm text-[#a2a5b4]">Sugerencias mientras escribes · tócate para continuar.</p>
+            <div className="mt-4 flex flex-col gap-2">
+              {suggests.map((m) => (
+                <button
+                  key={m.code}
+                  type="button"
+                  onClick={() => { suggestSeq.current += 1; setSuggests(null); setResult(m); }}
                   className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#11131a] px-4 py-3 text-left transition hover:border-[#ff8a3d]/60 hover:bg-white/5"
                 >
                   <span className="min-w-0">

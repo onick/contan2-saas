@@ -26,11 +26,13 @@ import { CheckinError, checkinIdentified } from '../services/checkin-core.js';
 
 // Rate-limit detrás del limiter compartido: Redis (estado entre réplicas) si hay
 // REDIS_URL, in-memory con degradación grácil si no. Buckets SEPARADOS por
-// endpoint (lookup 15/60s · check-in 10/60s), aislados por entorno + tenant: la
+// endpoint (lookup 30/60s — sube de 15 con el typeahead del kiosko, que con
+// debounce consume 2-4 requests por búsqueda · check-in 10/60s), aislados por
+// entorno + tenant: la
 // key es `${orgId}:${ip}` (sin PII: nunca email/código/token). El lookup protege
 // contra enumeración de códigos/emails; /activities (listado no sensible) no se
 // limita.
-const lookupLimiter = createRateLimiter({ max: 15, windowMs: 60_000, prefix: endpointPrefix('public-lookup') });
+const lookupLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('public-lookup') });
 const checkinLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('public-checkin') });
 
 type TenantOnly =
