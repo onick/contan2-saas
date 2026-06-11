@@ -7,15 +7,18 @@
 // El check-in NO emite QR PNG ni manda email (eso va en el PR de credencial);
 // devuelve el código real (QR = user.code).
 
+import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { getDb, sql, type DbClient } from '@contan2/db';
 import { resolveTenantCode } from '@contan2/codes';
 import {
   PublicCheckinRequestSchema,
+  RsvpRespondRequestSchema,
   type PublicActivitiesResponse,
   type PublicActivity,
   type PublicVisitorLookupResponse,
   type PublicCheckinResponse,
+  type RsvpPreviewResponse,
 } from '@contan2/contracts';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
@@ -34,6 +37,7 @@ import { CheckinError, checkinIdentified } from '../services/checkin-core.js';
 // limita.
 const lookupLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('public-lookup') });
 const checkinLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('public-checkin') });
+const rsvpLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('public-rsvp') });
 
 type TenantOnly =
   | { ok: true; orgId: string; codePrefix: string }
@@ -251,5 +255,119 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       }
       throw e;
     }
+  });
+
+  // ── RSVP público (S3, paridad v1 /rsvp/:token) ────────────────────────────
+  // El visitante responde desde el email, sin login. Tenant por host.
+
+  app.get('/public/rsvp/:token', async (req, reply) => {
+    const db = getDb();
+    const t = await tenantOnly(db, req);
+    if (!t.ok) { reply.code(t.status); return { error: t.error }; }
+    if ((await rsvpLimiter.hit(`${t.orgId}:${req.ip}`)).limited) {
+      reply.code(429); return { error: 'Demasiados intentos. Espera un momento.' };
+    }
+    const token = (req.params as { token: string }).token;
+
+    const inv = await db.selectFrom('invitations as i')
+      .innerJoin('users as u', 'u.id', 'i.user_id')
+      .innerJoin('activities as a', 'a.id', 'i.activity_id')
+      .select(['i.status', 'i.expires_at', 'u.first_name',
+        'a.name', 'a.type', 'a.date', 'a.location', 'a.image_url', 'a.image_pos_y'])
+      .where('i.organization_id', '=', t.orgId)
+      .where('i.token', '=', token)
+      .executeTakeFirst();
+    if (!inv) { reply.code(404); return { error: 'Invitación no encontrada.' }; }
+
+    const expired = inv.status === 'pending' && new Date(inv.expires_at).getTime() < Date.now();
+    const org = await db.selectFrom('organizations').select('name').where('id', '=', t.orgId).executeTakeFirstOrThrow();
+    const body: RsvpPreviewResponse = {
+      invitation: {
+        firstName: inv.first_name,
+        status: (expired ? 'expired' : inv.status) as RsvpPreviewResponse['invitation']['status'],
+        expiresAt: new Date(inv.expires_at).toISOString(),
+        activity: {
+          name: inv.name, type: inv.type,
+          date: new Date(inv.date).toISOString(),
+          location: inv.location, imageUrl: inv.image_url, imagePosY: inv.image_pos_y,
+        },
+        organization: { name: org.name },
+      },
+    };
+    return body;
+  });
+
+  app.post('/public/rsvp/:token', async (req, reply) => {
+    const db = getDb();
+    const t = await tenantOnly(db, req);
+    if (!t.ok) { reply.code(t.status); return { error: t.error }; }
+    if ((await rsvpLimiter.hit(`${t.orgId}:${req.ip}`)).limited) {
+      reply.code(429); return { error: 'Demasiados intentos. Espera un momento.' };
+    }
+    const token = (req.params as { token: string }).token;
+    const parsed = RsvpRespondRequestSchema.safeParse(req.body);
+    if (!parsed.success) { reply.code(400); return { error: 'action debe ser yes o no.' }; }
+
+    const inv = await db.selectFrom('invitations')
+      .select(['id', 'status', 'expires_at', 'user_id', 'activity_id'])
+      .where('organization_id', '=', t.orgId).where('token', '=', token)
+      .executeTakeFirst();
+    if (!inv) { reply.code(404); return { error: 'Invitación no encontrada.' }; }
+    if (new Date(inv.expires_at).getTime() < Date.now() && inv.status === 'pending') {
+      reply.code(410); return { error: 'La invitación expiró.' };
+    }
+    if (inv.status !== 'pending') {
+      return { ok: true, alreadyResponded: true, status: inv.status };
+    }
+
+    if (parsed.data.action === 'no') {
+      await db.updateTable('invitations')
+        .set({ status: 'declined', responded_at: sql<string>`now()` as unknown as string })
+        .where('id', '=', inv.id).execute();
+      return { ok: true, status: 'declined' };
+    }
+
+    // yes → reservar cupo atómico + asistencia SIN check-in (paridad v1).
+    const result = await db.transaction().execute(async (tx) => {
+      const act = await tx.selectFrom('activities')
+        .select(['id', 'name', 'status'])
+        .where('organization_id', '=', t.orgId).where('id', '=', inv.activity_id)
+        .executeTakeFirst();
+      if (!act || act.status !== 'activa') return { error: 409 as const, msg: 'La actividad ya no está activa.' };
+
+      const existing = await tx.selectFrom('attendance').select('id')
+        .where('organization_id', '=', t.orgId)
+        .where('activity_id', '=', inv.activity_id)
+        .where('user_id', '=', inv.user_id)
+        .executeTakeFirst();
+      if (!existing) {
+        const reserved = await tx.updateTable('activities')
+          .set((eb) => ({ enrolled_count: eb('enrolled_count', '+', 1) }))
+          .where('organization_id', '=', t.orgId).where('id', '=', inv.activity_id)
+          .where(sql<boolean>`enrolled_count < capacity`)
+          .executeTakeFirst();
+        if (Number(reserved.numUpdatedRows ?? 0) === 0) return { error: 409 as const, msg: 'Cupo agotado.' };
+        const user = await tx.selectFrom('users').select(['code'])
+          .where('id', '=', inv.user_id).executeTakeFirstOrThrow();
+        await tx.insertInto('attendance').values({
+          id: randomUUID(),
+          organization_id: t.orgId,
+          user_id: inv.user_id,
+          user_code: user.code,
+          activity_id: inv.activity_id,
+          activity_name: act.name,
+          anonymous: false,
+          companions_children: 0,
+          checked_in_at: null, // reserva por RSVP; el check-in real es en puerta
+        } as never).execute();
+      }
+      await tx.updateTable('invitations')
+        .set({ status: 'confirmed', responded_at: sql<string>`now()` as unknown as string })
+        .where('id', '=', inv.id).execute();
+      return { ok: true as const, alreadyEnrolled: !!existing };
+    });
+
+    if ('error' in result) { reply.code(result.error ?? 409); return { error: result.msg }; }
+    return { ok: true, status: 'confirmed', alreadyEnrolled: result.alreadyEnrolled };
   });
 };

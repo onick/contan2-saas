@@ -113,6 +113,54 @@ function memberStatus(n: number, lastAt: Date | null, now: number): SegmentMembe
   return 'regular';
 }
 
+// Resuelve definición + user_ids de un segmento (REUTILIZABLE: lo consumen la
+// ruta de miembros y el motor de invitaciones por actividad). null = no existe.
+export async function resolveSegmentMembers(
+  db: DbClient,
+  orgId: string,
+  segId: string,
+  affs?: AffinityRow[],
+  nowMs?: number,
+): Promise<{ def: SegmentDef; ids: string[] } | null> {
+  const now = nowMs ?? Date.now();
+  const base = affs ?? (await affinityBase(db, orgId));
+
+  let def: SegmentDef | null = STATIC_DEFS.find((d) => d.id === segId) ?? null;
+  let ids: string[] | null = null;
+
+  if (segId === 'vip') ids = base.filter((a) => Number(a.n) >= VIP_MIN).map((a) => a.user_id);
+  else if (segId === 'newcomers') ids = base.filter((a) => Number(a.n) === 1).map((a) => a.user_id);
+  else if (segId === 'active') ids = base.filter((a) => memberStatus(Number(a.n), a.last_at, now) === 'activo').map((a) => a.user_id);
+  else if (segId === 'dormant') ids = base.filter((a) => memberStatus(Number(a.n), a.last_at, now) === 'dormido').map((a) => a.user_id);
+  else if (segId === 'with-email' || segId === 'without-email') {
+    const rows = await db.selectFrom('users').select('id')
+      .where('organization_id', '=', orgId)
+      .where('deleted_at', 'is', null)
+      .where('email', segId === 'with-email' ? 'is not' : 'is', null)
+      .execute();
+    ids = rows.map((r) => r.id);
+  } else if (segId.startsWith('fans-cat-')) {
+    const slug = segId.slice('fans-cat-'.length);
+    const pairs = await fanPairs(db, orgId, 'category');
+    const cat = [...new Set(pairs.map((p) => p.k))].find((c) => slugifyCategory(c) === slug);
+    if (cat) {
+      def = { id: segId, label: `Interesados en ${prettyCategory(cat)}`, description: 'Al menos una asistencia a este ciclo o categoría', group: 'categorias' };
+      ids = pairs.filter((p) => p.k === cat && Number(p.n) >= 1).map((p) => p.user_id);
+    }
+  } else if (segId.startsWith('fans-')) {
+    const t = segId.slice('fans-'.length);
+    if ((ACTIVITY_TYPES as readonly string[]).includes(t) && t !== 'otro') {
+      const th = fanThreshold(t);
+      const pairs = await fanPairs(db, orgId, 'type');
+      def = { id: segId, label: `Fans de ${TYPE_LABELS[t] ?? t}`, description: `${th} o más asistencias de ${(TYPE_LABELS[t] ?? t).toLowerCase()}`, group: 'afinidad' };
+      ids = pairs.filter((p) => p.k === t && Number(p.n) >= th).map((p) => p.user_id);
+    }
+  }
+
+  if (!def || ids === null) return null;
+  return { def, ids };
+}
+
 export const segmentsRoute: FastifyPluginAsync = async (app) => {
   // GET /api/v2/segments · catálogo + conteos en vivo. Cualquier staff.
   app.get('/segments', async (req: FastifyRequest, reply) => {
@@ -199,43 +247,12 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
     const affs = await affinityBase(db, orgId);
     const affByUser = new Map(affs.map((a) => [a.user_id, a]));
 
-    // Resuelve el conjunto de user_ids del segmento (y la definición visible).
-    let def: SegmentDef | null = STATIC_DEFS.find((d) => d.id === segId) ?? null;
-    let ids: string[] | null = null;
-
-    if (segId === 'vip') ids = affs.filter((a) => Number(a.n) >= VIP_MIN).map((a) => a.user_id);
-    else if (segId === 'newcomers') ids = affs.filter((a) => Number(a.n) === 1).map((a) => a.user_id);
-    else if (segId === 'active') ids = affs.filter((a) => memberStatus(Number(a.n), a.last_at, now) === 'activo').map((a) => a.user_id);
-    else if (segId === 'dormant') ids = affs.filter((a) => memberStatus(Number(a.n), a.last_at, now) === 'dormido').map((a) => a.user_id);
-    else if (segId === 'with-email' || segId === 'without-email') {
-      const rows = await db.selectFrom('users').select('id')
-        .where('organization_id', '=', orgId)
-        .where('deleted_at', 'is', null)
-        .where('email', segId === 'with-email' ? 'is not' : 'is', null)
-        .execute();
-      ids = rows.map((r) => r.id);
-    } else if (segId.startsWith('fans-cat-')) {
-      const slug = segId.slice('fans-cat-'.length);
-      const pairs = await fanPairs(db, orgId, 'category');
-      const cat = [...new Set(pairs.map((p) => p.k))].find((c) => slugifyCategory(c) === slug);
-      if (cat) {
-        def = { id: segId, label: `Interesados en ${prettyCategory(cat)}`, description: 'Al menos una asistencia a este ciclo o categoría', group: 'categorias' };
-        ids = pairs.filter((p) => p.k === cat && Number(p.n) >= 1).map((p) => p.user_id);
-      }
-    } else if (segId.startsWith('fans-')) {
-      const t = segId.slice('fans-'.length);
-      if ((ACTIVITY_TYPES as readonly string[]).includes(t) && t !== 'otro') {
-        const th = fanThreshold(t);
-        const pairs = await fanPairs(db, orgId, 'type');
-        def = { id: segId, label: `Fans de ${TYPE_LABELS[t] ?? t}`, description: `${th} o más asistencias de ${(TYPE_LABELS[t] ?? t).toLowerCase()}`, group: 'afinidad' };
-        ids = pairs.filter((p) => p.k === t && Number(p.n) >= th).map((p) => p.user_id);
-      }
-    }
-
-    if (!def || ids === null) {
+    const resolved = await resolveSegmentMembers(db, orgId, segId, affs, now);
+    if (!resolved) {
       reply.code(404);
       return { error: 'Segmento no encontrado.' };
     }
+    const { def, ids } = resolved;
 
     let members: SegmentMember[] = [];
     if (ids.length > 0) {
