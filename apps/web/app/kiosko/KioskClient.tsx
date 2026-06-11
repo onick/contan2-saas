@@ -38,13 +38,19 @@ function demoLookup(query: string): KioskVisitor | null {
 
 // Lookup API (modo api): proxy same-origin. 200 { visitor } (hallado) o
 // { visitor: null } (no encontrado); { matches } (homónimos por nombre, 2..5);
-// status no-ok (502) = error → throw.
-export type LookupOutcome = { visitor: KioskVisitor } | { matches: KioskVisitor[] } | null;
+// { needsFullName, hint } (entrada incompleta: falta apellido — la UI guía sin
+// ofrecer registro nuevo); status no-ok (502) = error → throw.
+export type LookupOutcome =
+  | { visitor: KioskVisitor }
+  | { matches: KioskVisitor[] }
+  | { needsFullName: true; hint: string }
+  | null;
 async function apiLookup(query: string): Promise<LookupOutcome> {
   const res = await fetch(`/kiosko/lookup?q=${encodeURIComponent(query.trim())}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`lookup ${res.status}`);
-  const data = (await res.json()) as { visitor: KioskVisitor | null; matches?: KioskVisitor[] };
+  const data = (await res.json()) as { visitor: KioskVisitor | null; matches?: KioskVisitor[]; needsFullName?: boolean; hint?: string };
   if (data.matches?.length) return { matches: data.matches };
+  if (data.needsFullName) return { needsFullName: true, hint: data.hint ?? 'Escribe tu nombre y apellido.' };
   return data.visitor ? { visitor: data.visitor } : null;
 }
 

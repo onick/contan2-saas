@@ -316,9 +316,11 @@ export function CodeScreen({
   onLookup, onFound, submitting, onNew, onBack,
 }: {
   // Async: en modo API resuelve por la red; en demo es Promise.resolve(local).
-  // null = no encontrado (404/inválido); { matches } = homónimos por nombre
-  // (el visitante elige). throw = error real (api caído/5xx/red).
-  onLookup: (query: string) => Promise<{ visitor: KioskVisitor } | { matches: KioskVisitor[] } | null>;
+  // null = no encontrado (404); { matches } = homónimos (el visitante elige);
+  // { needsFullName, hint } = entrada incompleta (p. ej. solo el nombre) — se
+  // GUÍA sin ofrecer registro nuevo (evita visitantes duplicados).
+  // throw = error real (api caído/5xx/red).
+  onLookup: (query: string) => Promise<{ visitor: KioskVisitor } | { matches: KioskVisitor[] } | { needsFullName: true; hint: string } | null>;
   onFound: (v: KioskVisitor) => void;
   submitting?: boolean; // confirmando el check-in real (modo API)
   onNew: () => void;
@@ -328,6 +330,7 @@ export function CodeScreen({
   const [result, setResult] = useState<KioskVisitor | null>(null);
   const [matches, setMatches] = useState<KioskVisitor[] | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [kids, setKids] = useState(0);
@@ -335,11 +338,12 @@ export function CodeScreen({
   const search = async (e: FormEvent) => {
     e.preventDefault();
     if (query.trim().length < 3 || loading) return;
-    setLoading(true); setError(false); setNotFound(false); setResult(null); setMatches(null);
+    setLoading(true); setError(false); setNotFound(false); setResult(null); setMatches(null); setHint(null);
     try {
       const out = await onLookup(query.trim());
       if (out && 'matches' in out) { setMatches(out.matches); }
-      else { setResult(out?.visitor ?? null); setNotFound(!out); }
+      else if (out && 'needsFullName' in out) { setHint(out.hint); }
+      else { setResult(out && 'visitor' in out ? out.visitor : null); setNotFound(!out); }
     } catch {
       // En modo API un error NO cae a demo: mostramos "intentá de nuevo".
       setError(true);
@@ -420,6 +424,13 @@ export function CodeScreen({
                 </button>
               ))}
             </div>
+          </div>
+        ) : null}
+
+        {hint ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-[#191b22] p-5 text-center">
+            <p className="text-[#f4f5f8]">Nos falta un dato</p>
+            <p className="mt-1 text-sm text-[#a2a5b4]">{hint}</p>
           </div>
         ) : null}
 

@@ -102,13 +102,18 @@ export async function proxyKioskCheckin(body: unknown): Promise<Response> {
   });
 }
 
-// Lookup de visitante por código/email/NOMBRE COMPLETO. Resultado:
-//   { visitor }  → un único hallado (código, email o nombre sin homónimos);
-//   { matches }  → homónimos por nombre (2..5) para que el visitante elija;
-//   null         → no encontrado (404) o entrada inválida (400).
-// Re-lanza el resto (429/5xx/red) para que el route handler responda 502 y el
-// cliente muestre error (sin caer a demo: no se mezclan datos reales con demo).
-export type KioskLookupOutcome = { visitor: KioskVisitor } | { matches: KioskVisitor[] };
+// Lookup de visitante por código/email/NOMBRE. Resultado:
+//   { visitor }            → un único hallado;
+//   { matches }            → homónimos por nombre (2..5) para elegir;
+//   { needsFullName, hint }→ entrada incompleta (400: falta apellido, etc.) —
+//                            la UI guía SIN ofrecer "registrarme como nuevo"
+//                            (evita duplicados por nombre a medias);
+//   null                   → no encontrado (404).
+// Re-lanza el resto (429/5xx/red) para que el route handler responda 502.
+export type KioskLookupOutcome =
+  | { visitor: KioskVisitor }
+  | { matches: KioskVisitor[] }
+  | { needsFullName: true; hint: string };
 
 export async function lookupKioskVisitor(q: string): Promise<KioskLookupOutcome | null> {
   try {
@@ -119,7 +124,10 @@ export async function lookupKioskVisitor(q: string): Promise<KioskLookupOutcome 
     if ('visitor' in out) return { visitor: toKioskVisitor(out.visitor) };
     return { matches: out.matches.map(toKioskVisitor) };
   } catch (e) {
-    if (e instanceof ApiError && (e.status === 404 || e.status === 400)) return null;
+    if (e instanceof ApiError && e.status === 400) {
+      return { needsFullName: true, hint: e.message || 'Escribe tu nombre y apellido.' };
+    }
+    if (e instanceof ApiError && e.status === 404) return null;
     throw e;
   }
 }

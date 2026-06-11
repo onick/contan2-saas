@@ -20,9 +20,10 @@ export async function GET(req: Request): Promise<Response> {
     return Response.json({ error: 'Falta el parámetro q (código o correo).' }, { status: 400 });
   }
   try {
-    const out = await lookupKioskVisitor(q); // null = no encontrado/inválido
+    const out = await lookupKioskVisitor(q); // null = no encontrado
     if (out && 'matches' in out) return Response.json({ visitor: null, matches: out.matches });
-    return Response.json({ visitor: out?.visitor ?? null });
+    if (out && 'needsFullName' in out) return Response.json({ visitor: null, needsFullName: true, hint: out.hint });
+    return Response.json({ visitor: out && 'visitor' in out ? out.visitor : null });
   } catch {
     return Response.json({ error: 'No pudimos consultar el registro. Intentá de nuevo.' }, { status: 502 });
   }
