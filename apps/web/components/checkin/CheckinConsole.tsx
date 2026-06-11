@@ -41,18 +41,9 @@ const METRIC_LABELS: { key: keyof CheckinMetricsResponse['metrics']; label: stri
   { key: 'activeActivities', label: 'activas' },
 ];
 
-// Reloj HH:MM local del dispositivo (la tablet de recepción). Tick por minuto.
-function useLocalClock(): string {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(t);
-  }, []);
-  return now.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
-}
+
 
 export function CheckinConsole() {
-  const clock = useLocalClock();
   const [metrics, setMetrics] = useState<Async<CheckinMetricsResponse['metrics']>>({ phase: 'loading' });
   const [activities, setActivities] = useState<Async<CheckinActivityItem[]>>({ phase: 'loading' });
   const [query, setQuery] = useState('');
@@ -230,15 +221,9 @@ export function CheckinConsole() {
               </span>
             ))
           )}
-          <span className="ml-auto inline-flex items-center gap-2">
-            <span className="text-right leading-tight">
-              <span className="block text-[15px] font-bold tabular-nums text-ink">{clock}</span>
-              <span className="block text-[11px] text-faint">hora local</span>
-            </span>
-            <IconButton label="Actualizar métricas" variant="ghost" size="sm" onClick={() => refreshLive()}>
-              <RefreshCw size={15} strokeWidth={2} aria-hidden="true" />
-            </IconButton>
-          </span>
+          <IconButton label="Actualizar métricas" variant="ghost" size="sm" className="ml-auto" onClick={() => refreshLive()}>
+            <RefreshCw size={15} strokeWidth={2} aria-hidden="true" />
+          </IconButton>
         </div>
       </Card>
 
