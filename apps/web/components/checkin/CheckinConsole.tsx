@@ -36,6 +36,14 @@ function timeAgo(iso: string, skewMs: number): string {
 // métricas en vez de 4 tarjetas — el staff las lee de un vistazo en tablet. El
 // "EN VIVO" vive SOLO en el pill del header de la página (estaba duplicado);
 // con ese espacio entra el reloj local compacto.
+// Actividad de HOY (fecha local del dispositivo) → chip naranja (paridad v1).
+function isToday(iso: string): boolean {
+  const d = new Date(iso);
+  const n = new Date();
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+}
+const fmtHour = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+
 const METRIC_LABELS: { key: keyof CheckinMetricsResponse['metrics']; label: string }[] = [
   { key: 'checkinsToday', label: 'check-ins hoy' },
   { key: 'checkinsLast10Min', label: 'en últimos 10 min' },
@@ -342,15 +350,21 @@ export function CheckinConsole() {
                 {activities.data?.map((a) => (
                   <li key={a.id} className="flex flex-wrap items-center gap-3 border-t border-line px-5 py-4 md:px-6">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium tracking-tight text-ink">{a.name}</p>
+                      <p className="flex items-center gap-2 truncate text-sm font-medium tracking-tight text-ink">
+                        <span className="truncate">{a.name}</span>
+                        {isToday(a.date) ? (
+                          <span className="flex-none rounded-md bg-brand-strong px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
+                        ) : null}
+                      </p>
                       <p className="mt-0.5 text-xs text-faint">
-                        {a.location} · <span className="tabular-nums">{a.enrolledCount}/{a.capacity}</span> ({a.occupancyPct}%)
+                        {a.location} · <span className="tabular-nums">{fmtHour(a.date)}</span> · <span className="tabular-nums">{a.enrolledCount}/{a.capacity}</span> ({a.occupancyPct}%)
                         {a.recentMovement > 0 ? <span className="ml-2 text-success-fg">+{a.recentMovement} en 10 min</span> : null}
                         {a.full ? <span className="ml-2 font-semibold text-danger-fg">Lleno</span> : null}
                       </p>
                     </div>
                     <div className="flex flex-none items-center gap-2">
-                      <Button size="sm" disabled={!selected || a.full || busyActivity === a.id} onClick={() => registerExisting(a)}>
+                      <Button size="sm" disabled={!selected || a.full || busyActivity === a.id} onClick={() => registerExisting(a)}
+                        className={selected && !a.full ? 'bg-brand-strong text-white hover:opacity-95' : undefined}>
                         {busyActivity === a.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Registrar
                       </Button>
                       <Button variant="secondary" size="sm" disabled={a.full} onClick={() => openAnon(a)}>
