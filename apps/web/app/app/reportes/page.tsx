@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
-import { FileBarChart2 } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { AttendanceReport } from '../../../components/reportes/AttendanceReport';
+import { PeriodReport } from '../../../components/reportes/PeriodReport';
+import { ActivityReportCard, type ReportableActivity } from '../../../components/reportes/ActivityReportCard';
 import { SectionHeader } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
+import { getActivitiesView } from '../../../lib/api/activities';
 
 // Reportes · SOLO superficies reales (auditoría 2026-06-10: se retiraron las
 // plantillas demo con botones "Generar" inertes y los "reportes recientes"
@@ -17,8 +19,12 @@ export const metadata: Metadata = {
   description: 'Generá y descargá reportes de la operación cultural',
 };
 
-export default function ReportesPage() {
+export default async function ReportesPage() {
   const branding = getLocalBranding();
+  const view = await getActivitiesView();
+  const reportables: ReportableActivity[] = (view?.activities ?? [])
+    .filter((a) => a.statusRaw) // sólo reales (id reportable)
+    .map((a) => ({ id: a.id, title: a.title, date: a.date }));
 
   return (
     <AppShell branding={branding} title="Reportes" activeKey="reportes">
@@ -27,13 +33,14 @@ export default function ReportesPage() {
           <SectionHeader level={1} title="Reportes" subtitle="Generá y descargá reportes de la operación cultural" />
         </div>
 
-        {/* Generador REAL · Asistencia por actividad (api-v2 vía BFF) */}
-        <AttendanceReport />
+        {/* S2 · Informe de período (preview con deltas + Excel/PDF branded) */}
+        <PeriodReport />
 
-        <p className="mt-8 flex items-center gap-2 text-[13px] text-faint">
-          <FileBarChart2 size={15} strokeWidth={1.75} aria-hidden="true" />
-          Próximamente: reportes PDF y Excel con tu marca, por actividad y por período (mensual/anual), como en la versión anterior.
-        </p>
+        {/* S2 · Informe por actividad (Excel/PDF branded) */}
+        <ActivityReportCard activities={reportables} />
+
+        {/* Export operativo · Asistencia por actividad (csv/xlsx/pdf tabular) */}
+        <AttendanceReport />
       </div>
     </AppShell>
   );
