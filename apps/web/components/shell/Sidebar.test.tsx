@@ -31,8 +31,23 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'Actividades' })).toHaveAttribute('href', '/app/actividades');
   });
 
-  it('muestra el nombre de la organización como brand-mark cuando no hay logo', () => {
+  it('muestra la marca del tenant sin logo: chip con icono + nombre en dos líneas', () => {
     render(<Sidebar branding={{ ...DEFAULT_BRANDING, logoUrl: null }} activeKey="dashboard" />);
-    expect(screen.getByText(DEFAULT_BRANDING.name)).toBeInTheDocument();
+    // Nombre largo partido: "Centro Cultural" arriba, "Banreservas" debajo (liviano).
+    expect(screen.getByText('Centro Cultural')).toBeInTheDocument();
+    expect(screen.getByText('Banreservas')).toBeInTheDocument();
+    // Chip de marca con el ICONO del tenant (CCB registrado → svg, no iniciales).
+    const chips = screen.getAllByTestId('brand-chip');
+    expect(chips.length).toBeGreaterThan(0);
+    expect(chips[0]?.querySelector('svg')).toBeTruthy();
+  });
+
+  it('tenant sin icono registrado: el chip cae a iniciales', () => {
+    render(<Sidebar branding={{ ...DEFAULT_BRANDING, slug: 'otro-tenant', name: 'Museo de Arte Moderno' }} activeKey="dashboard" />);
+    const chips = screen.getAllByTestId('brand-chip');
+    expect(chips[0]?.textContent).toBe('MD');
+    // Dos líneas también: "Museo de Arte" / "Moderno".
+    expect(screen.getByText('Museo de Arte')).toBeInTheDocument();
+    expect(screen.getByText('Moderno')).toBeInTheDocument();
   });
 });
