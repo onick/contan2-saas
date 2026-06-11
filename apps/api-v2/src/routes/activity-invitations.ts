@@ -25,6 +25,7 @@ import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { resolveSegmentMembers, slugifyCategory } from './segments.js';
 import { effectiveHost } from '../tenant.js';
+import { deliverInvitations, type DeliverableInvitation } from '../services/invitation-email.js';
 
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 const inviteLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('activity-invite') });
@@ -35,11 +36,11 @@ const maskEmail = (email: string): string => {
   return at <= 0 ? '***' : `${email.slice(0, 1)}***@${email.slice(at + 1)}`;
 };
 
-interface ActRow { id: string; name: string; type: string; category: string | null; date: Date; status: string }
+interface ActRow { id: string; name: string; type: string; category: string | null; date: Date; status: string; location: string; image_url: string | null }
 
 async function loadActivity(db: DbClient, orgId: string, id: string): Promise<ActRow | undefined> {
   return db.selectFrom('activities')
-    .select(['id', 'name', 'type', 'category', 'date', 'status'])
+    .select(['id', 'name', 'type', 'category', 'date', 'status', 'location', 'image_url'])
     .where('organization_id', '=', orgId).where('id', '=', id)
     .executeTakeFirst() as Promise<ActRow | undefined>;
 }
@@ -153,7 +154,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
 
     // Usuarios válidos del tenant con email.
     const users = await db.selectFrom('users')
-      .select(['id', 'email'])
+      .select(['id', 'email', 'first_name', 'last_name'])
       .where('organization_id', '=', orgId).where('deleted_at', 'is', null)
       .where('id', 'in', parsed.data.userIds)
       .execute();
@@ -162,25 +163,33 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     let created = 0;
     let reused = 0;
     let skipped = parsed.data.userIds.length - valid.length;
+    // Para la entrega por correo: creadas + reusadas pending que NUNCA se
+    // enviaron de verdad (sent_at null). Las ya enviadas no se re-mandan.
+    const deliverables: DeliverableInvitation[] = [];
 
     await db.transaction().execute(async (tx) => {
       for (const u of valid) {
-        const existing = await tx.selectFrom('invitations').select(['id', 'status'])
+        const existing = await tx.selectFrom('invitations').select(['id', 'status', 'token', 'sent_at'])
           .where('organization_id', '=', orgId)
           .where('activity_id', '=', id).where('user_id', '=', u.id)
           .executeTakeFirst();
+        const invitee = { email: u.email!, firstName: u.first_name, lastName: u.last_name };
         if (existing) {
-          if (existing.status === 'pending') reused += 1;
-          else skipped += 1; // confirmada/declinada/cancelada: no se re-invita en lote
+          if (existing.status === 'pending') {
+            reused += 1;
+            if (!existing.sent_at) deliverables.push({ invitationId: existing.id, token: existing.token, user: invitee });
+          } else skipped += 1; // confirmada/declinada/cancelada: no se re-invita en lote
           continue;
         }
-        await tx.insertInto('invitations').values({
+        const token = randomBytes(24).toString('hex');
+        const inserted = await tx.insertInto('invitations').values({
           organization_id: orgId,
           activity_id: id,
           user_id: u.id,
-          token: randomBytes(24).toString('hex'),
+          token,
           expires_at: expiresAt,
-        }).execute();
+        }).returning('id').executeTakeFirstOrThrow();
+        deliverables.push({ invitationId: inserted.id, token, user: invitee });
         created += 1;
       }
       await tx.insertInto('tenant_audit_log').values({
@@ -196,10 +205,21 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
       }).execute();
     });
 
-    // Entrega: dry-run sin RESEND (el email branded llega en el PR-3). El link
-    // /rsvp/<token> JAMÁS se loguea; sent_at queda null hasta el envío real.
+    // Entrega del email branded (PR-3): fire-and-forget FUERA de la tx, mismo
+    // patrón de deliverCredential. Sin RESEND → dry-run honesto (sent_at queda
+    // null); con key → envía y deliverInvitations marca sent_at por invitación.
+    // El link /rsvp/<token> JAMÁS se loguea.
     const dryRun = !process.env.RESEND_API_KEY;
-    req.log.info({ activity: id, created, reused, skipped, dryRun, host: effectiveHost(req), sample: valid[0] ? maskEmail(valid[0].email!) : null }, 'invitaciones de audiencia creadas');
+    // Sin host del tenant no se puede armar el link /rsvp → no se entrega
+    // (no pasa con Traefik: x-forwarded-host siempre llega).
+    const host = effectiveHost(req);
+    if (host && deliverables.length > 0) {
+      void deliverInvitations(db, orgId, host,
+        { name: act.name, date: act.date, location: act.location, imageUrl: act.image_url }, deliverables)
+        .then((d) => req.log.info({ activity: id, ...d }, 'entrega de invitaciones terminada'))
+        .catch(() => {});
+    }
+    req.log.info({ activity: id, created, reused, skipped, dryRun, host, sample: valid[0] ? maskEmail(valid[0].email!) : null }, 'invitaciones de audiencia creadas');
 
     reply.code(201);
     return { ok: true, summary: { created, reused, skipped, dryRun } };

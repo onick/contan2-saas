@@ -43,7 +43,7 @@ export function maskEmail(email: string): string {
   return email.replace(/^(.).+(@.+)$/, '$1***$2');
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -78,8 +78,9 @@ function credentialHtml(user: EmailUser, branding: OrgBranding | null, credentia
   </td></tr></table></body></html>`;
 }
 
-// Envío real vía Resend (lazy). Devuelve { id } o { error }.
-async function resendSend(apiKey: string, msg: SendMessage): Promise<{ id?: string; error?: string }> {
+// Envío real vía Resend (lazy). Devuelve { id } o { error }. Exportado para
+// que otros correos (invitación RSVP) reusen el mismo transporte.
+export async function resendSend(apiKey: string, msg: SendMessage): Promise<{ id?: string; error?: string }> {
   const resend = new Resend(apiKey);
   const r = await resend.emails.send({
     from: msg.from,
