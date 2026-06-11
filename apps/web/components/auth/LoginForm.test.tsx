@@ -122,13 +122,13 @@ describe('LoginForm', () => {
     resolve(jsonRes(200));
   });
 
-  it('NO aparece Google login, registro ni recuperación de contraseña', () => {
+  it('NO aparece Google login ni registro; SÍ la recuperación (S1)', () => {
     render(<LoginForm next="/app" />);
     expect(screen.queryByText(/google/i)).toBeNull();
     expect(screen.queryByText(/sign up|regist|crear cuenta/i)).toBeNull();
-    expect(screen.queryByText(/forgot|olvid|recuperar/i)).toBeNull();
-    // cero enlaces (no hay anchors que no funcionen).
-    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    // S1: enlace real de recuperación → /recuperar.
+    const forgot = screen.getByRole('link', { name: /¿Olvidaste tu contraseña\?/ });
+    expect(forgot).toHaveAttribute('href', '/recuperar');
   });
 
   it('botón con color de marca solicitado (#e99838 / texto #211c18) + redondeado', () => {

@@ -134,6 +134,9 @@ export function LoginForm({ next }: LoginFormProps) {
         )}
         {loading ? 'Ingresando…' : 'Ingresar'}
       </button>
+      <p className="text-center text-[13px]">
+        <a href="/recuperar" className="rounded font-medium text-muted hover:text-ink">¿Olvidaste tu contraseña?</a>
+      </p>
     </form>
   );
 }

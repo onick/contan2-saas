@@ -67,3 +67,40 @@ export async function proxyLogout(): Promise<Response> {
   }
   return redirectToLogin(up.headers.getSetCookie());
 }
+
+// ── S1: ciclo de contraseñas + sesiones ──────────────────────────────────────
+// Proxy genérico same-origin → api-v2 para forgot/reset (públicos: sólo
+// forwarding headers) y change-password/sesiones (withCookie=true reenvía
+// contan2_session). Nunca loguea bodies ni tokens.
+export async function proxyAuth(
+  method: 'POST' | 'GET' | 'DELETE',
+  path: string,
+  body: unknown | undefined,
+  withCookie: boolean,
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+    ...(await forwardingHeaders()),
+  };
+  if (withCookie) {
+    const token = (await cookies()).get(SESSION_COOKIE)?.value;
+    if (token) headers.cookie = `${SESSION_COOKIE}=${token}`;
+  }
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      cache: 'no-store',
+    });
+  } catch {
+    return Response.json({ error: 'Problema de red. Reintentá.' }, { status: 502 });
+  }
+  if (upstream.status === 204) return new Response(null, { status: 204 });
+  const text = await upstream.text();
+  return new Response(text, {
+    status: upstream.status,
+    headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
+  });
+}

@@ -30,11 +30,11 @@ describe('/login', () => {
     ).toBeInTheDocument();
   });
 
-  it('no agrega Google, registro, recuperación ni enlaces', async () => {
+  it('no agrega Google ni registro; la recuperación es el único enlace (S1)', async () => {
     await renderPage();
     expect(screen.queryByText(/google/i)).toBeNull();
     expect(screen.queryByText(/sign up|regist|crear cuenta/i)).toBeNull();
-    expect(screen.queryByText(/forgot|olvid|recuperar/i)).toBeNull();
-    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(screen.getByText(/¿Olvidaste tu contraseña\?/)).toBeInTheDocument(); // S1: recuperación real
+    expect(screen.queryAllByRole('link')).toHaveLength(1);
   });
 });
