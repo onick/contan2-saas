@@ -185,14 +185,20 @@ run('POST /auth/login + /auth/logout', () => {
     const rlIp = ip(200);
     const codes: number[] = [];
     for (let i = 0; i < 11; i += 1) {
-      // Password incorrecta a propósito: el rate-limit cuenta antes de validar.
-      codes.push((await login({ email: emailActiveA, password: 'x' }, hostA, rlIp)).statusCode);
+      // Emails INEXISTENTES (cada uno distinto): así medimos el límite por IP
+      // sin disparar el lockout por CUENTA (S1), que bloquea al 5º fallo.
+      codes.push((await login({ email: `rl-${stamp}-${i}@test.local`, password: 'x' }, hostA, rlIp)).statusCode);
     }
     expect(codes.slice(0, 10).every((c) => c === 401)).toBe(true);
     expect(codes[10]).toBe(429);
   });
 
   it('logout · revoca la sesión y limpia la cookie', async () => {
+    // Limpia el lockout que los tests de password-incorrecta acumularon sobre
+    // esta cuenta (S1: los fallos persisten en staff_members).
+    await db.updateTable('staff_members')
+      .set({ failed_attempts: 0, locked_until: null, lock_level: 0 })
+      .where('organization_id', '=', orgAId).execute();
     const res = await login({ email: emailActiveA, password: PASS }, hostA, ip(10));
     const token = res.cookies.find((c) => c.name === 'contan2_session')!.value;
 

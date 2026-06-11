@@ -131,6 +131,18 @@ export interface PlatformSessionsTable {
   revoked_at: NullableTs;
 }
 
+// staff_password_resets (migración v1 016): tokens de recovery one-shot.
+export interface StaffPasswordResetsTable {
+  id: Generated<string>;
+  staff_member_id: string;
+  token_hash: string;
+  expires_at: RequiredTs;
+  used_at: NullableTs;
+  requested_ip_hash: string | null;
+  requested_user_agent: string | null;
+  created_at: CreatedAt;
+}
+
 export interface TenantAuditLogTable {
   // BIGSERIAL: pg devuelve bigint como string para no perder precisión.
   id: Generated<string>;
@@ -249,6 +261,7 @@ export interface Database {
   staff_auth_sessions: StaffAuthSessionsTable;
   platform_admins: PlatformAdminsTable;
   platform_sessions: PlatformSessionsTable;
+  staff_password_resets: StaffPasswordResetsTable;
   tenant_audit_log: TenantAuditLogTable;
   users: UsersTable;
   activities: ActivitiesTable;
