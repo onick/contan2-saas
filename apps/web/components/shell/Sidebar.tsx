@@ -1,6 +1,6 @@
 import type { BrandingOrg } from '../../lib/branding/theme';
 import { NAV_ITEMS, NAV_GROUPS } from '../../lib/shell/nav';
-import { BrandChip, splitBrandName } from './BrandMark';
+import { BrandChip, BrandLockup, hasBrandLockup, splitBrandName } from './BrandMark';
 import { LogoutButton } from './LogoutButton';
 import { SidebarToggle } from './SidebarShell';
 
@@ -32,24 +32,38 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
         'motion-safe:transition-[width] motion-safe:duration-200 motion-safe:ease-out'
       }
     >
-      {/* Marca + toggle (en colapsado se apilan centrados) */}
-      <div className="flex items-center gap-3 px-5 py-4 group-data-[sidebar=collapsed]/shell:flex-col group-data-[sidebar=collapsed]/shell:gap-2 group-data-[sidebar=collapsed]/shell:px-0">
-        {branding.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={branding.logoUrl} alt={branding.name} className={`h-9 w-auto ${HIDE}`} />
-        ) : null}
-        {/* Chip de marca (icono del tenant en blanco; si hay logo, sólo en colapsado). */}
-        <span className={branding.logoUrl ? 'hidden group-data-[sidebar=collapsed]/shell:block' : 'block'}>
-          <BrandChip slug={branding.slug} name={branding.name} />
-        </span>
-        <span className={`min-w-0 flex-1 ${HIDE}`}>
-          <span className="block truncate text-[15px] font-semibold leading-tight tracking-tight text-ink">{nameTop}</span>
-          {nameSub ? (
-            <span className="block truncate text-[12.5px] font-light leading-tight tracking-wide text-muted">{nameSub}</span>
+      {/* Marca. Tenants con lockup oficial (CCB): LOCKUP VERTICAL a color en
+          expandido (paridad con el logo de v1, en SVG nítido) y chip con el
+          isotipo blanco en el riel; el toggle flota arriba a la derecha y se
+          re-apila centrado al colapsar. Sin lockup: chip + nombre en dos
+          líneas. Un logo subido por el tenant (logoUrl) siempre gana. */}
+      {!branding.logoUrl && hasBrandLockup(branding.slug) ? (
+        <div className="relative flex flex-col items-center px-5 pb-3 pt-4 group-data-[sidebar=collapsed]/shell:gap-2 group-data-[sidebar=collapsed]/shell:px-0 group-data-[sidebar=collapsed]/shell:py-4">
+          <BrandLockup slug={branding.slug} name={branding.name} className={`w-[164px] max-w-full ${HIDE}`} />
+          <span className="hidden group-data-[sidebar=collapsed]/shell:block">
+            <BrandChip slug={branding.slug} name={branding.name} />
+          </span>
+          <SidebarToggle className="absolute right-2 top-2 group-data-[sidebar=collapsed]/shell:static" />
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 px-5 py-4 group-data-[sidebar=collapsed]/shell:flex-col group-data-[sidebar=collapsed]/shell:gap-2 group-data-[sidebar=collapsed]/shell:px-0">
+          {branding.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={branding.logoUrl} alt={branding.name} className={`h-9 w-auto ${HIDE}`} />
           ) : null}
-        </span>
-        <SidebarToggle className="flex-none" />
-      </div>
+          {/* Chip de marca (icono del tenant en blanco; si hay logo, sólo en colapsado). */}
+          <span className={branding.logoUrl ? 'hidden group-data-[sidebar=collapsed]/shell:block' : 'block'}>
+            <BrandChip slug={branding.slug} name={branding.name} />
+          </span>
+          <span className={`min-w-0 flex-1 ${HIDE}`}>
+            <span className="block truncate text-[15px] font-semibold leading-tight tracking-tight text-ink">{nameTop}</span>
+            {nameSub ? (
+              <span className="block truncate text-[12.5px] font-light leading-tight tracking-wide text-muted">{nameSub}</span>
+            ) : null}
+          </span>
+          <SidebarToggle className="flex-none" />
+        </div>
+      )}
 
       {/* Navegación agrupada */}
       <nav aria-label="Navegación principal" className="flex-1 overflow-y-auto px-3 pb-2 group-data-[sidebar=collapsed]/shell:px-2">
