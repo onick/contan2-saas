@@ -37,10 +37,13 @@ FROM base AS runtime
 # credencial dibuja texto y sin fuentes sale en tofu (□□□). Mismo set que el
 # Dockerfile v1 del root (fonts-inter = la familia que usa el badge;
 # liberation = sustitutos métricos de Arial/Helvetica + Liberation Mono).
+# + chromium para los PDFs de reportería (puppeteer-core usa el del sistema,
+# igual que la imagen v1; PUPPETEER_EXECUTABLE_PATH default /usr/bin/chromium).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fontconfig \
     fonts-inter \
     fonts-liberation \
+    chromium \
   && rm -rf /var/lib/apt/lists/*
 ARG SOURCE_COMMIT=unknown
 LABEL org.opencontainers.image.revision="$SOURCE_COMMIT"
