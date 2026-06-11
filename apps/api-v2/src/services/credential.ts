@@ -102,18 +102,18 @@ export async function generateCredentialPng(
   <rect x="1" y="1" width="898" height="558" fill="${PAPER}" rx="28" stroke="${LINE}" stroke-width="2"/>
 
   ${logoDataUri ? `
-  <image x="64" y="36" width="300" height="156" href="${logoDataUri}" preserveAspectRatio="xMinYMid meet"/>` : `
+  <image x="64" y="26" width="390" height="203" href="${logoDataUri}" preserveAspectRatio="xMinYMid meet"/>` : `
   <text x="64" y="100" font-family="Inter, Liberation Sans, Helvetica, Arial, sans-serif" font-size="26" font-weight="800" fill="${INK}" letter-spacing="0.5">${escapeXml(tokens.orgName)}</text>`}
 
   <!-- Divisor de la columna izquierda -->
-  <line x1="64" y1="212" x2="470" y2="212" stroke="${LINE}" stroke-width="2"/>
+  <line x1="64" y1="244" x2="470" y2="244" stroke="${LINE}" stroke-width="2"/>
 
-  <text x="64" y="286" font-family="Inter, Liberation Sans, Helvetica, Arial, sans-serif" font-size="${nameSize}" font-weight="800" fill="${INK}" letter-spacing="1">${escapeXml(displayName)}</text>
-  <text x="64" y="326" font-family="Inter, Liberation Sans, Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="${MUTED}" letter-spacing="2">CREDENCIAL DE MIEMBRO</text>
+  <text x="64" y="314" font-family="Inter, Liberation Sans, Helvetica, Arial, sans-serif" font-size="${nameSize}" font-weight="800" fill="${INK}" letter-spacing="1">${escapeXml(displayName)}</text>
+  <text x="64" y="352" font-family="Inter, Liberation Sans, Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="${MUTED}" letter-spacing="2">CREDENCIAL DE MIEMBRO</text>
 
-  <rect x="64" y="368" width="44" height="4" rx="2" fill="${tokens.accent}"/>
+  <rect x="64" y="390" width="44" height="4" rx="2" fill="${tokens.accent}"/>
 
-  <text x="64" y="424" font-family="Liberation Mono, Menlo, Monaco, monospace" font-size="26" font-weight="700" fill="${INK}" letter-spacing="5">${escapeXml(user.code)}</text>
+  <text x="64" y="444" font-family="Liberation Mono, Menlo, Monaco, monospace" font-size="26" font-weight="700" fill="${INK}" letter-spacing="5">${escapeXml(user.code)}</text>
 
   <text x="64" y="496" font-family="Inter, Liberation Sans, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="${MUTED}" letter-spacing="1">Presentá este código QR en la entrada</text>
   <text x="64" y="516" font-family="Inter, Liberation Sans, Helvetica, Arial, sans-serif" font-size="12" fill="${MUTED}" fill-opacity="0.8">${escapeXml(tokens.orgName)}</text>
