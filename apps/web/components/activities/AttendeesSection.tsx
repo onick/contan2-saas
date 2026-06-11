@@ -18,6 +18,7 @@ export function AttendeesSection({ activityId, canExport }: { activityId: string
   const { open } = useProfileActions();
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [items, setItems] = useState<AttendanceListItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [q, setQ] = useState('');
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export function AttendeesSection({ activityId, canExport }: { activityId: string
         if (!r.ok) { setPhase('error'); return; }
         const body = AttendanceListResponseSchema.parse(await r.json());
         setItems(body.items);
+        setTotal(body.total);
         setPhase('ready');
       })
       .catch(() => { if (!ignore) setPhase('error'); });
@@ -47,7 +49,7 @@ export function AttendeesSection({ activityId, canExport }: { activityId: string
       <div className="flex flex-wrap items-center gap-2">
         <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
           <UsersRound size={13} strokeWidth={1.75} aria-hidden="true" /> Asistentes
-          {phase === 'ready' ? <span className="tabular-nums">({items.length})</span> : null}
+          {phase === 'ready' ? <span className="tabular-nums">({total})</span> : null}
         </p>
         {canExport && items.length > 0 ? (
           <a href={`/app/reportes/api/activity/${encodeURIComponent(activityId)}.xlsx`}
@@ -111,7 +113,10 @@ export function AttendeesSection({ activityId, canExport }: { activityId: string
               <li className="px-3 py-3 text-[13px] text-faint">Nadie coincide con ese filtro.</li>
             ) : null}
           </ul>
-          <p className="mt-1.5 text-[11px] text-faint">Tocá un asistente para ver y editar su perfil.</p>
+          <p className="mt-1.5 text-[11px] text-faint">
+            Tocá un asistente para ver y editar su perfil.
+            {total > items.length ? ` Mostrando los ${items.length} más recientes de ${total} — el Excel los incluye a todos.` : ''}
+          </p>
         </>
       )}
     </div>
