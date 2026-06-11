@@ -5,6 +5,7 @@
 // tenant (404/503) y el rate-limit del lookup.
 
 process.env.ROOT_DOMAIN = 'contan2.com';
+process.env.TRUST_PROXY = '1'; // IP por request → presupuesto de rate-limit aislado por test
 
 import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -64,6 +65,7 @@ run('slice público read-only (kiosko)', () => {
     // Homónimas de orgA (lookup por nombre → matches para elegir).
     await db.insertInto('users').values([
       { id: randomUUID(), organization_id: orgAId, code: 'CCB-ANA001', first_name: 'Ana', last_name: 'Pérez', email: null, phone: null, visit_count: 5 },
+      { id: randomUUID(), organization_id: orgAId, code: 'CCB-MAR001', first_name: 'Marcelino', last_name: 'Francisco M.', email: null, phone: null, visit_count: 2 },
       { id: randomUUID(), organization_id: orgAId, code: 'CCB-ANA002', first_name: 'Ana', last_name: 'Pérez', email: null, phone: null, visit_count: 1 },
     ]).execute();
 
@@ -95,8 +97,9 @@ run('slice público read-only (kiosko)', () => {
   });
 
   // Público: SIN cookie (la diferencia clave con los endpoints de staff).
-  const get = (url: string, host: string) =>
-    app.inject({ method: 'GET', url, headers: { host } });
+  let ipSeq = 0;
+  const get = (url: string, host: string, ip?: string) =>
+    app.inject({ method: 'GET', url, headers: { host, 'x-forwarded-for': ip ?? `10.4.${Math.floor(ipSeq / 250)}.${(ipSeq++ % 250) + 1}` } });
 
   it('GET /public/activities (sin cookie) → 200; solo activa + con cupo; aislamiento', async () => {
     const res = await get('/api/v2/public/activities', hostA);
@@ -153,11 +156,23 @@ run('slice público read-only (kiosko)', () => {
     expect((await get('/api/v2/public/users/lookup?q=MEM-PUB002', hostA)).statusCode).toBe(404);
   });
 
-  it('lookup por NOMBRE COMPLETO: exacto, case/acentos-insensible → 200 { visitor }', async () => {
+  it('lookup por NOMBRE: prefijos de palabra, case/acentos-insensible → 200 { visitor }', async () => {
     const res = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('carmen objio')}`, hostA); // sin acento
     expect(res.statusCode).toBe(200);
     const out = PublicVisitorLookupResponseSchema.parse(res.json());
     expect('visitor' in out ? out.visitor.code : null).toBe(codeU1);
+  });
+
+  it('nombre con apellido ABREVIADO/compuesto: "marcelino francisco" encuentra a "Marcelino Francisco M." (bug 2026-06-11)', async () => {
+    const res = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('marcelino francisco')}`, hostA);
+    expect(res.statusCode).toBe(200);
+    const out = PublicVisitorLookupResponseSchema.parse(res.json());
+    expect('visitor' in out ? out.visitor.code : null).toBe('CCB-MAR001');
+    // prefijos también valen: "marc fran" lo encuentra; el orden de palabras no importa
+    const pre = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('fran marcelino')}`, hostA);
+    expect('visitor' in PublicVisitorLookupResponseSchema.parse(pre.json()) ? true : false).toBe(true);
+    // pero palabras que NO son prefijo de ninguna palabra del nombre → 404
+    expect((await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('marcelino gomez')}`, hostA)).statusCode).toBe(404);
   });
 
   it('nombre: UNA sola palabra → 400 (anti-enumeración: exige nombre y apellido)', async () => {
@@ -204,7 +219,7 @@ run('slice público read-only (kiosko)', () => {
     // Inunda con códigos válidos pero inexistentes (pasan tenant + validación).
     const codes: number[] = [];
     for (let i = 0; i < 20; i += 1) {
-      codes.push((await get('/api/v2/public/users/lookup?q=CCB-RL0000', hostA)).statusCode);
+      codes.push((await get('/api/v2/public/users/lookup?q=CCB-RL0000', hostA, '10.4.99.99')).statusCode);
     }
     expect(codes).toContain(429); // en algún punto corta
   });

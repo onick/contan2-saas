@@ -71,11 +71,12 @@ describe('lookupKioskVisitor', () => {
     const out = await lookupKioskVisitor('ana perez');
     expect(out && 'matches' in out ? out.matches.map((m) => m.code) : []).toEqual(['CCB-AAA111', 'CCB-BBB222']);
   });
-  it('null en 404 (no encontrado) y 400 (inválido)', async () => {
+  it('null en 404 (no encontrado); 400 → needsFullName con el hint del server', async () => {
     apiGetMock.mockRejectedValueOnce(new ApiError(404, 'nf'));
     expect(await lookupKioskVisitor('CCB-ZZZ999')).toBeNull();
-    apiGetMock.mockRejectedValueOnce(new ApiError(400, 'bad'));
-    expect(await lookupKioskVisitor('xx')).toBeNull();
+    apiGetMock.mockRejectedValueOnce(new ApiError(400, 'Escribe tu nombre y apellido, o usa tu código (CCB-XXXXXX) o correo.'));
+    const out = await lookupKioskVisitor('Marcelino');
+    expect(out).toEqual({ needsFullName: true, hint: 'Escribe tu nombre y apellido, o usa tu código (CCB-XXXXXX) o correo.' });
   });
   it('re-lanza en 5xx (error real → no se cae a demo)', async () => {
     apiGetMock.mockRejectedValueOnce(new ApiError(502, 'down'));

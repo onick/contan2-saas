@@ -135,9 +135,12 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
           .executeTakeFirst();
       } else {
         // NOMBRE Y APELLIDO (kiosko). Anti-enumeración en endpoint público:
-        //   · exige el nombre COMPLETO (≥2 palabras) — nada de substrings de "maria";
-        //   · match EXACTO del nombre completo, case/acentos-insensible (translate
-        //     en SQL en ambos lados; la ñ se preserva);
+        //   · exige ≥2 palabras — nada de substrings de "maria" a secas;
+        //   · cada palabra escrita debe ser PREFIJO de alguna palabra del nombre
+        //     completo (case/acentos-insensible). Así "marcelino francisco"
+        //     encuentra a "Marcelino Francisco M." y "ana perez" a "Ana María
+        //     Pérez" — el match exacto anterior fallaba con apellidos dobles o
+        //     abreviados (bug real reportado 2026-06-11);
         //   · homónimos: hasta 5 para que el visitante elija; más → pedir código;
         //   · excluye archivados; mismo rate-limit 15/min por org+IP.
         const words = q.split(/\s+/).filter(Boolean);
@@ -145,17 +148,27 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
           reply.code(400);
           return { error: 'Escribe tu nombre y apellido, o usa tu código (CCB-XXXXXX) o correo.' };
         }
-        const norm = words.join(' ');
+        // Sólo letras (con acentos/ñ), apóstrofe y guión: deja las palabras
+        // LIKE-safe (sin %_\) y descarta basura. Palabra vacía tras sanear → 400.
+        const clean = words.map((w) => w.replace(/[^a-zA-ZáéíóúüñÁÉÍÓÚÜÑ'’-]/g, ''));
+        if (clean.some((w) => w.length === 0) || clean.length > 6) {
+          reply.code(400);
+          return { error: 'Escribe tu nombre y apellido, o usa tu código (CCB-XXXXXX) o correo.' };
+        }
         const ACC = 'áéíóúüÁÉÍÓÚÜ';
         const PLAIN = 'aeiouuAEIOUU';
-        const matches = await db
+        let nameQ = db
           .selectFrom('users')
           .select(['code', 'first_name', 'last_name', 'visit_count'])
           .where('organization_id', '=', t.orgId)
-          .where('deleted_at', 'is', null)
-          .where(
-            sql<boolean>`lower(translate(first_name || ' ' || last_name, ${ACC}, ${PLAIN})) = lower(translate(${norm}, ${ACC}, ${PLAIN}))`,
-          )
+          .where('deleted_at', 'is', null);
+        for (const w of clean) {
+          // Prefijo a inicio de palabra: ' nombre completo' LIKE '% palabra%'.
+          nameQ = nameQ.where(
+            sql<boolean>`' ' || lower(translate(first_name || ' ' || last_name, ${ACC}, ${PLAIN})) like '% ' || lower(translate(${w}, ${ACC}, ${PLAIN})) || '%'`,
+          );
+        }
+        const matches = await nameQ
           .orderBy('visit_count', 'desc')
           .limit(6)
           .execute();
