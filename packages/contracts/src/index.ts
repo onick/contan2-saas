@@ -266,6 +266,31 @@ export type ActivitySummary = z.infer<typeof ActivitySummarySchema>;
 export const ActivitySummaryResponseSchema = z.object({ summary: ActivitySummarySchema });
 export type ActivitySummaryResponseT = z.infer<typeof ActivitySummaryResponseSchema>;
 
+// ── Credenciales masivas (S1, paridad v1 /credentials/bulk-send) ────────────
+export const BulkCredentialsRequestSchema = z.union([
+  z.object({ codes: z.array(z.string().min(8).max(20)).min(1).max(1000), throttleMs: z.number().int().min(0).max(2000).optional() }).strict(),
+  // Conveniencia v2: toda la cohorte "con email, credencial no enviada".
+  z.object({ cohort: z.literal('noCredential'), throttleMs: z.number().int().min(0).max(2000).optional() }).strict(),
+]);
+export type BulkCredentialsRequest = z.infer<typeof BulkCredentialsRequestSchema>;
+
+export const BulkCredentialResultSchema = z.object({
+  code: z.string(),
+  status: z.enum(['sent', 'dry-run', 'skipped', 'error', 'not-found', 'invalid-format']),
+  reason: z.string().optional(),
+});
+export const BulkCredentialsResponseSchema = z.object({
+  summary: z.object({
+    total: z.number().int(),
+    sent: z.number().int(), // incluye dry-run (entrega simulada sin RESEND)
+    skipped: z.number().int(),
+    failed: z.number().int(),
+    dryRun: z.boolean(), // true = ningún email real salió (sin RESEND_API_KEY)
+  }),
+  results: z.array(BulkCredentialResultSchema),
+});
+export type BulkCredentialsResponse = z.infer<typeof BulkCredentialsResponseSchema>;
+
 // ── Invitaciones de staff (S1, paridad v1 staffManagement + auth) ───────────
 export const StaffInvitationSchema = z.object({
   id: z.string(),

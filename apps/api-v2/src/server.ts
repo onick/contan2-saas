@@ -25,6 +25,7 @@ import { publicRoute } from './routes/public.js';
 import { segmentsRoute } from './routes/segments.js';
 import { authPasswordRoute } from './routes/auth-password.js';
 import { staffInvitationsRoute } from './routes/staff-invitations.js';
+import { credentialsBulkRoute } from './routes/credentials-bulk.js';
 import { scannerRoute } from './routes/scanner.js';
 
 // Detrás de un reverse proxy (Traefik / web-v2), Fastify debe derivar `req.ip`
@@ -70,6 +71,7 @@ export function buildApp(): FastifyInstance {
   app.register(authLoginRoute, { prefix: '/api/v2' });
   app.register(authPasswordRoute, { prefix: '/api/v2' });
   app.register(staffInvitationsRoute, { prefix: '/api/v2' });
+  app.register(credentialsBulkRoute, { prefix: '/api/v2' });
   app.register(orgBrandingRoute, { prefix: '/api/v2' });
   // Endpoints read-only de negocio (tenant-scoped, sesión staff requerida).
   app.register(dashboardMetricsRoute, { prefix: '/api/v2' });
