@@ -20,6 +20,7 @@ import type { ActivitySummary } from '@contan2/contracts';
 import { StatusBadge } from './StatusBadge';
 import { CoverThumb } from './CoverThumb';
 import { StatusActions } from './StatusActions';
+import { AttendeesSection } from './AttendeesSection';
 import { Button, IconButton, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 export interface ActivityDetailDrawerProps {
@@ -29,9 +30,11 @@ export interface ActivityDetailDrawerProps {
   onEdit?: (activity: Activity) => void;
   // Tras cambiar el estado (200): el contenedor cierra + router.refresh().
   onChanged?: () => void;
+  // owner/admin: muestra "Exportar Excel" en la lista de asistentes.
+  canExportAttendees?: boolean;
 }
 
-export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: ActivityDetailDrawerProps) {
+export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, canExportAttendees = false }: ActivityDetailDrawerProps) {
   const titleId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const open = activity !== null;
@@ -190,6 +193,11 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged }: A
                 ) : null}
               </div>
             </div>
+          ) : null}
+
+          {/* Asistentes (paridad v1 attendees, con perfil editable) · solo reales */}
+          {shown.statusRaw ? (
+            <AttendeesSection activityId={shown.id} canExport={canExportAttendees} />
           ) : null}
 
           {/* Descripción · del detalle completo (Lifecycle A2). Estado honesto. */}

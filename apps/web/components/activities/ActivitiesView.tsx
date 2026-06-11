@@ -35,12 +35,14 @@ const DATE_OPTIONS: Array<{ value: DateFilter; label: string }> = [
 export interface ActivitiesViewProps {
   activities: Activity[];
   total: number;
+  // owner/admin: habilita exportar asistentes y edición del perfil del visitante.
+  canWrite?: boolean;
 }
 
 const DATE_KEYS: ReadonlySet<string> = new Set(['todas', 'proximas', 'pasadas', 'hoy', 'semana']);
 const STATUS_KEYS: ReadonlySet<string> = new Set(['todas', 'soon', 'live', 'done', 'draft', 'cancelled']);
 
-export function ActivitiesView({ activities, total }: ActivitiesViewProps) {
+export function ActivitiesView({ activities, total, canWrite = false }: ActivitiesViewProps) {
   // Filtros INICIALIZADOS desde la URL y reflejados en ella (replaceState, sin
   // recargar): sobreviven al refresh y se pueden compartir (auditoría
   // 2026-06-10: antes se perdían al navegar). El filtrado sigue en memoria.
@@ -169,6 +171,7 @@ export function ActivitiesView({ activities, total }: ActivitiesViewProps) {
         onClose={() => setSelected(null)}
         onEdit={(a) => { setSelected(null); setEditing(a); }}
         onChanged={afterMutation}
+        canExportAttendees={canWrite}
       />
       <EditActivityDrawer activity={editing} onClose={() => setEditing(null)} onSaved={afterMutation} />
     </>

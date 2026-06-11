@@ -11,6 +11,8 @@ import { DemoBanner } from '../../../components/shell/DemoBanner';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
 import { getActivitiesView } from '../../../lib/api/activities';
+import { getAdminGate } from '../../../lib/auth/session';
+import { ProfileProvider } from '../../../components/usuarios/ProfileProvider';
 import type { Activity } from '../../../lib/activities/demoData';
 import { ACTIVITIES, ACTIVITIES_KPIS } from '../../../lib/activities/demoData';
 
@@ -28,6 +30,10 @@ interface Kpi { key: string; label: string; value: string; icon: LucideIcon }
 // Sección de datos · async. KPIs server + pasa el set a la vista interactiva.
 async function ActivitiesData() {
   const view = await getActivitiesView();
+  // Perfil de visitante EDITABLE desde la lista de asistentes del detalle
+  // (mismo editor de Usuarios). owner/admin editan; operator solo lectura.
+  const gate = await getAdminGate();
+  const canWrite = gate.status === 'ok' && (gate.staff.role === 'owner' || gate.staff.role === 'admin');
   // api caída + demo no permitido (staging/prod) → indisponibilidad, NUNCA demo.
   if (!view && !isDemoFallbackAllowed()) {
     return <Unavailable inline title="Actividades no disponibles" description="No pudimos cargar las actividades. Reintentá en unos segundos." />;
@@ -68,7 +74,7 @@ async function ActivitiesData() {
       </div>
 
       {/* Filtros + vista (lista/grid) + detalle · interactivo, en memoria */}
-      <ActivitiesView activities={activities} total={total} />
+      <ProfileProvider canEdit={canWrite}><ActivitiesView activities={activities} total={total} canWrite={canWrite} /></ProfileProvider>
     </>
   );
 }
