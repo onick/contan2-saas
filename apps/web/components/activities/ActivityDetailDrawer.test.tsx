@@ -3,6 +3,7 @@ import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { ActivityDetailDrawer } from './ActivityDetailDrawer';
 import type { Activity } from '../../lib/activities/demoData';
 
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }), useSearchParams: () => new URLSearchParams(), usePathname: () => '/app/actividades' }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 const ACT: Activity = {

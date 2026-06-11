@@ -1,10 +1,11 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import { ActivitiesTable } from './ActivitiesTable';
 import { ActivitiesGrid } from './ActivitiesGrid';
 import { ActivityDetailDrawer } from './ActivityDetailDrawer';
 import { ACTIVITIES } from '../../lib/activities/demoData';
 
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }), useSearchParams: () => new URLSearchParams(), usePathname: () => '/app/actividades' }));
 afterEach(cleanup);
 
 const base = ACTIVITIES[0]!;
