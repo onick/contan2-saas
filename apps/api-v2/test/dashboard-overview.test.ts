@@ -135,6 +135,11 @@ run('GET /dashboard/overview', () => {
     const b = (await get('?period=7d', TOK.admin)).json();
     expect(b.featured.name).toBe('Del período');
     expect(b.featured.periodAttendances).toBe(3);
+    // topActivities: ranking del período; la #1 coincide con featured.
+    expect(b.topActivities.length).toBeGreaterThanOrEqual(1);
+    expect(b.topActivities[0].id).toBe(b.featured.id);
+    const counts = b.topActivities.map((t: { periodAttendances: number }) => t.periodAttendances);
+    expect([...counts].sort((x: number, y: number) => y - x)).toEqual(counts); // orden desc
   });
 
   it('period inválido cae a 30d; sin sesión → 401', async () => {

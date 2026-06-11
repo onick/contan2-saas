@@ -792,6 +792,9 @@ export const DashboardOverviewResponseSchema = z.object({
   returnRatePct: OverviewMetricSchema,
   upcoming: OverviewActivitySchema.nullable(),
   featured: OverviewActivitySchema.extend({ periodAttendances: z.number().int() }).nullable(),
+  // Top del período por asistencias (la #1 coincide con featured). Para el
+  // "resumen top de actividades" del dashboard (pedido tablet 2026-06-11).
+  topActivities: z.array(OverviewActivitySchema.extend({ periodAttendances: z.number().int() })),
   insights: z.array(z.object({
     type: z.enum(['low_enrollment', 'near_full', 'empty_activities']),
     severity: z.enum(['warning', 'info']),

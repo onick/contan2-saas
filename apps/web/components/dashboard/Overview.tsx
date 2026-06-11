@@ -177,6 +177,47 @@ export function UpcomingCard({ activity }: { activity: NonNullable<DashboardOver
 }
 
 // ── Destacada del período (la de más asistencias, REAL) ────────────────────
+// Resumen TOP de actividades del período (pedido tablet 2026-06-11): ranking
+// por asistencias con barra de ocupación; la #1 lleva su portada como acento.
+export function TopActivitiesCard({ activities, period }: {
+  activities: Array<NonNullable<DashboardOverviewResponse['featured']>>;
+  period: string;
+}) {
+  return (
+    <Card padding="md">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">Top actividades · {period}</p>
+      <ul className="mt-3 space-y-3">
+        {activities.map((a, i) => {
+          const pct = a.capacity > 0 ? Math.round((a.enrolledCount / a.capacity) * 100) : 0;
+          return (
+            <li key={a.id} className="flex items-center gap-3">
+              <span className={cn(
+                'grid h-7 w-7 flex-none place-items-center rounded-full text-[12px] font-bold tabular-nums',
+                i === 0 ? 'bg-brand-strong text-white' : 'bg-surface-container text-muted',
+              )}>{i + 1}</span>
+              {a.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={a.imageUrl} alt="" className="h-9 w-14 flex-none rounded-md object-cover"
+                  style={{ objectPosition: `50% ${a.imagePosY ?? 50}%` }} />
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium tracking-tight text-ink">{a.name}</p>
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
+                  <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(100, pct)}%` }} />
+                </div>
+              </div>
+              <span className="flex-none text-right">
+                <span className="block text-sm font-bold tabular-nums text-ink">{a.periodAttendances}</span>
+                <span className="block text-[11px] tabular-nums text-faint">{pct}% ocup.</span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
 export function FeaturedCard({ activity }: { activity: NonNullable<DashboardOverviewResponse['featured']> }) {
   const pct = activity.capacity > 0 ? Math.round((activity.enrolledCount / activity.capacity) * 100) : 0;
   return (

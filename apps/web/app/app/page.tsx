@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { QrCode, BarChart3 } from 'lucide-react';
 import { AppShell } from '../../components/shell/AppShell';
 import { RecentVisitors } from '../../components/dashboard/RecentVisitors';
-import { PeriodPills, InsightBanner, AttendanceHero, KpiCard, UpcomingCard, FeaturedCard, PERIOD_LABEL } from '../../components/dashboard/Overview';
+import { PeriodPills, InsightBanner, AttendanceHero, KpiCard, UpcomingCard, TopActivitiesCard, PERIOD_LABEL } from '../../components/dashboard/Overview';
 import { NewActivityButton } from '../../components/activities/NewActivityButton';
 import { Card, Skeleton, cn, focusRing } from '../../components/ui';
 import { Unavailable } from '../../components/shell/Unavailable';
@@ -55,7 +55,8 @@ async function OverviewData({ period }: { period: string }) {
       {/* Hero asistencias (sparkline + delta) + KPIs laterales con delta */}
       <div className="app-reveal mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
         <AttendanceHero data={data} period={label} />
-        <div className="grid min-w-0 grid-cols-1 gap-4">
+        {/* KPIs: UNA fila en tablet (sm/md); columna lateral en xl */}
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-1">
           <KpiCard label="Visitantes nuevos" value={data.newVisitors.current.toLocaleString('en-US')} metric={data.newVisitors} help="Altas de visitantes en el período" />
           <KpiCard label="Ocupación promedio" value={String(data.avgOccupancyPct.current)} suffix="%" metric={data.avgOccupancyPct} help="Promedio de inscritos/cupo de las actividades del período" />
           <KpiCard label="Tasa de retorno" value={String(data.returnRatePct.current)} suffix="%" metric={data.returnRatePct} help="Asistencias de visitantes con más de una visita" />
@@ -69,9 +70,9 @@ async function OverviewData({ period }: { period: string }) {
         </div>
       ) : null}
 
-      {/* Destacada real del período + últimos visitantes reales */}
+      {/* Resumen TOP de actividades del período + últimos visitantes reales */}
       <div className="app-reveal mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[1fr_1fr]" style={{ animationDelay: '180ms' }}>
-        {data.featured ? <FeaturedCard activity={data.featured} /> : <div className="hidden xl:block" />}
+        {data.topActivities.length > 0 ? <TopActivitiesCard activities={data.topActivities} period={label} /> : <div className="hidden xl:block" />}
         <Suspense fallback={<RecentVisitorsSkeleton />}>
           <RecentVisitorsData />
         </Suspense>
@@ -84,7 +85,7 @@ function OverviewSkeleton() {
   return (
     <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
       <Card padding="lg"><Skeleton className="h-3 w-32" /><Skeleton className="mt-3 h-9 w-24" /><Skeleton className="mt-4 h-28 w-full" /></Card>
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-1">
         {Array.from({ length: 3 }).map((_, i) => (
           <Card key={i} padding="md"><Skeleton className="h-3 w-28" /><Skeleton className="mt-2 h-8 w-20" /></Card>
         ))}
