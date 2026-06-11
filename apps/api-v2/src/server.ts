@@ -55,6 +55,15 @@ export function buildApp(): FastifyInstance {
     trustProxy: resolveTrustProxy(),
   });
 
+  // Headers de seguridad globales (auditoría 2026-06-10). API JSON: sin CSP de
+  // script (no sirve HTML); nosniff + frame DENY + referrer estricto en todo.
+  // HSTS lo emite el proxy TLS (Traefik) a nivel de dominio.
+  app.addHook('onSend', async (_req, reply) => {
+    reply.header('x-content-type-options', 'nosniff');
+    reply.header('x-frame-options', 'DENY');
+    reply.header('referrer-policy', 'no-referrer');
+  });
+
   app.register(cookie);
   // Multipart para subida de portadas. Tope duro de tamaño por archivo (5MB); el
   // endpoint cuenta las partes y exige EXACTAMENTE un archivo (rechaza 0/>1). El

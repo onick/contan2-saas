@@ -9,6 +9,7 @@
 // updated_at cambia; organization_id/enrolled_count/image_url intactos; NO DELETE.
 
 process.env.ROOT_DOMAIN = 'contan2.com';
+process.env.TRUST_PROXY = '1'; // XFF único por request → el write-limiter (30/min por org+IP) no acumula entre tests
 
 import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -113,17 +114,19 @@ run('PATCH /activities/:id (+/status) · ciclo de vida', () => {
     await db.destroy();
   });
 
+  let ipSeq = 0;
+  const nextIp = () => `10.7.${Math.floor(ipSeq / 250)}.${(ipSeq++ % 250) + 1}`;
   const patch = (id: string, body: unknown, host: string, token?: string) =>
     app.inject({
       method: 'PATCH', url: `/api/v2/activities/${id}`,
-      headers: { host, 'content-type': 'application/json' },
+      headers: { host, 'content-type': 'application/json', 'x-forwarded-for': nextIp() },
       payload: body as object,
       ...(token ? { cookies: { contan2_session: token } } : {}),
     });
   const patchStatus = (id: string, body: unknown, host: string, token?: string) =>
     app.inject({
       method: 'PATCH', url: `/api/v2/activities/${id}/status`,
-      headers: { host, 'content-type': 'application/json' },
+      headers: { host, 'content-type': 'application/json', 'x-forwarded-for': nextIp() },
       payload: body as object,
       ...(token ? { cookies: { contan2_session: token } } : {}),
     });

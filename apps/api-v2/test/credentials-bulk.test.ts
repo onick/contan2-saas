@@ -48,10 +48,15 @@ run('POST /credentials/bulk-send', () => {
     return code;
   };
 
+  let ipSeq = 0;
   const post = (body: unknown, token?: string) =>
     app.inject({
       method: 'POST', url: '/api/v2/credentials/bulk-send',
-      headers: { host: hostA, 'content-type': 'application/json', ...(token ? { cookie: `contan2_session=${token}` } : {}) },
+      headers: {
+        host: hostA, 'content-type': 'application/json',
+        'x-forwarded-for': `10.6.0.${(ipSeq++ % 250) + 1}`, // bulk-limiter 2/min por org+IP
+        ...(token ? { cookie: `contan2_session=${token}` } : {}),
+      },
       payload: body as object,
     });
 

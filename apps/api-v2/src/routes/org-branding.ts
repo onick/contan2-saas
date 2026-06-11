@@ -3,6 +3,7 @@ import { getDb } from '@contan2/db';
 import type { OrgBrandingResponse } from '@contan2/contracts';
 import { AdminBrandingUpdateRequestSchema } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
+import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { hashIp, maskEmail } from '../services/audit-mask.js';
 
 const CAN_EDIT_BRANDING = new Set(['owner', 'admin']);
@@ -11,6 +12,9 @@ const CAN_EDIT_BRANDING = new Set(['owner', 'admin']);
 // PATCH /api/v2/org/branding · edición de identidad (F5): nombre/logo/colores/sidebar.
 // El orden de checks (tenant antes que auth, cross-tenant 403) vive en
 // requireTenantStaff (guard.ts), compartido con los endpoints de negocio.
+// 20 escrituras/min por org+IP (auditoría 2026-06-10: faltaba limiter).
+const writeLimiter = createRateLimiter({ max: 20, windowMs: 60_000, prefix: endpointPrefix('branding-write') });
+
 export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
   app.get('/org/branding', async (req, reply) => {
     const db = getDb();
@@ -47,6 +51,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
     if (!CAN_EDIT_BRANDING.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para editar la identidad.' }; }
+    if ((await writeLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' }; }
 
     const parsed = AdminBrandingUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Datos de identidad inválidos.' }; }

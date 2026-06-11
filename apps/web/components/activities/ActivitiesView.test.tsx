@@ -4,7 +4,7 @@ import { ActivitiesView } from './ActivitiesView';
 import { ACTIVITIES } from '../../lib/activities/demoData';
 
 // Lifecycle B: ActivitiesView usa useRouter().refresh() tras editar/transicionar.
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 
 afterEach(cleanup);
 

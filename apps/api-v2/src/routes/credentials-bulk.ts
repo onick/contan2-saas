@@ -11,9 +11,13 @@ import { getDb, sql } from '@contan2/db';
 import { CODE_RE } from '@contan2/codes';
 import { BulkCredentialsRequestSchema, type BulkCredentialsResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
+import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { deliverCredential } from '../services/credential-delivery.js';
 
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+// 2 lotes/min por org+IP: la operación ya es serial+throttled por dentro; esto
+// evita disparar lotes en paralelo (auditoría 2026-06-10).
+const bulkLimiter = createRateLimiter({ max: 2, windowMs: 60_000, prefix: endpointPrefix('credentials-bulk') });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type ResultRow = BulkCredentialsResponse['results'][number];
@@ -27,6 +31,9 @@ export const credentialsBulkRoute: FastifyPluginAsync = async (app) => {
       reply.code(403); return { error: 'No tenés permiso para envíos masivos.' };
     }
     const orgId = guard.ctx.org.id;
+    if ((await bulkLimiter.hit(`${orgId}:${req.ip}`)).limited) {
+      reply.code(429); return { error: 'Ya hay un lote reciente en curso. Espera un minuto.' };
+    }
 
     const parsed = BulkCredentialsRequestSchema.safeParse(req.body);
     if (!parsed.success) {
