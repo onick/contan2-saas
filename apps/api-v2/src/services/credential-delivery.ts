@@ -1,7 +1,9 @@
 // apps/api-v2/src/services/credential-delivery.ts · orquesta la entrega de la
 // credencial tras un check-in: trae branding del tenant → genera PNG → envía por
-// correo (Resend, best-effort) → marca users.credential_sent_at SOLO si el envío
-// fue real (sent === true). En dry-run (sin RESEND_API_KEY) NO marca.
+// correo (Resend, best-effort) y por WHATSAPP si el visitante dejó teléfono
+// (Meta Cloud API, best-effort) → marca users.credential_sent_at SOLO si ALGÚN
+// envío fue real. En dry-run (sin RESEND_API_KEY / sin credenciales de Meta)
+// NO marca. Un visitante SOLO-teléfono también recibe su credencial.
 //
 // Vive APARTE del check-in (que ya respondió). La ruta lo dispara fire-and-forget
 // FUERA de la transacción; los tests lo llaman directo (sin flakiness).
@@ -9,6 +11,7 @@
 import type { DbClient } from '@contan2/db';
 import { generateCredentialPng, loadLogoDataUri } from './credential.js';
 import { sendCredentialEmail, type CredentialEmailDeps, type CredentialEmailResult } from './email.js';
+import { sendWhatsAppCredential, type WhatsAppDeps, type WhatsAppResult } from './whatsapp.js';
 import type { OrgBranding } from './branding-tokens.js';
 
 export interface DeliverUser {
@@ -17,15 +20,23 @@ export interface DeliverUser {
   email: string | null;
   firstName: string;
   lastName: string;
+  phone?: string | null; // si no viene, se busca en DB (los callers no lo proyectan)
 }
+
+export type DeliverDeps = CredentialEmailDeps & { whatsapp?: WhatsAppDeps };
 
 export async function deliverCredential(
   db: DbClient,
   orgId: string,
   user: DeliverUser,
-  deps: CredentialEmailDeps = {},
+  deps: DeliverDeps = {},
 ): Promise<CredentialEmailResult> {
-  if (!user.email) return { skipped: true, reason: 'sin email' };
+  // Teléfono: los call sites históricos no lo pasan → una consulta barata.
+  const phone = user.phone !== undefined
+    ? user.phone
+    : (await db.selectFrom('users').select('phone').where('id', '=', user.id).executeTakeFirst())?.phone ?? null;
+
+  if (!user.email && !phone) return { skipped: true, reason: 'sin email' };
 
   const org = await db
     .selectFrom('organizations')
@@ -48,10 +59,23 @@ export async function deliverCredential(
     ?? (org?.email_from_addr ? `${org.email_from_name || org.name} <${org.email_from_addr}>` : undefined);
   const replyTo = deps.replyTo ?? org?.email_reply_to ?? null;
 
-  const result = await sendCredentialEmail(user, branding, png, { ...deps, from, replyTo });
+  const result: CredentialEmailResult = user.email
+    ? await sendCredentialEmail(user, branding, png, { ...deps, from, replyTo })
+    : { skipped: true, reason: 'sin email' };
 
-  // Marca credential_sent_at SOLO si hubo envío real.
-  if ('sent' in result && result.sent === true) {
+  // WhatsApp en paralelo conceptual (mismo PNG): dry-run sin credenciales de
+  // Meta. El retorno del orquestador sigue siendo el del email (compat con
+  // los callers); el canal WhatsApp cuenta para credential_sent_at.
+  const wa: WhatsAppResult = await sendWhatsAppCredential(
+    { code: user.code, firstName: user.firstName, phone },
+    png,
+    deps.whatsapp ?? {},
+  );
+
+  const emailSent = 'sent' in result && result.sent === true;
+  const waSent = 'sent' in wa && wa.sent === true;
+  // Marca credential_sent_at SOLO si ALGÚN canal envió de verdad.
+  if (emailSent || waSent) {
     await db.updateTable('users')
       .set({ credential_sent_at: new Date().toISOString() })
       .where('id', '=', user.id)

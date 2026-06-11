@@ -66,4 +66,29 @@ run('deliverCredential · marca credential_sent_at sólo si sent', () => {
     expect(r).toEqual({ skipped: true, reason: 'sin email' });
     expect(await sentAt(uNoMail.id)).toBeNull();
   });
+
+  it('solo-teléfono + WhatsApp real (transporte inyectado) → marca credential_sent_at', async () => {
+    const uPhone = { id: randomUUID(), code: 'CCB-WAPP01', email: null, firstName: 'Wha', lastName: 'Tsapp' };
+    await db.insertInto('users').values({
+      id: uPhone.id, organization_id: orgId, code: uPhone.code, first_name: uPhone.firstName,
+      last_name: uPhone.lastName, email: null, phone: '809-555-0001', visit_count: 1,
+    }).execute();
+
+    // Dry-run de WhatsApp (sin credenciales de Meta) → NO marca.
+    delete process.env.WHATSAPP_TOKEN;
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const dry = await deliverCredential(db, orgId, uPhone);
+    expect(dry).toEqual({ skipped: true, reason: 'sin email' }); // retorno = canal email (compat)
+    expect(await sentAt(uPhone.id)).toBeNull();
+
+    // Envío real por WhatsApp → marca aunque no haya email.
+    const r = await deliverCredential(db, orgId, uPhone, {
+      whatsapp: { transport: {
+        uploadMedia: async () => ({ id: 'media-1' }),
+        sendTemplate: async () => ({ id: 'wamid-1' }),
+      } },
+    });
+    expect(r).toEqual({ skipped: true, reason: 'sin email' });
+    expect(await sentAt(uPhone.id)).not.toBeNull();
+  });
 });
