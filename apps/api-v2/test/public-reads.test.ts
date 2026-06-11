@@ -218,7 +218,7 @@ run('slice público read-only (kiosko)', () => {
   it('lookup: rate-limit por IP → 429 al superar el umbral', async () => {
     // Inunda con códigos válidos pero inexistentes (pasan tenant + validación).
     const codes: number[] = [];
-    for (let i = 0; i < 20; i += 1) {
+    for (let i = 0; i < 35; i += 1) { // umbral 30/min
       codes.push((await get('/api/v2/public/users/lookup?q=CCB-RL0000', hostA, '10.4.99.99')).statusCode);
     }
     expect(codes).toContain(429); // en algún punto corta
