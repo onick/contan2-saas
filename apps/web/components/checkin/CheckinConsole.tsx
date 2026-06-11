@@ -15,6 +15,7 @@ import { getCheckinMetrics, getCheckinActivities, searchCheckinVisitors, postChe
 import { NewVisitorDrawer } from './NewVisitorDrawer';
 import { CheckinScanModal } from './CheckinScanModal';
 import { Button, Card, Chip, IconButton, cn, focusRing } from '../ui';
+import { RefreshCw } from 'lucide-react';
 
 type Async<T> = { phase: 'loading' | 'ready' | 'error'; data?: T; error?: string };
 type Toast = { kind: 'success' | 'error'; msg: string } | null;
@@ -31,14 +32,27 @@ function timeAgo(iso: string, skewMs: number): string {
   return `hace ${h} h`;
 }
 
+// Strip EN VIVO (paridad v1, pedido 2026-06-11): una sola línea con las 4
+// métricas en vez de 4 tarjetas — el staff las lee de un vistazo en tablet.
 const METRIC_LABELS: { key: keyof CheckinMetricsResponse['metrics']; label: string }[] = [
-  { key: 'checkinsToday', label: 'Check-ins hoy' },
-  { key: 'checkinsLast10Min', label: 'Últimos 10 min' },
-  { key: 'uniqueVisitorsToday', label: 'Únicos hoy' },
-  { key: 'activeActivities', label: 'Actividades activas' },
+  { key: 'checkinsToday', label: 'check-ins hoy' },
+  { key: 'checkinsLast10Min', label: 'en últimos 10 min' },
+  { key: 'uniqueVisitorsToday', label: 'visitantes únicos' },
+  { key: 'activeActivities', label: 'activas' },
 ];
 
+// Reloj HH:MM local del dispositivo (la tablet de recepción). Tick por minuto.
+function useLocalClock(): string {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  return now.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function CheckinConsole() {
+  const clock = useLocalClock();
   const [metrics, setMetrics] = useState<Async<CheckinMetricsResponse['metrics']>>({ phase: 'loading' });
   const [activities, setActivities] = useState<Async<CheckinActivityItem[]>>({ phase: 'loading' });
   const [query, setQuery] = useState('');
@@ -195,21 +209,38 @@ export function CheckinConsole() {
       {/* aria-live para feedback inmediato accesible */}
       <div id={liveId} role="status" aria-live="polite" className="sr-only">{toast?.msg ?? ''}</div>
 
-      {/* Métricas (poll 30s) */}
-      <div className="app-stagger mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {METRIC_LABELS.map((m) => (
-          <Card key={m.key} padding="md">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{m.label}</p>
-            {metrics.phase === 'error' && !metrics.data ? (
-              <p className="mt-2 text-[13px] text-danger-fg">No disponible</p>
-            ) : (
-              <p className="mt-2 text-3xl font-bold tabular-nums text-ink">
-                {metrics.data ? metrics.data[m.key] : <span className="inline-block h-7 w-10 animate-pulse rounded bg-surface-container align-middle" />}
-              </p>
-            )}
-          </Card>
-        ))}
-      </div>
+      {/* Métricas EN VIVO · strip de una línea (paridad v1; poll 30s) */}
+      <Card padding="md" className="app-reveal mt-6">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px]">
+          <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-[0.08em] text-success-fg">
+            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-success-fg motion-safe:animate-pulse" /> En vivo
+          </span>
+          {metrics.phase === 'error' && !metrics.data ? (
+            <span className="text-danger-fg">Métricas no disponibles — reintentá.</span>
+          ) : (
+            METRIC_LABELS.map((m, i) => (
+              <span key={m.key} className="inline-flex items-baseline gap-1.5 text-muted">
+                {i > 0 ? <span aria-hidden="true" className="text-faint">·</span> : null}
+                <span className="text-[15px] font-bold tabular-nums text-ink">
+                  {metrics.data
+                    ? metrics.data[m.key]
+                    : <span className="inline-block h-4 w-6 animate-pulse rounded bg-surface-container align-middle" />}
+                </span>
+                {m.label}
+              </span>
+            ))
+          )}
+          <span className="ml-auto inline-flex items-center gap-2">
+            <span className="text-right leading-tight">
+              <span className="block text-[15px] font-bold tabular-nums text-ink">{clock}</span>
+              <span className="block text-[11px] text-faint">hora local</span>
+            </span>
+            <IconButton label="Actualizar métricas" variant="ghost" size="sm" onClick={() => refreshLive()}>
+              <RefreshCw size={15} strokeWidth={2} aria-hidden="true" />
+            </IconButton>
+          </span>
+        </div>
+      </Card>
 
       <div className="app-reveal mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]" style={{ animationDelay: '120ms' }}>
         <div className="flex min-w-0 flex-col gap-4">
