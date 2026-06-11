@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { AppShell } from '../../../components/shell/AppShell';
 import { TeamTable } from '../../../components/equipo/TeamTable';
+import { InvitationsSection } from '../../../components/equipo/InvitationsSection';
 import { SectionHeader } from '../../../components/ui';
 import { getLocalBranding } from '../../../lib/branding/config';
 import { getAdminGate } from '../../../lib/auth/session';
@@ -27,6 +28,11 @@ export default async function EquipoPage() {
         <div className="app-reveal mt-6" style={{ animationDelay: '80ms' }}>
           <TeamTable currentStaffId={me?.id} currentRole={me?.role} />
         </div>
+        {me && (me.role === 'owner' || me.role === 'admin') ? (
+          <div className="app-reveal mt-5" style={{ animationDelay: '140ms' }}>
+            <InvitationsSection canInviteOwner={me.role === 'owner'} />
+          </div>
+        ) : null}
       </div>
     </AppShell>
   );
