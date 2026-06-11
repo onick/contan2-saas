@@ -259,7 +259,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
           // Reactivar plegadas en el menú ⋯ para no saturar el pie.
           <footer className="flex items-center justify-end gap-2 border-t border-line px-5 py-4">
             {canExportAttendees && shown.statusRaw === 'activa' ? (
-              <Button type="button" className="flex-1 sm:flex-none" onClick={() => setInviteOpen(true)}
+              <Button type="button" className="mr-auto flex-1 sm:flex-none" onClick={() => setInviteOpen(true)}
                 style={{ backgroundColor: 'var(--color-brand-accent)' }}>
                 <Megaphone size={16} strokeWidth={2} aria-hidden="true" /> Invitar audiencia
               </Button>
