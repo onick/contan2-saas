@@ -403,6 +403,84 @@ export const SegmentMembersResponseSchema = z.object({
   total: z.number().int(),
 });
 export type SegmentMembersResponse = z.infer<typeof SegmentMembersResponseSchema>;
+
+// ── RSVP · invitaciones de VISITANTES a actividades (S3, paridad v1) ─────────
+export const InviteCandidateSchema = z.object({
+  id: z.string(),
+  code: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string(),
+  totalAttendances: z.number().int(),
+});
+export type InviteCandidate = z.infer<typeof InviteCandidateSchema>;
+
+export const InviteCandidatesResponseSchema = z.object({
+  segment: SegmentSchema, // el aplicado (sugerido o el pedido por ?segment=)
+  suggestedSegmentId: z.string(), // lo que la actividad sugiere por sí misma
+  candidates: z.array(InviteCandidateSchema),
+  excluded: z.object({
+    alreadyRegistered: z.number().int(),
+    alreadyInvited: z.number().int(),
+    noEmail: z.number().int(),
+  }),
+});
+export type InviteCandidatesResponse = z.infer<typeof InviteCandidatesResponseSchema>;
+
+export const ActivityInvitesCreateRequestSchema = z.object({
+  userIds: z.array(z.string().min(1)).min(1).max(500),
+}).strict();
+export type ActivityInvitesCreateRequest = z.infer<typeof ActivityInvitesCreateRequestSchema>;
+
+export const ActivityInvitationSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  code: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().nullable(),
+  status: z.enum(['pending', 'confirmed', 'declined', 'expired', 'canceled']),
+  sentAt: z.string().nullable(),
+  respondedAt: z.string().nullable(),
+  expiresAt: z.string(),
+  createdAt: z.string(),
+});
+export type ActivityInvitation = z.infer<typeof ActivityInvitationSchema>;
+
+export const ActivityInvitationsResponseSchema = z.object({
+  summary: z.object({
+    total: z.number().int(),
+    pending: z.number().int(),
+    confirmed: z.number().int(),
+    declined: z.number().int(),
+    expired: z.number().int(),
+    canceled: z.number().int(),
+  }),
+  invitations: z.array(ActivityInvitationSchema),
+});
+export type ActivityInvitationsResponse = z.infer<typeof ActivityInvitationsResponseSchema>;
+
+export const RsvpPreviewResponseSchema = z.object({
+  invitation: z.object({
+    firstName: z.string(),
+    status: z.enum(['pending', 'confirmed', 'declined', 'expired', 'canceled']),
+    expiresAt: z.string(),
+    activity: z.object({
+      name: z.string(),
+      type: z.string(),
+      date: z.string(),
+      location: z.string(),
+      imageUrl: z.string().nullable(),
+      imagePosY: z.number().int().nullable(),
+    }),
+    organization: z.object({ name: z.string() }),
+  }),
+});
+export type RsvpPreviewResponse = z.infer<typeof RsvpPreviewResponseSchema>;
+
+export const RsvpRespondRequestSchema = z.object({ action: z.enum(['yes', 'no']) }).strict();
+export type RsvpRespondRequest = z.infer<typeof RsvpRespondRequestSchema>;
+
 export type ActivitySummaryResponse = z.infer<typeof ActivitySummaryResponseSchema>;
 export type ActivityCreateResponse = z.infer<typeof ActivityCreateResponseSchema>;
 
