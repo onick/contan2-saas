@@ -363,8 +363,10 @@ export function CheckinConsole() {
                       </p>
                     </div>
                     <div className="flex flex-none items-center gap-2">
+                      {/* Armado → naranja ACENTO. style inline: cn no hace
+                          tailwind-merge y el bg del variant ganaba por orden CSS. */}
                       <Button size="sm" disabled={!selected || a.full || busyActivity === a.id} onClick={() => registerExisting(a)}
-                        className={selected && !a.full ? 'bg-brand-accent text-white hover:opacity-95' : undefined}>
+                        style={selected && !a.full ? { backgroundColor: 'var(--color-brand-accent)' } : undefined}>
                         {busyActivity === a.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Registrar
                       </Button>
                       <Button variant="secondary" size="sm" disabled={a.full} onClick={() => openAnon(a)}>
