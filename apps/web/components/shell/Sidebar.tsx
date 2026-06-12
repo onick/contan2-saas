@@ -39,7 +39,7 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
           líneas. Un logo subido por el tenant (logoUrl) siempre gana. */}
       {!branding.logoUrl && hasBrandLockup(branding.slug) ? (
         <div className="relative flex flex-col items-center px-5 pb-2.5 pt-3 group-data-[sidebar=collapsed]/shell:gap-2 group-data-[sidebar=collapsed]/shell:px-0 group-data-[sidebar=collapsed]/shell:py-4">
-          <BrandLockup slug={branding.slug} name={branding.name} className={`w-[92px] max-w-full ${HIDE}`} />
+          <BrandLockup slug={branding.slug} name={branding.name} className={`w-[176px] max-w-full ${HIDE}`} />
           <span className="hidden group-data-[sidebar=collapsed]/shell:block">
             <BrandChip slug={branding.slug} name={branding.name} />
           </span>
