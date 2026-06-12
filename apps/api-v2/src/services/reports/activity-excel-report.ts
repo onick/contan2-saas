@@ -79,7 +79,7 @@ function categoryFor(priorAttendances) {
   return 'Recurrente';
 }
 
-export async function buildActivityExcelReport({ organization, activity, attendances, users, affinities }) {
+export async function buildActivityExcelReport({ organization, activity, attendances, users, affinities, protocol }) {
   const wb = new ExcelJS.Workbook();
   wb.creator = organization.name || 'contan2-saas';
   wb.created = new Date();
@@ -413,6 +413,53 @@ export async function buildActivityExcelReport({ organization, activity, attenda
     `Informe generado automáticamente por ${organization.name}. Los datos provienen del registro oficial de asistencia.`;
   s3.getCell(`B${r}`).font = { italic: true, size: 9, color: { argb: 'FF9CA3AF' } };
   s3.getCell(`B${r}`).alignment = { vertical: 'middle', indent: 1, wrapText: true };
+
+
+  // -------- Sheet 3: Protocolo (PR-6 · solo si hubo invitados especiales) ---
+  if (protocol && protocol.rows && protocol.rows.length > 0) {
+    const PROTO_STATUS = {
+      pending: 'Sin responder', confirmed: 'Confirmada', declined: 'No puede',
+      expired: 'Expirada', canceled: 'Cancelada',
+    };
+    const PROTO_CAT = {
+      autoridad: 'Autoridad', diplomatico: 'Diplomático', prensa: 'Prensa',
+      patrocinador: 'Patrocinador', directivo: 'Directivo', artista: 'Artista', otro: 'Otro',
+    };
+    const s3 = wb.addWorksheet('Protocolo', {
+      properties: { tabColor: { argb: accentArgb } },
+      views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
+    });
+    s3.columns = [
+      { header: '#', key: 'idx', width: 6 },
+      { header: 'Invitado', key: 'name', width: 34 },
+      { header: 'Categoría', key: 'category', width: 16 },
+      { header: 'Estado', key: 'status', width: 14 },
+      { header: 'Acompañantes', key: 'plusOnes', width: 14 },
+      { header: 'Asistió', key: 'attended', width: 10 },
+    ];
+    const hr = s3.getRow(1);
+    hr.font = { name: 'Calibri', size: 11, bold: true, color: { argb: onPrimaryArgb } };
+    hr.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+    hr.height = 26;
+    hr.eachCell({ includeEmpty: false }, cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryArgb } };
+      cell.border = { bottom: { style: 'medium', color: { argb: accentArgb } } };
+    });
+    protocol.rows.forEach((r, i) => {
+      s3.addRow({
+        idx: i + 1,
+        name: r.name,
+        category: PROTO_CAT[r.category] || r.category,
+        status: PROTO_STATUS[r.status] || r.status,
+        plusOnes: r.plusOnes > 0 ? `+${r.plusOnes}` : '—',
+        attended: r.attended ? 'Sí' : '—',
+      });
+    });
+    const sm = protocol.summary;
+    s3.addRow({});
+    const sumRow = s3.addRow({ name: `Invitados: ${sm.invited} · Confirmados: ${sm.confirmed} (${sm.totalParty} personas con acompañantes) · Asistieron: ${sm.attended}` });
+    sumRow.font = { name: 'Calibri', size: 10, italic: true };
+  }
 
   return wb;
 }

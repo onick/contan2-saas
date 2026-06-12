@@ -208,6 +208,23 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     expect(pub.json().protocol).toMatchObject({ category: 'directivo', plusOnes: 0 });
   });
 
+  it('reporte de actividad: hoja Protocolo con invitados, estado y asistencia', async () => {
+    const res = await call('GET', `/api/v2/reports/activity/${act}.xlsx`, undefined, TOK.admin);
+    expect(res.statusCode).toBe(200);
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(res.rawPayload);
+    const sheet = wb.worksheets.find((w) => w.name === 'Protocolo');
+    expect(sheet).toBeTruthy();
+    const textos: string[] = [];
+    sheet!.eachRow((row) => { textos.push(JSON.stringify(row.values)); });
+    const todo = textos.join(' ');
+    expect(todo).toContain('Sr. Embajador');
+    expect(todo).toContain('Diplomático');
+    expect(todo).toContain('+2');
+    expect(todo).toContain('Sí'); // el embajador llegó (check-in del test anterior)
+  });
+
   it('desactivar saca del directorio y de candidatos; 404 al repetir', async () => {
     expect((await call('DELETE', `/api/v2/protocol/${uSinEmail}`, undefined, TOK.admin)).statusCode).toBe(204);
     expect((await call('DELETE', `/api/v2/protocol/${uSinEmail}`, undefined, TOK.admin)).statusCode).toBe(404);
