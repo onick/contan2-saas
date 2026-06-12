@@ -39,6 +39,8 @@ import { CheckinError, checkinIdentified } from '../services/checkin-core.js';
 const lookupLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('public-lookup') });
 const checkinLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('public-checkin') });
 const rsvpLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('public-rsvp') });
+// Login email-first desde el marketing: estricto (enumeración de correos).
+const lookupTenantLimiter = createRateLimiter({ max: 5, windowMs: 60_000, prefix: endpointPrefix('tenant-lookup') });
 
 type TenantOnly =
   | { ok: true; orgId: string; codePrefix: string }
@@ -382,5 +384,34 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
 
     if ('error' in result) { reply.code(result.error ?? 409); return { error: result.msg }; }
     return { ok: true, status: 'confirmed', alreadyEnrolled: result.alreadyEnrolled };
+  });
+
+  // ── Login email-first (marketing → tu tenant) ────────────────────────────
+  // POST /public/tenant-lookup {email} · HOST-AGNÓSTICO (se usa desde
+  // contan2.com, que no resuelve tenant): ¿en qué centro(s) está registrado
+  // este correo de STAFF activo? Devuelve slug+nombre para redirigir a
+  // https://{slug}.{ROOT_DOMAIN}/login con el correo pre-llenado. Respuesta
+  // 200 SIEMPRE (lista vacía si no hay match) + rate limit 5/min por IP
+  // (mitiga enumeración; el dato expuesto es pertenencia de staff, no PII de
+  // visitantes). Nunca expone roles ni ids.
+  app.post('/public/tenant-lookup', async (req, reply) => {
+    const db = getDb();
+    if ((await lookupTenantLimiter.hit(`global:${req.ip}`)).limited) {
+      reply.code(429); return { error: 'Demasiados intentos. Espera un momento.' };
+    }
+    const email = String((req.body as { email?: unknown } | null)?.email ?? '').trim().toLowerCase();
+    if (!email || email.length > 255 || !email.includes('@')) {
+      reply.code(400); return { error: 'Correo inválido.' };
+    }
+    const rows = await db.selectFrom('staff_members as s')
+      .innerJoin('organizations as o', 'o.id', 's.organization_id')
+      .select(['o.slug', 'o.name'])
+      .where(sql<boolean>`lower(s.email) = ${email}`)
+      .where('s.status', '=', 'active')
+      .where('o.status', '=', 'active')
+      .orderBy('o.name')
+      .limit(5)
+      .execute();
+    return { tenants: rows.map((r) => ({ slug: r.slug, name: r.name })) };
   });
 };

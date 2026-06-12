@@ -15,13 +15,15 @@ import { cn, focusRing } from '../ui/cn';
 
 export interface LoginFormProps {
   next: string; // ya saneado server-side (ruta relativa bajo /app)
+  // Pre-llenado desde el login email-first del marketing (?email=).
+  defaultEmail?: string;
 }
 
 const GENERIC_ERROR = 'Credenciales inválidas. Revisá tu correo y contraseña.';
 const RATE_ERROR = 'Demasiados intentos. Esperá unos minutos e intentá de nuevo.';
 const NET_ERROR = 'No pudimos conectar. Intentá de nuevo en un momento.';
 
-export function LoginForm({ next }: LoginFormProps) {
+export function LoginForm({ next, defaultEmail }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +87,8 @@ export function LoginForm({ next }: LoginFormProps) {
             type="email"
             autoComplete="username"
             required
-            autoFocus
+            autoFocus={!defaultEmail}
+            defaultValue={defaultEmail}
             inputMode="email"
             placeholder="tu@correo.com"
             className={inputCls}
