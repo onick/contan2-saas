@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react';
 import type { BrandingOrg } from '../../lib/branding/theme';
+import { BrandChip } from './BrandMark';
 import { TopbarNotifications } from './TopbarNotifications';
 import { TopbarUserMenu } from './TopbarUserMenu';
 
@@ -8,10 +9,6 @@ export interface TopbarProps {
   title: string;
   // Texto opcional del chip a la derecha (ej. período).
   meta?: string;
-}
-
-function initials(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 }
 
 // Top app bar · estilo Google/Material: breadcrumb, buscador, notificaciones
@@ -24,10 +21,8 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur md:px-7">
       {/* Brand compacto (mobile, drawer oculto) */}
-      <span className="flex items-center gap-2 text-sm font-semibold tracking-tight text-brand md:hidden">
-        <span className="grid h-8 w-8 flex-none place-items-center rounded-[9px] bg-brand-strong text-xs font-bold text-white">
-          {initials(branding.name)}
-        </span>
+      <span className="flex items-center gap-2 md:hidden">
+        <BrandChip slug={branding.slug} name={branding.name} className="h-8 w-8" rounded="rounded-[9px]" />
       </span>
 
       {/* Breadcrumb (tablet/desktop) */}

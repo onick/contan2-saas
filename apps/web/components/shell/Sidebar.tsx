@@ -1,5 +1,6 @@
 import type { BrandingOrg } from '../../lib/branding/theme';
 import { NAV_ITEMS, NAV_GROUPS } from '../../lib/shell/nav';
+import { BrandChip, splitBrandName } from './BrandMark';
 import { LogoutButton } from './LogoutButton';
 import { SidebarToggle } from './SidebarShell';
 
@@ -9,25 +10,19 @@ export interface SidebarProps {
   activeKey?: string;
 }
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
-}
-
 // Variante de colapso: SidebarShell (client) marca data-sidebar en el group/shell;
 // acá todo es CSS → este componente sigue siendo Server Component y togglear no
 // re-renderiza nada. En colapsado: riel de iconos centrados con tooltip nativo
 // (title), labels/badges ocultos, separadores en vez de títulos de grupo.
 const HIDE = 'group-data-[sidebar=collapsed]/shell:hidden';
 
-// Navigation drawer · estilo Google/Material 3: marca arriba, navegación
-// agrupada con íconos, item activo con pill tonal (primary-container) + barra
-// naranja, bloque de cuenta abajo. Visible en tablet/desktop (oculto en mobile).
+// Navigation drawer · estilo Google/Material 3: marca arriba (icono del
+// tenant en blanco vía BrandChip + nombre en dos líneas para nombres largos),
+// navegación agrupada con íconos, item activo con pill tonal
+// (primary-container) + barra naranja, bloque de cuenta abajo. Visible en
+// tablet/desktop (oculto en mobile).
 export function Sidebar({ branding, activeKey }: SidebarProps) {
+  const [nameTop, nameSub] = splitBrandName(branding.name);
   return (
     <aside
       id="app-sidebar"
@@ -43,18 +38,15 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={branding.logoUrl} alt={branding.name} className={`h-9 w-auto ${HIDE}`} />
         ) : null}
-        {/* Iniciales: identidad mínima del riel (si hay logo, sólo en colapsado). */}
-        <span
-          className={
-            'h-9 w-9 flex-none place-items-center rounded-[11px] bg-brand-strong text-sm font-bold text-white shadow-sm ' +
-            (branding.logoUrl ? 'hidden group-data-[sidebar=collapsed]/shell:grid' : 'grid')
-          }
-          title={branding.name}
-        >
-          {initials(branding.name)}
+        {/* Chip de marca (icono del tenant en blanco; si hay logo, sólo en colapsado). */}
+        <span className={branding.logoUrl ? 'hidden group-data-[sidebar=collapsed]/shell:block' : 'block'}>
+          <BrandChip slug={branding.slug} name={branding.name} />
         </span>
-        <span className={`min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-ink ${HIDE}`}>
-          {branding.name}
+        <span className={`min-w-0 flex-1 ${HIDE}`}>
+          <span className="block truncate text-[15px] font-semibold leading-tight tracking-tight text-ink">{nameTop}</span>
+          {nameSub ? (
+            <span className="block truncate text-[12.5px] font-light leading-tight tracking-wide text-muted">{nameSub}</span>
+          ) : null}
         </span>
         <SidebarToggle className="flex-none" />
       </div>
@@ -114,9 +106,7 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
       {/* Cuenta + cerrar sesión (compacto en modo riel) */}
       <div className="m-2 rounded-2xl bg-surface-container p-2 group-data-[sidebar=collapsed]/shell:bg-transparent group-data-[sidebar=collapsed]/shell:p-0">
         <div className={`flex items-center gap-3 px-2 py-1.5 ${HIDE}`}>
-          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand-strong text-sm font-semibold text-white">
-            {initials(branding.name)}
-          </span>
+          <BrandChip slug={branding.slug} name={branding.name} rounded="rounded-full" />
           <span className="min-w-0">
             <span className="block truncate text-[13px] font-semibold text-ink">Administración</span>
             <span className="block text-xs text-muted">Panel del tenant</span>
