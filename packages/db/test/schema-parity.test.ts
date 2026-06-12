@@ -75,7 +75,11 @@ const EXPECTED: Record<keyof Database, string[]> = {
   ],
   invitations: [
     'id', 'organization_id', 'activity_id', 'user_id', 'token', 'status',
-    'sent_at', 'responded_at', 'expires_at', 'created_at',
+    'sent_at', 'responded_at', 'expires_at', 'created_at', 'kind', 'plus_ones',
+  ],
+  protocol_profiles: [
+    'user_id', 'organization_id', 'category', 'honorific', 'org_title',
+    'notes', 'active', 'created_by', 'created_at', 'updated_at',
   ],
   checkin_idempotency: [
     'organization_id', 'endpoint', 'idempotency_key', 'attendance_id', 'expires_at', 'created_at',
