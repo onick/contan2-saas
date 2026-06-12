@@ -272,7 +272,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     const inv = await db.selectFrom('invitations as i')
       .innerJoin('users as u', 'u.id', 'i.user_id')
       .innerJoin('activities as a', 'a.id', 'i.activity_id')
-      .select(['i.status', 'i.expires_at', 'u.first_name',
+      .select(['i.status', 'i.expires_at', 'i.plus_ones', 'u.first_name',
         'a.name', 'a.type', 'a.date', 'a.location', 'a.image_url', 'a.image_pos_y'])
       .where('i.organization_id', '=', t.orgId)
       .where('i.token', '=', token)
@@ -285,6 +285,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       invitation: {
         firstName: inv.first_name,
         status: (expired ? 'expired' : inv.status) as RsvpPreviewResponse['invitation']['status'],
+        plusOnes: inv.plus_ones ?? 0,
         expiresAt: new Date(inv.expires_at).toISOString(),
         activity: {
           name: inv.name, type: inv.type,
@@ -309,7 +310,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     if (!parsed.success) { reply.code(400); return { error: 'action debe ser yes o no.' }; }
 
     const inv = await db.selectFrom('invitations')
-      .select(['id', 'status', 'expires_at', 'user_id', 'activity_id'])
+      .select(['id', 'status', 'expires_at', 'user_id', 'activity_id', 'plus_ones'])
       .where('organization_id', '=', t.orgId).where('token', '=', token)
       .executeTakeFirst();
     if (!inv) { reply.code(404); return { error: 'Invitación no encontrada.' }; }
@@ -341,10 +342,15 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
         .where('user_id', '=', inv.user_id)
         .executeTakeFirst();
       if (!existing) {
+        // Protocolo (PR-2): el sí reserva 1 + acompañantes autorizados. OJO:
+        // si luego se BORRA esa asistencia, el partySize del delete usa
+        // companions_children (no sabe de plus_ones) → caso raro, documentado
+        // en el plan; el cupo se corrige reactivando/cancelando la invitación.
+        const party = 1 + (inv.plus_ones ?? 0);
         const reserved = await tx.updateTable('activities')
-          .set((eb) => ({ enrolled_count: eb('enrolled_count', '+', 1) }))
+          .set((eb) => ({ enrolled_count: eb('enrolled_count', '+', party) }))
           .where('organization_id', '=', t.orgId).where('id', '=', inv.activity_id)
-          .where(sql<boolean>`enrolled_count < capacity`)
+          .where(sql<boolean>`enrolled_count + ${party} <= capacity`)
           .executeTakeFirst();
         if (Number(reserved.numUpdatedRows ?? 0) === 0) return { error: 409 as const, msg: 'Cupo agotado.' };
         const user = await tx.selectFrom('users').select(['code'])

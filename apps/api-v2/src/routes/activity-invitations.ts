@@ -238,7 +238,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     const rows = await db.selectFrom('invitations as i')
       .innerJoin('users as u', 'u.id', 'i.user_id')
       .select(['i.id', 'i.user_id', 'i.status', 'i.sent_at', 'i.responded_at', 'i.expires_at', 'i.created_at',
-        'u.code', 'u.first_name', 'u.last_name', 'u.email'])
+        'i.kind', 'i.plus_ones', 'u.code', 'u.first_name', 'u.last_name', 'u.email'])
       .where('i.organization_id', '=', orgId).where('i.activity_id', '=', id)
       .orderBy('i.created_at', 'desc')
       .limit(500)
@@ -253,6 +253,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
       return {
         id: r.id, userId: r.user_id, code: r.code, firstName: r.first_name, lastName: r.last_name,
         email: r.email,
+        kind: r.kind, plusOnes: r.plus_ones,
         status,
         sentAt: r.sent_at ? new Date(r.sent_at).toISOString() : null,
         respondedAt: r.responded_at ? new Date(r.responded_at).toISOString() : null,
