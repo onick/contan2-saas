@@ -2,7 +2,6 @@ import type { BrandingOrg } from '../../lib/branding/theme';
 import { NAV_ITEMS, NAV_GROUPS } from '../../lib/shell/nav';
 import { BrandChip, BrandLockup, hasBrandLockup, splitBrandName } from './BrandMark';
 import { LogoutButton } from './LogoutButton';
-import { SidebarToggle } from './SidebarShell';
 
 export interface SidebarProps {
   branding: BrandingOrg;
@@ -32,21 +31,20 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
         'motion-safe:transition-[width] motion-safe:duration-200 motion-safe:ease-out'
       }
     >
-      {/* Marca. Tenants con lockup oficial (CCB): LOCKUP VERTICAL a color en
-          expandido (paridad con el logo de v1, en SVG nítido) y chip con el
-          isotipo blanco en el riel; el toggle flota arriba a la derecha y se
-          re-apila centrado al colapsar. Sin lockup: chip + nombre en dos
-          líneas. Un logo subido por el tenant (logoUrl) siempre gana. */}
+      {/* Marca. Tenants con lockup oficial (CCB): lockup horizontal a color,
+          JUSTIFICADO con los labels de la nav ("PRINCIPAL": nav px-3 + label
+          px-3 = 24px → px-6 acá); chip con el isotipo blanco en el riel. Sin
+          lockup: chip + nombre en dos líneas. Un logo subido por el tenant
+          (logoUrl) siempre gana. El toggle de colapso vive en el TOPBAR. */}
       {!branding.logoUrl && hasBrandLockup(branding.slug) ? (
-        <div className="relative flex flex-col items-center px-5 pb-2.5 pt-3 group-data-[sidebar=collapsed]/shell:gap-2 group-data-[sidebar=collapsed]/shell:px-0 group-data-[sidebar=collapsed]/shell:py-4">
+        <div className="px-6 pb-2.5 pt-4 group-data-[sidebar=collapsed]/shell:flex group-data-[sidebar=collapsed]/shell:justify-center group-data-[sidebar=collapsed]/shell:px-0 group-data-[sidebar=collapsed]/shell:py-4">
           <BrandLockup slug={branding.slug} name={branding.name} className={`w-[176px] max-w-full ${HIDE}`} />
           <span className="hidden group-data-[sidebar=collapsed]/shell:block">
             <BrandChip slug={branding.slug} name={branding.name} />
           </span>
-          <SidebarToggle className="absolute right-2 top-2 group-data-[sidebar=collapsed]/shell:static" />
         </div>
       ) : (
-        <div className="flex items-center gap-3 px-5 py-4 group-data-[sidebar=collapsed]/shell:flex-col group-data-[sidebar=collapsed]/shell:gap-2 group-data-[sidebar=collapsed]/shell:px-0">
+        <div className="flex items-center gap-3 px-6 py-4 group-data-[sidebar=collapsed]/shell:flex-col group-data-[sidebar=collapsed]/shell:gap-2 group-data-[sidebar=collapsed]/shell:px-0">
           {branding.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={branding.logoUrl} alt={branding.name} className={`h-9 w-auto ${HIDE}`} />
@@ -61,7 +59,6 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
               <span className="block truncate text-[12.5px] font-light leading-tight tracking-wide text-muted">{nameSub}</span>
             ) : null}
           </span>
-          <SidebarToggle className="flex-none" />
         </div>
       )}
 
