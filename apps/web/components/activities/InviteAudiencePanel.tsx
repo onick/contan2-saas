@@ -99,8 +99,8 @@ export function InviteAudiencePanel({ activityId, activityName, open, onClose, o
       const b = (await res.json().catch(() => null)) as { summary?: { created: number; reused: number; dryRun: boolean }; error?: string } | null;
       if (res.status === 201 && b?.summary) {
         setOutcome(b.summary.dryRun
-          ? `${b.summary.created} invitación${b.summary.created === 1 ? '' : 'es'} creada${b.summary.created === 1 ? '' : 's'} (modo simulación: sin clave de envío no salió ningún email; quedan rastreables y los enlaces RSVP ya funcionan).`
-          : `${b.summary.created} invitaciones enviadas.`);
+          ? `${b.summary.created === 1 ? '1 invitación creada' : `${b.summary.created} invitaciones creadas`} (modo simulación: sin clave de envío no salió ningún email; quedan rastreables y los enlaces RSVP ya funcionan).`
+          : `${b.summary.created === 1 ? '1 invitación enviada' : `${b.summary.created} invitaciones enviadas`}.`);
         onSent();
       } else {
         setError(b?.error ?? 'No pudimos crear las invitaciones.');

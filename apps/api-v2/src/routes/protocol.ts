@@ -310,6 +310,15 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
             await tx.updateTable('invitations').set({ plus_ones: w.plusOnes, kind: 'protocol' })
               .where('id', '=', existing.id).execute();
             if (!existing.sent_at) deliverables.push({ invitationId: existing.id, token: existing.token, user: invitee });
+          } else if (existing.status === 'canceled') {
+            // Cancelada → re-invitable como fresca (token nuevo + pending).
+            const token = randomBytes(24).toString('hex');
+            await tx.updateTable('invitations').set({
+              status: 'pending', token, sent_at: null, responded_at: null,
+              expires_at: expiresAt, kind: 'protocol', plus_ones: w.plusOnes,
+            }).where('id', '=', existing.id).execute();
+            deliverables.push({ invitationId: existing.id, token, user: invitee });
+            created += 1;
           } else skipped += 1;
           continue;
         }

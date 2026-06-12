@@ -178,7 +178,16 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
           if (existing.status === 'pending') {
             reused += 1;
             if (!existing.sent_at) deliverables.push({ invitationId: existing.id, token: existing.token, user: invitee });
-          } else skipped += 1; // confirmada/declinada/cancelada: no se re-invita en lote
+          } else if (existing.status === 'canceled') {
+            // Una CANCELADA es re-invitable (los candidatos la consideran
+            // invitable): token nuevo + pending, como invitación fresca.
+            const token = randomBytes(24).toString('hex');
+            await tx.updateTable('invitations').set({
+              status: 'pending', token, sent_at: null, responded_at: null, expires_at: expiresAt,
+            }).where('id', '=', existing.id).execute();
+            deliverables.push({ invitationId: existing.id, token, user: invitee });
+            created += 1;
+          } else skipped += 1; // confirmada/declinada: no se re-invita en lote
           continue;
         }
         const token = randomBytes(24).toString('hex');
