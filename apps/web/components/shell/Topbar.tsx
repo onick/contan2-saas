@@ -1,6 +1,7 @@
 import { Search } from 'lucide-react';
 import type { BrandingOrg } from '../../lib/branding/theme';
 import { BrandChip } from './BrandMark';
+import { SidebarToggle } from './SidebarShell';
 import { TopbarNotifications } from './TopbarNotifications';
 import { TopbarUserMenu } from './TopbarUserMenu';
 
@@ -24,6 +25,10 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
       <span className="flex items-center gap-2 md:hidden">
         <BrandChip slug={branding.slug} name={branding.name} className="h-8 w-8" rounded="rounded-[9px]" />
       </span>
+
+      {/* Colapso del sidebar (movido del header del sidebar; el sidebar solo
+          existe md+, en mobile no hay nada que colapsar) */}
+      <SidebarToggle className="hidden flex-none md:grid" />
 
       {/* Breadcrumb (tablet/desktop) */}
       <nav aria-label="Ruta" className="hidden items-center gap-2 text-[13px] text-muted md:flex">
