@@ -299,6 +299,7 @@ function DesignateDrawer({ form, onClose, onSaved }: {
   const [f, setF] = useState<FormState>(form);
   const [results, setResults] = useState<CheckinVisitorItem[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false); // ya hubo una búsqueda completa
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
@@ -312,14 +313,16 @@ function DesignateDrawer({ form, onClose, onSaved }: {
   // Autocomplete con debounce + anti-carrera (patrón del typeahead del kiosko).
   const [query, setQuery] = useState('');
   useEffect(() => {
-    if (f.userId || query.trim().length < 2) { setResults([]); return; }
+    if (f.userId || query.trim().length < 2) { setResults([]); setSearched(false); return; }
     const mySeq = ++seq.current;
+    setSearched(false);
     const t = setTimeout(() => {
       setSearching(true);
       void fetch(`/app/check-in/api/visitors?q=${encodeURIComponent(query.trim())}`, { cache: 'no-store' })
         .then(async (r) => {
           if (seq.current !== mySeq || !r.ok) return;
           setResults(CheckinVisitorsResponseSchema.parse(await r.json()).items.slice(0, 6));
+          setSearched(true);
         })
         .catch(() => {})
         .finally(() => { if (seq.current === mySeq) setSearching(false); });
@@ -377,6 +380,13 @@ function DesignateDrawer({ form, onClose, onSaved }: {
                   placeholder="Buscá por nombre, código o email…" autoFocus
                   className={cn('mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13.5px] text-ink placeholder:text-faint', focusRing)} />
                 {searching ? <p className="mt-1.5 text-[12px] text-faint" aria-busy="true">Buscando…</p> : null}
+                {!searching && searched && results.length === 0 ? (
+                  <p className="mt-1.5 rounded-lg bg-surface-container px-3 py-2 text-[12.5px] text-muted">
+                    No encontramos a nadie con ese dato. El invitado debe existir como
+                    visitante primero: crealo en <strong>Usuarios → Nuevo visitante</strong> y
+                    volvé a buscarlo acá (su designación de protocolo se suma a su perfil).
+                  </p>
+                ) : null}
                 {results.length > 0 ? (
                   <ul className="mt-1.5 overflow-hidden rounded-lg border border-line">
                     {results.map((v) => (
