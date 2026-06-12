@@ -325,6 +325,11 @@ export function ScannerClient({ initialAuthed, activities, brandName }: Props) {
   );
 }
 
+const PROTOCOL_CATEGORY: Record<string, string> = {
+  autoridad: 'Autoridad', diplomatico: 'Diplomático', prensa: 'Prensa',
+  patrocinador: 'Patrocinador', directivo: 'Directivo', artista: 'Artista', otro: 'Invitado especial',
+};
+
 // Banner de resultado con color fuerte por estado.
 function OutcomeBanner({ outcome }: { outcome: CheckinOutcome }) {
   const styles: Record<CheckinOutcome['kind'], { box: string; Icon: typeof Check }> = {
@@ -340,6 +345,13 @@ function OutcomeBanner({ outcome }: { outcome: CheckinOutcome }) {
     <div role="status" className={`mt-4 flex items-start gap-3 rounded-xl border px-4 py-3 ${box}`}>
       <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
       <div className="min-w-0">
+        {/* PROTOCOLO (PR-5): recibimiento distinguido, antes que el resto. */}
+        {outcome.kind === 'success' && outcome.data?.protocol ? (
+          <p className="mb-1 inline-flex items-center gap-1.5 rounded-md bg-amber-400/90 px-2 py-0.5 text-[12px] font-bold uppercase tracking-wide text-amber-950">
+            ★ Protocolo · {outcome.data.protocol.honorific ?? PROTOCOL_CATEGORY[outcome.data.protocol.category] ?? outcome.data.protocol.category}
+            {outcome.data.protocol.plusOnes > 0 ? ` · +${outcome.data.protocol.plusOnes} acompañantes` : ''}
+          </p>
+        ) : null}
         <p className="font-semibold">{outcome.title}</p>
         {outcome.kind === 'success' && outcome.data ? (
           <p className="font-mono text-sm">

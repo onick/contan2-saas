@@ -23,6 +23,7 @@ import {
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { deliverCredential, type DeliverUser } from '../services/credential-delivery.js';
+import { protocolBadgeFor } from '../services/protocol-info.js';
 // Núcleo transaccional COMPARTIDO (público/scanner/admin): resuelve/crea visitante,
 // reserva cupo atómica y registra asistencia idempotente. CheckinError → ROLLBACK.
 import { CheckinError, checkinIdentified } from '../services/checkin-core.js';
@@ -229,13 +230,15 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     let deliver: DeliverUser | null = null;
 
     try {
-      const result = await db.transaction().execute(async (tx): Promise<PublicCheckinResponse> => {
+      const result = await db.transaction().execute(async (tx) => {
         // Núcleo COMPARTIDO: resuelve/crea visitante + reserva cupo atómica +
         // asistencia idempotente + visitas (mismo comportamiento que antes).
         const r = await checkinIdentified(tx, { orgId, codePrefix: t.codePrefix, activityId, visitor, companionsChildren });
         deliver = r.deliver;
-        return { code: r.code, visitCount: r.visitCount, partySize: r.partySize, activity: r.activity };
+        return r;
       });
+      // Banner de protocolo (PR-5): best-effort, fuera de la tx.
+      const protocol = await protocolBadgeFor(db, orgId, result.userId, result.activity.id).catch(() => null);
 
       // Commit OK. Entrega de credencial best-effort, FUERA de la transacción y
       // fire-and-forget: no bloquea ni afecta la respuesta del check-in. Marca
@@ -247,7 +250,11 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
         });
       }
 
-      return result;
+      const body: PublicCheckinResponse = {
+        code: result.code, visitCount: result.visitCount, partySize: result.partySize,
+        activity: result.activity, protocol,
+      };
+      return body;
     } catch (e) {
       if (e instanceof CheckinError) {
         reply.code(e.status);

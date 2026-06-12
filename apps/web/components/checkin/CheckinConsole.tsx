@@ -9,7 +9,7 @@
 // sin credencial" con Idempotency-Key reutilizada en reintentos del MISMO click.
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History } from 'lucide-react';
+import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History, Medal } from 'lucide-react';
 import type { CheckinMetricsResponse, CheckinActivityItem, CheckinVisitorItem, AttendanceListItem } from '@contan2/contracts';
 import { getCheckinMetrics, getCheckinActivities, searchCheckinVisitors, postCheckin, postCheckinAnonymous, getRecentCheckins } from '../../lib/api/checkin-client';
 import { NewVisitorDrawer } from './NewVisitorDrawer';
@@ -186,7 +186,13 @@ export function CheckinConsole() {
     const r = await postCheckin({ activityId: act.id, visitor: { code: selected.code }, companionsChildren: 0 });
     setBusyActivity(null);
     if (r.ok) {
-      flash({ kind: 'success', msg: `${selected.firstName} registrado en "${act.name}". Quedó auditado.` });
+      const proto = r.data.protocol;
+      flash({
+        kind: 'success',
+        msg: proto
+          ? `★ PROTOCOLO · ${proto.honorific ? `${proto.honorific} ` : ''}${selected.firstName} registrado en "${act.name}"${proto.plusOnes > 0 ? ` · trae +${proto.plusOnes} acompañantes autorizados` : ''}.`
+          : `${selected.firstName} registrado en "${act.name}". Quedó auditado.`,
+      });
       setSelected(null);
       refreshLive();
     } else {
@@ -267,7 +273,14 @@ export function CheckinConsole() {
                     {(selected.firstName[0] ?? '') + (selected.lastName[0] ?? '')}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-ink">{selected.firstName} {selected.lastName}</p>
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {selected.firstName} {selected.lastName}
+                      {selected.protocol ? (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 align-[-1px] text-[10.5px] font-bold uppercase tracking-wide text-[#b35400]">
+                          <Medal size={10} strokeWidth={2.5} aria-hidden="true" /> Protocolo{selected.protocol.honorific ? ` · ${selected.protocol.honorific}` : ''}
+                        </span>
+                      ) : null}
+                    </p>
                     <p className="truncate text-xs text-faint">
                       <span className="tabular-nums">{selected.code}</span>
                       <span className="ml-2 inline-flex items-center gap-1">{selected.visitCount >= 10 ? <Crown size={11} aria-hidden="true" /> : null}{selected.visitCount} {selected.visitCount === 1 ? 'visita' : 'visitas'}</span>
@@ -315,7 +328,14 @@ export function CheckinConsole() {
                         <button type="button" onClick={() => selectVisitor(v)} className={cn('flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-container', focusRing)}>
                           <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-primary-container text-[11px] font-semibold text-on-primary-container">{(v.firstName[0] ?? '') + (v.lastName[0] ?? '')}</span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium text-ink">{v.firstName} {v.lastName}</span>
+                            <span className="block truncate text-sm font-medium text-ink">
+                              {v.firstName} {v.lastName}
+                              {v.protocol ? (
+                                <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-accent-soft px-1.5 py-0.5 align-[-1px] text-[10px] font-bold uppercase tracking-wide text-[#b35400]">
+                                  <Medal size={9} strokeWidth={2.5} aria-hidden="true" /> Protocolo
+                                </span>
+                              ) : null}
+                            </span>
                             <span className="block truncate text-xs text-faint"><span className="tabular-nums">{v.code}</span>{v.email ? ` · ${v.email}` : ''}</span>
                           </span>
                           <Chip tone="neutral" className="flex-none tabular-nums">{v.visitCount === 1 ? '1ª vez' : `${v.visitCount}v`}</Chip>

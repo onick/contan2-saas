@@ -754,11 +754,22 @@ export const PublicCheckinRequestSchema = z.object({
 });
 export type PublicCheckinRequest = z.infer<typeof PublicCheckinRequestSchema>;
 
+// Banner de puerta (Protocolo PR-5): presente si el visitante es invitado de
+// protocolo ACTIVO; plusOnes = acompañantes autorizados de SU invitación a
+// esa actividad (0 si no tiene). Opcional → compatible hacia atrás.
+export const ProtocolBadgeSchema = z.object({
+  category: z.string(),
+  honorific: z.string().nullable(),
+  plusOnes: z.number().int(),
+});
+export type ProtocolBadge = z.infer<typeof ProtocolBadgeSchema>;
+
 export const PublicCheckinResponseSchema = z.object({
   code: z.string(),          // código real del visitante (QR = este valor)
   visitCount: z.number().int(),
   partySize: z.number().int(), // 1 + companionsChildren (cupos descontados)
   activity: z.object({ id: z.string(), name: z.string() }),
+  protocol: ProtocolBadgeSchema.nullable().optional(),
 });
 export type PublicCheckinResponse = z.infer<typeof PublicCheckinResponseSchema>;
 
@@ -808,6 +819,9 @@ export const CheckinVisitorItemSchema = z.object({
   lastName: z.string(),
   email: z.string().nullable(),
   visitCount: z.number().int(),
+  // Marca de protocolo en la búsqueda de la consola (sin plusOnes: depende
+  // de la actividad; el banner completo llega en la respuesta del registro).
+  protocol: z.object({ category: z.string(), honorific: z.string().nullable() }).nullable().optional(),
 });
 export type CheckinVisitorItem = z.infer<typeof CheckinVisitorItemSchema>;
 export const CheckinVisitorsResponseSchema = z.object({ items: z.array(CheckinVisitorItemSchema) });
@@ -843,6 +857,7 @@ export const AdminCheckinResponseSchema = z.object({
   partySize: z.number().int(),
   activity: z.object({ id: z.string(), name: z.string() }),
   mode: z.enum(['existing', 'new']),
+  protocol: ProtocolBadgeSchema.nullable().optional(),
 });
 export type AdminCheckinResponse = z.infer<typeof AdminCheckinResponseSchema>;
 
