@@ -439,6 +439,8 @@ export const ActivityInvitationSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   email: z.string().nullable(),
+  kind: z.enum(['audience', 'protocol']),
+  plusOnes: z.number().int(),
   status: z.enum(['pending', 'confirmed', 'declined', 'expired', 'canceled']),
   sentAt: z.string().nullable(),
   respondedAt: z.string().nullable(),
@@ -464,6 +466,8 @@ export const RsvpPreviewResponseSchema = z.object({
   invitation: z.object({
     firstName: z.string(),
     status: z.enum(['pending', 'confirmed', 'declined', 'expired', 'canceled']),
+    // Protocolo: acompañantes autorizados (0 en invitaciones de audiencia).
+    plusOnes: z.number().int(),
     expiresAt: z.string(),
     activity: z.object({
       name: z.string(),
