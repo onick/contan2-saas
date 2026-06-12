@@ -229,7 +229,7 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
               style={picked.size > 0 && !busy ? { backgroundColor: 'var(--color-brand-accent)' } : undefined}>
               {busy
                 ? (<><Loader2 size={15} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Enviando…</>)
-                : (<><Send size={15} strokeWidth={2} aria-hidden="true" /> Enviar {picked.size} invitación{picked.size === 1 ? '' : 'es'}</>)}
+                : (<><Send size={15} strokeWidth={2} aria-hidden="true" /> Enviar {picked.size} {picked.size === 1 ? 'invitación' : 'invitaciones'}</>)}
             </Button>
           </div>
         </footer>
