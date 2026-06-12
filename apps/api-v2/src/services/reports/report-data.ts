@@ -194,6 +194,51 @@ export interface ActivityReportData {
   attendances: Array<{ userId: string | null; userCode: string | null; registeredAt: string; anonymous: boolean; companionsChildren: number }>;
   users: Array<{ id: string; code: string; firstName: string; lastName: string; email: string | null; phone: string | null; visitCount: number; createdAt: string }>;
   affinities: Array<{ totalAttendances: number }>;
+  // Protocolo (PR-6): invitados especiales de la actividad (invitación kind
+  // 'protocol'); attended = su asistencia tiene checked_in_at (vino).
+  protocol: {
+    rows: Array<{ name: string; category: string; status: string; plusOnes: number; attended: boolean }>;
+    summary: { invited: number; confirmed: number; attended: number; totalParty: number };
+  };
+}
+
+async function loadActivityProtocol(db: DbClient, orgId: string, activityId: string): Promise<ActivityReportData['protocol']> {
+  const rows = await db.selectFrom('invitations as i')
+    .innerJoin('users as u', 'u.id', 'i.user_id')
+    .leftJoin('protocol_profiles as p', 'p.user_id', 'i.user_id')
+    .leftJoin('attendance as att', (join) => join
+      .onRef('att.user_id', '=', 'i.user_id')
+      .onRef('att.activity_id', '=', 'i.activity_id'))
+    .select(['i.status', 'i.plus_ones', 'i.expires_at', 'u.first_name', 'u.last_name',
+      'p.honorific', 'p.category', 'att.checked_in_at'])
+    .where('i.organization_id', '=', orgId)
+    .where('i.activity_id', '=', activityId)
+    .where('i.kind', '=', 'protocol')
+    .orderBy('u.last_name')
+    .execute();
+
+  const now = Date.now();
+  const out: ActivityReportData['protocol'] = {
+    rows: [], summary: { invited: 0, confirmed: 0, attended: 0, totalParty: 0 },
+  };
+  for (const r of rows) {
+    const status = r.status === 'pending' && new Date(r.expires_at).getTime() < now ? 'expired' : r.status;
+    const attended = !!r.checked_in_at;
+    out.rows.push({
+      name: `${r.honorific ? `${r.honorific} ` : ''}${r.first_name} ${r.last_name}`.trim(),
+      category: r.category ?? 'otro',
+      status,
+      plusOnes: r.plus_ones,
+      attended,
+    });
+    out.summary.invited += 1;
+    if (status === 'confirmed') {
+      out.summary.confirmed += 1;
+      out.summary.totalParty += 1 + r.plus_ones;
+    }
+    if (attended) out.summary.attended += 1;
+  }
+  return out;
 }
 
 export async function loadActivityReportData(db: DbClient, orgId: string, activityId: string): Promise<ActivityReportData | null> {
@@ -252,5 +297,6 @@ export async function loadActivityReportData(db: DbClient, orgId: string, activi
     })),
     users,
     affinities,
+    protocol: await loadActivityProtocol(db, orgId, activityId),
   };
 }

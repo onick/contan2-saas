@@ -54,7 +54,7 @@ function categoryFor(prior) {
   return 'Recurrente';
 }
 
-export async function buildActivityPdfHtml({ organization, activity, attendances, users, affinities }) {
+export async function buildActivityPdfHtml({ organization, activity, attendances, users, affinities, protocol }) {
   const palette = generatePalette(organization.primaryColor || '#1a237e') || {};
   const primary = palette['700'] || organization.primaryColor || '#1a237e';
   const primaryLight = palette['50'] || '#eeeffc';
@@ -433,6 +433,28 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
     <tbody>${rows}</tbody>
   </table>`}
 </section>
+
+${protocol && protocol.rows && protocol.rows.length > 0 ? `
+<section class="section">
+  <h2>Protocolo (${protocol.summary.invited})</h2>
+  <p style="margin:0 0 8px;font-size:10px;color:#6b7280;">
+    Confirmados: ${protocol.summary.confirmed} (${protocol.summary.totalParty} personas con acompañantes) · Asistieron: ${protocol.summary.attended}
+  </p>
+  <table class="attendees">
+    <thead>
+      <tr><th>#</th><th>Invitado</th><th>Categoría</th><th>Estado</th><th>Acomp.</th><th>Asistió</th></tr>
+    </thead>
+    <tbody>${protocol.rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${esc(r.name)}</td>
+        <td>${esc({ autoridad: 'Autoridad', diplomatico: 'Diplomático', prensa: 'Prensa', patrocinador: 'Patrocinador', directivo: 'Directivo', artista: 'Artista', otro: 'Otro' }[r.category] || r.category)}</td>
+        <td>${esc({ pending: 'Sin responder', confirmed: 'Confirmada', declined: 'No puede', expired: 'Expirada', canceled: 'Cancelada' }[r.status] || r.status)}</td>
+        <td>${r.plusOnes > 0 ? `+${r.plusOnes}` : '—'}</td>
+        <td>${r.attended ? 'Sí' : '—'}</td>
+      </tr>`).join('')}</tbody>
+  </table>
+</section>` : ''}
 
 <div class="footnote">
   Informe generado automáticamente por ${esc(organization.name)} · contan2-saas. Los datos provienen del registro oficial de asistencia del kiosko y el scanner de staff.
