@@ -7,7 +7,7 @@
 // Si la actividad no tiene invitaciones, no se muestra nada.
 
 import { useEffect, useState } from 'react';
-import { Megaphone, ChevronDown, Loader2, Ban, MailCheck } from 'lucide-react';
+import { Megaphone, ChevronDown, Loader2, Ban, MailCheck, Medal } from 'lucide-react';
 import { ActivityInvitationsResponseSchema, type ActivityInvitationsResponse } from '@contan2/contracts';
 import { cn, focusRing } from '../ui';
 
@@ -97,6 +97,11 @@ export function InvitationsSection({ activityId, canManage, refreshKey }: {
             <li key={inv.id} className="flex items-center gap-2 py-1.5">
               <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
                 {inv.firstName} {inv.lastName}
+                {inv.kind === 'protocol' ? (
+                  <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-accent-soft px-1.5 py-0.5 align-[-2px] text-[10.5px] font-semibold text-[#b35400]">
+                    <Medal size={10} strokeWidth={2.25} aria-hidden="true" /> Protocolo{inv.plusOnes > 0 ? ` +${inv.plusOnes}` : ''}
+                  </span>
+                ) : null}
                 {inv.sentAt ? <MailCheck size={12} strokeWidth={2} aria-label="Email enviado" className="ml-1.5 inline align-[-1px] text-success-fg" /> : null}
               </span>
               <span className={cn('flex-none rounded-full px-2 py-0.5 text-[11px] font-semibold', STATUS_LABEL[inv.status].cls)}>

@@ -22,8 +22,9 @@ import { CoverThumb } from './CoverThumb';
 import { StatusActionsMenu } from './StatusActions';
 import { AttendeesSection } from './AttendeesSection';
 import { InviteAudiencePanel } from './InviteAudiencePanel';
+import { InviteProtocolPanel } from './InviteProtocolPanel';
 import { InvitationsSection } from './InvitationsSection';
-import { Megaphone } from 'lucide-react';
+import { Megaphone, Medal } from 'lucide-react';
 import { Button, IconButton, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 export interface ActivityDetailDrawerProps {
@@ -56,6 +57,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
   // RSVP (S3): panel de invitar; el seguimiento vive en InvitationsSection
   // (invKey lo refresca tras enviar un lote).
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteProtoOpen, setInviteProtoOpen] = useState(false);
   const [invKey, setInvKey] = useState(0);
   useEffect(() => {
     if (!realId) return;
@@ -242,10 +244,15 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
           // Reactivar plegadas en el menú ⋯ para no saturar el pie.
           <footer className="flex items-center justify-end gap-2 border-t border-line px-5 py-4">
             {canExportAttendees && shown.statusRaw === 'activa' ? (
-              <Button type="button" className="mr-auto flex-1 sm:flex-none" onClick={() => setInviteOpen(true)}
-                style={{ backgroundColor: 'var(--color-brand-accent)' }}>
-                <Megaphone size={16} strokeWidth={2} aria-hidden="true" /> Invitar audiencia
-              </Button>
+              <span className="mr-auto flex flex-1 gap-2 sm:flex-none">
+                <Button type="button" className="flex-1 sm:flex-none" onClick={() => setInviteOpen(true)}
+                  style={{ backgroundColor: 'var(--color-brand-accent)' }}>
+                  <Megaphone size={16} strokeWidth={2} aria-hidden="true" /> Invitar audiencia
+                </Button>
+                <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => setInviteProtoOpen(true)}>
+                  <Medal size={16} strokeWidth={2} aria-hidden="true" /> Protocolo
+                </Button>
+              </span>
             ) : null}
             {onEdit ? (
               <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => onEdit(shown)}>
@@ -266,13 +273,22 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
       </div>
 
       {shown.statusRaw ? (
-        <InviteAudiencePanel
-          activityId={shown.id}
-          activityName={shown.title}
-          open={inviteOpen}
-          onClose={() => setInviteOpen(false)}
-          onSent={() => setInvKey((k) => k + 1)}
-        />
+        <>
+          <InviteAudiencePanel
+            activityId={shown.id}
+            activityName={shown.title}
+            open={inviteOpen}
+            onClose={() => setInviteOpen(false)}
+            onSent={() => setInvKey((k) => k + 1)}
+          />
+          <InviteProtocolPanel
+            activityId={shown.id}
+            activityName={shown.title}
+            open={inviteProtoOpen}
+            onClose={() => setInviteProtoOpen(false)}
+            onSent={() => setInvKey((k) => k + 1)}
+          />
+        </>
       ) : null}
     </div>
   );
