@@ -158,6 +158,22 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     expect(inv2.status).toBe('pending');
   });
 
+  it('una invitación CANCELADA se puede re-invitar (token nuevo, pending)', async () => {
+    // cancelar la pendiente del diplomático y re-invitarlo con otros acompañantes
+    const inv = await db.selectFrom('invitations').select(['id', 'token'])
+      .where('user_id', '=', uDip).where('activity_id', '=', act).executeTakeFirstOrThrow();
+    expect((await call('POST', `/api/v2/activities/${act}/invitations/${inv.id}/cancel`, {}, TOK.admin)).statusCode).toBe(204);
+
+    const r = await call('POST', `/api/v2/activities/${act}/protocol-invitations`,
+      { invites: [{ userId: uDip, plusOnes: 0 }] }, TOK.admin);
+    expect(r.json().summary).toMatchObject({ created: 1, reused: 0, skipped: 0 });
+    const after = await db.selectFrom('invitations').select(['status', 'token', 'plus_ones'])
+      .where('id', '=', inv.id).executeTakeFirstOrThrow();
+    expect(after.status).toBe('pending');
+    expect(after.token).not.toBe(inv.token); // token fresco
+    expect(after.plus_ones).toBe(0);
+  });
+
   it('desactivar saca del directorio y de candidatos; 404 al repetir', async () => {
     expect((await call('DELETE', `/api/v2/protocol/${uSinEmail}`, undefined, TOK.admin)).statusCode).toBe(204);
     expect((await call('DELETE', `/api/v2/protocol/${uSinEmail}`, undefined, TOK.admin)).statusCode).toBe(404);

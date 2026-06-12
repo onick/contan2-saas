@@ -109,9 +109,11 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
       });
       const b = (await res.json().catch(() => null)) as { summary?: { created: number; reused: number; dryRun: boolean }; error?: string } | null;
       if (res.status === 201 && b?.summary) {
+        const n = b.summary.created;
+        const base = n === 1 ? '1 invitación de protocolo creada' : `${n} invitaciones de protocolo creadas`;
         setOutcome(b.summary.dryRun
-          ? `${b.summary.created} invitación${b.summary.created === 1 ? '' : 'es'} de protocolo creada${b.summary.created === 1 ? '' : 's'} (modo simulación: sin clave de envío no salió ningún email; los enlaces RSVP ya funcionan y reservan al invitado con sus acompañantes).`
-          : `${b.summary.created} invitaciones de protocolo enviadas.`);
+          ? `${base} (modo simulación: sin clave de envío no salió ningún email; los enlaces RSVP ya funcionan y reservan al invitado con sus acompañantes).`
+          : `${base.replace('creada', 'enviada')}.`);
         onSent();
         void load();
       } else {
