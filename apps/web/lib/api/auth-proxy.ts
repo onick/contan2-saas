@@ -73,7 +73,7 @@ export async function proxyLogout(): Promise<Response> {
 // forwarding headers) y change-password/sesiones (withCookie=true reenvía
 // contan2_session). Nunca loguea bodies ni tokens.
 export async function proxyAuth(
-  method: 'POST' | 'GET' | 'DELETE',
+  method: 'POST' | 'GET' | 'DELETE' | 'PATCH',
   path: string,
   body: unknown | undefined,
   withCookie: boolean,
