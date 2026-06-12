@@ -958,3 +958,44 @@ export const TeamStatusUpdateRequestSchema = z.object({ status: z.enum(['active'
 export type TeamStatusUpdateRequest = z.infer<typeof TeamStatusUpdateRequestSchema>;
 export const TeamMutationResponseSchema = z.object({ id: z.string(), role: z.string().optional(), status: z.string().optional() });
 export type TeamMutationResponse = z.infer<typeof TeamMutationResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
+// Protocolo (módulo de invitados especiales · migraciones 029/030). La
+// designación es manual (owner/admin); la persona sigue siendo un User.
+// ─────────────────────────────────────────────────────────────────────────
+export const ProtocolCategorySchema = z.enum([
+  'autoridad', 'diplomatico', 'prensa', 'patrocinador', 'directivo', 'artista', 'otro',
+]);
+export type ProtocolCategory = z.infer<typeof ProtocolCategorySchema>;
+
+export const ProtocolProfileSchema = z.object({
+  userId: z.string(),
+  code: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  category: ProtocolCategorySchema,
+  honorific: z.string().nullable(),
+  orgTitle: z.string().nullable(),
+  notes: z.string().nullable(),
+  active: z.boolean(),
+  createdAt: z.string(),
+});
+export type ProtocolProfile = z.infer<typeof ProtocolProfileSchema>;
+
+export const ProtocolListResponseSchema = z.object({
+  profiles: z.array(ProtocolProfileSchema),
+  counts: z.record(z.string(), z.number()),
+});
+export type ProtocolListResponse = z.infer<typeof ProtocolListResponseSchema>;
+
+// Designar (o actualizar la designación de) un visitante existente.
+export const ProtocolDesignateRequestSchema = z.object({
+  userId: z.string().min(1),
+  category: ProtocolCategorySchema,
+  honorific: z.string().trim().max(80).nullable().optional(),
+  orgTitle: z.string().trim().max(160).nullable().optional(),
+  notes: z.string().trim().max(500).nullable().optional(),
+}).strict();
+export type ProtocolDesignateRequest = z.infer<typeof ProtocolDesignateRequestSchema>;

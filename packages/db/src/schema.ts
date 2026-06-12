@@ -247,6 +247,8 @@ export interface AttendanceTable {
   registered_at: CreatedAt;
 }
 
+export type InvitationKind = 'audience' | 'protocol';
+
 export interface InvitationsTable {
   // UUID PRIMARY KEY DEFAULT gen_random_uuid() → generado por la DB.
   id: Generated<string>;
@@ -259,6 +261,10 @@ export interface InvitationsTable {
   responded_at: NullableTs;
   expires_at: RequiredTs;
   created_at: CreatedAt;
+  // Migración 030 (Protocolo): audiencia vs protocolo + acompañantes
+  // autorizados. DEFAULTs ('audience', 0) → invisibles para v1.
+  kind: DefaultedEnum<InvitationKind>;
+  plus_ones: ColumnType<number, number | undefined, number>;
 }
 
 // Dedup transaccional del "+1 sin credencial" por Idempotency-Key del cliente
@@ -274,7 +280,30 @@ export interface CheckinIdempotencyTable {
   created_at: CreatedAt;
 }
 
+
+// protocol_profiles (migración 029 · módulo Protocolo): designación manual de
+// invitados especiales (autoridades/diplomáticos/prensa/patrocinadores/...).
+// La persona sigue siendo un `user` (mismo código/QR); esto agrega categoría,
+// honorífico y cargo para la invitación formal y el banner de puerta.
+export type ProtocolCategory =
+  | 'autoridad' | 'diplomatico' | 'prensa' | 'patrocinador'
+  | 'directivo' | 'artista' | 'otro';
+
+export interface ProtocolProfilesTable {
+  user_id: string; // PK · FK users(id) ON DELETE CASCADE
+  organization_id: string;
+  category: ProtocolCategory;
+  honorific: string | null;
+  org_title: string | null;
+  notes: string | null;
+  active: ColumnType<boolean, boolean | undefined, boolean>;
+  created_by: string | null;
+  created_at: CreatedAt;
+  updated_at: ColumnType<Date, string | undefined, string>;
+}
+
 export interface Database {
+  protocol_profiles: ProtocolProfilesTable;
   organizations: OrganizationsTable;
   staff_members: StaffMembersTable;
   staff_auth_sessions: StaffAuthSessionsTable;
