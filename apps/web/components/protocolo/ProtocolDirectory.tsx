@@ -227,8 +227,8 @@ function ActivityPicker({ onClose, onPick }: {
       .then(async (r) => {
         if (ignore) return;
         if (!r.ok) { setPhase('error'); return; }
-        const b = (await r.json()) as { activities?: Array<{ id: string; name: string; date: string }> };
-        setItems(b.activities ?? []);
+        const b = (await r.json()) as { items?: Array<{ id: string; name: string; date: string }> };
+        setItems(b.items ?? []);
         setPhase('ready');
       })
       .catch(() => { if (!ignore) setPhase('error'); });
