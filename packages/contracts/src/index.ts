@@ -17,7 +17,7 @@ export const PublicStaffSchema = z.object({
   email: z.string(),
   fullName: z.string(),
   status: z.enum(['active', 'suspended', 'deleted']),
-  role: z.enum(['owner', 'admin', 'operator']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo']),
   mustChangePassword: z.boolean(),
   mfaEnabled: z.boolean(),
   lastLoginAt: z.string().nullable(),
@@ -296,7 +296,7 @@ export const StaffInvitationSchema = z.object({
   id: z.string(),
   email: z.string(),
   fullName: z.string().nullable(),
-  role: z.enum(['owner', 'admin', 'operator']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo']),
   status: z.enum(['pending', 'accepted', 'revoked', 'expired']),
   expiresAt: z.string(),
   createdAt: z.string(),
@@ -308,7 +308,7 @@ export type StaffInvitationsListResponse = z.infer<typeof StaffInvitationsListRe
 export const StaffInviteCreateRequestSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   fullName: z.string().trim().max(120).optional(),
-  role: z.enum(['owner', 'admin', 'operator']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo']),
 }).strict();
 export type StaffInviteCreateRequest = z.infer<typeof StaffInviteCreateRequestSchema>;
 
@@ -316,7 +316,7 @@ export const InvitationPreviewResponseSchema = z.object({
   invitation: z.object({
     email: z.string(),
     fullName: z.string().nullable(),
-    role: z.enum(['owner', 'admin', 'operator']),
+    role: z.enum(['owner', 'admin', 'operator', 'protocolo']),
     expiresAt: z.string(),
     organization: z.object({ slug: z.string(), name: z.string() }).nullable(),
   }),
@@ -971,7 +971,7 @@ export const TeamListResponseSchema = z.object({
 });
 export type TeamListResponse = z.infer<typeof TeamListResponseSchema>;
 
-export const TeamRoleUpdateRequestSchema = z.object({ role: z.enum(['owner', 'admin', 'operator']) }).strict();
+export const TeamRoleUpdateRequestSchema = z.object({ role: z.enum(['owner', 'admin', 'operator', 'protocolo']) }).strict();
 export type TeamRoleUpdateRequest = z.infer<typeof TeamRoleUpdateRequestSchema>;
 export const TeamStatusUpdateRequestSchema = z.object({ status: z.enum(['active', 'suspended']) }).strict();
 export type TeamStatusUpdateRequest = z.infer<typeof TeamStatusUpdateRequestSchema>;

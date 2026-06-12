@@ -16,11 +16,11 @@ import { cn, focusRing } from '../ui/cn';
 interface Me {
   fullName: string;
   email: string;
-  role: 'owner' | 'admin' | 'operator';
+  role: 'owner' | 'admin' | 'operator' | 'protocolo';
 }
 
 const ROLE_LABEL: Record<Me['role'], string> = {
-  owner: 'Propietario', admin: 'Administración', operator: 'Operación',
+  owner: 'Propietario', admin: 'Administración', operator: 'Operación', protocolo: 'Protocolo',
 };
 
 function initials(name: string): string {
@@ -99,7 +99,7 @@ export function TopbarUserMenu({ orgName }: { orgName: string }) {
             <Link role="menuitem" href="/app/cuenta" className={itemCls} onClick={() => setOpen(false)}>
               <UserRound size={15} strokeWidth={2} aria-hidden="true" className="text-muted" /> Mi cuenta
             </Link>
-            {me && me.role !== 'operator' ? (
+            {me && (me.role === 'owner' || me.role === 'admin') ? (
               <Link role="menuitem" href="/app/historial" className={itemCls} onClick={() => setOpen(false)}>
                 <History size={15} strokeWidth={2} aria-hidden="true" className="text-muted" /> Historial
               </Link>

@@ -28,7 +28,7 @@ run('Protocolo · designar e invitar con acompañantes', () => {
   const slug = `proto-${stamp}`;
   const host = `${slug}.contan2.com`;
   let orgId: string;
-  const TOK = { admin: `proto-adm-${stamp}`, operator: `proto-op-${stamp}` };
+  const TOK = { admin: `proto-adm-${stamp}`, operator: `proto-op-${stamp}`, depto: `proto-dep-${stamp}` };
 
   let act: string; // cap 4 → embajador +2 confirma (3) y al diplomático +2 no le cabe
   let uEmb: string; let uDip: string; let uSinEmail: string;
@@ -57,7 +57,7 @@ run('Protocolo · designar e invitar con acompañantes', () => {
   beforeAll(async () => {
     db = createDb(DATABASE_URL);
     orgId = (await db.insertInto('organizations').values({ slug, name: 'Proto Org', status: 'active' }).returning('id').executeTakeFirstOrThrow()).id;
-    for (const [tok, role] of [[TOK.admin, 'admin'], [TOK.operator, 'operator']] as const) {
+    for (const [tok, role] of [[TOK.admin, 'admin'], [TOK.operator, 'operator'], [TOK.depto, 'protocolo']] as const) {
       const st = await db.insertInto('staff_members').values({
         organization_id: orgId, email: `${role}-p-${stamp}@t.local`, password_hash: 'x',
         full_name: 'S', status: 'active', role,
@@ -223,6 +223,21 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     expect(todo).toContain('Diplomático');
     expect(todo).toContain('+2');
     expect(todo).toContain('Sí'); // el embajador llegó (check-in del test anterior)
+  });
+
+  it("rol 'protocolo' (PR-7): usa su módulo (directorio + invitar) pero 403 fuera (historial)", async () => {
+    // su módulo: directorio OK
+    expect((await call('GET', '/api/v2/protocol', undefined, TOK.depto)).statusCode).toBe(200);
+    // designar también (gestiona el directorio del departamento)
+    const u6 = await mkUser(`f6-${stamp}@t.local`);
+    expect((await call('POST', '/api/v2/protocol', { userId: u6, category: 'prensa' }, TOK.depto)).statusCode).toBe(201);
+    // invitar a la actividad
+    const r = await call('POST', `/api/v2/activities/${act}/protocol-invitations`,
+      { invites: [{ userId: u6, plusOnes: 1 }] }, TOK.depto);
+    expect(r.statusCode).toBe(201);
+    expect(r.json().summary.created).toBe(1);
+    // fuera de su módulo: el historial (owner/admin) lo rechaza
+    expect((await call('GET', '/api/v2/org/audit', undefined, TOK.depto)).statusCode).toBe(403);
   });
 
   it('desactivar saca del directorio y de candidatos; 404 al repetir', async () => {

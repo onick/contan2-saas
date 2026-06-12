@@ -21,7 +21,7 @@ export interface TeamTableProps {
   currentRole?: string;
 }
 
-const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador' };
+const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador', protocolo: 'Protocolo' };
 const ROLE_TONE: Record<string, ChipTone> = { owner: 'warning', admin: 'success', operator: 'neutral' };
 const STATUS_LABEL: Record<string, string> = { active: 'Activo', suspended: 'Suspendido', deleted: 'Eliminado' };
 const STATUS_TONE: Record<string, ChipTone> = { active: 'success', suspended: 'danger', deleted: 'neutral' };
