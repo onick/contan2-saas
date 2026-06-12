@@ -204,7 +204,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
       invitation: {
         email: inv.email,
         fullName: inv.full_name,
-        role: inv.role as 'owner' | 'admin' | 'operator',
+        role: inv.role as 'owner' | 'admin' | 'operator' | 'protocolo',
         expiresAt: new Date(inv.expires_at).toISOString(),
         organization: { slug: tenant.org.slug, name: tenant.org.name },
       },
@@ -247,7 +247,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
         email: inv.email,
         password_hash: passwordHash,
         full_name: finalName,
-        role: inv.role as 'owner' | 'admin' | 'operator',
+        role: inv.role as 'owner' | 'admin' | 'operator' | 'protocolo',
         status: 'active',
         must_change_password: false,
       }).returning(['id', 'email']).executeTakeFirstOrThrow();

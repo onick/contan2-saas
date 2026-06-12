@@ -8,8 +8,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Medal, Loader2, Search, Plus, Pencil, Ban, X, AlertTriangle, UserRound,
+  Medal, Loader2, Search, Plus, Pencil, Ban, X, AlertTriangle, UserRound, Send, CalendarDays,
 } from 'lucide-react';
+import { InviteProtocolPanel } from '../activities/InviteProtocolPanel';
 import {
   ProtocolListResponseSchema, CheckinVisitorsResponseSchema,
   type ProtocolProfile, type ProtocolCategory, type CheckinVisitorItem,
@@ -46,6 +47,10 @@ export function ProtocolDirectory() {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Invitar a una actividad DESDE el módulo (la cuenta 'protocolo' no ve el
+  // admin de actividades): selector de activas → mismo panel del detalle.
+  const [pickOpen, setPickOpen] = useState(false);
+  const [target, setTarget] = useState<{ id: string; name: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -102,6 +107,9 @@ export function ProtocolDirectory() {
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar designado…"
               className={cn('h-9 w-52 rounded-full border border-line bg-surface pl-8 pr-3 text-[13px] text-ink placeholder:text-faint', focusRing)} />
           </span>
+          <Button type="button" variant="secondary" onClick={() => { setPickOpen(true); setError(null); }}>
+            <Send size={15} strokeWidth={2} aria-hidden="true" /> Invitar a actividad
+          </Button>
           <Button type="button" onClick={() => { setForm({ ...EMPTY_FORM }); setError(null); }}
             style={{ backgroundColor: 'var(--color-brand-accent)' }}>
             <Plus size={15} strokeWidth={2.25} aria-hidden="true" /> Designar invitado
@@ -185,7 +193,88 @@ export function ProtocolDirectory() {
           onSaved={() => { setForm(null); void load(); }}
         />
       ) : null}
+
+      {pickOpen ? (
+        <ActivityPicker
+          onClose={() => setPickOpen(false)}
+          onPick={(a) => { setPickOpen(false); setTarget(a); }}
+        />
+      ) : null}
+      {target ? (
+        <InviteProtocolPanel
+          activityId={target.id}
+          activityName={target.name}
+          open
+          onClose={() => setTarget(null)}
+          onSent={() => {}}
+        />
+      ) : null}
     </>
+  );
+}
+
+// Selector simple de ACTIVIDAD ACTIVA (mismo endpoint vivo del check-in).
+function ActivityPicker({ onClose, onPick }: {
+  onClose: () => void;
+  onPick: (a: { id: string; name: string }) => void;
+}) {
+  const [items, setItems] = useState<Array<{ id: string; name: string; date: string }>>([]);
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
+
+  useEffect(() => {
+    let ignore = false;
+    void fetch('/app/check-in/api/activities', { cache: 'no-store' })
+      .then(async (r) => {
+        if (ignore) return;
+        if (!r.ok) { setPhase('error'); return; }
+        const b = (await r.json()) as { activities?: Array<{ id: string; name: string; date: string }> };
+        setItems(b.activities ?? []);
+        setPhase('ready');
+      })
+      .catch(() => { if (!ignore) setPhase('error'); });
+    return () => { ignore = true; };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center p-4" role="dialog" aria-modal="true" aria-label="Elegir actividad">
+      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-ink/40" />
+      <div className="relative w-full max-w-md rounded-2xl border border-line bg-surface p-5 shadow-xl">
+        <h3 className="text-base font-bold tracking-tight text-ink">¿A qué actividad invitás?</h3>
+        {phase === 'loading' ? (
+          <p className="mt-3 flex items-center gap-2 text-[13px] text-faint" aria-busy="true">
+            <Loader2 size={14} strokeWidth={2} aria-hidden="true" className="animate-spin" /> Cargando actividades activas…
+          </p>
+        ) : phase === 'error' ? (
+          <p className="mt-3 text-[13px] text-muted">No pudimos cargar las actividades. Reintentá.</p>
+        ) : items.length === 0 ? (
+          <p className="mt-3 text-[13px] text-muted">No hay actividades activas ahora mismo.</p>
+        ) : (
+          <ul className="mt-3 max-h-72 divide-y divide-line/70 overflow-y-auto rounded-lg border border-line">
+            {items.map((a) => (
+              <li key={a.id}>
+                <button type="button" onClick={() => onPick({ id: a.id, name: a.name })}
+                  className={cn('flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-ink hover:bg-surface-container', focusRing)}>
+                  <CalendarDays size={15} strokeWidth={1.75} aria-hidden="true" className="flex-none text-muted" />
+                  <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                  <span className="flex-none text-[11.5px] tabular-nums text-faint">
+                    {new Date(a.date).toLocaleDateString('es-DO', { day: 'numeric', month: 'short' })}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-4 flex justify-end">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

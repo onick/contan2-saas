@@ -9,7 +9,7 @@ export type SidebarStyle = 'brand' | 'dark' | 'light';
 // staff_members.status y platform_admins.status comparten este conjunto.
 export type AccountStatus = 'active' | 'suspended' | 'deleted';
 
-export type StaffRole = 'owner' | 'admin' | 'operator';
+export type StaffRole = 'owner' | 'admin' | 'operator' | 'protocolo';
 
 // activities.status CHECK (migración 001_initial.sql).
 export type ActivityStatus = 'activa' | 'finalizada' | 'cancelada';

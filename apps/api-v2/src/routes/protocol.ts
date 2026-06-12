@@ -27,7 +27,8 @@ import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { effectiveHost } from '../tenant.js';
 import { deliverInvitations, type DeliverableInvitation } from '../services/invitation-email.js';
 
-const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+// owner/admin gestionan todo; la cuenta 'protocolo' usa SOLO este módulo.
+const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'protocolo']);
 const writeLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('protocol-write') });
 const inviteLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('protocol-invite') });
 const DAY_MS = 86_400_000;

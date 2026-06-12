@@ -33,6 +33,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect(`/login?next=${encodeURIComponent(sanitizeNext(path))}`);
   }
 
+  // Cuenta del departamento de PROTOCOLO (PR-7): su mundo es el módulo
+  // Protocolo (+ Mi cuenta). Cualquier otra ruta del admin redirige allá.
+  // El RBAC real lo arbitra api-v2 (403 por endpoint); esto es UX.
+  if (gate.staff.role === 'protocolo') {
+    const path = (await headers()).get('x-pathname') ?? '';
+    if (!/^\/app\/(protocolo|cuenta)(\/|$|\?)/.test(path)) redirect('/app/protocolo');
+  }
+
   const themeVars = brandingToCssVars(gate.branding) as CSSProperties;
   return <div style={themeVars}>{children}</div>;
 }

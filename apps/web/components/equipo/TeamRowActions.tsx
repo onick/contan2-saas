@@ -19,8 +19,8 @@ interface Props {
   onChanged: () => void; // recargar la lista tras una acción
 }
 
-const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador' };
-const ALL_ROLES = ['operator', 'admin', 'owner'] as const;
+const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador', protocolo: 'Protocolo' };
+const ALL_ROLES = ['operator', 'protocolo', 'admin', 'owner'] as const;
 
 type View =
   | { kind: 'menu' }
