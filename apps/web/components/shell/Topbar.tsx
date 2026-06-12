@@ -1,6 +1,7 @@
-import { Search, Bell, LogOut } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { BrandingOrg } from '../../lib/branding/theme';
-import { cn, focusRing } from '../ui/cn';
+import { TopbarNotifications } from './TopbarNotifications';
+import { TopbarUserMenu } from './TopbarUserMenu';
 
 export interface TopbarProps {
   branding: BrandingOrg;
@@ -13,10 +14,12 @@ function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 }
 
-// Top app bar · estilo Google/Material: breadcrumb, buscador, notificaciones y
-// avatar. Mobile muestra el brand compacto (el drawer está oculto). Las
-// affordances (buscar, notificaciones) son visuales; se cablean luego.
-// Server Component.
+// Top app bar · estilo Google/Material: breadcrumb, buscador, notificaciones
+// REALES (TopbarNotifications: feed del log de auditoría con no-leídas
+// honestas) y menú de usuario REAL (TopbarUserMenu: identidad de la sesión +
+// Mi cuenta + Cerrar sesión). Mobile muestra el brand compacto (drawer
+// oculto). El buscador sigue siendo visual (pendiente). Server Component
+// (los hijos interactivos son client).
 export function Topbar({ branding, title, meta }: TopbarProps) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur md:px-7">
@@ -49,33 +52,11 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
           </span>
         ) : null}
 
-        <button
-          type="button"
-          aria-label="Notificaciones"
-          className="relative grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-surface-container"
-        >
-          <Bell size={20} strokeWidth={1.75} aria-hidden="true" />
-          <span aria-hidden="true" className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-brand-accent ring-2 ring-surface" />
-        </button>
+        <TopbarNotifications />
 
-        <span className="ml-0.5 grid h-9 w-9 flex-none place-items-center rounded-full bg-brand-strong text-xs font-semibold text-white">
-          {initials(branding.name)}
-        </span>
-
-        {/* Cerrar sesión · visible siempre (en mobile el Sidebar está oculto, así
-            que este es el único acceso al logout). Form-post sin JS. */}
-        <form action="/api/auth/logout" method="post" className="flex">
-          <button
-            type="submit"
-            aria-label="Cerrar sesión"
-            className={cn(
-              'grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-surface-container hover:text-ink',
-              focusRing,
-            )}
-          >
-            <LogOut size={20} strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        </form>
+        {/* Menú de usuario: identidad de la sesión + Mi cuenta + Cerrar sesión
+            (el logout vive acá; en mobile el menú es el acceso). */}
+        <TopbarUserMenu orgName={branding.name} />
       </div>
     </header>
   );

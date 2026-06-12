@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, Loader2, History } from 'lucide-react';
 import { CATEGORY_META, type EventCategory } from '../../lib/historial/demoData';
+import { ACTION_LABEL, actionLabel } from '../../lib/audit/labels';
 import { Card, Button, cn, focusRing } from '../ui';
 
 interface Item {
@@ -17,18 +18,9 @@ interface Item {
 }
 interface Filters { action: string; actor: string; from: string; to: string }
 
-// Acciones conocidas → etiqueta legible + filtro del <select>.
-const ACTION_LABEL: Record<string, string> = {
-  'user.updated': 'editó un visitante',
-  'credential.resent': 'reenvió una credencial',
-  'user.archived': 'archivó un visitante',
-  'user.reactivated': 'reactivó un visitante',
-  'checkin.manual': 'registró un check-in',
-  'checkin.anonymous': 'registró un +1 sin credencial',
-  'report.generated': 'generó un reporte',
-};
+// Acciones conocidas → opciones del <select>. El mapa de etiquetas vive en
+// lib/audit/labels (compartido con las notificaciones del Topbar).
 const ACTION_OPTIONS = Object.entries(ACTION_LABEL);
-const actionLabel = (a: string) => ACTION_LABEL[a] ?? a;
 const catMeta = (c: string) => CATEGORY_META[(c as EventCategory)] ?? CATEGORY_META.usuario;
 
 function dayOf(iso: string): { key: string; label: string } {
