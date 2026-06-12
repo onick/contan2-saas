@@ -22,7 +22,7 @@ import { CoverThumb } from './CoverThumb';
 import { StatusActionsMenu } from './StatusActions';
 import { AttendeesSection } from './AttendeesSection';
 import { InviteAudiencePanel } from './InviteAudiencePanel';
-import { ActivityInvitationsResponseSchema, type ActivityInvitationsResponse } from '@contan2/contracts';
+import { InvitationsSection } from './InvitationsSection';
 import { Megaphone } from 'lucide-react';
 import { Button, IconButton, cn, focusRing, useDrawerLifecycle } from '../ui';
 
@@ -53,9 +53,9 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
   const [desc, setDesc] = useState<{ phase: 'loading' | 'ready' | 'error'; text: string | null }>({ phase: 'loading', text: null });
   const [summary, setSummary] = useState<ActivitySummary | null>(null);
   const [summaryKey, setSummaryKey] = useState(0); // bump al quitar asistencias
-  // RSVP (S3): panel de invitar + resumen de invitaciones de la actividad.
+  // RSVP (S3): panel de invitar; el seguimiento vive en InvitationsSection
+  // (invKey lo refresca tras enviar un lote).
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [invSummary, setInvSummary] = useState<ActivityInvitationsResponse['summary'] | null>(null);
   const [invKey, setInvKey] = useState(0);
   useEffect(() => {
     if (!realId) return;
@@ -69,14 +69,8 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
     });
     // Resumen en paralelo; null (error/sin datos) → la sección no se muestra.
     void fetchActivitySummary(realId).then((sum) => { if (!ignore) setSummary(sum); });
-    void fetch(`/app/actividades/api/${encodeURIComponent(realId)}/invitations`, { cache: 'no-store' })
-      .then(async (r) => {
-        if (ignore || !r.ok) return;
-        setInvSummary(ActivityInvitationsResponseSchema.parse(await r.json()).summary);
-      })
-      .catch(() => {});
     return () => { ignore = true; };
-  }, [realId, summaryKey, invKey]);
+  }, [realId, summaryKey]);
 
   // Cierre animado (scroll-lock/Escape/foco-restore los maneja el hook).
   const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: onClose });
@@ -214,20 +208,9 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
             <AttendeesSection activityId={shown.id} canExport={canExportAttendees} onMutated={() => setSummaryKey((k) => k + 1)} />
           ) : null}
 
-          {/* Invitaciones RSVP (S3) · sólo si hay */}
-          {shown.statusRaw && invSummary && invSummary.total > 0 ? (
-            <div className="mt-5 rounded-xl border border-line bg-surface-container/50 p-3">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-                <Megaphone size={13} strokeWidth={2} aria-hidden="true" /> Invitaciones
-              </p>
-              <p className="mt-1 text-[13px] tabular-nums text-muted">
-                <strong className="text-ink">{invSummary.total}</strong> enviada{invSummary.total === 1 ? '' : 's'} ·{' '}
-                <strong className="text-success-fg">{invSummary.confirmed}</strong> confirmada{invSummary.confirmed === 1 ? '' : 's'} ·{' '}
-                <strong className="text-ink">{invSummary.pending}</strong> sin responder
-                {invSummary.declined > 0 ? <> · {invSummary.declined} no puede{invSummary.declined === 1 ? '' : 'n'}</> : null}
-                {invSummary.expired > 0 ? <> · {invSummary.expired} expirada{invSummary.expired === 1 ? '' : 's'}</> : null}
-              </p>
-            </div>
+          {/* Invitaciones RSVP (S3) · resumen + lista con cancelar (PR-3) */}
+          {shown.statusRaw ? (
+            <InvitationsSection activityId={shown.id} canManage={canExportAttendees} refreshKey={invKey} />
           ) : null}
 
           {/* Descripción · del detalle completo (Lifecycle A2). Estado honesto. */}

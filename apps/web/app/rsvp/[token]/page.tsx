@@ -14,14 +14,22 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function RsvpPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function RsvpPage({ params, searchParams }: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { token } = await params;
+  // ?intent=yes|no viene de los botones del email: sólo PRE-ENFOCA el botón en
+  // la página (el GET no responde nada — los prefetchers de correo no pueden
+  // confirmar por el visitante).
+  const sp = await searchParams;
+  const intent = sp.intent === 'yes' || sp.intent === 'no' ? sp.intent : null;
   const branding = getLocalBranding();
   const themeVars = brandingToCssVars(branding) as CSSProperties;
   return (
     <div style={themeVars} className="grid min-h-screen place-items-center bg-page px-5 py-10">
       <main className="w-full max-w-[460px]">
-        <RsvpClient token={token} orgFallback={branding.name} />
+        <RsvpClient token={token} orgFallback={branding.name} intent={intent} />
       </main>
     </div>
   );

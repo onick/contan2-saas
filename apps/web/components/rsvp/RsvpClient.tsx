@@ -13,7 +13,7 @@ const FMT = new Intl.DateTimeFormat('es-DO', { weekday: 'long', day: 'numeric', 
 
 type Inv = RsvpPreviewResponse['invitation'];
 
-export function RsvpClient({ token, orgFallback }: { token: string; orgFallback: string }) {
+export function RsvpClient({ token, orgFallback, intent = null }: { token: string; orgFallback: string; intent?: 'yes' | 'no' | null }) {
   const [inv, setInv] = useState<Inv | null>(null);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'missing'>('loading');
   const [busy, setBusy] = useState<'yes' | 'no' | null>(null);
@@ -101,13 +101,14 @@ export function RsvpClient({ token, orgFallback }: { token: string; orgFallback:
             <p className="mt-4 text-sm text-ink">Hola {inv.firstName}, ¿nos acompañás?</p>
             {error ? <p role="alert" className="mt-3 rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{error}</p> : null}
             <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <button type="button" disabled={!!busy} onClick={() => void respond('yes')}
-                className={cn('inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-semibold text-white', focusRing)}
+              {/* intent del email pre-enfoca el botón elegido (sin auto-enviar). */}
+              <button type="button" disabled={!!busy} onClick={() => void respond('yes')} autoFocus={intent === 'yes'}
+                className={cn('inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-semibold text-white', intent === 'yes' && 'ring-2 ring-offset-2 ring-[var(--color-brand-accent)]', focusRing)}
                 style={{ backgroundColor: 'var(--color-brand-accent)' }}>
                 {busy === 'yes' ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CheckCircle2 size={17} strokeWidth={2} aria-hidden="true" />} Sí, voy
               </button>
-              <button type="button" disabled={!!busy} onClick={() => void respond('no')}
-                className={cn('inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 text-[15px] font-semibold text-muted hover:text-ink', focusRing)}>
+              <button type="button" disabled={!!busy} onClick={() => void respond('no')} autoFocus={intent === 'no'}
+                className={cn('inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 text-[15px] font-semibold text-muted hover:text-ink', intent === 'no' && 'ring-2 ring-offset-2 ring-line', focusRing)}>
                 {busy === 'no' ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <XCircle size={17} strokeWidth={2} aria-hidden="true" />} No puedo
               </button>
             </div>

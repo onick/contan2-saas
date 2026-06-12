@@ -183,6 +183,28 @@ run('RSVP · invitar audiencia segmentada', () => {
     expect((await call('POST', `/api/v2/public/rsvp/${t2}`, { action: 'no' })).json().status).toBe('declined');
   });
 
+  it('entrega: POST en dry-run deja sent_at null; deliverInvitations con transporte real lo marca', async () => {
+    const u5 = await mkUser(`f5-${stamp}@t.local`);
+    await call('POST', `/api/v2/activities/${actCine}/invitations`, { userIds: [u5] }, TOK.admin);
+    // fire-and-forget en dry-run (sin RESEND_API_KEY): sent_at queda null.
+    await new Promise((r) => setTimeout(r, 150));
+    const inv = await db.selectFrom('invitations').select(['id', 'token', 'sent_at'])
+      .where('user_id', '=', u5).executeTakeFirstOrThrow();
+    expect(inv.sent_at).toBeNull();
+
+    // Entrega real (sender inyectado): marca sent_at SOLO tras { id }.
+    const { deliverInvitations } = await import('../src/services/invitation-email.js');
+    const sent: string[] = [];
+    const out = await deliverInvitations(db, orgAId, hostA,
+      { name: 'Act', date: future(3), location: 'S', imageUrl: null },
+      [{ invitationId: inv.id, token: inv.token, user: { email: `f5-${stamp}@t.local`, firstName: 'F', lastName: 'U' } }],
+      { send: async (m) => { sent.push(m.to); return { id: 'x' }; } });
+    expect(out).toMatchObject({ sent: 1, skipped: 0, failed: 0 });
+    expect(sent).toEqual([`f5-${stamp}@t.local`]);
+    const after = await db.selectFrom('invitations').select('sent_at').where('id', '=', inv.id).executeTakeFirstOrThrow();
+    expect(after.sent_at).not.toBeNull();
+  });
+
   it('cancelar: pendiente → 204; respondida → 404; token inventado en público → 404', async () => {
     const u4 = await mkUser(`f4-${stamp}@t.local`);
     await call('POST', `/api/v2/activities/${actCine}/invitations`, { userIds: [u4] }, TOK.admin);
