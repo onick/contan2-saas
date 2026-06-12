@@ -31,12 +31,11 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'Actividades' })).toHaveAttribute('href', '/app/actividades');
   });
 
-  it('muestra la marca del tenant sin logo: chip con icono + nombre en dos líneas', () => {
+  it('CCB sin logoUrl: lockup oficial vertical (SVG accesible) + chip del riel con icono', () => {
     render(<Sidebar branding={{ ...DEFAULT_BRANDING, logoUrl: null }} activeKey="dashboard" />);
-    // Nombre largo partido: "Centro Cultural" arriba, "Banreservas" debajo (liviano).
-    expect(screen.getByText('Centro Cultural')).toBeInTheDocument();
-    expect(screen.getByText('Banreservas')).toBeInTheDocument();
-    // Chip de marca con el ICONO del tenant (CCB registrado → svg, no iniciales).
+    // Lockup a color con nombre accesible (paridad con el logo de v1).
+    expect(screen.getByRole('img', { name: DEFAULT_BRANDING.name })).toBeInTheDocument();
+    // Chip de marca con el ICONO del tenant (riel colapsado + bloque de cuenta).
     const chips = screen.getAllByTestId('brand-chip');
     expect(chips.length).toBeGreaterThan(0);
     expect(chips[0]?.querySelector('svg')).toBeTruthy();
