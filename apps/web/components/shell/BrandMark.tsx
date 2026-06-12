@@ -62,7 +62,9 @@ export function BrandChip({ slug, name, className, rounded = 'rounded-[11px]' }:
 // pero en SVG (nítido en retina). Para el sidebar expandido (lockup vertical).
 function CcbLockup({ className, label }: { className?: string; label: string }) {
   return (
-    <svg viewBox="0 0 434 322" role="img" aria-label={label} className={className}>
+    // viewBox RECORTADO al bounding box real del arte (el lienzo original
+    // 434×322 trae ~50% de aire alrededor → espacio en blanco en el sidebar).
+    <svg viewBox="106.5 75.5 221 154" role="img" aria-label={label} className={className}>
       <path fill="#636769" d="M120.28,188.98c-.59-.35-1.22-.63-1.9-.83-.68-.2-1.37-.3-2.08-.3-1.36,0-2.45.43-3.26,1.29-.81.86-1.22,2.03-1.22,3.53s.4,2.7,1.18,3.58c.79.87,1.9,1.31,3.33,1.31.77,0,1.51-.12,2.22-.35.71-.24,1.35-.55,1.94-.93l.83,3.55c-.62.34-1.41.61-2.36.82-.95.21-1.89.31-2.81.31-1.26,0-2.41-.18-3.44-.53-1.03-.35-1.92-.88-2.65-1.57-.73-.7-1.29-1.55-1.69-2.57-.39-1.02-.59-2.19-.59-3.52s.2-2.43.59-3.45c.4-1.03.96-1.9,1.7-2.62.74-.72,1.63-1.28,2.68-1.66,1.05-.39,2.22-.58,3.52-.58.96,0,1.89.11,2.78.33.9.22,1.71.51,2.43.86l-1.21,3.35Z"/>
       <polygon fill="#636769" points="123.89 200.57 123.89 184.82 135.38 184.82 135.38 188.04 127.79 188.04 127.79 191.04 133.89 191.04 133.89 194.27 127.79 194.27 127.79 197.34 135.38 197.34 135.38 200.57 123.89 200.57"/>
       <polygon fill="#636769" points="149.01 184.82 152.77 184.82 152.77 200.72 148.51 200.72 141.88 190.36 141.88 200.57 138.13 200.57 138.13 184.82 142.46 184.82 149.01 195.05 149.01 184.82"/>
