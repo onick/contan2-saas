@@ -13,6 +13,7 @@ import {
   type AdminAnonymousCheckinResponse,
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
+import { protocolBadgeFor, protocolMarksFor } from '../services/protocol-info.js';
 import { parseSearch, likeContains } from '../query.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { CheckinError, checkinIdentified, reserveCapacity } from '../services/checkin-core.js';
@@ -187,6 +188,8 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       .limit(limit)
       .execute();
 
+    // Marca de protocolo (PR-5) en un solo query por lote; best-effort.
+    const marks = await protocolMarksFor(db, orgId, rows.map((r) => r.id)).catch(() => new Map());
     const items: CheckinVisitorItem[] = rows.map((r) => ({
       id: r.id,
       code: r.code,
@@ -194,6 +197,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       lastName: r.last_name,
       email: r.email,
       visitCount: Number(r.visit_count),
+      protocol: marks.get(r.id) ?? null,
     }));
     return { items } satisfies CheckinVisitorsResponse;
   });
@@ -227,9 +231,11 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
         return r;
       });
       reply.code(201);
+      // Banner de protocolo (PR-5): best-effort, fuera de la tx.
+      const protocol = await protocolBadgeFor(db, orgId, result.userId, result.activity.id).catch(() => null);
       const body: AdminCheckinResponse = {
         code: result.code, visitCount: result.visitCount, partySize: result.partySize,
-        activity: result.activity, mode: result.isNew ? 'new' : 'existing',
+        activity: result.activity, mode: result.isNew ? 'new' : 'existing', protocol,
       };
       return body;
     } catch (e) {

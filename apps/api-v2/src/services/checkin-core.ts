@@ -132,6 +132,51 @@ export async function checkinIdentified(
     user = found;
   }
 
+  // 1.5 · LLEGADA de una RESERVA RSVP (S3/Protocolo): si el visitante ya tiene
+  // asistencia con checked_in_at NULL (confirmó por su link y el cupo de su
+  // grupo YA está reservado), la puerta lo marca PRESENTE — sin volver a
+  // tocar el cupo y sin 409. Un checked_in_at no-null sí es duplicado real.
+  if (!isNew) {
+    const reservaPrevia = await tx
+      .selectFrom('attendance')
+      .select(['id', 'checked_in_at', 'companions_children'])
+      .where('organization_id', '=', orgId)
+      .where('activity_id', '=', activityId)
+      .where('user_id', '=', user.id)
+      .executeTakeFirst();
+    if (reservaPrevia) {
+      if (reservaPrevia.checked_in_at) {
+        throw new CheckinError(409, 'El visitante ya está registrado en esta actividad.');
+      }
+      const act = await tx
+        .selectFrom('activities')
+        .select(['id', 'name', 'status'])
+        .where('organization_id', '=', orgId)
+        .where('id', '=', activityId)
+        .executeTakeFirst();
+      if (!act) throw new CheckinError(404, 'La actividad no existe.');
+      if (act.status !== 'activa') throw new CheckinError(409, 'La actividad no está activa.');
+      await tx.updateTable('attendance')
+        .set({ checked_in_at: new Date().toISOString() })
+        .where('id', '=', reservaPrevia.id)
+        .execute();
+      await tx.updateTable('users')
+        .set({ visit_count: sql<number>`visit_count + 1` })
+        .where('id', '=', user.id)
+        .execute();
+      return {
+        code: user.code,
+        visitCount: user.visit_count + 1,
+        partySize: 1 + reservaPrevia.companions_children,
+        activity: { id: act.id, name: act.name },
+        userId: user.id,
+        attendanceId: reservaPrevia.id,
+        isNew: false,
+        deliver: null,
+      };
+    }
+  }
+
   // 2 · Reserva atómica de cupo.
   const reserved = await reserveCapacity(tx, orgId, activityId, partySize);
 

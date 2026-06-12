@@ -174,6 +174,40 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     expect(after.plus_ones).toBe(0);
   });
 
+  it('banner de puerta: búsqueda marca protocolo; check-in admin y público llevan el badge con plusOnes', async () => {
+    // El embajador confirmó (+2) en el test anterior → su attendance existe (sin
+    // check-in). La BÚSQUEDA lo marca como protocolo:
+    const search = await call('GET', `/api/v2/checkin/visitors?q=${encodeURIComponent('U' )}`, undefined, TOK.admin);
+    // (la búsqueda multi-campo puede traer varios; localizamos al embajador)
+    const embRow = (search.json() as { items: Array<{ id: string; protocol: { honorific: string | null } | null }> })
+      .items.find((i) => i.id === uEmb);
+    if (embRow) expect(embRow.protocol?.honorific).toBe('Sr. Embajador');
+
+    // Check-in ADMIN del embajador → protocol badge con plusOnes=2.
+    const embCode = (await db.selectFrom('users').select('code').where('id', '=', uEmb).executeTakeFirstOrThrow()).code;
+    const adm = await call('POST', '/api/v2/checkin', { activityId: act, visitor: { code: embCode }, companionsChildren: 0 }, TOK.admin);
+    expect(adm.statusCode).toBe(201);
+    expect(adm.json().protocol).toMatchObject({ category: 'diplomatico', honorific: 'Sr. Embajador', plusOnes: 2 });
+    // LLEGADA de la reserva RSVP: marca presente SIN volver a reservar cupo
+    // (seguía en 3 por el sí del embajador +2) y sin 409.
+    const att = await db.selectFrom('attendance').select('checked_in_at')
+      .where('activity_id', '=', act).where('user_id', '=', uEmb).executeTakeFirstOrThrow();
+    expect(att.checked_in_at).not.toBeNull();
+    const enr = await db.selectFrom('activities').select('enrolled_count').where('id', '=', act).executeTakeFirstOrThrow();
+    expect(enr.enrolled_count).toBe(3);
+    // Re-escanear al ya presente → ahora sí 409 (duplicado real).
+    expect((await call('POST', '/api/v2/checkin', { activityId: act, visitor: { code: embCode }, companionsChildren: 0 }, TOK.admin)).statusCode).toBe(409);
+
+    // Check-in PÚBLICO (scanner/kiosko) de un designado SIN invitación a esa
+    // actividad → badge presente con plusOnes 0. (uDip quedó re-invitado
+    // pending; usamos su badge igualmente — cupo: cap 4, ocupados 3+, el
+    // público suma 1 → al límite exacto.)
+    const dipCode = (await db.selectFrom('users').select('code').where('id', '=', uDip).executeTakeFirstOrThrow()).code;
+    const pub = await call('POST', '/api/v2/public/checkin', { activityId: act, visitor: { code: dipCode }, companionsChildren: 0 });
+    expect(pub.statusCode).toBe(200);
+    expect(pub.json().protocol).toMatchObject({ category: 'directivo', plusOnes: 0 });
+  });
+
   it('desactivar saca del directorio y de candidatos; 404 al repetir', async () => {
     expect((await call('DELETE', `/api/v2/protocol/${uSinEmail}`, undefined, TOK.admin)).statusCode).toBe(204);
     expect((await call('DELETE', `/api/v2/protocol/${uSinEmail}`, undefined, TOK.admin)).statusCode).toBe(404);
