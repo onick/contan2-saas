@@ -54,7 +54,10 @@ export function LandingPro() {
       <nav className="sticky top-0 z-50 border-b border-[#e6e3dd] bg-[#faf9f7]/90 backdrop-blur">
         <div className="mx-auto flex h-[68px] w-full max-w-[1180px] items-center gap-9 px-6 md:px-8">
           <Wordmark />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            <a href="/login" className="inline-flex items-center rounded-full border border-[#e6e3dd] px-5 py-2.5 text-sm font-semibold text-[#16181d] hover:bg-white">
+              Iniciar sesión
+            </a>
             <a href={DEMO_HREF} className="inline-flex items-center gap-2 rounded-full bg-[#16181d] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90">
               Solicitar demo
             </a>

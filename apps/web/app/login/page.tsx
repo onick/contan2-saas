@@ -3,7 +3,10 @@ import type { CSSProperties } from 'react';
 import { getLocalBranding } from '../../lib/branding/config';
 import { brandingToCssVars } from '../../lib/branding/theme';
 import { sanitizeNext } from '../../lib/auth/session';
+import { headers } from 'next/headers';
 import { LoginForm } from '../../components/auth/LoginForm';
+import { TenantFinder } from '../../components/marketing/TenantFinder';
+import { isMarketingHost } from '../../lib/marketing/host';
 
 // Página de login del admin v2. Server Component, FUERA de /app (no la cubre el
 // middleware) → accesible sin sesión. Branding local del tenant (sin red: aún no
@@ -19,10 +22,37 @@ export const dynamic = 'force-dynamic';
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; email?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, email } = await searchParams;
   const safeNext = sanitizeNext(next);
+  // Email pre-llenado desde el finder del marketing: solo si parece un correo.
+  const defaultEmail = email && email.length <= 255 && email.includes('@') ? email : undefined;
+
+  // HOST MARKETING (contan2.com): no hay tenant que loguear → login
+  // email-first (patrón Netflix): correo → te llevamos a TU centro.
+  let host: string | null = null;
+  try {
+    const h = await headers();
+    host = h.get('x-forwarded-host') ?? h.get('host');
+  } catch { /* fuera de request (tests/prerender) → rama de tenant */ }
+  if (isMarketingHost(host)) {
+    const rootDomain = process.env.ROOT_DOMAIN ?? 'contan2.com';
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#faf9f7] px-5 py-10">
+        <main className="flex w-full max-w-sm flex-col items-center text-center">
+          <p className="text-[22px] font-semibold tracking-tight text-[#16181d]" style={{ fontFamily: 'Georgia, serif' }}>
+            contan<b className="text-[#e65100]">2</b>
+          </p>
+          <h1 className="mt-4 text-[19px] font-semibold text-[#16181d]">Entrá a tu centro</h1>
+          <p className="mt-1 text-[13.5px] text-[#6b7077]">Escribí tu correo y te llevamos al panel de tu institución.</p>
+          <div className="mt-6 w-full text-left">
+            <TenantFinder rootDomain={rootDomain} />
+          </div>
+        </main>
+      </div>
+    );
+  }
   const branding = getLocalBranding();
   const themeVars = brandingToCssVars(branding) as CSSProperties;
   // Nombre en dos líneas: "Centro Cultural" / "Banreservas". Derivado del nombre
@@ -52,7 +82,7 @@ export default async function LoginPage({
 
           {/* Card */}
           <div className="mt-5 rounded-2xl border border-line bg-surface p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_8px_24px_-12px_rgba(16,24,40,0.12)] sm:p-7">
-            <LoginForm next={safeNext} />
+            <LoginForm next={safeNext} defaultEmail={defaultEmail} />
           </div>
 
           {/* Pie */}
