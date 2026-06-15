@@ -7,6 +7,7 @@ import { UsersTable } from '../../../components/usuarios/UsersTable';
 import { NewUserButton } from '../../../components/usuarios/NewUserButton';
 import { BulkCredentialsButton } from '../../../components/usuarios/BulkCredentialsButton';
 import { ExportButton } from '../../../components/usuarios/ExportButton';
+import { ImportButton } from '../../../components/usuarios/ImportButton';
 import { SectionHeader, Card, EmptyState } from '../../../components/ui';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { DemoBanner } from '../../../components/shell/DemoBanner';
@@ -75,6 +76,7 @@ export default async function UsuariosPage({
   const pendingCreds = facets?.noCredential ?? 0;
   const actions = (
     <span className="flex items-center gap-2">
+      {canWrite ? <ImportButton /> : null}
       {canWrite && view ? (
         <ExportButton cohort={cohort} status={status} q={qForApi(q) ?? ''} filteredTotal={view.total} />
       ) : null}
