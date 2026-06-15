@@ -3,7 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { getDb, sql } from '@contan2/db';
 import { normalizeCodeForLookup, isValidCode, generateUserCode } from '@contan2/codes';
 import type {
-  User, UserListItem, UserActivityStatus, UserCohort,
+  User, UserListItem, UserActivityStatus,
   UsersListResponse, UsersFacetsResponse, UserDetailResponse,
   UserActivityHistoryResponse, UserAffinityResponse, AffinityBucket,
 } from '@contan2/contracts';
@@ -12,8 +12,11 @@ import type { AdminCredentialResendResponse, AdminCredentialResendResult, AdminU
 import { requireTenantStaff } from '../guard.js';
 import { writeUserAudit } from '../services/user-audit.js';
 import { deliverCredential } from '../services/credential-delivery.js';
+import { cohortCondition, statusCondition } from '../services/users-query.js';
+import { writeReportAudit } from '../services/report-audit.js';
+import { loadUsersForExport, buildUsersCsv, buildUsersWorkbook, USERS_EXPORT_CAP } from '../services/users-export.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
-import { parsePage, parseSearch, parseCohort, parseUserStatusFilter, likeContains, type UserStatusFilter } from '../query.js';
+import { parsePage, parseSearch, parseCohort, parseUserStatusFilter, likeContains } from '../query.js';
 
 // Editar/archivar/reenviar credencial es administrativo: sólo owner/admin (operator → 403).
 const CAN_WRITE_USER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
@@ -26,6 +29,10 @@ const credLimiter = createRateLimiter({ max: 5, windowMs: 60_000, prefix: endpoi
 // Alta de visitante: 30/min por org+IP (operación de puerta, paridad con el ritmo
 // del check-in; suficiente para registro en evento, frena scripting).
 const createLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('user-create') });
+
+// Export del padrón: 6/min por org+IP (extracción de PII masiva, generación
+// pesada de workbook).
+const exportLimiter = createRateLimiter({ max: 6, windowMs: 60_000, prefix: endpointPrefix('users-export') });
 
 // Columnas calificadas (listado y detalle hacen join con el agregado de última visita).
 const LIST_COLUMNS = [
@@ -76,27 +83,8 @@ function toListItem(r: ListRow): UserListItem {
   };
 }
 
-// Condición SQL de cohorte (null = 'all', sin filtro). Las cohortes de actividad
-// (active/dormant) referencian el alias `lv.last_visit_at` del join.
-function cohortCondition(cohort: UserCohort) {
-  switch (cohort) {
-    case 'frequent': return sql<boolean>`users.visit_count >= 3`;
-    case 'new7d': return sql<boolean>`users.created_at >= now() - interval '7 days'`;
-    case 'noEmail': return sql<boolean>`users.email is null`;
-    case 'noCredential': return sql<boolean>`users.email is not null and users.credential_sent_at is null`;
-    case 'active': return sql<boolean>`lv.last_visit_at >= now() - interval '30 days'`;
-    case 'dormant': return sql<boolean>`lv.last_visit_at is null or lv.last_visit_at < now() - interval '90 days'`;
-    default: return null;
-  }
-}
-
-// Condición de archivado. Default 'active' = no archivados (deleted_at IS NULL).
-// null = 'all' (sin filtro).
-function statusCondition(status: UserStatusFilter) {
-  if (status === 'active') return sql<boolean>`users.deleted_at is null`;
-  if (status === 'archived') return sql<boolean>`users.deleted_at is not null`;
-  return null;
-}
+// cohortCondition / statusCondition viven en services/users-query.ts (fuente de
+// verdad compartida con el export).
 
 // GET /api/v2/users (listado + cohortes), /users/facets (conteos) y /users/:code.
 export const usersRoute: FastifyPluginAsync = async (app) => {
@@ -249,6 +237,70 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       },
     };
     return body;
+  });
+
+  // GET /api/v2/users/export?format=csv|xlsx&cohort=&status=&q=&scope=view|all
+  // Exporta el padrón (PII masiva) → owner/admin, rate-limited, auditado. Honra
+  // los mismos filtros del listado (scope=view, default) o el padrón completo
+  // (scope=all, respeta sólo el estado de archivado). Ruta ESTÁTICA: gana a
+  // /users/:code en el router.
+  app.get('/users/export', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const { org, staff } = guard.ctx;
+    if (!CAN_WRITE_USER_ROLES.has(staff.role)) {
+      reply.code(403);
+      return { error: 'No tenés permiso para exportar el padrón.' };
+    }
+    if ((await exportLimiter.hit(`${org.id}:${req.ip}`)).limited) {
+      reply.code(429);
+      return { error: 'Demasiadas exportaciones seguidas. Esperá un momento.' };
+    }
+
+    const q = (req.query ?? {}) as Record<string, unknown>;
+    const format = String(q.format ?? 'csv').toLowerCase();
+    if (format !== 'csv' && format !== 'xlsx') {
+      reply.code(400);
+      return { error: 'Formato inválido: usá csv o xlsx.' };
+    }
+    const search = parseSearch(q.q);
+    if (search.error) { reply.code(400); return { error: 'Parámetro de búsqueda inválido.' }; }
+    const scope = q.scope === 'all' ? 'all' : 'view';
+    const cohort = parseCohort(q.cohort);
+    const status = parseUserStatusFilter(q.status);
+
+    const { rows, total, truncated } = await loadUsersForExport(db, org.id, { cohort, status, search: search.q, scope });
+
+    await writeReportAudit(db, {
+      orgId: org.id,
+      staff: { id: staff.id, email: staff.email, role: staff.role },
+      report: 'users-padron',
+      format,
+      meta: { scope, cohort, status, rows: rows.length, total, truncated, cap: USERS_EXPORT_CAP },
+      ip: req.ip,
+      ua: req.headers['user-agent'] ?? null,
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    if (format === 'csv') {
+      const filename = `padron-visitantes_${stamp}.csv`;
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', `attachment; filename="${filename}"`);
+      reply.header('cache-control', 'no-store');
+      if (truncated) reply.header('x-export-truncated', String(total));
+      return buildUsersCsv(rows);
+    }
+    const buf = await buildUsersWorkbook(rows, {
+      name: org.name, primaryColor: org.primaryColor ?? null,
+      secondaryColor: org.secondaryColor ?? null, logoUrl: org.logoUrl ?? null,
+    });
+    const filename = `padron-visitantes_${stamp}.xlsx`;
+    reply.header('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    reply.header('content-disposition', `attachment; filename="${filename}"`);
+    reply.header('cache-control', 'no-store');
+    if (truncated) reply.header('x-export-truncated', String(total));
+    return reply.send(buf);
   });
 
   // GET /api/v2/users/:code · detalle ENRIQUECIDO (UserListItem: + última visita,
