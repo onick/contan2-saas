@@ -625,6 +625,47 @@ export const AdminUserArchiveResponseSchema = z.object({
 });
 export type AdminUserArchiveResponse = z.infer<typeof AdminUserArchiveResponseSchema>;
 
+// Importar visitantes en lote (PR-I1). Preview (commit=false, SIN escrituras):
+// cada fila clasificada; commit=true crea SÓLO las `new` (jamás sobreescribe).
+export const ImportRowStatusSchema = z.enum(['new', 'duplicate', 'duplicate-in-file', 'invalid']);
+export type ImportRowStatus = z.infer<typeof ImportRowStatusSchema>;
+
+export const ImportRowSchema = z.object({
+  rowNum: z.number().int(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  status: ImportRowStatusSchema,
+  reason: z.string().optional(),
+  nameWarning: z.boolean().optional(),
+});
+export type ImportRow = z.infer<typeof ImportRowSchema>;
+
+export const ImportSummarySchema = z.object({
+  total: z.number().int(),
+  new: z.number().int(),
+  duplicates: z.number().int(),
+  invalid: z.number().int(),
+  nameWarnings: z.number().int(),
+});
+export type ImportSummary = z.infer<typeof ImportSummarySchema>;
+
+export const UsersImportPreviewResponseSchema = z.object({
+  mode: z.literal('preview'),
+  rows: z.array(ImportRowSchema),
+  summary: ImportSummarySchema,
+  truncated: z.boolean(),
+});
+export type UsersImportPreviewResponse = z.infer<typeof UsersImportPreviewResponseSchema>;
+
+export const UsersImportCommitResponseSchema = z.object({
+  mode: z.literal('commit'),
+  result: z.object({ created: z.number().int(), skipped: z.number().int(), failed: z.number().int() }),
+  summary: ImportSummarySchema,
+});
+export type UsersImportCommitResponse = z.infer<typeof UsersImportCommitResponseSchema>;
+
 // Historial de actividades del visitante (UI-2). Incluye TODAS sus inscripciones
 // (RSVP) y asistencias: `checkedInAt` es null si registró pero no asistió.
 export const UserActivityHistoryItemSchema = z.object({
