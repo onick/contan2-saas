@@ -26,9 +26,13 @@ import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { resolveSegmentMembers, slugifyCategory } from './segments.js';
 import { effectiveHost } from '../tenant.js';
 import { deliverInvitations, type DeliverableInvitation } from '../services/invitation-email.js';
+import { parseUsersFile, IMPORT_MAX_BYTES } from '../services/users-import.js';
+import { classifyGuests, commitGuests } from '../services/activity-guests-import.js';
+import type { GuestsImportPreviewResponse, GuestsImportCommitResponse } from '@contan2/contracts';
 
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 const inviteLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('activity-invite') });
+const guestsImportLimiter = createRateLimiter({ max: 3, windowMs: 60_000, prefix: endpointPrefix('guests-import') });
 const DAY_MS = 86_400_000;
 
 const maskEmail = (email: string): string => {
@@ -292,5 +296,72 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     }
     reply.code(204);
     return null;
+  });
+
+  // POST /activities/:id/import-guests?commit=false|true · IMPORTAR LISTA DE
+  // INVITADOS desde un archivo (multipart CSV/Excel). owner/admin. commit=false
+  // → PREVIEW (sin escrituras): clasifica para esta actividad. commit=true →
+  // crea usuarios faltantes (sin sobreescribir) + las invitaciones. NO envía
+  // correos (decisión 2026-06-15). Los sin email entran igual a la lista.
+  app.post('/activities/:id/import-guests', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar invitaciones.' }; }
+    const orgId = guard.ctx.org.id;
+    const id = (req.params as { id: string }).id;
+    if ((await guestsImportLimiter.hit(`${orgId}:${req.ip}`)).limited) {
+      reply.code(429); return { error: 'Demasiadas importaciones seguidas. Esperá un momento.' };
+    }
+    const commit = (req.query as Record<string, unknown>).commit === 'true';
+
+    const act = await loadActivity(db, orgId, id);
+    if (!act) { reply.code(404); return { error: 'Actividad no encontrada.' }; }
+    if (act.status !== 'activa') { reply.code(409); return { error: 'Sólo se importan invitados a actividades activas.' }; }
+
+    // Leer el archivo (exactamente uno).
+    let buf: Buffer | undefined;
+    let filename = '';
+    let fileCount = 0;
+    let oversize = false;
+    let parseErr = false;
+    try {
+      for await (const part of req.parts()) {
+        if (part.type === 'file') {
+          fileCount += 1;
+          if (fileCount > 1) break;
+          filename = part.filename ?? '';
+          buf = await part.toBuffer();
+          if (part.file.truncated) oversize = true;
+        }
+      }
+    } catch (e) {
+      if ((e as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') oversize = true;
+      else parseErr = true;
+    }
+    if (parseErr) { reply.code(400); return { error: 'Carga de archivo inválida.' }; }
+    if (fileCount > 1) { reply.code(400); return { error: 'Subí exactamente un archivo.' }; }
+    if (oversize) { reply.code(413); return { error: `El archivo supera el máximo de ${IMPORT_MAX_BYTES / (1024 * 1024)} MB.` }; }
+    if (!buf || buf.length === 0) { reply.code(400); return { error: 'Subí un archivo CSV o Excel.' }; }
+
+    const parsed = await parseUsersFile(buf, filename);
+    if (parsed.error) { reply.code(400); return { error: parsed.error }; }
+
+    const { rows, summary, truncated } = await classifyGuests(db, orgId, id, parsed.rows);
+
+    if (!commit) {
+      const body: GuestsImportPreviewResponse = { mode: 'preview', rows, summary, truncated };
+      return body;
+    }
+
+    const expiresAt = new Date(new Date(act.date).getTime() + DAY_MS).toISOString();
+    const result = await commitGuests(
+      db, orgId, guard.ctx.org.codePrefix, id, expiresAt,
+      { id: guard.ctx.staff.id, role: guard.ctx.staff.role },
+      parsed.rows, req.ip, req.headers['user-agent'] ?? null,
+    );
+    reply.code(201);
+    const body: GuestsImportCommitResponse = { mode: 'commit', result, summary };
+    return body;
   });
 };
