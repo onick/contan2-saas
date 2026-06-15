@@ -6,6 +6,7 @@ import { AppShell } from '../../../components/shell/AppShell';
 import { UsersTable } from '../../../components/usuarios/UsersTable';
 import { NewUserButton } from '../../../components/usuarios/NewUserButton';
 import { BulkCredentialsButton } from '../../../components/usuarios/BulkCredentialsButton';
+import { ExportButton } from '../../../components/usuarios/ExportButton';
 import { SectionHeader, Card, EmptyState } from '../../../components/ui';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { DemoBanner } from '../../../components/shell/DemoBanner';
@@ -69,11 +70,14 @@ export default async function UsuariosPage({
   }
 
   // "Nuevo usuario" REAL (S1 · POST /users) + envío masivo de credenciales
-  // pendientes (S1 · bulk-send; sólo owner/admin y con pendientes > 0).
-  // "Exportar" se quitó hasta tener su endpoint (S2): cero controles inertes.
+  // pendientes (S1 · bulk-send) + Exportar padrón (E2 · binario CSV/XLSX). Los
+  // tres administrativos sólo owner/admin (la API arbitra con 403).
   const pendingCreds = facets?.noCredential ?? 0;
   const actions = (
     <span className="flex items-center gap-2">
+      {canWrite && view ? (
+        <ExportButton cohort={cohort} status={status} q={qForApi(q) ?? ''} filteredTotal={view.total} />
+      ) : null}
       {canWrite ? <BulkCredentialsButton pendingCount={pendingCreds} /> : null}
       <NewUserButton />
     </span>
