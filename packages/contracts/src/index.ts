@@ -441,7 +441,9 @@ export const ActivityInvitationSchema = z.object({
   email: z.string().nullable(),
   kind: z.enum(['audience', 'protocol']),
   plusOnes: z.number().int(),
-  status: z.enum(['pending', 'confirmed', 'declined', 'expired', 'canceled']),
+  // 'attended' se DERIVA al leer (no se persiste): el invitado tiene asistencia
+  // registrada para esta actividad → ganó sobre pending/expired/etc.
+  status: z.enum(['pending', 'confirmed', 'declined', 'expired', 'canceled', 'attended']),
   sentAt: z.string().nullable(),
   respondedAt: z.string().nullable(),
   expiresAt: z.string(),
@@ -457,6 +459,7 @@ export const ActivityInvitationsResponseSchema = z.object({
     declined: z.number().int(),
     expired: z.number().int(),
     canceled: z.number().int(),
+    attended: z.number().int(),
   }),
   invitations: z.array(ActivityInvitationSchema),
 });

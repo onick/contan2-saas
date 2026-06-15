@@ -16,6 +16,7 @@ type Inv = ActivityInvitationsResponse['invitations'][number];
 const STATUS_LABEL: Record<Inv['status'], { txt: string; cls: string }> = {
   pending: { txt: 'Sin responder', cls: 'bg-surface-container text-muted' },
   confirmed: { txt: 'Confirmada', cls: 'bg-success-bg text-success-fg' },
+  attended: { txt: 'Asistió', cls: 'bg-success-bg text-success-fg' },
   declined: { txt: 'No puede', cls: 'bg-surface-container text-muted' },
   expired: { txt: 'Expirada', cls: 'bg-surface-container text-faint' },
   canceled: { txt: 'Cancelada', cls: 'bg-surface-container text-faint' },
@@ -77,6 +78,7 @@ export function InvitationsSection({ activityId, canManage, refreshKey }: {
         <p className="text-[13px] tabular-nums text-muted">
           <strong className="text-ink">{s.total}</strong> enviada{s.total === 1 ? '' : 's'} ·{' '}
           <strong className="text-success-fg">{s.confirmed}</strong> confirmada{s.confirmed === 1 ? '' : 's'} ·{' '}
+          {s.attended > 0 ? <><strong className="text-success-fg">{s.attended}</strong> asistió · </> : null}
           <strong className="text-ink">{s.pending}</strong> sin responder
           {s.declined > 0 ? <> · {s.declined} no puede{s.declined === 1 ? '' : 'n'}</> : null}
           {s.expired > 0 ? <> · {s.expired} expirada{s.expired === 1 ? '' : 's'}</> : null}

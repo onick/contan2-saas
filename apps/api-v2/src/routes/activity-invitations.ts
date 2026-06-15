@@ -250,18 +250,32 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
 
     const rows = await db.selectFrom('invitations as i')
       .innerJoin('users as u', 'u.id', 'i.user_id')
+      // ¿El invitado ya hizo check-in REAL en ESTA actividad? Si sí → "Asistió"
+      // (derivado, no se persiste). checked_in_at IS NOT NULL distingue presencia
+      // física de la reserva del RSVP "sí" (que crea attendance SIN check-in).
+      .leftJoin('attendance as a', (join) => join
+        .onRef('a.user_id', '=', 'i.user_id')
+        .onRef('a.activity_id', '=', 'i.activity_id')
+        .on('a.organization_id', '=', orgId)
+        .on('a.checked_in_at', 'is not', null))
       .select(['i.id', 'i.user_id', 'i.status', 'i.sent_at', 'i.responded_at', 'i.expires_at', 'i.created_at',
         'i.kind', 'i.plus_ones', 'u.code', 'u.first_name', 'u.last_name', 'u.email'])
+      .select((eb) => eb.fn.max('a.id').as('attendance_id'))
       .where('i.organization_id', '=', orgId).where('i.activity_id', '=', id)
+      .groupBy(['i.id', 'i.user_id', 'i.status', 'i.sent_at', 'i.responded_at', 'i.expires_at', 'i.created_at',
+        'i.kind', 'i.plus_ones', 'u.code', 'u.first_name', 'u.last_name', 'u.email'])
       .orderBy('i.created_at', 'desc')
       .limit(500)
       .execute();
 
     const now = Date.now();
-    const summary = { total: rows.length, pending: 0, confirmed: 0, declined: 0, expired: 0, canceled: 0 };
+    const summary = { total: rows.length, pending: 0, confirmed: 0, declined: 0, expired: 0, canceled: 0, attended: 0 };
     const invitations: ActivityInvitationsResponse['invitations'] = rows.map((r) => {
-      // pending ya vencida se REPORTA expirada (sin job de barrido).
-      const status = (r.status === 'pending' && new Date(r.expires_at).getTime() < now ? 'expired' : r.status) as ActivityInvitationsResponse['invitations'][number]['status'];
+      // Presencia física gana: si hay asistencia, "Asistió" pisa cualquier estado.
+      // Si no, pending ya vencida se REPORTA expirada (sin job de barrido).
+      const status = (r.attendance_id != null
+        ? 'attended'
+        : (r.status === 'pending' && new Date(r.expires_at).getTime() < now ? 'expired' : r.status)) as ActivityInvitationsResponse['invitations'][number]['status'];
       summary[status] += 1;
       return {
         id: r.id, userId: r.user_id, code: r.code, firstName: r.first_name, lastName: r.last_name,
