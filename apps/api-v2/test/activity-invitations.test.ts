@@ -69,6 +69,14 @@ run('RSVP · invitar audiencia segmentada', () => {
       activity_name: 'x', user_code: null, anonymous: false, companions_children: 0,
     } as never).execute();
   };
+  // check-in REAL (puerta): a diferencia de la reserva del RSVP, setea checked_in_at.
+  const attendCheckedIn = async (act: string, user: string) => {
+    await db.insertInto('attendance').values({
+      id: randomUUID(), organization_id: orgAId, user_id: user, activity_id: act,
+      activity_name: 'x', user_code: null, anonymous: false, companions_children: 0,
+      checked_in_at: new Date().toISOString(),
+    } as never).execute();
+  };
 
   let ipSeq = 0;
   const call = (method: string, url: string, body?: unknown, token?: string) =>
@@ -181,6 +189,23 @@ run('RSVP · invitar audiencia segmentada', () => {
 
     // no de fan2 → declined sin tocar cupo
     expect((await call('POST', `/api/v2/public/rsvp/${t2}`, { action: 'no' })).json().status).toBe('declined');
+  });
+
+  it('lista: invitado con check-in REAL → "attended"; reserva sin check-in NO cuenta', async () => {
+    const actX = await mkAct({ capacity: 10, enrolled_count: 0 });
+    const u6 = await mkUser(`f6-${stamp}@t.local`);
+    const u7 = await mkUser(`f7-${stamp}@t.local`);
+    await call('POST', `/api/v2/activities/${actX}/invitations`, { userIds: [u6, u7] }, TOK.admin);
+
+    await attendCheckedIn(actX, u6); // pasó por la puerta (checked_in_at seteado)
+    await attend(actX, u7);          // solo reserva (como el RSVP "sí"): sin check-in
+
+    const list = ActivityInvitationsResponseSchema.parse(
+      (await call('GET', `/api/v2/activities/${actX}/invitations`, undefined, TOK.admin)).json());
+    expect(list.summary).toMatchObject({ total: 2, attended: 1, pending: 1 });
+    const byUser = Object.fromEntries(list.invitations.map((i) => [i.userId, i.status]));
+    expect(byUser[u6]).toBe('attended');
+    expect(byUser[u7]).not.toBe('attended'); // reserva sin check-in → sigue pending
   });
 
   it('entrega: POST en dry-run deja sent_at null; deliverInvitations con transporte real lo marca', async () => {
