@@ -19,7 +19,6 @@ import { fetchActivityDetail, fetchActivitySummary } from '../../lib/api/activit
 import type { ActivitySummary } from '@contan2/contracts';
 import { StatusBadge } from './StatusBadge';
 import { CoverThumb } from './CoverThumb';
-import { StatusActionsMenu } from './StatusActions';
 import { AttendeesSection } from './AttendeesSection';
 import { InviteAudiencePanel } from './InviteAudiencePanel';
 import { InviteProtocolPanel } from './InviteProtocolPanel';
@@ -33,13 +32,11 @@ export interface ActivityDetailDrawerProps {
   onClose: () => void;
   // Lifecycle B: abrir el drawer de edición para esta actividad (sólo reales).
   onEdit?: (activity: Activity) => void;
-  // Tras cambiar el estado (200): el contenedor cierra + router.refresh().
-  onChanged?: () => void;
   // owner/admin: muestra "Exportar Excel" en la lista de asistentes.
   canExportAttendees?: boolean;
 }
 
-export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, canExportAttendees = false }: ActivityDetailDrawerProps) {
+export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAttendees = false }: ActivityDetailDrawerProps) {
   const titleId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const open = activity !== null;
@@ -241,9 +238,10 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
 
         {/* Acciones (Lifecycle B) · sólo para actividades REALES (statusRaw). En
             demo no hay id real que editar/transicionar → vista de solo lectura. */}
-        {shown.statusRaw && (onEdit || onChanged) ? (
-          // Primarias visibles (Invitar audiencia + Editar); Finalizar/Cancelar/
-          // Reactivar plegadas en el menú ⋯ para no saturar el pie.
+        {shown.statusRaw && onEdit ? (
+          // Acciones del detalle: Invitar audiencia / Protocolo / Importar lista
+          // + Editar. Finalizar/Cancelar/Reactivar/Eliminar viven en el menú ⋯
+          // de cada fila de la tabla de actividades (acá serían duplicados).
           <footer className="flex items-center justify-end gap-2 border-t border-line px-5 py-4">
             {canExportAttendees && shown.statusRaw === 'activa' ? (
               <span className="mr-auto flex flex-1 gap-2 sm:flex-none">
@@ -263,9 +261,6 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, onChanged, can
               <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => onEdit(shown)}>
                 <Pencil size={16} strokeWidth={2} aria-hidden="true" /> Editar actividad
               </Button>
-            ) : null}
-            {onChanged ? (
-              <StatusActionsMenu id={shown.id} statusRaw={shown.statusRaw} onChanged={onChanged} />
             ) : null}
           </footer>
         ) : (

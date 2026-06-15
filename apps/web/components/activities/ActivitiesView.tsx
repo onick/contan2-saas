@@ -170,7 +170,6 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
         activity={selected}
         onClose={() => setSelected(null)}
         onEdit={(a) => { setSelected(null); setEditing(a); }}
-        onChanged={afterMutation}
         canExportAttendees={canWrite}
       />
       <EditActivityDrawer activity={editing} onClose={() => setEditing(null)} onSaved={afterMutation} />
