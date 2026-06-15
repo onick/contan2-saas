@@ -15,6 +15,8 @@ import { deliverCredential } from '../services/credential-delivery.js';
 import { cohortCondition, statusCondition } from '../services/users-query.js';
 import { writeReportAudit } from '../services/report-audit.js';
 import { loadUsersForExport, buildUsersCsv, buildUsersWorkbook, USERS_EXPORT_CAP } from '../services/users-export.js';
+import { parseUsersFile, classifyRows, commitNewRows, buildImportTemplate, IMPORT_MAX_BYTES } from '../services/users-import.js';
+import type { UsersImportPreviewResponse, UsersImportCommitResponse } from '@contan2/contracts';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { parsePage, parseSearch, parseCohort, parseUserStatusFilter, likeContains } from '../query.js';
 
@@ -33,6 +35,9 @@ const createLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: end
 // Export del padrón: 6/min por org+IP (extracción de PII masiva, generación
 // pesada de workbook).
 const exportLimiter = createRateLimiter({ max: 6, windowMs: 60_000, prefix: endpointPrefix('users-export') });
+
+// Import en lote: 3/min por org+IP (operación pesada que escribe usuarios).
+const importLimiter = createRateLimiter({ max: 3, windowMs: 60_000, prefix: endpointPrefix('users-import') });
 
 // Columnas calificadas (listado y detalle hacen join con el agregado de última visita).
 const LIST_COLUMNS = [
@@ -301,6 +306,85 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     reply.header('cache-control', 'no-store');
     if (truncated) reply.header('x-export-truncated', String(total));
     return reply.send(buf);
+  });
+
+  // GET /api/v2/users/import/template?format=csv|xlsx · plantilla descargable.
+  app.get('/users/import/template', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) {
+      reply.code(403); return { error: 'No tenés permiso para importar visitantes.' };
+    }
+    const format = (req.query as Record<string, unknown>).format === 'xlsx' ? 'xlsx' : 'csv';
+    const { body, contentType, filename } = await buildImportTemplate(format);
+    reply.header('content-type', contentType);
+    reply.header('content-disposition', `attachment; filename="${filename}"`);
+    reply.header('cache-control', 'no-store');
+    return reply.send(body);
+  });
+
+  // POST /api/v2/users/import?commit=false|true · importar visitantes en lote.
+  // owner/admin; multipart (un archivo CSV/XLSX, 5MB). commit=false → PREVIEW
+  // (clasifica, SIN escrituras). commit=true → crea SÓLO las filas `new` (jamás
+  // sobreescribe; ver invariante en services/users-import.ts). Rate-limit + audit.
+  app.post('/users/import', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const { org, staff } = guard.ctx;
+    if (!CAN_WRITE_USER_ROLES.has(staff.role)) {
+      reply.code(403); return { error: 'No tenés permiso para importar visitantes.' };
+    }
+    if ((await importLimiter.hit(`${org.id}:${req.ip}`)).limited) {
+      reply.code(429); return { error: 'Demasiadas importaciones seguidas. Esperá un momento.' };
+    }
+    const commit = (req.query as Record<string, unknown>).commit === 'true';
+
+    // Leer el archivo (exactamente uno). Tope 5MB del plugin; truncado → 413.
+    let buf: Buffer | undefined;
+    let filename = '';
+    let fileCount = 0;
+    let oversize = false;
+    let parseErr = false;
+    try {
+      for await (const part of req.parts()) {
+        if (part.type === 'file') {
+          fileCount += 1;
+          if (fileCount > 1) break;
+          filename = part.filename ?? '';
+          buf = await part.toBuffer();
+          if (part.file.truncated) oversize = true;
+        }
+      }
+    } catch (e) {
+      if ((e as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') oversize = true;
+      else parseErr = true;
+    }
+    if (parseErr) { reply.code(400); return { error: 'Carga de archivo inválida.' }; }
+    if (fileCount > 1) { reply.code(400); return { error: 'Subí exactamente un archivo.' }; }
+    if (oversize) { reply.code(413); return { error: `El archivo supera el máximo de ${IMPORT_MAX_BYTES / (1024 * 1024)} MB.` }; }
+    if (!buf || buf.length === 0) { reply.code(400); return { error: 'Subí un archivo CSV o Excel.' }; }
+
+    const parsed = await parseUsersFile(buf, filename);
+    if (parsed.error) { reply.code(400); return { error: parsed.error }; }
+
+    const { rows, summary, truncated } = await classifyRows(db, org.id, parsed.rows);
+
+    if (!commit) {
+      const body: UsersImportPreviewResponse = { mode: 'preview', rows, summary, truncated };
+      return body;
+    }
+
+    // commit=true: inserta SÓLO las `new` (defensa en profundidad en el servicio).
+    const result = await commitNewRows(
+      db, org.id, org.codePrefix,
+      { id: staff.id, email: staff.email, role: staff.role },
+      rows, req.ip, req.headers['user-agent'] ?? null,
+    );
+    reply.code(201);
+    const body: UsersImportCommitResponse = { mode: 'commit', result, summary };
+    return body;
   });
 
   // GET /api/v2/users/:code · detalle ENRIQUECIDO (UserListItem: + última visita,
