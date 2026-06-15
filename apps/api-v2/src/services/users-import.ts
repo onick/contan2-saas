@@ -81,6 +81,24 @@ for (const a of ['telefono', 'phone', 'celular', 'movil', 'tel', 'whatsapp']) HE
 export interface RawRow { rowNum: number; firstName: string; lastName: string; email: string; phone: string }
 export interface ParseResult { rows: RawRow[]; error?: string }
 
+// Normaliza + valida una fila cruda (trim, recorte, email lower). Devuelve el
+// email canónico (lower) o null, y `invalidReason` si la fila no sirve. Fuente
+// de verdad compartida entre el import de usuarios y el de invitados.
+export interface NormalizedRow { firstName: string; lastName: string; email: string | null; phone: string | null; invalidReason?: string }
+export function normalizeRow(row: RawRow): NormalizedRow {
+  const firstName = row.firstName.trim().slice(0, 120);
+  const lastName = row.lastName.trim().slice(0, 120);
+  const emailRaw = row.email.trim().toLowerCase();
+  const phone = row.phone.trim().slice(0, 40) || null;
+  let invalidReason: string | undefined;
+  if (!firstName || !lastName) invalidReason = 'Falta nombre o apellido.';
+  else if (emailRaw && !EMAIL_RE.test(emailRaw)) invalidReason = 'Correo con formato inválido.';
+  return { firstName, lastName, email: emailRaw || null, phone, invalidReason };
+}
+
+// Nombre completo normalizado (sin acentos/espacios) para el aviso de doble.
+export const fullNameKey = (first: string, last: string): string => norm(`${first} ${last}`);
+
 // ── Parse CSV (RFC4180-ish: comillas, comas internas, "" escapada, CRLF/LF, BOM)
 function parseCsv(text: string): string[][] {
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1); // BOM
@@ -183,17 +201,7 @@ export async function classifyRows(db: DbClient, orgId: string, raw: RawRow[]): 
   const slice = raw.slice(0, IMPORT_ROW_CAP);
 
   // Normaliza + valida formato, deja el email canónico (lower) para dedup.
-  interface Norm { row: RawRow; firstName: string; lastName: string; email: string | null; phone: string | null; invalidReason?: string }
-  const normd: Norm[] = slice.map((row) => {
-    const firstName = row.firstName.trim().slice(0, 120);
-    const lastName = row.lastName.trim().slice(0, 120);
-    const emailRaw = row.email.trim().toLowerCase();
-    const phone = row.phone.trim().slice(0, 40) || null;
-    let invalidReason: string | undefined;
-    if (!firstName || !lastName) invalidReason = 'Falta nombre o apellido.';
-    else if (emailRaw && !EMAIL_RE.test(emailRaw)) invalidReason = 'Correo con formato inválido.';
-    return { row, firstName, lastName, email: emailRaw || null, phone, invalidReason };
-  });
+  const normd = slice.map((row) => ({ row, ...normalizeRow(row) }));
 
   // Dedup contra DB en SET (no N+1): emails y nombres completos existentes.
   const emails = [...new Set(normd.filter((n) => n.email && !n.invalidReason).map((n) => n.email!))];

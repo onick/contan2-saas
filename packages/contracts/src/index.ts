@@ -666,6 +666,56 @@ export const UsersImportCommitResponseSchema = z.object({
 });
 export type UsersImportCommitResponse = z.infer<typeof UsersImportCommitResponseSchema>;
 
+// Importar LISTA DE INVITADOS a una actividad (archivo → invitados). Preview
+// (sin escrituras) clasifica por actividad; commit crea usuarios faltantes (sin
+// sobreescribir) + las invitaciones.
+export const GuestRowStatusSchema = z.enum(['new-invite', 'existing-invite', 'already-invited', 'invalid']);
+export type GuestRowStatus = z.infer<typeof GuestRowStatusSchema>;
+
+export const GuestRowSchema = z.object({
+  rowNum: z.number().int(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  status: GuestRowStatusSchema,
+  reason: z.string().optional(),
+  nameWarning: z.boolean().optional(),
+});
+export type GuestRow = z.infer<typeof GuestRowSchema>;
+
+export const GuestSummarySchema = z.object({
+  total: z.number().int(),
+  toInvite: z.number().int(),
+  newUsers: z.number().int(),
+  existing: z.number().int(),
+  alreadyInvited: z.number().int(),
+  invalid: z.number().int(),
+  noEmail: z.number().int(),
+  nameWarnings: z.number().int(),
+});
+export type GuestSummary = z.infer<typeof GuestSummarySchema>;
+
+export const GuestsImportPreviewResponseSchema = z.object({
+  mode: z.literal('preview'),
+  rows: z.array(GuestRowSchema),
+  summary: GuestSummarySchema,
+  truncated: z.boolean(),
+});
+export type GuestsImportPreviewResponse = z.infer<typeof GuestsImportPreviewResponseSchema>;
+
+export const GuestsImportCommitResponseSchema = z.object({
+  mode: z.literal('commit'),
+  result: z.object({
+    invited: z.number().int(),
+    createdUsers: z.number().int(),
+    alreadyInvited: z.number().int(),
+    failed: z.number().int(),
+  }),
+  summary: GuestSummarySchema,
+});
+export type GuestsImportCommitResponse = z.infer<typeof GuestsImportCommitResponseSchema>;
+
 // Historial de actividades del visitante (UI-2). Incluye TODAS sus inscripciones
 // (RSVP) y asistencias: `checkedInAt` es null si registró pero no asistió.
 export const UserActivityHistoryItemSchema = z.object({
