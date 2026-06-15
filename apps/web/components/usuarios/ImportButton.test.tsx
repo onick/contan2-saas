@@ -57,7 +57,7 @@ describe('ImportButton', () => {
     expect(screen.getByText('Ya existe')).toBeInTheDocument();
     expect(screen.getByText('posible doble')).toBeInTheDocument();
     // la primera llamada fue preview (commit=false)
-    expect(fetchMock.mock.calls[0][0]).toBe('/app/usuarios/api/import?commit=false');
+    expect(fetchMock.mock.calls[0]![0]).toBe('/app/usuarios/api/import?commit=false');
     // botón refleja el nº de nuevos
     expect(screen.getByRole('button', { name: /Importar 2 nuevos/ })).toBeEnabled();
   });
@@ -75,7 +75,7 @@ describe('ImportButton', () => {
 
     await waitFor(() => expect(screen.getByText('Se crearon 2 visitantes')).toBeInTheDocument());
     expect(screen.getByText(/Enviar credenciales pendientes/)).toBeInTheDocument();
-    expect(fetchMock.mock.calls[1][0]).toBe('/app/usuarios/api/import?commit=true');
+    expect(fetchMock.mock.calls[1]![0]).toBe('/app/usuarios/api/import?commit=true');
   });
 
   it('preview sin nuevos → botón Importar deshabilitado + mensaje', async () => {
