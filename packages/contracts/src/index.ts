@@ -441,6 +441,10 @@ export const ActivityInvitationSchema = z.object({
   email: z.string().nullable(),
   kind: z.enum(['audience', 'protocol']),
   plusOnes: z.number().int(),
+  // DERIVADO: la persona es designado de protocolo (protocol_profiles activo) o
+  // la invitación es kind='protocol'. La lista muestra la etiqueta "Protocolo"
+  // con esto, no solo con kind (así marca a los agregados del padrón también).
+  isProtocol: z.boolean().optional(),
   // 'attended' se DERIVA al leer (no se persiste): el invitado tiene asistencia
   // registrada para esta actividad → ganó sobre pending/expired/etc.
   status: z.enum(['pending', 'confirmed', 'declined', 'expired', 'canceled', 'attended']),

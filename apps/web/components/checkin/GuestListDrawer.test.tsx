@@ -66,6 +66,17 @@ describe('GuestListDrawer', () => {
     expect(within(row).getByText(/sin email/)).toBeInTheDocument();
   });
 
+  it('designado de protocolo invitado como audiencia (isProtocol) muestra etiqueta Protocolo', async () => {
+    const body = {
+      summary: { total: 1, pending: 1, confirmed: 0, declined: 0, expired: 0, canceled: 0, attended: 0 },
+      invitations: [inv({ id: 'i9', userId: 'u9', code: 'CCB-DHAQIG', firstName: 'Nelson', lastName: 'Encarnación', email: null, kind: 'audience', isProtocol: true, status: 'pending' })],
+    };
+    vi.stubGlobal('fetch', vi.fn(async () => J(200, body)));
+    render(<GuestListDrawer activity={activity} onClose={() => {}} onArrival={() => {}} />);
+    const row = (await screen.findByText('Nelson Encarnación')).closest('li')!;
+    expect(within(row).getByText('Protocolo')).toBeInTheDocument(); // aunque kind='audience'
+  });
+
   it('filtro Llegaron muestra al asistido con "Llegó" y "Deshacer"', async () => {
     installFetch();
     render(<GuestListDrawer activity={activity} onClose={() => {}} onArrival={() => {}} />);
