@@ -206,9 +206,19 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
             </div>
           ) : null}
 
-          {/* Asistentes (paridad v1 attendees, con perfil editable) · solo reales */}
+          {/* Asistentes (paridad v1 attendees, con perfil editable) · solo reales.
+              "Agregar del padrón" vive en el extremo derecho de este encabezado. */}
           {shown.statusRaw ? (
-            <AttendeesSection activityId={shown.id} canExport={canExportAttendees} onMutated={() => setSummaryKey((k) => k + 1)} />
+            <AttendeesSection
+              activityId={shown.id}
+              canExport={canExportAttendees}
+              onMutated={() => setSummaryKey((k) => k + 1)}
+              headerAction={canExportAttendees && shown.statusRaw === 'activa' ? (
+                <Button type="button" size="sm" variant="secondary" onClick={() => setAddPadronOpen(true)}>
+                  <UserPlus size={14} strokeWidth={2} aria-hidden="true" /> Agregar del padrón
+                </Button>
+              ) : undefined}
+            />
           ) : null}
 
           {/* Invitaciones RSVP (S3) · resumen + lista con cancelar (PR-3) */}
@@ -256,9 +266,6 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
                 </Button>
                 <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => setImportGuestsOpen(true)}>
                   <Upload size={16} strokeWidth={2} aria-hidden="true" /> Importar lista
-                </Button>
-                <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => setAddPadronOpen(true)}>
-                  <UserPlus size={16} strokeWidth={2} aria-hidden="true" /> Agregar del padrón
                 </Button>
               </span>
             ) : null}

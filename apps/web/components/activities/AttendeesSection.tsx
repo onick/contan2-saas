@@ -6,7 +6,7 @@
 // visitante (ProfileProvider de Usuarios — mismo editor, cero duplicación).
 // Export: el Excel branded de la actividad (#119) ya incluye a los asistentes.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, UsersRound, Search, Sparkle, FileSpreadsheet, Trash2 } from 'lucide-react';
 import { AttendanceListResponseSchema, type AttendanceListItem } from '@contan2/contracts';
@@ -15,7 +15,7 @@ import { cn, focusRing } from '../ui';
 
 const WHEN = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-export function AttendeesSection({ activityId, canExport, onMutated }: { activityId: string; canExport: boolean; onMutated?: () => void }) {
+export function AttendeesSection({ activityId, canExport, onMutated, headerAction }: { activityId: string; canExport: boolean; onMutated?: () => void; headerAction?: ReactNode }) {
   const { open } = useProfileActions();
   const router = useRouter();
   // Zafacón con confirmación en dos pasos (inline) — sólo owner/admin
@@ -75,12 +75,15 @@ export function AttendeesSection({ activityId, canExport, onMutated }: { activit
           <UsersRound size={13} strokeWidth={1.75} aria-hidden="true" /> Asistentes
           {phase === 'ready' ? <span className="tabular-nums">({total})</span> : null}
         </p>
-        {canExport && items.length > 0 ? (
-          <a href={`/app/reportes/api/activity/${encodeURIComponent(activityId)}.xlsx`}
-            className={cn('ml-auto inline-flex items-center gap-1 rounded text-[12px] font-semibold text-brand hover:underline', focusRing)}>
-            <FileSpreadsheet size={13} strokeWidth={2} aria-hidden="true" /> Exportar Excel
-          </a>
-        ) : null}
+        <span className="ml-auto flex items-center gap-3">
+          {canExport && items.length > 0 ? (
+            <a href={`/app/reportes/api/activity/${encodeURIComponent(activityId)}.xlsx`}
+              className={cn('inline-flex items-center gap-1 rounded text-[12px] font-semibold text-brand hover:underline', focusRing)}>
+              <FileSpreadsheet size={13} strokeWidth={2} aria-hidden="true" /> Exportar Excel
+            </a>
+          ) : null}
+          {headerAction}
+        </span>
       </div>
 
       {phase === 'loading' ? (
