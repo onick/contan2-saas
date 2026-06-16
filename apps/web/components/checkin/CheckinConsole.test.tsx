@@ -42,6 +42,22 @@ describe('CheckinConsole', () => {
     expect(screen.getByText('Concierto')).toBeInTheDocument();
   });
 
+  it('sección "Listas de invitados" aparece solo si una actividad tiene lista', async () => {
+    const conLista = { ...act1, guestList: { total: 5, arrived: 2 }, imageUrl: null, imagePosY: null };
+    installFetch({ metrics: okMetrics, activities: okActs([conLista]) });
+    render(<CheckinConsole />);
+    await waitFor(() => expect(screen.getByText('Listas de invitados')).toBeInTheDocument());
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && /2 de 5 llegaron · 3 pendientes/.test(el.textContent ?? ''))).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Abrir lista/ })).toBeInTheDocument();
+  });
+
+  it('sin lista en ninguna actividad → no se muestra la sección', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs() }); // act1 sin guestList
+    render(<CheckinConsole />);
+    await waitFor(() => expect(screen.getByText('Concierto')).toBeInTheDocument());
+    expect(screen.queryByText('Listas de invitados')).not.toBeInTheDocument();
+  });
+
   it('API caída → estado honesto, NUNCA demo', async () => {
     installFetch({ metrics: () => J(502, { error: 'down' }), activities: () => J(502, { error: 'down' }) });
     render(<CheckinConsole />);

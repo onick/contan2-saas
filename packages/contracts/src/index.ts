@@ -898,6 +898,9 @@ export const CheckinActivityItemSchema = z.object({
   occupancyPct: z.number().int(),
   recentMovement: z.number().int(), // check-ins en los últimos 10 min
   full: z.boolean(),
+  // Portada (mini-thumbnail en la tarjeta de "Listas de invitados").
+  imageUrl: z.string().nullable().optional(),
+  imagePosY: z.number().nullable().optional(),
   // Lista de invitados: total (invitaciones no canceladas) y cuántos ya hicieron
   // check-in real. null = la actividad no tiene lista → la sección no la muestra.
   guestList: z.object({ total: z.number().int(), arrived: z.number().int() }).nullable().optional(),
