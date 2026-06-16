@@ -37,3 +37,37 @@ export async function invitedActivitiesFor(
   }
   return map;
 }
+
+export interface GuestListStats {
+  total: number;   // invitaciones no canceladas
+  arrived: number; // de esas, cuántas hicieron check-in REAL (checked_in_at)
+}
+
+// Por lote para la lista de actividades del check-in: cuántos invitados tiene
+// cada actividad y cuántos ya llegaron. Solo invitaciones no canceladas; el
+// "llegó" exige check-in real (checked_in_at), igual que el badge "Asistió".
+export async function guestListStatsFor(
+  db: DbClient,
+  orgId: string,
+  activityIds: string[],
+): Promise<Map<string, GuestListStats>> {
+  if (activityIds.length === 0) return new Map();
+  const rows = await db.selectFrom('invitations as i')
+    .leftJoin('attendance as a', (join) => join
+      .onRef('a.user_id', '=', 'i.user_id')
+      .onRef('a.activity_id', '=', 'i.activity_id')
+      .on('a.organization_id', '=', orgId)
+      .on('a.checked_in_at', 'is not', null))
+    .select((eb) => [
+      'i.activity_id as activity_id',
+      eb.fn.count<number>('i.id').distinct().as('total'),
+      eb.fn.count<number>('a.id').distinct().as('arrived'),
+    ])
+    .where('i.organization_id', '=', orgId)
+    .where('i.activity_id', 'in', activityIds)
+    .where('i.status', '!=', 'canceled')
+    .groupBy('i.activity_id')
+    .execute();
+
+  return new Map(rows.map((r) => [r.activity_id, { total: Number(r.total), arrived: Number(r.arrived) }]));
+}

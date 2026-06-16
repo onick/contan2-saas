@@ -49,7 +49,7 @@ run('GET /checkin/* · lectura', () => {
   const mkInvite = async (orgId: string, activityId: string, userId: string, status: 'pending' | 'canceled' = 'pending') =>
     db.insertInto('invitations').values({ organization_id: orgId, activity_id: activityId, user_id: userId, token: `tok-${randomUUID()}`, status, expires_at: future(30) } as never).execute();
 
-  let u1: string, u2: string, actFin: string;
+  let u1: string, u2: string, u3: string, actFin: string;
 
   beforeAll(async () => {
     db = createDb(DATABASE_URL);
@@ -67,7 +67,7 @@ run('GET /checkin/* · lectura', () => {
 
     u1 = await mkUser(orgAId, `CKI-AAA1-${stamp}`, 'Sofía', 'Méndez', 'sofia@ckitest.do', '809-111-2222', 5);
     u2 = await mkUser(orgAId, `CKI-BBB2-${stamp}`, 'Carlos', 'Beltrán', 'carlos@ckitest.do', '809-333-4444', 2);
-    await mkUser(orgAId, `CKI-CCC3-${stamp}`, 'Ana', 'Álvarez', null, null, 10);
+    u3 = await mkUser(orgAId, `CKI-CCC3-${stamp}`, 'Ana', 'Álvarez', null, null, 10);
     // Usuario de OTRO tenant con token de búsqueda compartido (no debe filtrarse).
     await mkUser(orgBId, `CKI-XTEN-${stamp}`, 'Cross', 'Tenant', 'cross@b.do', '809-999-0000', 1);
 
@@ -83,6 +83,9 @@ run('GET /checkin/* · lectura', () => {
     await mkInvite(orgAId, act1, u1);
     await mkInvite(orgAId, actFin, u1);
     await mkInvite(orgAId, act2, u2, 'canceled');
+    // Para guestList de act1: Ana también invitada (pendiente, sin check-in) →
+    // act1 queda total=2 (u1+Ana), arrived=1 (u1 ya tiene check-in real).
+    await mkInvite(orgAId, act1, u3);
 
     app = buildApp();
     await app.ready();
@@ -133,6 +136,14 @@ run('GET /checkin/* · lectura', () => {
     expect(a2.recentMovement).toBe(0);
     // ninguna finalizada/cancelada
     expect(body.items.some((a) => a.name.includes('Finalizada') || a.name.includes('Cancelada'))).toBe(false);
+  });
+
+  it('guestList: total/llegaron por actividad; cancelada y sin-lista → null', async () => {
+    const body = CheckinActivitiesResponseSchema.parse((await get('/api/v2/checkin/activities', hostA, TOK.admin)).json());
+    const a1 = body.items.find((a) => a.id === act1)!;
+    expect(a1.guestList).toEqual({ total: 2, arrived: 1 }); // u1 (llegó) + Ana (no); u1 con check-in real
+    const a2 = body.items.find((a) => a.id === act2)!;
+    expect(a2.guestList ?? null).toBeNull(); // u2 invitado pero CANCELADO → sin lista
   });
 
   // ── visitantes ──
