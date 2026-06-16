@@ -20,9 +20,12 @@ export interface NewVisitorDrawerProps {
   activities: CheckinActivityItem[];
   onClose: () => void;
   onDone: (msg: string) => void; // éxito → el contenedor cierra + refresca + toast
+  // Texto del buscador al abrir → pre-rellena Nombre/Apellido (1ª palabra = nombre,
+  // resto = apellido). El staff lo ajusta si hace falta.
+  initialName?: string;
 }
 
-export function NewVisitorDrawer({ open, activities, onClose, onDone }: NewVisitorDrawerProps) {
+export function NewVisitorDrawer({ open, activities, onClose, onDone, initialName }: NewVisitorDrawerProps) {
   const baseId = useId();
   const titleId = `${baseId}-title`;
   const firstRef = useRef<HTMLInputElement>(null);
@@ -34,6 +37,21 @@ export function NewVisitorDrawer({ open, activities, onClose, onDone }: NewVisit
   const busyRef = useRef(busy); busyRef.current = busy;
   const requestClose = useRef(() => {});
   requestClose.current = () => { if (!busyRef.current) { setForm(EMPTY); setError(null); onClose(); } };
+
+  // Al abrir: pre-rellenar desde el buscador (1ª palabra nombre, resto apellido).
+  useEffect(() => {
+    if (!open) return;
+    const name = (initialName ?? '').trim().replace(/\s+/g, ' ');
+    if (name) {
+      const sp = name.indexOf(' ');
+      const firstName = sp === -1 ? name : name.slice(0, sp);
+      const lastName = sp === -1 ? '' : name.slice(sp + 1);
+      setForm({ ...EMPTY, firstName, lastName });
+    } else {
+      setForm(EMPTY);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;

@@ -523,6 +523,7 @@ export function CheckinConsole() {
       <NewVisitorDrawer
         open={newOpen}
         activities={activities.data ?? []}
+        initialName={query}
         onClose={() => setNewOpen(false)}
         onDone={(msg) => { setNewOpen(false); flash({ kind: 'success', msg }); refreshLive(); }}
       />
