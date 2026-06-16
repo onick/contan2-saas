@@ -16,14 +16,14 @@ describe('/kiosko · flujo del visitante (modo demo)', () => {
     expect(screen.getByText('Toca para registrarte')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Toca para registrarte'));
     expect(screen.getByRole('heading', { name: 'Elige tu actividad' })).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     expect(screen.getByRole('heading', { name: '¿Cómo te identificas?' })).toBeInTheDocument();
   });
 
   it('visitante existente: busca por código y confirma', async () => {
     renderDemo();
     fireEvent.click(screen.getByText('Toca para registrarte'));
-    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Tengo mi código'));
     fireEvent.change(screen.getByLabelText(/Código/), { target: { value: KIOSK_KNOWN_VISITOR.code } });
     fireEvent.click(screen.getByRole('button', { name: /Buscar/ }));
@@ -36,7 +36,7 @@ describe('/kiosko · flujo del visitante (modo demo)', () => {
   it('visitante nuevo: registro rápido genera código demo con formato v1', () => {
     renderDemo();
     fireEvent.click(screen.getByText('Toca para registrarte'));
-    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Soy nuevo aquí'));
     fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: 'Ana' } });
     fireEvent.change(screen.getByLabelText(/Apellido/), { target: { value: 'Gómez' } });
@@ -50,7 +50,7 @@ describe('/kiosko · flujo del visitante (modo demo)', () => {
   it('visitante con niños: suma acompañantes y muestra cupos ocupados', () => {
     renderDemo();
     fireEvent.click(screen.getByText('Toca para registrarte'));
-    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Soy nuevo aquí'));
     fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: 'Ana' } });
     fireEvent.change(screen.getByLabelText(/Apellido/), { target: { value: 'Gómez' } });
@@ -64,7 +64,7 @@ describe('/kiosko · flujo del visitante (modo demo)', () => {
   it('código desconocido → ofrece registro de nuevo', async () => {
     renderDemo();
     fireEvent.click(screen.getByText('Toca para registrarte'));
-    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Tengo mi código'));
     fireEvent.change(screen.getByLabelText(/Código/), { target: { value: 'CCB-000000' } });
     fireEvent.click(screen.getByRole('button', { name: /Buscar/ }));
@@ -81,7 +81,7 @@ describe('/kiosko · flujo del visitante (modo demo)', () => {
 describe('/kiosko · modo API (lookup real vía proxy /kiosko/lookup)', () => {
   const goToCode = () => {
     fireEvent.click(screen.getByText('Toca para registrarte'));
-    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Tengo mi código'));
     fireEvent.change(screen.getByLabelText(/Código/), { target: { value: 'CCB-PUB001' } });
     fireEvent.click(screen.getByRole('button', { name: /Buscar/ }));
@@ -141,7 +141,7 @@ describe('/kiosko · modo API · check-in REAL al confirmar (/kiosko/checkin)', 
 
   const goToNew = () => {
     fireEvent.click(screen.getByText('Toca para registrarte'));
-    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Soy nuevo aquí'));
     fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: 'Ana' } });
     fireEvent.change(screen.getByLabelText(/Apellido/), { target: { value: 'Gómez' } });
@@ -173,7 +173,7 @@ describe('/kiosko · modo API · check-in REAL al confirmar (/kiosko/checkin)', 
     vi.stubGlobal('fetch', fetchMock);
     renderApi();
     fireEvent.click(screen.getByText('Toca para registrarte'));
-    fireEvent.click(screen.getAllByRole('button', { name: /cupos/ })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Tengo mi código'));
     fireEvent.change(screen.getByLabelText(/Código/), { target: { value: 'CCB-PUB001' } });
     fireEvent.click(screen.getByRole('button', { name: /Buscar/ }));
