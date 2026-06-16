@@ -72,28 +72,33 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const norm = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[\s_-]+/g, '');
 
 // Alias de encabezados (normalizados) → campo canónico.
-const HEADER_ALIASES: Record<string, 'firstName' | 'lastName' | 'email' | 'phone'> = {};
+const HEADER_ALIASES: Record<string, 'firstName' | 'lastName' | 'email' | 'phone' | 'code'> = {};
 for (const a of ['nombre', 'nombres', 'firstname', 'first', 'name']) HEADER_ALIASES[norm(a)] = 'firstName';
 for (const a of ['apellido', 'apellidos', 'lastname', 'last', 'surname']) HEADER_ALIASES[norm(a)] = 'lastName';
 for (const a of ['email', 'correo', 'mail', 'correoelectronico', 'e-mail']) HEADER_ALIASES[norm(a)] = 'email';
 for (const a of ['telefono', 'phone', 'celular', 'movil', 'tel', 'whatsapp']) HEADER_ALIASES[norm(a)] = 'phone';
+// 'Código' es opcional: identifica a un usuario YA existente (import de invitados
+// lo usa para invitar al registro real sin crear duplicados). El import de
+// usuarios lo ignora (los códigos se generan al crear).
+for (const a of ['codigo', 'código', 'code', 'cod']) HEADER_ALIASES[norm(a)] = 'code';
 
-export interface RawRow { rowNum: number; firstName: string; lastName: string; email: string; phone: string }
+export interface RawRow { rowNum: number; firstName: string; lastName: string; email: string; phone: string; code?: string }
 export interface ParseResult { rows: RawRow[]; error?: string }
 
 // Normaliza + valida una fila cruda (trim, recorte, email lower). Devuelve el
 // email canónico (lower) o null, y `invalidReason` si la fila no sirve. Fuente
 // de verdad compartida entre el import de usuarios y el de invitados.
-export interface NormalizedRow { firstName: string; lastName: string; email: string | null; phone: string | null; invalidReason?: string }
+export interface NormalizedRow { firstName: string; lastName: string; email: string | null; phone: string | null; code: string | null; invalidReason?: string }
 export function normalizeRow(row: RawRow): NormalizedRow {
   const firstName = row.firstName.trim().slice(0, 120);
   const lastName = row.lastName.trim().slice(0, 120);
   const emailRaw = row.email.trim().toLowerCase();
   const phone = row.phone.trim().slice(0, 40) || null;
+  const code = (row.code ?? '').trim().toUpperCase().slice(0, 40) || null;
   let invalidReason: string | undefined;
   if (!firstName || !lastName) invalidReason = 'Falta nombre o apellido.';
   else if (emailRaw && !EMAIL_RE.test(emailRaw)) invalidReason = 'Correo con formato inválido.';
-  return { firstName, lastName, email: emailRaw || null, phone, invalidReason };
+  return { firstName, lastName, email: emailRaw || null, phone, code, invalidReason };
 }
 
 // Nombre completo normalizado (sin acentos/espacios) para el aviso de doble.
@@ -176,8 +181,8 @@ export async function parseUsersFile(buf: Buffer, filename: string): Promise<Par
   if (!header.includes('firstName') || !header.includes('lastName')) {
     return { rows: [], error: 'No reconocimos las columnas. Usá la plantilla (Nombre, Apellido, Email, Teléfono).' };
   }
-  const col = (name: 'firstName' | 'lastName' | 'email' | 'phone') => header.indexOf(name);
-  const ci = { firstName: col('firstName'), lastName: col('lastName'), email: col('email'), phone: col('phone') };
+  const col = (name: 'firstName' | 'lastName' | 'email' | 'phone' | 'code') => header.indexOf(name);
+  const ci = { firstName: col('firstName'), lastName: col('lastName'), email: col('email'), phone: col('phone'), code: col('code') };
 
   const rows: RawRow[] = [];
   for (let i = headerIdx + 1; i < matrix.length; i += 1) {
@@ -187,8 +192,9 @@ export async function parseUsersFile(buf: Buffer, filename: string): Promise<Par
     const lastName = get(ci.lastName);
     const email = get(ci.email);
     const phone = get(ci.phone);
-    if (!firstName && !lastName && !email && !phone) continue; // fila vacía → ignorar
-    rows.push({ rowNum: rows.length + 1, firstName, lastName, email, phone });
+    const code = get(ci.code);
+    if (!firstName && !lastName && !email && !phone && !code) continue; // fila vacía → ignorar
+    rows.push({ rowNum: rows.length + 1, firstName, lastName, email, phone, code });
   }
   return { rows };
 }
