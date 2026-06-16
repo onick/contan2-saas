@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { ActivitiesTable } from './ActivitiesTable';
 import { ACTIVITIES } from '../../lib/activities/demoData';
 
@@ -23,6 +23,22 @@ describe('ActivitiesTable', () => {
   it('muestra "—" cuando no hay ocupación (borrador)', () => {
     render(<ActivitiesTable activities={ACTIVITIES} />);
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('click en la fila → onView (abre el detalle); la celda de acciones NO lo dispara', () => {
+    const onView = vi.fn();
+    render(<ActivitiesTable activities={ACTIVITIES} onView={onView} />);
+    const first = ACTIVITIES[0]!;
+    const row = screen.getByText(first.title).closest('tr')!;
+    expect(row.className).toContain('cursor-pointer');
+    // click en el cuerpo de la fila (título) → abre detalle
+    fireEvent.click(screen.getByText(first.title));
+    expect(onView).toHaveBeenCalledTimes(1);
+    expect(onView).toHaveBeenCalledWith(first);
+    // click en el ojo (dentro de acciones) → llama onView pero NO doble por la fila
+    onView.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`Ver detalle de ${first.title}`) }));
+    expect(onView).toHaveBeenCalledTimes(1); // solo el del ojo, no burbujea a la fila
   });
 
   it('polish sutil: filas escalonadas (tbody app-stagger) + barras app-bar-grow', () => {

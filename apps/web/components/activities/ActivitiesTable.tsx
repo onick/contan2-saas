@@ -5,7 +5,7 @@ import { StatusBadge } from './StatusBadge';
 import { CategoryChip } from '../CategoryChip';
 import { CoverThumb } from './CoverThumb';
 import { ActivityRowMenu } from './ActivityRowMenu';
-import { Card, IconButton, EmptyState } from '../ui';
+import { Card, IconButton, EmptyState, cn } from '../ui';
 
 // Ícono por categoría (coherente con lucide).
 const CATEGORY_ICON: Record<string, LucideIcon> = {
@@ -63,7 +63,11 @@ export function ActivitiesTable({ activities, onView, onEdit, onChanged }: Activ
             {activities.map((a) => {
               const CatIcon = CATEGORY_ICON[a.category] ?? CalendarDays;
               return (
-                <tr key={a.id} className="border-t border-line align-middle hover:bg-page">
+                <tr
+                  key={a.id}
+                  onClick={() => onView?.(a)}
+                  className={cn('border-t border-line align-middle hover:bg-page', onView && 'cursor-pointer')}
+                >
                   {/* Actividad */}
                   <td className="px-5 py-4 md:px-6">
                     <div className="flex items-center gap-3">
@@ -110,8 +114,9 @@ export function ActivitiesTable({ activities, onView, onEdit, onChanged }: Activ
                       </div>
                     )}
                   </td>
-                  {/* Acciones */}
-                  <td className="whitespace-nowrap px-4 py-4">
+                  {/* Acciones · stopPropagation: el ⋯ y el ojo no deben disparar
+                      el click de la fila (que abre el detalle). */}
+                  <td className="whitespace-nowrap px-4 py-4" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <IconButton label={`Ver detalle de ${a.title}`} variant="ghost" size="sm" className="text-brand" onClick={() => onView?.(a)}>
                         <Eye size={18} strokeWidth={2} aria-hidden="true" />
