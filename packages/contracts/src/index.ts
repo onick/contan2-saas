@@ -453,6 +453,17 @@ export const ActivityInvitationSchema = z.object({
 });
 export type ActivityInvitation = z.infer<typeof ActivityInvitationSchema>;
 
+// "Agregar del padrón": invita a usuarios existentes (incluye sin email), sin correo.
+export const ActivityInviteExistingResponseSchema = z.object({
+  ok: z.literal(true),
+  summary: z.object({
+    invited: z.number().int(),        // nuevos en la lista (creados o reactivados)
+    alreadyInvited: z.number().int(), // ya estaban en la lista
+    skipped: z.number().int(),        // ids inexistentes/archivados
+  }),
+});
+export type ActivityInviteExistingResponse = z.infer<typeof ActivityInviteExistingResponseSchema>;
+
 export const ActivityInvitationsResponseSchema = z.object({
   summary: z.object({
     total: z.number().int(),
