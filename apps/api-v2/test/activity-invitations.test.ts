@@ -263,4 +263,22 @@ run('RSVP · invitar audiencia segmentada', () => {
     // operator no puede
     expect((await call('POST', `/api/v2/activities/${act}/invite-existing`, { userIds: [u5] }, TOK.operator)).statusCode).toBe(403);
   });
+
+  it('isProtocol: designado de protocolo (perfil activo) se marca aunque la invitación sea audiencia', async () => {
+    const act = await mkAct({ capacity: 50 });
+    const uProto = await mkUser(`fp-${stamp}@t.local`);
+    const uNorm = await mkUser(`fn-${stamp}@t.local`);
+    await call('POST', `/api/v2/activities/${act}/invite-existing`, { userIds: [uProto, uNorm] }, TOK.admin);
+    await db.insertInto('protocol_profiles').values({ user_id: uProto, organization_id: orgAId, category: 'diplomatico', honorific: null, active: true } as never).execute();
+    try {
+      const list = ActivityInvitationsResponseSchema.parse((await call('GET', `/api/v2/activities/${act}/invitations`, undefined, TOK.admin)).json());
+      const p = list.invitations.find((i) => i.userId === uProto)!;
+      const n = list.invitations.find((i) => i.userId === uNorm)!;
+      expect(p.isProtocol).toBe(true);
+      expect(p.kind).toBe('audience'); // la etiqueta viene del perfil, no del kind
+      expect(n.isProtocol ?? false).toBe(false);
+    } finally {
+      await db.deleteFrom('protocol_profiles').where('user_id', '=', uProto).execute();
+    }
+  });
 });

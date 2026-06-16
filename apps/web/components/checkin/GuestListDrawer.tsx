@@ -15,6 +15,8 @@ import { postCheckin } from '../../lib/api/checkin-client';
 type Inv = ActivityInvitationsResponse['invitations'][number];
 type Filter = 'pending' | 'arrived' | 'all';
 
+// Protocolo: designado (protocol_profiles, vía isProtocol) o invitación kind=protocol.
+const isProto = (i: Inv): boolean => i.isProtocol ?? i.kind === 'protocol';
 const fmtHour = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
 
 export function GuestListDrawer({ activity, onClose, onArrival }: {
@@ -111,7 +113,7 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
     return [...list].sort((a, b) => {
       const aa = a.status === 'attended' ? 1 : 0, ba = b.status === 'attended' ? 1 : 0;
       if (aa !== ba) return aa - ba;                                   // pendientes primero
-      const ap = a.kind === 'protocol' ? 0 : 1, bp = b.kind === 'protocol' ? 0 : 1;
+      const ap = isProto(a) ? 0 : 1, bp = isProto(b) ? 0 : 1;
       if (ap !== bp) return ap - bp;                                   // protocolo arriba
       return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'es');
     });
@@ -187,13 +189,13 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
                 return (
                   <li key={inv.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 [&+li]:border-t [&+li]:border-line hover:bg-surface-container/50">
                     <span className={cn('grid h-10 w-10 flex-none place-items-center rounded-full text-[12px] font-bold',
-                      inv.kind === 'protocol' ? 'bg-accent-soft text-[#9a6b00]' : 'bg-primary-container text-on-primary-container')}>
+                      isProto(inv) ? 'bg-accent-soft text-[#9a6b00]' : 'bg-primary-container text-on-primary-container')}>
                       {(inv.firstName[0] ?? '') + (inv.lastName[0] ?? '')}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] font-semibold text-ink">
                         <span className="truncate">{inv.firstName} {inv.lastName}</span>
-                        {inv.kind === 'protocol' ? (
+                        {isProto(inv) ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9a6b00]">
                             <Medal size={10} strokeWidth={2.5} aria-hidden="true" /> Protocolo{inv.plusOnes > 0 ? ` · +${inv.plusOnes}` : ''}
                           </span>

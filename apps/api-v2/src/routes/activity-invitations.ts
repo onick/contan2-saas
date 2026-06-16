@@ -29,6 +29,7 @@ import { effectiveHost } from '../tenant.js';
 import { deliverInvitations, type DeliverableInvitation } from '../services/invitation-email.js';
 import { parseUsersFile, IMPORT_MAX_BYTES } from '../services/users-import.js';
 import { classifyGuests, commitGuests } from '../services/activity-guests-import.js';
+import { protocolMarksFor } from '../services/protocol-info.js';
 import type { GuestsImportPreviewResponse, GuestsImportCommitResponse } from '@contan2/contracts';
 
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
@@ -339,6 +340,9 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
       .execute();
 
     const now = Date.now();
+    // Designados de protocolo (protocol_profiles activo) en un query por lote;
+    // la etiqueta "Protocolo" de la lista se basa en esto + kind (best-effort).
+    const protoMarks = await protocolMarksFor(db, orgId, rows.map((r) => r.user_id)).catch(() => new Map());
     const summary = { total: rows.length, pending: 0, confirmed: 0, declined: 0, expired: 0, canceled: 0, attended: 0 };
     const invitations: ActivityInvitationsResponse['invitations'] = rows.map((r) => {
       // Presencia física gana: si hay asistencia, "Asistió" pisa cualquier estado.
@@ -351,6 +355,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
         id: r.id, userId: r.user_id, code: r.code, firstName: r.first_name, lastName: r.last_name,
         email: r.email,
         kind: r.kind, plusOnes: r.plus_ones,
+        isProtocol: r.kind === 'protocol' || protoMarks.has(r.user_id),
         status,
         // id de la asistencia (solo si llegó) → habilita "Deshacer" en la puerta.
         attendanceId: status === 'attended' ? (r.attendance_id as string | null) : null,
