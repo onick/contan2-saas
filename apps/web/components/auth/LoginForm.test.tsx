@@ -140,4 +140,14 @@ describe('LoginForm', () => {
     expect(cls).toContain('hover:brightness-95');
     expect(cls).toContain('active:brightness-90');
   });
+
+  it('ojito: alterna mostrar/ocultar la contraseña', () => {
+    render(<LoginForm next="/app" />);
+    const pw = document.querySelector('input[name="password"]') as HTMLInputElement;
+    expect(pw.type).toBe('password');
+    fireEvent.click(screen.getByRole('button', { name: /mostrar contraseña/i }));
+    expect(pw.type).toBe('text');
+    fireEvent.click(screen.getByRole('button', { name: /ocultar contraseña/i }));
+    expect(pw.type).toBe('password');
+  });
 });
