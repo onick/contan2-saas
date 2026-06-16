@@ -110,8 +110,10 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     const res = await sql<{
       id: string; name: string; location: string; date: Date;
       capacity: number; enrolled_count: number; recent: string;
+      image_url: string | null; image_pos_y: number | null;
     }>`
       SELECT a.id, a.name, a.location, a.date, a.capacity, a.enrolled_count,
+             a.image_url, a.image_pos_y,
              COALESCE(r.recent, 0) AS recent
       FROM activities a
       LEFT JOIN (
@@ -142,6 +144,8 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
         occupancyPct: capacity > 0 ? Math.round((enrolledCount / capacity) * 100) : 0,
         recentMovement: Number(row.recent),
         full: enrolledCount >= capacity,
+        imageUrl: row.image_url,
+        imagePosY: row.image_pos_y,
         // Solo cuando hay lista (≥1 invitación no cancelada); si no, null.
         guestList: gl && gl.total > 0 ? { total: gl.total, arrived: gl.arrived } : null,
       };
