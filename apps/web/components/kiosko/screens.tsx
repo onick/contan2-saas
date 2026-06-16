@@ -5,6 +5,7 @@
 // CodeScreen y NewVisitorScreen manejan su propio estado de input local.
 
 import { useState, useEffect, useRef, type FormEvent } from 'react';
+import QRCode from 'qrcode';
 import {
   Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
   Baby, Info, Minus, Plus, Film, Music, MessagesSquare, Palette, Ban, RotateCcw, type LucideIcon,
@@ -15,6 +16,25 @@ import { KioskClock } from './KioskClock';
 import { partySize, type KioskActivity, type KioskVisitor } from '../../lib/kiosko/demoData';
 
 const MAX_CHILDREN = 6;
+
+// QR REAL escaneable: codifica EXACTAMENTE el código (qrPayload = user.code,
+// igual que la credencial del servidor y v1). Negro sobre blanco para máxima
+// lectura del scanner. Se usa en modo `real` (prod); el FauxQr decorativo queda
+// solo para demo/preview. Mientras genera, muestra un recuadro blanco (sin flash
+// de QR falso).
+function RealQr({ code, size = 196 }: { code: string; size?: number }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    QRCode.toDataURL(code, { margin: 1, width: 512, errorCorrectionLevel: 'M', color: { dark: '#0e0f14', light: '#ffffff' } })
+      .then((url) => { if (alive) setSrc(url); })
+      .catch(() => { if (alive) setSrc(null); });
+    return () => { alive = false; };
+  }, [code]);
+  if (!src) return <div className="rounded-xl bg-white" style={{ width: size, height: size }} aria-label="Generando código QR" />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} width={size} height={size} alt={`Código QR de ${code}`} className="rounded-xl bg-white p-3" style={{ width: size, height: size }} />;
+}
 
 // Control de niños acompañantes. Regla de producto: SÓLO niños van como
 // acompañantes (asociados al adulto responsable, sin credencial propia pero
@@ -624,9 +644,10 @@ export function ConfirmationScreen({
           </p>
         </div>
 
-        {/* Credencial demo: QR + código + badges, centrados en una tarjeta. */}
+        {/* Credencial: en prod (real) un QR REAL escaneable del código; en demo,
+            el FauxQr de preview. + código + badges, centrados en una tarjeta. */}
         <div className="mt-8 flex flex-col items-center gap-6 rounded-3xl border border-white/10 bg-[linear-gradient(180deg,#191b22_0%,#15171e_100%)] p-8 text-center">
-          <FauxQr code={visitor.code} />
+          {real ? <RealQr code={visitor.code} /> : <FauxQr code={visitor.code} />}
           <div className="flex flex-col items-center gap-2">
             <p className="text-2xl font-bold tracking-[0.08em] tabular-nums text-[#f4f5f8]">{visitor.code}</p>
             <div className="flex flex-wrap items-center justify-center gap-2">
