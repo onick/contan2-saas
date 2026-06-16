@@ -52,6 +52,8 @@ const CHECKIN_TZ = resolveCheckinTz();
 const VISITORS_DEFAULT_LIMIT = 10;
 const VISITORS_MAX_LIMIT = 20;
 const VISITORS_MIN_Q = 2;
+// Comando "*protocolo": lista completa de invitados de protocolo (perfil activo).
+const PROTOCOL_MAX_LIMIT = 300;
 
 // Rate-limit de ESCRITURA (limiter compartido Redis/in-memory). Namespace por
 // entorno+endpoint (endpointPrefix); key `${orgId}:${ip}` (sin PII). Límites
@@ -166,37 +168,52 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     const orgId = guard.ctx.org.id;
 
     const query = (req.query ?? {}) as Record<string, unknown>;
+    // Comando "*protocolo" (UI): lista completa de protocolo, sin texto.
+    const protocolMode = query.protocol === '1' || query.protocol === 'true';
     const search = parseSearch(query.q);
-    if (search.error) { reply.code(400); return { error: 'Parámetro de búsqueda inválido.' }; }
-    // q ausente/vacío/corto → lista vacía (nunca dump completo).
-    if (!search.q || search.q.length < VISITORS_MIN_Q) {
-      return { items: [] } satisfies CheckinVisitorsResponse;
+    if (!protocolMode) {
+      if (search.error) { reply.code(400); return { error: 'Parámetro de búsqueda inválido.' }; }
+      // q ausente/vacío/corto → lista vacía (nunca dump completo).
+      if (!search.q || search.q.length < VISITORS_MIN_Q) {
+        return { items: [] } satisfies CheckinVisitorsResponse;
+      }
     }
     const n = Number(query.limit);
-    const limit = Number.isInteger(n) && n > 0 ? Math.min(n, VISITORS_MAX_LIMIT) : VISITORS_DEFAULT_LIMIT;
-    const pattern = likeContains(search.q);
 
-    const rows = await db
-      .selectFrom('users')
-      .select(['id', 'code', 'first_name', 'last_name', 'email', 'visit_count'])
-      .where('organization_id', '=', orgId)
-      .where((eb) =>
-        eb.or([
-          eb('code', 'ilike', pattern),
-          eb('first_name', 'ilike', pattern),
-          eb('last_name', 'ilike', pattern),
-          eb('email', 'ilike', pattern),
-          eb('phone', 'ilike', pattern),
-          // Nombre COMPLETO, sin acentos en ambos lados (frases multi-palabra).
-          sql<boolean>`lower(translate(first_name || ' ' || last_name, 'áéíóúüÁÉÍÓÚÜ', 'aeiouuAEIOUU')) like '%' || lower(translate(${search.q}, 'áéíóúüÁÉÍÓÚÜ', 'aeiouuAEIOUU')) || '%'`,
-        ]),
-      )
-      // Orden determinista: más visitas primero, desempate por created_at + id.
-      .orderBy('visit_count', 'desc')
-      .orderBy('created_at', 'desc')
-      .orderBy('id', 'desc')
-      .limit(limit)
-      .execute();
+    const rows = protocolMode
+      ? await db
+          .selectFrom('users as u')
+          // Solo invitados de protocolo con perfil ACTIVO.
+          .innerJoin('protocol_profiles as pp', (j) => j
+            .onRef('pp.user_id', '=', 'u.id')
+            .on('pp.organization_id', '=', orgId)
+            .on('pp.active', '=', true))
+          .select(['u.id as id', 'u.code as code', 'u.first_name as first_name', 'u.last_name as last_name', 'u.email as email', 'u.visit_count as visit_count'])
+          .where('u.organization_id', '=', orgId)
+          .orderBy('u.first_name', 'asc').orderBy('u.last_name', 'asc').orderBy('u.id', 'asc')
+          .limit(Number.isInteger(n) && n > 0 ? Math.min(n, PROTOCOL_MAX_LIMIT) : PROTOCOL_MAX_LIMIT)
+          .execute()
+      : await db
+          .selectFrom('users')
+          .select(['id', 'code', 'first_name', 'last_name', 'email', 'visit_count'])
+          .where('organization_id', '=', orgId)
+          .where((eb) =>
+            eb.or([
+              eb('code', 'ilike', likeContains(search.q!)),
+              eb('first_name', 'ilike', likeContains(search.q!)),
+              eb('last_name', 'ilike', likeContains(search.q!)),
+              eb('email', 'ilike', likeContains(search.q!)),
+              eb('phone', 'ilike', likeContains(search.q!)),
+              // Nombre COMPLETO, sin acentos en ambos lados (frases multi-palabra).
+              sql<boolean>`lower(translate(first_name || ' ' || last_name, 'áéíóúüÁÉÍÓÚÜ', 'aeiouuAEIOUU')) like '%' || lower(translate(${search.q}, 'áéíóúüÁÉÍÓÚÜ', 'aeiouuAEIOUU')) || '%'`,
+            ]),
+          )
+          // Orden determinista: más visitas primero, desempate por created_at + id.
+          .orderBy('visit_count', 'desc')
+          .orderBy('created_at', 'desc')
+          .orderBy('id', 'desc')
+          .limit(Number.isInteger(n) && n > 0 ? Math.min(n, VISITORS_MAX_LIMIT) : VISITORS_DEFAULT_LIMIT)
+          .execute();
 
     // Marca de protocolo (PR-5) + "en la lista de invitados" en un query por
     // lote cada uno; best-effort (un fallo no rompe la búsqueda).

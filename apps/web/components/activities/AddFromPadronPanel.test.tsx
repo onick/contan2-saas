@@ -47,6 +47,15 @@ describe('AddFromPadronPanel', () => {
     expect(within(screen.getByText('Nelson Encarnación').closest('button')!).getByText(/sin email/)).toBeInTheDocument();
   });
 
+  it('comando "*protocolo" busca con protocol=1 (lista completa de protocolo)', async () => {
+    const fetchMock = installFetch();
+    render(<AddFromPadronPanel activityId="ACT1" activityName="Gala" open onClose={() => {}} onAdded={() => {}} />);
+    fireEvent.change(screen.getByPlaceholderText(/Nombre, código o email/), { target: { value: '*protocolo' } });
+    await screen.findByText('Nelson Encarnación');
+    const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/check-in/api/visitors'))!;
+    expect(String(call[0])).toContain('protocol=1');
+  });
+
   it('selecciona dos y agrega → POST invite-existing con userIds; llama onAdded', async () => {
     const onAdded = vi.fn();
     const fetchMock = installFetch();

@@ -174,6 +174,18 @@ run('GET /checkin/* · lectura', () => {
     expect(v2.invitedTo ?? []).toEqual([]); // invitación cancelada → no aparece
   });
 
+  it('comando *protocolo: ?protocol=1 → solo invitados de protocolo (perfil activo), todos marcados', async () => {
+    await db.insertInto('protocol_profiles').values({ user_id: u1, organization_id: orgAId, category: 'diplomatico', honorific: null, active: true } as never).execute();
+    try {
+      const body = CheckinVisitorsResponseSchema.parse((await get('/api/v2/checkin/visitors?protocol=1', hostA, TOK.admin)).json());
+      expect(body.items.some((v) => v.id === u1)).toBe(true);
+      expect(body.items.some((v) => v.id === u2)).toBe(false); // u2 no es protocolo
+      expect(body.items.length > 0 && body.items.every((v) => v.protocol)).toBe(true);
+    } finally {
+      await db.deleteFrom('protocol_profiles').where('user_id', '=', u1).execute();
+    }
+  });
+
   it('q vacío / corto → lista vacía (sin dump)', async () => {
     expect((await visitors('')).items.length).toBe(0);
     expect((await visitors('a')).items.length).toBe(0); // 1 char < mínimo
