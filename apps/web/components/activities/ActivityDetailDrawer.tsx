@@ -23,6 +23,7 @@ import { AttendeesSection } from './AttendeesSection';
 import { InviteAudiencePanel } from './InviteAudiencePanel';
 import { InviteProtocolPanel } from './InviteProtocolPanel';
 import { ImportGuestsPanel } from './ImportGuestsPanel';
+import { AddFromPadronPanel } from './AddFromPadronPanel';
 import { InvitationsSection } from './InvitationsSection';
 import { Megaphone, Medal, Upload } from 'lucide-react';
 import { Button, IconButton, cn, focusRing, useDrawerLifecycle } from '../ui';
@@ -57,6 +58,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteProtoOpen, setInviteProtoOpen] = useState(false);
   const [importGuestsOpen, setImportGuestsOpen] = useState(false);
+  const [addPadronOpen, setAddPadronOpen] = useState(false);
   const [invKey, setInvKey] = useState(0);
   useEffect(() => {
     if (!realId) return;
@@ -255,6 +257,9 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
                 <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => setImportGuestsOpen(true)}>
                   <Upload size={16} strokeWidth={2} aria-hidden="true" /> Importar lista
                 </Button>
+                <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => setAddPadronOpen(true)}>
+                  <UserPlus size={16} strokeWidth={2} aria-hidden="true" /> Agregar del padrón
+                </Button>
               </span>
             ) : null}
             {onEdit ? (
@@ -294,6 +299,13 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
             open={importGuestsOpen}
             onClose={() => setImportGuestsOpen(false)}
             onImported={() => setInvKey((k) => k + 1)}
+          />
+          <AddFromPadronPanel
+            activityId={shown.id}
+            activityName={shown.title}
+            open={addPadronOpen}
+            onClose={() => setAddPadronOpen(false)}
+            onAdded={() => setInvKey((k) => k + 1)}
           />
         </>
       ) : null}
