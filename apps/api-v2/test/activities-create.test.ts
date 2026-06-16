@@ -126,9 +126,9 @@ run('POST /activities · escritura', () => {
     expect(activity.endDate).toBe(new Date(ed).toISOString());
   });
 
-  it('operator → 403 (rol sin permiso)', async () => {
+  it('operator → 201 (los operadores también crean actividades)', async () => {
     const res = await post(validBody(), hostA, TOK.operator);
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(201);
   });
 
   it('sin cookie → 401', async () => {

@@ -275,9 +275,9 @@ run('PATCH /activities/:id (+/status) · ciclo de vida', () => {
     expect((await patch(id, { name: 'x' }, hostA)).statusCode).toBe(401);
   });
 
-  it('operator → 403', async () => {
+  it('operator → 200 (los operadores editan actividades)', async () => {
     const id = await seed();
-    expect((await patch(id, { name: 'x' }, hostA, TOK.operator)).statusCode).toBe(403);
+    expect((await patch(id, { name: 'Editado por operador' }, hostA, TOK.operator)).statusCode).toBe(200);
   });
 
   it('cross-tenant: actividad de orgB sobre host A → 404', async () => {
@@ -345,9 +345,9 @@ run('PATCH /activities/:id (+/status) · ciclo de vida', () => {
     expect((await patchStatus(id, { status: 'pausada' }, hostA, TOK.admin)).statusCode).toBe(400);
   });
 
-  it('status: operator → 403; sin cookie → 401; cross-tenant → 404', async () => {
+  it('status: operator → 200 (cambia estado); sin cookie → 401; cross-tenant → 404', async () => {
     const id = await seed({ status: 'activa' });
-    expect((await patchStatus(id, { status: 'finalizada' }, hostA, TOK.operator)).statusCode).toBe(403);
+    expect((await patchStatus(id, { status: 'finalizada' }, hostA, TOK.operator)).statusCode).toBe(200);
     expect((await patchStatus(id, { status: 'finalizada' }, hostA)).statusCode).toBe(401);
     const idB = await seed({ org: orgBId });
     expect((await patchStatus(idB, { status: 'finalizada' }, hostA, TOK.admin)).statusCode).toBe(404);

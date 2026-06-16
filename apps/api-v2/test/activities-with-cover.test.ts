@@ -196,8 +196,8 @@ run('POST /activities/with-cover · creación atómica con portada', () => {
     }
   });
 
-  it('operator → 403; sin cookie → 401; cross-tenant (staff de B en host A) → 403', async () => {
-    expect((await post(await withFile({}), TOK.operator)).statusCode).toBe(403);
+  it('operator → 201 (crea con portada); sin cookie → 401; cross-tenant (staff de B en host A) → 403', async () => {
+    expect((await post(await withFile({}), TOK.operator)).statusCode).toBe(201);
     expect((await post(await withFile({}))).statusCode).toBe(401);
     expect((await post(await withFile({}), TOK.b)).statusCode).toBe(403);
   });

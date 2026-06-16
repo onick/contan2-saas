@@ -165,8 +165,8 @@ run('POST /activities/:id/cover · escritura de portada', () => {
     expect((await postCover(actA, multipart(await realPng(), 'x.png', 'image/png'))).statusCode).toBe(401);
   });
 
-  it('operator → 403', async () => {
-    expect((await postCover(actA, multipart(await realPng(), 'x.png', 'image/png'), TOK.operator)).statusCode).toBe(403);
+  it('operator → 200 (los operadores gestionan actividades, incluida la portada)', async () => {
+    expect((await postCover(actA, multipart(await realPng(), 'x.png', 'image/png'), TOK.operator)).statusCode).toBe(200);
   });
 
   it('cross-tenant: actividad de B sobre host A → 404', async () => {
