@@ -109,11 +109,23 @@ describe('CheckinConsole', () => {
     await settle(400);
     fireEvent.click(await screen.findByText('Sofía Méndez'));
     const before = metricCalls;
-    fireEvent.click(screen.getByRole('button', { name: /Registrar/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /Registrar/i })[0]!);
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Quedó auditado/i));
     const post = fn.mock.calls.find((c) => String(c[0]).includes('/api/checkin'))!;
     expect(JSON.parse((post[1] as { body: string }).body)).toEqual({ activityId: 'A1', visitor: { code: 'CCB-7K2P9Q' }, companionsChildren: 0 });
     await waitFor(() => expect(metricCalls).toBeGreaterThan(before)); // refrescó
+  });
+
+  it('actividad enfocada: al seleccionar visitante sube la tarjeta (checkin-rise); al limpiar, desaparece', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs(), visitors: () => J(200, { items: [visitor] }) });
+    render(<CheckinConsole />);
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sofia' } });
+    await settle(400);
+    fireEvent.click(await screen.findByText('Sofía Méndez'));
+    const focus = await screen.findByText(/Registrar a Sofía en/);
+    expect(focus.closest('.checkin-rise')).toBeTruthy(); // tarjeta animada presente
+    fireEvent.click(screen.getByRole('button', { name: /Quitar visitante/i }));
+    expect(screen.queryByText(/Registrar a Sofía en/)).toBeNull(); // vuelve a la normalidad
   });
 
   it('duplicado/cupo → 409 muestra error, sin éxito', async () => {
@@ -122,7 +134,7 @@ describe('CheckinConsole', () => {
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sofia' } });
     await settle(400);
     fireEvent.click(await screen.findByText('Sofía Méndez'));
-    fireEvent.click(screen.getByRole('button', { name: /Registrar/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /Registrar/i })[0]!);
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/ya está registrado/i));
   });
 
@@ -145,7 +157,7 @@ describe('CheckinConsole', () => {
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sofia' } });
     await settle(400);
     fireEvent.click(await screen.findByText('Sofía Méndez'));
-    const btn = screen.getByRole('button', { name: /Registrar/i });
+    const btn = screen.getAllByRole('button', { name: /Registrar/i })[0]!;
     fireEvent.click(btn); fireEvent.click(btn);
     const checkinCalls = () => fn.mock.calls.filter((c) => String(c[0]).includes('/api/checkin')).length;
     expect(checkinCalls()).toBe(1);

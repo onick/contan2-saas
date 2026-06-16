@@ -8,7 +8,7 @@
 // Check-in de visitante existente o nuevo (alta + check-in en una operación) y "+1
 // sin credencial" con Idempotency-Key reutilizada en reintentos del MISMO click.
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History, Medal, ListChecks, Image as ImageIcon } from 'lucide-react';
 import { GuestListDrawer } from './GuestListDrawer';
 import { CoverThumb } from '../activities/CoverThumb';
@@ -120,6 +120,17 @@ export function CheckinConsole() {
     const id = setInterval(() => { void loadMetrics(); void loadRecent(); }, 30_000);
     return () => clearInterval(id);
   }, [loadMetrics, loadActivities, loadRecent]);
+
+  // Al encontrar un visitante, la actividad a registrar se ELEVA y queda enfocada
+  // sobre las listas. Si el visitante está invitado a una activa, esa; si no, la
+  // más cercana/hoy (primera, ya ordenada por fecha). Se activa exista o no invitación.
+  const focusedActivity = useMemo<CheckinActivityItem | null>(() => {
+    if (!selected) return null;
+    const acts = activities.data ?? [];
+    if (acts.length === 0) return null;
+    const invitedIds = new Set((selected.invitedTo ?? []).map((x) => x.activityId));
+    return acts.find((a) => invitedIds.has(a.id)) ?? acts[0] ?? null;
+  }, [selected, activities.data]);
 
   const refreshLive = useCallback(() => { void loadMetrics(); void loadActivities(); void loadRecent(); }, [loadMetrics, loadActivities, loadRecent]);
 
@@ -365,6 +376,44 @@ export function CheckinConsole() {
             ))}
           </Card>
 
+          {/* Actividad ENFOCADA: al seleccionar un visitante, su actividad sube
+              desde "Actividades activas" y queda destacada acá, sobre las listas,
+              lista para registrar de un toque. Sale al limpiar el visitante. */}
+          {focusedActivity && selected ? (
+            <div key={`${selected.id}-${focusedActivity.id}`} className="checkin-rise">
+              <Card padding="none" className="overflow-hidden bg-accent-soft ring-2 ring-[color:var(--color-brand-accent)]/35">
+                <div className="flex flex-wrap items-center gap-3 px-5 py-4 md:px-6">
+                  <span className="block h-11 w-[72px] flex-none overflow-hidden rounded-lg bg-surface-container">
+                    <CoverThumb
+                      src={focusedActivity.imageUrl ?? null}
+                      posY={focusedActivity.imagePosY}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      fallback={<span className="grid h-full w-full place-items-center text-faint"><ImageIcon size={16} strokeWidth={1.75} aria-hidden="true" /></span>}
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-[#b35400]">Registrar a {selected.firstName} en</p>
+                    <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold tracking-tight text-ink">
+                      <span className="truncate">{focusedActivity.name}</span>
+                      {isToday(focusedActivity.date) ? (
+                        <span className="flex-none rounded-md bg-brand-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
+                      ) : null}
+                    </p>
+                    <p className="mt-0.5 text-xs text-faint">
+                      {focusedActivity.location} · <span className="tabular-nums">{fmtHour(focusedActivity.date)}</span> · <span className="tabular-nums">{focusedActivity.enrolledCount}/{focusedActivity.capacity}</span> ({focusedActivity.occupancyPct}%)
+                      {focusedActivity.full ? <span className="ml-2 font-semibold text-danger-fg">Lleno</span> : null}
+                    </p>
+                  </div>
+                  <Button size="sm" className="flex-none" disabled={focusedActivity.full || busyActivity === focusedActivity.id}
+                    onClick={() => registerExisting(focusedActivity)} style={{ backgroundColor: 'var(--color-brand-accent)' }}>
+                    {busyActivity === focusedActivity.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Registrar
+                  </Button>
+                </div>
+              </Card>
+            </div>
+          ) : null}
+
           {/* Listas de invitados · solo actividades activas con lista (guestList) */}
           {activities.data && activities.data.some((a) => a.guestList) ? (
             <Card padding="none">
@@ -430,7 +479,7 @@ export function CheckinConsole() {
             ) : (
               <ul>
                 {activities.data?.map((a) => (
-                  <li key={a.id} className={cn('flex flex-wrap items-center gap-3 border-t border-line px-5 py-4 md:px-6', isToday(a.date) && 'bg-accent-soft')}>
+                  <li key={a.id} className={cn('flex flex-wrap items-center gap-3 border-t border-line px-5 py-4 md:px-6 transition-opacity', isToday(a.date) && 'bg-accent-soft', focusedActivity?.id === a.id && 'opacity-45')}>
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-2 truncate text-sm font-medium tracking-tight text-ink">
                         <span className="truncate">{a.name}</span>
