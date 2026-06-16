@@ -10,7 +10,7 @@
 // onSubmit, mismos estados de carga/anti-doble-submit, mismos mensajes.
 
 import { useState, type FormEvent } from 'react';
-import { LogIn, Loader2, Mail, Lock } from 'lucide-react';
+import { LogIn, Loader2, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { cn, focusRing } from '../ui/cn';
 
 export interface LoginFormProps {
@@ -26,6 +26,7 @@ const NET_ERROR = 'No pudimos conectar. Intentá de nuevo en un momento.';
 export function LoginForm({ next, defaultEmail }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPw, setShowPw] = useState(false); // ojito: ver/ocultar contraseña
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -102,12 +103,21 @@ export function LoginForm({ next, defaultEmail }: LoginFormProps) {
           <Lock size={18} strokeWidth={1.75} aria-hidden="true" className={iconCls} />
           <input
             name="password"
-            type="password"
+            type={showPw ? 'text' : 'password'}
             autoComplete="current-password"
             required
             placeholder="••••••••"
-            className={inputCls}
+            className={cn('h-12 w-full rounded-full border border-line bg-surface pl-11 pr-12 text-[15px] text-ink', 'placeholder:text-faint', focusRing)}
           />
+          <button
+            type="button"
+            onClick={() => setShowPw((v) => !v)}
+            aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            aria-pressed={showPw}
+            className={cn('absolute right-3 top-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-full text-faint hover:text-ink hover:bg-surface-container', focusRing)}
+          >
+            {showPw ? <EyeOff size={18} strokeWidth={1.75} aria-hidden="true" /> : <Eye size={18} strokeWidth={1.75} aria-hidden="true" />}
+          </button>
         </div>
       </label>
 
