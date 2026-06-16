@@ -42,6 +42,15 @@ describe('CheckinConsole', () => {
     expect(screen.getByText('Concierto')).toBeInTheDocument();
   });
 
+  it('actividad de HOY: badge "Hoy" + fila resaltada (bg-accent-soft)', async () => {
+    const today = { ...act1, name: 'Evento de hoy', date: new Date().toISOString() };
+    installFetch({ metrics: okMetrics, activities: okActs([today]) });
+    render(<CheckinConsole />);
+    await waitFor(() => expect(screen.getByText('Evento de hoy')).toBeInTheDocument());
+    expect(screen.getAllByText('Hoy').length).toBeGreaterThan(0);
+    expect(screen.getByText('Evento de hoy').closest('li')!.className).toContain('bg-accent-soft');
+  });
+
   it('sección "Listas de invitados" aparece solo si una actividad tiene lista', async () => {
     const conLista = { ...act1, guestList: { total: 5, arrived: 2 }, imageUrl: null, imagePosY: null };
     installFetch({ metrics: okMetrics, activities: okActs([conLista]) });

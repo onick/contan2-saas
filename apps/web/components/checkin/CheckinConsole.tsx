@@ -377,7 +377,7 @@ export function CheckinConsole() {
                   const gl = a.guestList!;
                   const pct = gl.total > 0 ? Math.round((gl.arrived / gl.total) * 100) : 0;
                   return (
-                    <li key={a.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-5 py-4 md:px-6">
+                    <li key={a.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-5 py-4 md:px-6', isToday(a.date) && 'bg-accent-soft')}>
                       <span className="block h-11 w-[72px] flex-none overflow-hidden rounded-lg bg-surface-container">
                         <CoverThumb
                           src={a.imageUrl ?? null}
@@ -388,7 +388,12 @@ export function CheckinConsole() {
                         />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium tracking-tight text-ink">{a.name}</p>
+                        <p className="flex items-center gap-2 truncate text-sm font-medium tracking-tight text-ink">
+                          <span className="truncate">{a.name}</span>
+                          {isToday(a.date) ? (
+                            <span className="flex-none rounded-md bg-brand-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
+                          ) : null}
+                        </p>
                         <p className="mt-0.5 text-xs text-faint">{a.location} · <span className="tabular-nums">{fmtHour(a.date)}</span></p>
                       </div>
                       <div className="min-w-[180px] flex-1 sm:flex-none">
@@ -425,7 +430,7 @@ export function CheckinConsole() {
             ) : (
               <ul>
                 {activities.data?.map((a) => (
-                  <li key={a.id} className="flex flex-wrap items-center gap-3 border-t border-line px-5 py-4 md:px-6">
+                  <li key={a.id} className={cn('flex flex-wrap items-center gap-3 border-t border-line px-5 py-4 md:px-6', isToday(a.date) && 'bg-accent-soft')}>
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-2 truncate text-sm font-medium tracking-tight text-ink">
                         <span className="truncate">{a.name}</span>
