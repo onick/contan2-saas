@@ -243,4 +243,24 @@ run('RSVP · invitar audiencia segmentada', () => {
     expect((await call('POST', `/api/v2/activities/${actCine}/invitations/${inv.id}/cancel`, {}, TOK.admin)).statusCode).toBe(404);
     expect((await call('GET', `/api/v2/public/rsvp/token-inventado-${stamp}`)).statusCode).toBe(404);
   });
+
+  it('invite-existing: agrega usuarios del padrón (incluye SIN email); idempotente; owner/admin', async () => {
+    const act = await mkAct({ capacity: 50 });
+    const u5 = await mkUser(`f5x-${stamp}@t.local`);
+    // u5 (con email) + uSinEmail (SIN email) + un id inexistente → 2 invited, 1 skipped
+    const r1 = await call('POST', `/api/v2/activities/${act}/invite-existing`,
+      { userIds: [u5, uSinEmail, '00000000-0000-0000-0000-000000000000'] }, TOK.admin);
+    expect(r1.statusCode).toBe(201);
+    expect(r1.json().summary).toMatchObject({ invited: 2, alreadyInvited: 0, skipped: 1 });
+    // el SIN email quedó invitado (clave del caso)
+    const inv = await db.selectFrom('invitations').select('id').where('activity_id', '=', act).where('user_id', '=', uSinEmail).executeTakeFirst();
+    expect(inv).toBeTruthy();
+    // re-invitar → alreadyInvited (no duplica)
+    const r2 = await call('POST', `/api/v2/activities/${act}/invite-existing`, { userIds: [u5, uSinEmail] }, TOK.admin);
+    expect(r2.json().summary).toMatchObject({ invited: 0, alreadyInvited: 2, skipped: 0 });
+    const total = await db.selectFrom('invitations').select(db.fn.countAll<string>().as('n')).where('activity_id', '=', act).executeTakeFirstOrThrow();
+    expect(Number(total.n)).toBe(2);
+    // operator no puede
+    expect((await call('POST', `/api/v2/activities/${act}/invite-existing`, { userIds: [u5] }, TOK.operator)).statusCode).toBe(403);
+  });
 });

@@ -20,6 +20,7 @@ import {
   ActivityInvitesCreateRequestSchema,
   type InviteCandidatesResponse,
   type ActivityInvitationsResponse,
+  type ActivityInviteExistingResponse,
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
@@ -236,6 +237,75 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
 
     reply.code(201);
     return { ok: true, summary: { created, reused, skipped, dryRun } };
+  });
+
+  // POST /activities/:id/invite-existing {userIds} · owner/admin. Agrega a la
+  // lista de invitados a usuarios YA EXISTENTES del padrón (incluye SIN email),
+  // sin enviar correo. Idempotente: ya invitado (no cancelado) → se omite; una
+  // cancelada se reactiva. Para el flujo "Agregar del padrón" (buscar e invitar).
+  app.post('/activities/:id/invite-existing', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para agregar invitados.' }; }
+    const orgId = guard.ctx.org.id;
+    const id = (req.params as { id: string }).id;
+    if ((await inviteLimiter.hit(`${orgId}:${req.ip}`)).limited) {
+      reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' };
+    }
+
+    const parsed = ActivityInvitesCreateRequestSchema.safeParse(req.body);
+    if (!parsed.success) { reply.code(400); return { error: 'Body inválido: { userIds: [...] } (máx 500).' }; }
+
+    const act = await loadActivity(db, orgId, id);
+    if (!act) { reply.code(404); return { error: 'Actividad no encontrada.' }; }
+    if (act.status !== 'activa') { reply.code(409); return { error: 'Sólo se invita a actividades activas.' }; }
+
+    const expiresAt = new Date(new Date(act.date).getTime() + DAY_MS).toISOString(); // paridad v1
+
+    // Usuarios válidos del tenant (CON o SIN email; acá no se filtra por correo).
+    const users = await db.selectFrom('users').select(['id'])
+      .where('organization_id', '=', orgId).where('deleted_at', 'is', null)
+      .where('id', 'in', parsed.data.userIds).execute();
+    const validIds = [...new Set(users.map((u) => u.id))];
+
+    let invited = 0;
+    let alreadyInvited = 0;
+    const skipped = new Set(parsed.data.userIds).size - validIds.length; // ids inexistentes/archivados
+
+    await db.transaction().execute(async (tx) => {
+      for (const uid of validIds) {
+        const existing = await tx.selectFrom('invitations').select(['id', 'status'])
+          .where('organization_id', '=', orgId).where('activity_id', '=', id).where('user_id', '=', uid)
+          .executeTakeFirst();
+        if (existing) {
+          if (existing.status === 'canceled') {
+            await tx.updateTable('invitations').set({
+              status: 'pending', token: randomBytes(24).toString('hex'), sent_at: null, responded_at: null, expires_at: expiresAt,
+            }).where('id', '=', existing.id).execute();
+            invited += 1;
+          } else {
+            alreadyInvited += 1; // pending/confirmada/declinada → ya está en la lista
+          }
+          continue;
+        }
+        await tx.insertInto('invitations').values({
+          organization_id: orgId, activity_id: id, user_id: uid,
+          token: randomBytes(24).toString('hex'), expires_at: expiresAt,
+        }).execute();
+        invited += 1;
+      }
+      await tx.insertInto('tenant_audit_log').values({
+        organization_id: orgId, actor_staff_id: guard.ctx.staff.id, actor_email_masked: null,
+        actor_role: guard.ctx.staff.role, action: 'activity.guests_added', target_type: 'activity',
+        target_id: id, target_label: act.name,
+        metadata: JSON.stringify({ invited, alreadyInvited, skipped }),
+      }).execute();
+    });
+
+    req.log.info({ activity: id, invited, alreadyInvited, skipped }, 'invitados agregados desde el padrón');
+    reply.code(201);
+    return { ok: true, summary: { invited, alreadyInvited, skipped } } satisfies ActivityInviteExistingResponse;
   });
 
   app.get('/activities/:id/invitations', async (req: FastifyRequest, reply) => {
