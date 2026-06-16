@@ -9,7 +9,8 @@
 // sin credencial" con Idempotency-Key reutilizada en reintentos del MISMO click.
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History, Medal } from 'lucide-react';
+import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History, Medal, ListChecks } from 'lucide-react';
+import { GuestListDrawer } from './GuestListDrawer';
 import type { CheckinMetricsResponse, CheckinActivityItem, CheckinVisitorItem, AttendanceListItem } from '@contan2/contracts';
 import { getCheckinMetrics, getCheckinActivities, searchCheckinVisitors, postCheckin, postCheckinAnonymous, getRecentCheckins } from '../../lib/api/checkin-client';
 import { NewVisitorDrawer } from './NewVisitorDrawer';
@@ -76,6 +77,7 @@ export function CheckinConsole() {
   const [anonBusy, setAnonBusy] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [guestListAct, setGuestListAct] = useState<CheckinActivityItem | null>(null);
   const [recent, setRecent] = useState<Async<AttendanceListItem[]>>({ phase: 'loading' });
   const skewMs = useRef(0); // serverNow - clientNow (clock-skew, patrón v1)
 
@@ -362,6 +364,39 @@ export function CheckinConsole() {
             ))}
           </Card>
 
+          {/* Listas de invitados · solo actividades activas con lista (guestList) */}
+          {activities.data && activities.data.some((a) => a.guestList) ? (
+            <Card padding="none">
+              <div className="flex items-center gap-2 px-5 py-4 md:px-6">
+                <ListChecks size={16} strokeWidth={2} className="text-brand" aria-hidden="true" />
+                <h3 className="text-[15px] font-semibold tracking-tight text-ink">Listas de invitados</h3>
+              </div>
+              <ul>
+                {activities.data.filter((a) => a.guestList).map((a) => {
+                  const gl = a.guestList!;
+                  const pct = gl.total > 0 ? Math.round((gl.arrived / gl.total) * 100) : 0;
+                  return (
+                    <li key={a.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-5 py-4 md:px-6">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium tracking-tight text-ink">{a.name}</p>
+                        <p className="mt-0.5 text-xs text-faint">{a.location} · <span className="tabular-nums">{fmtHour(a.date)}</span></p>
+                      </div>
+                      <div className="min-w-[180px] flex-1 sm:flex-none">
+                        <div className="h-1.5 overflow-hidden rounded-full bg-surface-container" aria-hidden="true">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, var(--color-brand), var(--color-brand-accent))' }} />
+                        </div>
+                        <p className="mt-1.5 text-xs text-faint"><span className="font-semibold text-ink tabular-nums">{gl.arrived}</span> de {gl.total} llegaron · {Math.max(0, gl.total - gl.arrived)} pendientes</p>
+                      </div>
+                      <Button size="sm" variant="secondary" className="flex-none" onClick={() => setGuestListAct(a)}>
+                        <ListChecks size={15} strokeWidth={2} aria-hidden="true" /> Abrir lista
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          ) : null}
+
           {/* Actividades activas (reales) */}
           <Card padding="none">
             <div className="flex items-center justify-between px-5 py-4 md:px-6">
@@ -480,6 +515,12 @@ export function CheckinConsole() {
         activities={activities.data ?? []}
         onClose={() => setNewOpen(false)}
         onDone={(msg) => { setNewOpen(false); flash({ kind: 'success', msg }); refreshLive(); }}
+      />
+
+      <GuestListDrawer
+        activity={guestListAct ? (activities.data?.find((a) => a.id === guestListAct.id) ?? guestListAct) : null}
+        onClose={() => setGuestListAct(null)}
+        onArrival={refreshLive}
       />
     </>
   );
