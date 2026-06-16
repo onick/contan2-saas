@@ -282,6 +282,8 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
         email: r.email,
         kind: r.kind, plusOnes: r.plus_ones,
         status,
+        // id de la asistencia (solo si llegó) → habilita "Deshacer" en la puerta.
+        attendanceId: status === 'attended' ? (r.attendance_id as string | null) : null,
         sentAt: r.sent_at ? new Date(r.sent_at).toISOString() : null,
         respondedAt: r.responded_at ? new Date(r.responded_at).toISOString() : null,
         expiresAt: new Date(r.expires_at).toISOString(),

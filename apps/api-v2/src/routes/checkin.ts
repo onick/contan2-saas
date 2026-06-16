@@ -14,7 +14,7 @@ import {
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { protocolBadgeFor, protocolMarksFor } from '../services/protocol-info.js';
-import { invitedActivitiesFor } from '../services/checkin-invites.js';
+import { invitedActivitiesFor, guestListStatsFor } from '../services/checkin-invites.js';
 import { parseSearch, likeContains } from '../query.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { CheckinError, checkinIdentified, reserveCapacity } from '../services/checkin-core.js';
@@ -124,10 +124,13 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       ORDER BY a.date ASC, a.id ASC
     `.execute(db);
 
+    // Estadística de lista de invitados por actividad (best-effort, un query).
+    const guestStats = await guestListStatsFor(db, orgId, res.rows.map((r) => r.id)).catch(() => new Map());
     const items: CheckinActivityItem[] = res.rows.map((row) => {
       const capacity = Number(row.capacity);
       const enrolledCount = Number(row.enrolled_count);
       const available = Math.max(0, capacity - enrolledCount);
+      const gl = guestStats.get(row.id);
       return {
         id: row.id,
         name: row.name,
@@ -139,6 +142,8 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
         occupancyPct: capacity > 0 ? Math.round((enrolledCount / capacity) * 100) : 0,
         recentMovement: Number(row.recent),
         full: enrolledCount >= capacity,
+        // Solo cuando hay lista (≥1 invitación no cancelada); si no, null.
+        guestList: gl && gl.total > 0 ? { total: gl.total, arrived: gl.arrived } : null,
       };
     });
     const body: CheckinActivitiesResponse = { items, serverNow: new Date().toISOString() };

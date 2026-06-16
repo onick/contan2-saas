@@ -206,6 +206,11 @@ run('RSVP · invitar audiencia segmentada', () => {
     const byUser = Object.fromEntries(list.invitations.map((i) => [i.userId, i.status]));
     expect(byUser[u6]).toBe('attended');
     expect(byUser[u7]).not.toBe('attended'); // reserva sin check-in → sigue pending
+    // attendanceId presente solo en el que llegó (para "Deshacer" en la puerta).
+    const invU6 = list.invitations.find((i) => i.userId === u6)!;
+    const invU7 = list.invitations.find((i) => i.userId === u7)!;
+    expect(typeof invU6.attendanceId).toBe('string');
+    expect(invU7.attendanceId ?? null).toBeNull();
   });
 
   it('entrega: POST en dry-run deja sent_at null; deliverInvitations con transporte real lo marca', async () => {

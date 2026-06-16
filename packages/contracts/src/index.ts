@@ -444,6 +444,8 @@ export const ActivityInvitationSchema = z.object({
   // 'attended' se DERIVA al leer (no se persiste): el invitado tiene asistencia
   // registrada para esta actividad → ganó sobre pending/expired/etc.
   status: z.enum(['pending', 'confirmed', 'declined', 'expired', 'canceled', 'attended']),
+  // id de la asistencia cuando status='attended' (para "Deshacer" en la puerta).
+  attendanceId: z.string().nullable().optional(),
   sentAt: z.string().nullable(),
   respondedAt: z.string().nullable(),
   expiresAt: z.string(),
@@ -896,6 +898,9 @@ export const CheckinActivityItemSchema = z.object({
   occupancyPct: z.number().int(),
   recentMovement: z.number().int(), // check-ins en los últimos 10 min
   full: z.boolean(),
+  // Lista de invitados: total (invitaciones no canceladas) y cuántos ya hicieron
+  // check-in real. null = la actividad no tiene lista → la sección no la muestra.
+  guestList: z.object({ total: z.number().int(), arrived: z.number().int() }).nullable().optional(),
 });
 export type CheckinActivityItem = z.infer<typeof CheckinActivityItemSchema>;
 export const CheckinActivitiesResponseSchema = z.object({
