@@ -240,7 +240,7 @@ function ActivityCard({ activity: a, index, onSelect }: { activity: KioskActivit
         <div className="mt-auto flex flex-col gap-3 pt-1">
           <span style={kioskMono} className={cx('inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em]', full ? 'text-[#a2a5b4]' : low ? 'text-[#ff8a3d]' : 'text-emerald-300')}>
             <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: full ? '#a2a5b4' : low ? '#ff8a3d' : '#34d399' }} />
-            {full ? 'Cupo agotado' : low ? `Últimos ${spots} cupos` : `${spots} cupos disponibles`}
+            {full ? 'Cupo agotado' : low ? 'Últimos cupos' : 'Cupos disponibles'}
           </span>
           {/* Botón ASISTIR (visual; toda la card es el botón real). Naranja sólido,
               limpio y profesional: sin glow. Hover = realce leve de tono; active =
