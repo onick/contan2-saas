@@ -165,7 +165,7 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
           ))}
         </div>
         <div className="px-5 pb-2 pt-3">
-          <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3">
+          <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-container px-3">
             <Search size={16} strokeWidth={2} className="text-faint" aria-hidden="true" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en la lista…"
               className="h-10 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-faint" />
