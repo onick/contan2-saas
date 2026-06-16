@@ -285,6 +285,12 @@ export function CheckinConsole() {
                       <span className="tabular-nums">{selected.code}</span>
                       <span className="ml-2 inline-flex items-center gap-1">{selected.visitCount >= 10 ? <Crown size={11} aria-hidden="true" /> : null}{selected.visitCount} {selected.visitCount === 1 ? 'visita' : 'visitas'}</span>
                     </p>
+                    {selected.invitedTo && selected.invitedTo.length > 0 ? (
+                      <p className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-[10.5px] font-semibold text-success-fg">
+                        <CheckCircle2 size={11} strokeWidth={2.5} aria-hidden="true" />
+                        <span className="truncate">En la lista{selected.invitedTo.length === 1 ? ` · ${selected.invitedTo[0]!.activityName}` : ` · ${selected.invitedTo.length} actividades`}</span>
+                      </p>
+                    ) : null}
                   </div>
                   <IconButton label="Quitar visitante" variant="outline" size="sm" onClick={() => setSelected(null)}>
                     <X size={16} strokeWidth={2} aria-hidden="true" />
@@ -337,6 +343,12 @@ export function CheckinConsole() {
                               ) : null}
                             </span>
                             <span className="block truncate text-xs text-faint"><span className="tabular-nums">{v.code}</span>{v.email ? ` · ${v.email}` : ''}</span>
+                            {v.invitedTo && v.invitedTo.length > 0 ? (
+                              <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-success-bg px-1.5 py-0.5 text-[10px] font-semibold text-success-fg">
+                                <CheckCircle2 size={10} strokeWidth={2.5} aria-hidden="true" />
+                                <span className="truncate">En la lista{v.invitedTo.length === 1 ? ` · ${v.invitedTo[0]!.activityName}` : ` · ${v.invitedTo.length} actividades`}</span>
+                              </span>
+                            ) : null}
                           </span>
                           <Chip tone="neutral" className="flex-none tabular-nums">{v.visitCount === 1 ? '1ª vez' : `${v.visitCount}v`}</Chip>
                         </button>
