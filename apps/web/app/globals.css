@@ -169,6 +169,15 @@ body {
 @keyframes app-bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .app-bar-grow { transform-origin: left center; animation: app-bar-grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
+/* Check-in · "actividad enfocada": al encontrar un visitante, la tarjeta de su
+   actividad SUBE desde abajo (slide-up + fade) y queda destacada sobre las
+   listas. Curva ease-out (sin rebote), ~340ms. */
+@keyframes checkin-rise {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.checkin-rise { animation: checkin-rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
 /* Drawer · entrada sutil. RESPONSIVE: en mobile el panel es bottom-sheet → entra
    deslizando desde abajo; en md+ es lateral derecho → entra desde la derecha. El
    backdrop hace fade-in. ease-out-quint, ~0.28s. Scope: .drawer-panel / .drawer-backdrop. */
@@ -205,6 +214,7 @@ body {
   .app-reveal { animation: none; }
   .app-stagger > * { animation: none; }
   .app-bar-grow { animation: none; }
+  .checkin-rise { animation: none; } /* aparece sin desplazamiento */
   .app-shimmer { animation: none; } /* gradiente estático, sin barrido */
   .drawer-panel { animation: none; }
   .drawer-backdrop { animation: none; }
