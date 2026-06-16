@@ -916,6 +916,9 @@ export const CheckinVisitorItemSchema = z.object({
   // Marca de protocolo en la búsqueda de la consola (sin plusOnes: depende
   // de la actividad; el banner completo llega en la respuesta del registro).
   protocol: z.object({ category: z.string(), honorific: z.string().nullable() }).nullable().optional(),
+  // Actividades ACTIVAS a cuya lista de invitados pertenece (invitación no
+  // cancelada). Informativo en la puerta: "✓ En la lista". No bloquea.
+  invitedTo: z.array(z.object({ activityId: z.string(), activityName: z.string() })).optional(),
 });
 export type CheckinVisitorItem = z.infer<typeof CheckinVisitorItemSchema>;
 export const CheckinVisitorsResponseSchema = z.object({ items: z.array(CheckinVisitorItemSchema) });

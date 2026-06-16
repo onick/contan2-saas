@@ -14,6 +14,7 @@ import {
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { protocolBadgeFor, protocolMarksFor } from '../services/protocol-info.js';
+import { invitedActivitiesFor } from '../services/checkin-invites.js';
 import { parseSearch, likeContains } from '../query.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { CheckinError, checkinIdentified, reserveCapacity } from '../services/checkin-core.js';
@@ -188,8 +189,13 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       .limit(limit)
       .execute();
 
-    // Marca de protocolo (PR-5) en un solo query por lote; best-effort.
-    const marks = await protocolMarksFor(db, orgId, rows.map((r) => r.id)).catch(() => new Map());
+    // Marca de protocolo (PR-5) + "en la lista de invitados" en un query por
+    // lote cada uno; best-effort (un fallo no rompe la búsqueda).
+    const ids = rows.map((r) => r.id);
+    const [marks, invites] = await Promise.all([
+      protocolMarksFor(db, orgId, ids).catch(() => new Map()),
+      invitedActivitiesFor(db, orgId, ids).catch(() => new Map()),
+    ]);
     const items: CheckinVisitorItem[] = rows.map((r) => ({
       id: r.id,
       code: r.code,
@@ -198,6 +204,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       email: r.email,
       visitCount: Number(r.visit_count),
       protocol: marks.get(r.id) ?? null,
+      invitedTo: invites.get(r.id) ?? [],
     }));
     return { items } satisfies CheckinVisitorsResponse;
   });

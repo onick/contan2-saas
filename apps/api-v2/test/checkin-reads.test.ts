@@ -46,8 +46,10 @@ run('GET /checkin/* · lectura', () => {
     (await db.insertInto('users').values({ id: randomUUID(), code, first_name: first, last_name: last, email, phone, visit_count: visits, organization_id: orgId }).returning('id').executeTakeFirstOrThrow()).id;
   const mkAtt = async (orgId: string, activityId: string, userId: string | null, checkedInAt: string | null, anonymous = false) =>
     db.insertInto('attendance').values({ id: randomUUID(), organization_id: orgId, user_id: userId, user_code: null, activity_id: activityId, activity_name: 'x', checked_in_at: checkedInAt, anonymous }).execute();
+  const mkInvite = async (orgId: string, activityId: string, userId: string, status: 'pending' | 'canceled' = 'pending') =>
+    db.insertInto('invitations').values({ organization_id: orgId, activity_id: activityId, user_id: userId, token: `tok-${randomUUID()}`, status, expires_at: future(30) } as never).execute();
 
-  let u1: string, u2: string;
+  let u1: string, u2: string, actFin: string;
 
   beforeAll(async () => {
     db = createDb(DATABASE_URL);
@@ -60,7 +62,7 @@ run('GET /checkin/* · lectura', () => {
 
     act1 = await mkActivity(orgAId, 'Activa con movimiento', 'activa', 100, 40, future(7));
     act2 = await mkActivity(orgAId, 'Activa llena', 'activa', 30, 30, future(3));
-    await mkActivity(orgAId, 'Finalizada', 'finalizada', 50, 10, daysAgo(2));
+    actFin = await mkActivity(orgAId, 'Finalizada', 'finalizada', 50, 10, daysAgo(2));
     await mkActivity(orgAId, 'Cancelada', 'cancelada', 50, 0, future(1));
 
     u1 = await mkUser(orgAId, `CKI-AAA1-${stamp}`, 'Sofía', 'Méndez', 'sofia@ckitest.do', '809-111-2222', 5);
@@ -76,6 +78,12 @@ run('GET /checkin/* · lectura', () => {
     await mkAtt(orgAId, act2, u1, daysAgo(2)); // NO hoy (otro día) → no cuenta
     await mkAtt(orgAId, act2, u2, null); // RSVP sin check-in (otra actividad) → no cuenta en nada
 
+    // Invitaciones para el chip "En la lista": u1 invitado a act1 (activa) → aparece;
+    // u1 invitado a actFin (finalizada) → NO; u2 invitado a act2 pero CANCELADO → NO.
+    await mkInvite(orgAId, act1, u1);
+    await mkInvite(orgAId, actFin, u1);
+    await mkInvite(orgAId, act2, u2, 'canceled');
+
     app = buildApp();
     await app.ready();
   });
@@ -85,6 +93,7 @@ run('GET /checkin/* · lectura', () => {
     for (const id of [orgAId, orgBId]) {
       if (!id) continue;
       await db.deleteFrom('attendance').where('organization_id', '=', id).execute();
+      await db.deleteFrom('invitations').where('organization_id', '=', id).execute();
       await db.deleteFrom('activities').where('organization_id', '=', id).execute();
       await db.deleteFrom('users').where('organization_id', '=', id).execute();
       await db.deleteFrom('staff_members').where('organization_id', '=', id).execute();
@@ -145,6 +154,13 @@ run('GET /checkin/* · lectura', () => {
     expect(v).toHaveProperty('code');
     expect(v).toHaveProperty('visitCount');
     expect(v).not.toHaveProperty('phone');
+  });
+
+  it('invitedTo: invitado a actividad ACTIVA aparece; finalizada y cancelada NO', async () => {
+    const v1 = (await visitors('AAA1')).items.find((v) => v.id === u1)!;
+    expect(v1.invitedTo).toEqual([{ activityId: act1, activityName: 'Activa con movimiento' }]); // solo la activa (la finalizada se excluye)
+    const v2 = (await visitors('BBB2')).items.find((v) => v.id === u2)!;
+    expect(v2.invitedTo ?? []).toEqual([]); // invitación cancelada → no aparece
   });
 
   it('q vacío / corto → lista vacía (sin dump)', async () => {
