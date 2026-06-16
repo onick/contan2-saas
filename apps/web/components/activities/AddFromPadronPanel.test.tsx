@@ -21,7 +21,7 @@ const visitorsBody = {
 };
 
 function installFetch(over: { invite?: () => Response } = {}) {
-  const fn = vi.fn(async (url: string) => {
+  const fn = vi.fn(async (url: string, _init?: { method?: string; body?: string; headers?: Record<string, string> }) => {
     const u = String(url);
     if (u.includes('/check-in/api/visitors')) return J(200, visitorsBody);
     if (u.includes('/invite-existing')) return over.invite?.() ?? J(201, { ok: true, summary: { invited: 2, alreadyInvited: 0, skipped: 0 } });
