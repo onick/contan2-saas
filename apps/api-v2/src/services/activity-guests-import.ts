@@ -53,6 +53,20 @@ async function existingByEmail(db: DbClient, orgId: string, emails: string[]): P
   return map;
 }
 
+// Mapa código→userId de los existentes (uppercase), en chunks. Permite invitar a
+// usuarios YA existentes (sin email) por su código, sin crear duplicados.
+async function existingByCode(db: DbClient, orgId: string, codes: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  for (let i = 0; i < codes.length; i += 500) {
+    const chunk = codes.slice(i, i + 500);
+    if (chunk.length === 0) continue;
+    const rows = await db.selectFrom('users').select(['id', 'code'])
+      .where('organization_id', '=', orgId).where('code', 'in', chunk).execute();
+    for (const r of rows) if (r.code) map.set(r.code.toUpperCase(), r.id);
+  }
+  return map;
+}
+
 // Clasificación (preview · SIN escrituras) para una actividad concreta.
 export async function classifyGuests(db: DbClient, orgId: string, activityId: string, raw: RawRow[]): Promise<GuestClassifyResult> {
   const truncated = raw.length > IMPORT_ROW_CAP;
@@ -60,10 +74,12 @@ export async function classifyGuests(db: DbClient, orgId: string, activityId: st
 
   const emails = [...new Set(normd.filter((n) => n.email && !n.invalidReason).map((n) => n.email!))];
   const emailToId = await existingByEmail(db, orgId, emails);
+  const codes = [...new Set(normd.filter((n) => n.code && !n.invalidReason).map((n) => n.code!))];
+  const codeToId = await existingByCode(db, orgId, codes);
 
-  // De los usuarios existentes (por email), ¿cuáles YA están invitados (no
-  // cancelados) a esta actividad?
-  const existingIds = [...new Set([...emailToId.values()])];
+  // De los usuarios existentes (por email o código), ¿cuáles YA están invitados
+  // (no cancelados) a esta actividad?
+  const existingIds = [...new Set([...emailToId.values(), ...codeToId.values()])];
   const alreadyInvited = new Set<string>();
   for (let i = 0; i < existingIds.length; i += 500) {
     const chunk = existingIds.slice(i, i + 500);
@@ -87,11 +103,15 @@ export async function classifyGuests(db: DbClient, orgId: string, activityId: st
   for (const n of normd) {
     const base = { rowNum: n.row.rowNum, firstName: n.firstName, lastName: n.lastName, email: n.email, phone: n.phone };
     if (n.invalidReason) { rows.push({ ...base, status: 'invalid', reason: n.invalidReason }); summary.invalid += 1; continue; }
-    if (n.email && seenInFile.has(n.email)) { rows.push({ ...base, status: 'already-invited', reason: 'Repetido en el archivo.' }); summary.alreadyInvited += 1; continue; }
-    if (n.email) seenInFile.add(n.email);
+    const dedupKey = n.code ? `c:${n.code}` : n.email ? `e:${n.email}` : null;
+    if (dedupKey && seenInFile.has(dedupKey)) { rows.push({ ...base, status: 'already-invited', reason: 'Repetido en el archivo.' }); summary.alreadyInvited += 1; continue; }
+    if (dedupKey) seenInFile.add(dedupKey);
 
-    const nameWarning = dbNames.has(fullNameKey(n.firstName, n.lastName));
-    const existingId = n.email ? emailToId.get(n.email) : undefined;
+    // Código gana sobre email: identifica al usuario existente exacto. Si matchea
+    // por código, no hay "posible doble" (es ese usuario, no un homónimo).
+    const byCode = n.code ? codeToId.get(n.code) : undefined;
+    const existingId = byCode ?? (n.email ? emailToId.get(n.email) : undefined);
+    const nameWarning = !existingId && dbNames.has(fullNameKey(n.firstName, n.lastName));
     if (existingId) {
       if (alreadyInvited.has(existingId)) { rows.push({ ...base, status: 'already-invited', reason: 'Ya está en la lista de esta actividad.' }); summary.alreadyInvited += 1; continue; }
       rows.push({ ...base, status: 'existing-invite', ...(nameWarning ? { nameWarning: true } : {}) });
@@ -124,18 +144,24 @@ export async function commitGuests(
 ): Promise<GuestCommitResult> {
   const out: GuestCommitResult = { invited: 0, createdUsers: 0, alreadyInvited: 0, failed: 0 };
   const normd = raw.slice(0, IMPORT_ROW_CAP).map((row) => normalizeRow(row)).filter((n) => !n.invalidReason);
-  const seenEmail = new Set<string>(); // dedup-in-file por email
+  const seen = new Set<string>(); // dedup-in-file por código o email
 
   for (const n of normd) {
-    if (n.email && seenEmail.has(n.email)) continue;
-    if (n.email) seenEmail.add(n.email);
+    const dedupKey = n.code ? `c:${n.code}` : n.email ? `e:${n.email}` : null;
+    if (dedupKey && seen.has(dedupKey)) continue;
+    if (dedupKey) seen.add(dedupKey);
     try {
       const r = await db.transaction().execute(async (tx) => {
         // 1 · Resolver/crear usuario (NUNCA sobreescribe: a los existentes sólo
-        // se les leerá el id).
+        // se les leerá el id). Código gana sobre email (usuario existente exacto).
         let userId: string | undefined;
         let createdUser = false;
-        if (n.email) {
+        if (n.code) {
+          const ex = await tx.selectFrom('users').select('id')
+            .where('organization_id', '=', orgId).where('code', '=', n.code).executeTakeFirst();
+          if (ex) userId = ex.id;
+        }
+        if (!userId && n.email) {
           const ex = await tx.selectFrom('users').select('id')
             .where('organization_id', '=', orgId).where('email', '=', n.email).executeTakeFirst();
           if (ex) userId = ex.id;

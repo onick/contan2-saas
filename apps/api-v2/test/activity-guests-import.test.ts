@@ -150,4 +150,34 @@ run('importar lista de invitados a una actividad (PR-1)', () => {
     const total = await db.selectFrom('invitations').select(db.fn.countAll<string>().as('n')).where('activity_id', '=', actId).executeTakeFirstOrThrow();
     expect(Number(total.n)).toBe(5); // 4 previas + 1 del SinMail re-creado
   });
+
+  it('match por CÓDIGO: invita al usuario existente (sin email) sin crear duplicado ni "posible doble"', async () => {
+    const act2 = await mkAct('activa');
+    const CSV_CODE = [
+      'Nombre,Apellido,Email,Código',
+      'Existente,Original,,GI-EXIST1', // matchea por código → existing-invite (no se crea)
+      'Otro,Desconocido,,GI-NOEXISTE', // código inexistente → new-invite (fallback)
+    ].join('\n');
+
+    // Preview: 1 existing-invite (por código, SIN nameWarning) + 1 new-invite.
+    const prev = GuestsImportPreviewResponseSchema.parse((await importReq(CSV_CODE, false, act2)).json());
+    expect(prev.summary).toMatchObject({ total: 2, toInvite: 2, existing: 1, newUsers: 1, noEmail: 2 });
+    const exRow = prev.rows.find((r) => r.firstName === 'Existente')!;
+    expect(exRow.status).toBe('existing-invite');
+    expect(exRow.nameWarning ?? false).toBe(false); // matcheó por código → no es "posible doble"
+
+    const usersBefore = Number((await db.selectFrom('users').select(db.fn.countAll<string>().as('n')).where('organization_id', '=', orgId).executeTakeFirstOrThrow()).n);
+
+    // Commit: invita al existente real (no lo duplica) + crea el del código inexistente.
+    const body = GuestsImportCommitResponseSchema.parse((await importReq(CSV_CODE, true, act2)).json());
+    expect(body.result).toMatchObject({ invited: 2, createdUsers: 1, alreadyInvited: 0, failed: 0 });
+
+    // El existente recibió invitación en act2, y NO se creó un duplicado suyo.
+    const exInv = await db.selectFrom('invitations').select('id').where('activity_id', '=', act2).where('user_id', '=', existeId).executeTakeFirst();
+    expect(exInv).toBeTruthy();
+    const existeCount = Number((await db.selectFrom('users').select(db.fn.countAll<string>().as('n')).where('organization_id', '=', orgId).where('first_name', '=', 'Existente').where('last_name', '=', 'Original').executeTakeFirstOrThrow()).n);
+    expect(existeCount).toBe(1); // sigue habiendo UN solo "Existente Original"
+    const usersAfter = Number((await db.selectFrom('users').select(db.fn.countAll<string>().as('n')).where('organization_id', '=', orgId).executeTakeFirstOrThrow()).n);
+    expect(usersAfter).toBe(usersBefore + 1); // solo se creó el del código inexistente
+  });
 });
