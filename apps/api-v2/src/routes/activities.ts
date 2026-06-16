@@ -37,9 +37,11 @@ const LIMIT_MSG = 'Demasiadas operaciones seguidas. Espera un momento.';
 
 const STATUSES: ReadonlySet<ActivityStatus> = new Set(['activa', 'finalizada', 'cancelada']);
 
-// Crear/editar/cambiar-estado es tarea administrativa: sólo owner/admin.
-// operator → 403 (decisión de producto; v1 lo permitía a todo staff, v2 lo acota).
-const CAN_CREATE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+// Crear/editar/portada/cambiar-estado: owner/admin/operator (los operadores
+// gestionan actividades, como en v1). El hard-delete queda en owner/admin
+// (destructivo) → CAN_DELETE_ROLES.
+const CAN_CREATE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'operator']);
+const CAN_DELETE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 
 // Gracia de 60s para "fecha no en el pasado" (paridad con el create / v1).
 const ACTIVITY_DATE_PAST_GRACE_MS = 60_000;
@@ -728,7 +730,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       reply.code(guard.status);
       return { error: guard.error };
     }
-    if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
+    if (!CAN_DELETE_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
       return { error: 'No tenés permiso para eliminar actividades.' };
     }
