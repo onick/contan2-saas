@@ -1,7 +1,7 @@
 import { Search } from 'lucide-react';
 import type { BrandingOrg } from '../../lib/branding/theme';
 import { BrandChip } from './BrandMark';
-import { SidebarToggle } from './SidebarShell';
+import { SidebarToggle, MobileNavToggle } from './SidebarShell';
 import { TopbarNotifications } from './TopbarNotifications';
 import { TopbarUserMenu } from './TopbarUserMenu';
 
@@ -21,7 +21,8 @@ export interface TopbarProps {
 export function Topbar({ branding, title, meta }: TopbarProps) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur md:px-7">
-      {/* Brand compacto (mobile, drawer oculto) */}
+      {/* Hamburguesa de navegación (solo mobile) + brand compacto */}
+      <MobileNavToggle className="md:hidden" />
       <span className="flex items-center gap-2 md:hidden">
         <BrandChip slug={branding.slug} name={branding.name} className="h-8 w-8" rounded="rounded-[9px]" />
       </span>

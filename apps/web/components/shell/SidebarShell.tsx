@@ -14,7 +14,7 @@
 //   · Persistencia 1 año, SameSite=Lax. Transición sólo motion-safe.
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Menu } from 'lucide-react';
 import { cn, focusRing } from '../ui/cn';
 
 export const SIDEBAR_COOKIE = 'sidebar_collapsed';
@@ -25,14 +25,19 @@ const readCookie = (): boolean =>
 // Corre ANTES del paint (inline, bloqueante): aplica el estado guardado al shell.
 const PREPAINT = `try{if(document.cookie.split('; ').includes('${SIDEBAR_COOKIE}=1')){document.currentScript.parentElement.setAttribute('data-sidebar','collapsed')}}catch(e){}`;
 
-interface SidebarCtx { collapsed: boolean; toggle: () => void }
-const Ctx = createContext<SidebarCtx>({ collapsed: false, toggle: () => {} });
+// collapsed/toggle = riel de desktop (md+). mobileOpen = drawer off-canvas en
+// celular (<md), donde el sidebar no existe → sin él no hay navegación.
+interface SidebarCtx { collapsed: boolean; toggle: () => void; mobileOpen: boolean; openMobile: () => void; closeMobile: () => void }
+const Ctx = createContext<SidebarCtx>({ collapsed: false, toggle: () => {}, mobileOpen: false, openMobile: () => {}, closeMobile: () => {} });
 export function useSidebar(): SidebarCtx { return useContext(Ctx); }
 
 export function SidebarShell({ children }: { children: ReactNode }) {
   // Initializer (no effect): en hidratación el estado ya es el de la cookie →
   // coincide con el DOM que el script inline corrigió pre-paint.
   const [collapsed, setCollapsed] = useState(readCookie);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const openMobile = useCallback(() => setMobileOpen(true), []);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   const toggle = useCallback(() => {
     setCollapsed((c) => {
@@ -41,6 +46,16 @@ export function SidebarShell({ children }: { children: ReactNode }) {
       return next;
     });
   }, []);
+
+  // Drawer mobile abierto: Escape cierra + bloqueo de scroll del body.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMobile(); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [mobileOpen, closeMobile]);
 
   // Atajo estándar ⌘B (macOS) / Ctrl+B — no roba el atajo dentro de campos de texto.
   useEffect(() => {
@@ -57,7 +72,7 @@ export function SidebarShell({ children }: { children: ReactNode }) {
   }, [toggle]);
 
   return (
-    <Ctx.Provider value={{ collapsed, toggle }}>
+    <Ctx.Provider value={{ collapsed, toggle, mobileOpen, openMobile, closeMobile }}>
       <div
         data-sidebar={collapsed ? 'collapsed' : 'expanded'}
         suppressHydrationWarning
@@ -90,6 +105,23 @@ export function SidebarToggle({ className }: { className?: string }) {
       )}
     >
       {collapsed ? <PanelLeftOpen size={18} strokeWidth={1.75} aria-hidden="true" /> : <PanelLeftClose size={18} strokeWidth={1.75} aria-hidden="true" />}
+    </button>
+  );
+}
+
+// Hamburguesa de navegación SOLO en mobile (<md): abre el drawer (MobileNav).
+export function MobileNavToggle({ className }: { className?: string }) {
+  const { mobileOpen, openMobile } = useSidebar();
+  return (
+    <button
+      type="button"
+      onClick={openMobile}
+      aria-expanded={mobileOpen}
+      aria-controls="mobile-nav"
+      aria-label="Abrir navegación"
+      className={cn('grid h-10 w-10 flex-none place-items-center rounded-lg text-muted transition-colors hover:bg-surface-container hover:text-ink', focusRing, className)}
+    >
+      <Menu size={22} strokeWidth={1.75} aria-hidden="true" />
     </button>
   );
 }

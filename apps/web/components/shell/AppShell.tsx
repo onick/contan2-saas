@@ -3,6 +3,7 @@ import type { BrandingOrg } from '../../lib/branding/theme';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { SidebarShell } from './SidebarShell';
+import { MobileNav } from './MobileNav';
 
 export interface AppShellProps {
   branding: BrandingOrg;
@@ -26,6 +27,8 @@ export function AppShell({ branding, title, activeKey, meta, children }: AppShel
   return (
     <SidebarShell>
       <Sidebar branding={branding} activeKey={activeKey} />
+      {/* Navegación mobile (<md): drawer off-canvas, ya que el Sidebar es md+. */}
+      <MobileNav branding={branding} activeKey={activeKey} />
 
       <div className="flex min-w-0 flex-col">
         <Topbar branding={branding} title={title} meta={meta} />
