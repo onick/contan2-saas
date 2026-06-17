@@ -110,7 +110,31 @@ export function TeamTable({ currentStaffId, currentRole }: TeamTableProps = {}) 
         ) : (
           <>
             <Card padding="none" className="overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Mobile (<md): tarjetas (la tabla min-w-720 forzaba scroll horizontal). */}
+              <ul className="md:hidden">
+                {items.map((m) => (
+                  <li key={m.id} className="border-t border-line px-4 py-3.5 first:border-t-0">
+                    <div className="flex items-center gap-3">
+                      <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-surface-container text-[12px] font-semibold text-muted">{initials(m.fullName)}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-ink">{m.fullName}</p>
+                        <p className="truncate text-xs text-faint">{m.email}</p>
+                      </div>
+                      {currentStaffId && currentRole ? (
+                        <TeamRowActions member={m} currentStaffId={currentStaffId} currentRole={currentRole} onChanged={() => void load(filters, null)} />
+                      ) : null}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 pl-12 text-xs text-faint">
+                      <Chip tone={ROLE_TONE[m.role] ?? 'neutral'} dot>{ROLE_LABEL[m.role] ?? m.role}</Chip>
+                      <Chip tone={STATUS_TONE[m.status] ?? 'neutral'} dot>{STATUS_LABEL[m.status] ?? m.status}</Chip>
+                      <span>· acceso {fmtDate(m.lastLoginAt)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Tablet/desktop (md+): tabla. */}
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[720px] border-collapse">
                   <thead>
                     <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">

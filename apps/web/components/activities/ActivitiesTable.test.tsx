@@ -6,18 +6,19 @@ import { ACTIVITIES } from '../../lib/activities/demoData';
 afterEach(cleanup);
 
 describe('ActivitiesTable', () => {
+  // Cada actividad se ve en tarjeta (mobile) + fila (md+) → getAllByText ≥1.
   it('renderiza todas las actividades', () => {
     render(<ActivitiesTable activities={ACTIVITIES} />);
     for (const a of ACTIVITIES) {
-      expect(screen.getByText(a.title)).toBeInTheDocument();
+      expect(screen.getAllByText(a.title).length).toBeGreaterThan(0);
     }
   });
 
   it('muestra el estado de cada actividad', () => {
     render(<ActivitiesTable activities={ACTIVITIES} />);
-    expect(screen.getByText('En curso')).toBeInTheDocument();
-    expect(screen.getByText('Borrador')).toBeInTheDocument();
-    expect(screen.getAllByText('Próxima').length).toBe(2);
+    expect(screen.getAllByText('En curso').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Borrador').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Próxima').length).toBeGreaterThanOrEqual(2); // 2 actividades (×2 vistas)
   });
 
   it('muestra "—" cuando no hay ocupación (borrador)', () => {
@@ -29,16 +30,18 @@ describe('ActivitiesTable', () => {
     const onView = vi.fn();
     render(<ActivitiesTable activities={ACTIVITIES} onView={onView} />);
     const first = ACTIVITIES[0]!;
-    const row = screen.getByText(first.title).closest('tr')!;
+    // la fila de la TABLA (md+): el título cuyo ancestro es <tr>.
+    const titleInRow = screen.getAllByText(first.title).find((el) => el.closest('tr'))!;
+    const row = titleInRow.closest('tr')!;
     expect(row.className).toContain('cursor-pointer');
     // click en el cuerpo de la fila (título) → abre detalle
-    fireEvent.click(screen.getByText(first.title));
+    fireEvent.click(titleInRow);
     expect(onView).toHaveBeenCalledTimes(1);
     expect(onView).toHaveBeenCalledWith(first);
-    // click en el ojo (dentro de acciones) → llama onView pero NO doble por la fila
+    // click en el ojo (hay uno en la tarjeta y otro en la fila) → 1 sola vez, no burbujea
     onView.mockClear();
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(`Ver detalle de ${first.title}`) }));
-    expect(onView).toHaveBeenCalledTimes(1); // solo el del ojo, no burbujea a la fila
+    fireEvent.click(screen.getAllByRole('button', { name: new RegExp(`Ver detalle de ${first.title}`) })[0]!);
+    expect(onView).toHaveBeenCalledTimes(1);
   });
 
   it('polish sutil: filas escalonadas (tbody app-stagger) + barras app-bar-grow', () => {

@@ -11,16 +11,17 @@ const RECORDS: AttendanceRecord[] = [
 ];
 
 describe('AttendanceTable', () => {
+  // Cada registro aparece en tarjeta (mobile) + fila (md+) → getAllByText ≥1.
   it('renderiza filas con visitante, actividad y estado', () => {
     render(<AttendanceTable records={RECORDS} />);
-    expect(screen.getByText('Sofía Méndez')).toBeInTheDocument();
-    expect(screen.getByText('Presente')).toBeInTheDocument();
-    expect(screen.getByText('Registrado')).toBeInTheDocument();
+    expect(screen.getAllByText('Sofía Méndez').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Presente').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Registrado').length).toBeGreaterThan(0);
   });
 
   it('soporta asistencia anónima sin romper', () => {
     render(<AttendanceTable records={RECORDS} />);
-    expect(screen.getByText('Anónimo')).toBeInTheDocument();
+    expect(screen.getAllByText('Anónimo').length).toBeGreaterThan(0);
   });
 
   it('EmptyState cuando no hay registros', () => {

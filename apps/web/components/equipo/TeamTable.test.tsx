@@ -17,10 +17,11 @@ describe('TeamTable', () => {
   it('carga y muestra miembros con rol/estado y último acceso (— si falta)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(200, list)));
     render(<TeamTable />);
-    await waitFor(() => expect(screen.getByText('Ana Owner')).toBeInTheDocument());
-    expect(screen.getByText('ana@ccb.do')).toBeInTheDocument();
-    expect(screen.getByText('Beto Admin')).toBeInTheDocument();
-    expect(screen.getByText('beto@ccb.do')).toBeInTheDocument();
+    // Cada miembro aparece en tarjeta (mobile) + fila (md+) → getAllByText ≥1.
+    await waitFor(() => expect(screen.getAllByText('Ana Owner').length).toBeGreaterThan(0));
+    expect(screen.getAllByText('ana@ccb.do').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Beto Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('beto@ccb.do').length).toBeGreaterThan(0);
     // 'Propietario'/'Suspendido' aparecen también en los <select>; basta con que la fila los muestre
     expect(screen.getAllByText('Propietario').length).toBeGreaterThan(1); // opción + chip
     expect(screen.getAllByText('Suspendido').length).toBeGreaterThan(1);

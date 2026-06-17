@@ -14,11 +14,13 @@ import { USERS } from '../../lib/usuarios/demoData';
 afterEach(cleanup);
 
 describe('UsersTable', () => {
+  // Cada usuario aparece DOS veces en el DOM: tarjeta (mobile) + fila de tabla
+  // (md+). Una sola se ve por CSS según el viewport; por eso getAllByText ≥1.
   it('renderiza cada usuario con su email demo', () => {
     render(<UsersTable users={USERS} />);
     for (const u of USERS) {
-      expect(screen.getByText(u.name)).toBeInTheDocument();
-      expect(screen.getByText(u.email)).toBeInTheDocument();
+      expect(screen.getAllByText(u.name).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(u.email).length).toBeGreaterThan(0);
     }
   });
 
@@ -26,7 +28,7 @@ describe('UsersTable', () => {
     render(<UsersTable users={USERS} />);
     expect(screen.getAllByText('Activo').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Nuevo').length).toBeGreaterThan(0);
-    expect(screen.getByText('Inactivo')).toBeInTheDocument();
+    expect(screen.getAllByText('Inactivo').length).toBeGreaterThan(0);
   });
 
   it('todos los emails son demo @example.com (no PII real)', () => {

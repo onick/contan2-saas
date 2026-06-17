@@ -53,7 +53,38 @@ export function UsersTable({ users, canWrite = false }: UsersTableProps) {
 
   return (
     <Card padding="none" className="overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Mobile (<md): lista de TARJETAS — la tabla (min-w-900) forzaba scroll
+          horizontal y solo se veía la 1ª columna. */}
+      <ul className="app-stagger md:hidden">
+        {users.map((u, i) => {
+          const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
+          return (
+            <li key={u.id} data-user-row={u.code} className="cursor-pointer border-t border-line px-4 py-3.5 first:border-t-0 hover:bg-page">
+              <div className="flex items-center gap-3">
+                <span className={`grid h-10 w-10 flex-none place-items-center rounded-full text-[12px] font-semibold ${avatar}`}>{initials(u.name)}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium tracking-tight text-ink">{u.name}</p>
+                  <p className="truncate text-xs text-faint">{u.email}</p>
+                </div>
+                <div className="flex flex-none items-center gap-1">
+                  <ProfileLink code={u.code} />
+                  <RowActions code={u.code} email={u.email === '—' ? null : u.email} archived={!!u.archived} canWrite={canWrite} />
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pl-[52px] text-xs">
+                <span className="tabular-nums text-faint">{u.code}</span>
+                <span className="text-muted"><span className="font-semibold tabular-nums text-ink">{u.visits}</span> visitas</span>
+                {u.archived ? <Chip tone="neutral" dot>Archivado</Chip> : null}
+                {u.statusLabel ? <Chip tone={(u.statusTone as ChipTone | undefined) ?? STATUS_TONE[u.status]} dot>{u.statusLabel}</Chip> : null}
+                {u.credentialLabel ? <Chip tone={(u.credentialTone ?? 'neutral') as ChipTone} dot>{u.credentialLabel}</Chip> : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* Tablet/desktop (md+): tabla completa. */}
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[900px] border-collapse">
           <thead>
             <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">

@@ -27,9 +27,10 @@ describe('AttendanceReport', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<AttendanceReport />);
     fireEvent.click(screen.getByRole('button', { name: /Generar/i }));
-    await waitFor(() => expect(screen.getByText('Concierto Jazz')).toBeInTheDocument());
-    expect(screen.getByText('3 check-ins')).toBeInTheDocument();
-    expect(screen.getByText('5% ocupación')).toBeInTheDocument();
+    // El row del preview se ve en tarjeta (mobile) + tabla (md+) → getAllByText ≥1.
+    await waitFor(() => expect(screen.getAllByText('Concierto Jazz').length).toBeGreaterThan(0));
+    expect(screen.getAllByText('3 check-ins').length).toBeGreaterThan(0);
+    expect(screen.getByText('5% ocupación')).toBeInTheDocument(); // chip de totales (único)
     // las descargas ahora son enlaces con el rango del preview + format
     const csv = screen.getByRole('link', { name: /CSV/i });
     expect(csv.getAttribute('href')).toContain('from=2026-03-01');

@@ -112,7 +112,24 @@ export function AttendanceReport() {
           {preview.data!.rows.length === 0 ? (
             <p className="mt-3 text-[13px] text-faint">No hubo actividades en el período elegido.</p>
           ) : (
-            <div className="mt-3 max-h-80 overflow-auto rounded-xl border border-line">
+            <div className="mt-3 rounded-xl border border-line">
+              {/* Mobile (<md): tarjetas (la tabla min-w-640 forzaba scroll horizontal). */}
+              <ul className="max-h-80 overflow-auto md:hidden">
+                {preview.data!.rows.map((r) => (
+                  <li key={r.activityId} className="border-t border-line px-3 py-2.5 first:border-t-0">
+                    <p className="truncate text-[13px] font-medium text-ink" title={r.name}>{r.name}</p>
+                    <p className="text-xs tabular-nums text-faint">{r.date.slice(0, 10)}</p>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums text-muted">
+                      <span><b className="font-semibold text-ink">{r.attendances}</b> check-ins</span>
+                      <span><b className="font-semibold text-ink">{r.people}</b> personas</span>
+                      <span>{r.anonymous} anón.</span>
+                      <span><b className="font-semibold text-ink">{r.occupancyPct}%</b> ocup.</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {/* Tablet/desktop (md+): tabla. */}
+              <div className="hidden max-h-80 overflow-auto md:block">
               <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
                 <thead className="sticky top-0 bg-surface-container text-[11px] font-semibold uppercase tracking-[0.04em] text-faint">
                   <tr>
@@ -134,6 +151,7 @@ export function AttendanceReport() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>

@@ -11,30 +11,32 @@ afterEach(cleanup);
 const renderView = () => render(<ActivitiesView activities={ACTIVITIES} total={ACTIVITIES.length} />);
 
 describe('ActivitiesView · interacciones (sin escrituras)', () => {
+  // En vista lista, cada actividad se ve en tarjeta (mobile) + fila (md+) →
+  // los presentes usan getAllByText ≥1; los ausentes siguen con queryByText (0).
   it('no rompe el render: muestra todas las actividades', () => {
     renderView();
-    for (const a of ACTIVITIES) expect(screen.getByText(a.title)).toBeInTheDocument();
+    for (const a of ACTIVITIES) expect(screen.getAllByText(a.title).length).toBeGreaterThan(0);
   });
 
   it('búsqueda filtra la tabla', () => {
     renderView();
     fireEvent.change(screen.getByLabelText('Buscar actividad'), { target: { value: 'congos' } });
-    expect(screen.getByText('Los Congos de Villa Mella')).toBeInTheDocument();
+    expect(screen.getAllByText('Los Congos de Villa Mella').length).toBeGreaterThan(0);
     expect(screen.queryByText('Taller de Serigrafía')).not.toBeInTheDocument();
   });
 
   it('pill de estado filtra (Borrador → solo borradores)', () => {
     renderView();
     fireEvent.click(screen.getByRole('button', { name: /Borrador/ }));
-    expect(screen.getByText('Taller de Serigrafía')).toBeInTheDocument();
+    expect(screen.getAllByText('Taller de Serigrafía').length).toBeGreaterThan(0);
     expect(screen.queryByText('Los Congos de Villa Mella')).not.toBeInTheDocument();
   });
 
   it('categoría filtra (Cine → solo cine)', () => {
     renderView();
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'Cine' } });
-    expect(screen.getByText('5to Ciclo de Cine Dominicano · Kacimiro')).toBeInTheDocument();
-    expect(screen.getByText('Cine Clásico · Perdición')).toBeInTheDocument();
+    expect(screen.getAllByText('5to Ciclo de Cine Dominicano · Kacimiro').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Cine Clásico · Perdición').length).toBeGreaterThan(0);
     expect(screen.queryByText('Los Congos de Villa Mella')).not.toBeInTheDocument();
   });
 

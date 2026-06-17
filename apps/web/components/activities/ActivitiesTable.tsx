@@ -47,7 +47,52 @@ export function ActivitiesTable({ activities, onView, onEdit, onChanged }: Activ
 
   return (
     <Card padding="none" className="overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Mobile (<md): tarjetas (la tabla min-w-680 forzaba scroll horizontal). */}
+      <ul className="app-stagger md:hidden">
+        {activities.map((a) => {
+          const CatIcon = CATEGORY_ICON[a.category] ?? CalendarDays;
+          return (
+            <li key={a.id} onClick={() => onView?.(a)} className={cn('border-t border-line px-4 py-3.5 first:border-t-0 hover:bg-page', onView && 'cursor-pointer')}>
+              <div className="flex items-center gap-3">
+                <span className="block h-10 w-[68px] flex-none overflow-hidden rounded-lg bg-surface-container">
+                  <CoverThumb src={a.imageUrl ?? null} posY={a.imagePosY} alt="" className="h-full w-full object-cover"
+                    fallback={<span className="grid h-full w-full place-items-center text-muted"><CatIcon size={18} strokeWidth={1.75} aria-hidden="true" /></span>} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium tracking-tight text-ink">{a.title}</p>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <CategoryChip category={a.category} />
+                    <StatusBadge status={a.status} label={a.statusLabel} />
+                  </div>
+                </div>
+                <div className="flex flex-none items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <IconButton label={`Ver detalle de ${a.title}`} variant="ghost" size="sm" className="text-brand" onClick={() => onView?.(a)}>
+                    <Eye size={18} strokeWidth={2} aria-hidden="true" />
+                  </IconButton>
+                  <ActivityRowMenu activity={a} onView={onView} onEdit={onEdit} onChanged={onChanged} />
+                </div>
+              </div>
+              <div className="mt-2 pl-[56px]">
+                {a.occupancyPct !== null ? (
+                  <>
+                    <div className="flex items-center justify-between text-[12px] text-muted">
+                      <span className="tabular-nums">{a.registered} / {a.capacity}</span>
+                      <span className="font-semibold tabular-nums text-ink">{a.occupancyPct}%</span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
+                      <div className={`app-bar-grow h-full rounded-full ${barColor(a.status)}`} style={{ width: `${a.occupancyPct}%` }} />
+                    </div>
+                  </>
+                ) : null}
+                <p className="mt-1.5 text-xs text-faint">{a.date} · {a.location}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* Tablet/desktop (md+): tabla. */}
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[680px] border-collapse">
           <thead>
             <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
