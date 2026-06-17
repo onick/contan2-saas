@@ -12,10 +12,12 @@
 // logo se trae best-effort por fetch de una URL ABSOLUTA (con timeout). Si no
 // hay logo o falla, cae al nombre de la org (igual que v1).
 
+import { readFile } from 'node:fs/promises';
 import sharp from 'sharp';
 import QRCode from 'qrcode';
 import { qrPayload } from '@contan2/codes';
 import { resolveBrandingTokens, type OrgBranding } from './branding-tokens.js';
+import { resolveServablePath, uploadsRoot, contentTypeFor } from '../storage.js';
 
 export interface CredentialUser {
   code: string;
@@ -32,13 +34,38 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;');
 }
 
-// Trae el logo del tenant como data-URI, best-effort. Solo URLs http(s)
-// absolutas (api-v2 no tiene el filesystem de /uploads de v1). Timeout corto;
-// cualquier fallo → null (la credencial cae al nombre de la org). Los SVG se
-// RASTERIZAN a PNG con sharp (3x del área del badge): embedear SVG dentro del
-// SVG del badge es frágil en librsvg, y el PNG resultante es determinista.
+// Convierte un Buffer de imagen a data-URI (SVG → PNG con sharp; resto tal cual).
+async function bufToDataUri(buf: Buffer, type: string): Promise<string | null> {
+  if (buf.length === 0 || buf.length > 2_000_000) return null;
+  if (/^image\/svg\+xml/i.test(type)) {
+    const png = await sharp(buf, { density: 300 }).resize({ width: 660, fit: 'inside' }).png().toBuffer();
+    return `data:image/png;base64,${png.toString('base64')}`;
+  }
+  if (!/^image\/(png|jpeg|jpg|webp|gif|svg)/i.test(type)) return null;
+  return `data:${type};base64,${buf.toString('base64')}`;
+}
+
+// Trae el logo del tenant como data-URI, best-effort. Acepta:
+//  · URL relativa `/uploads/<name>` → LEE DEL DISCO (api-v2 ES dueño del storage,
+//    igual que la ruta /uploads). Esto arregla el logo de la credencial/email/
+//    export cuando logo_url se guarda relativo (caso real del CCB).
+//  · URL absoluta http(s) → fetch con timeout corto.
+// Cualquier fallo → null (cae al nombre de la org). Los SVG se rasterizan a PNG.
 export async function loadLogoDataUri(logoUrl: string | null | undefined): Promise<string | null> {
-  if (!logoUrl || !/^https?:\/\//i.test(logoUrl)) return null;
+  if (!logoUrl) return null;
+  // Ruta relativa servida por api-v2 → leer del disco (sin red).
+  if (logoUrl.startsWith('/uploads/')) {
+    try {
+      const name = logoUrl.slice('/uploads/'.length).split('?')[0]!;
+      const real = await resolveServablePath(uploadsRoot(), name);
+      if (!real) return null;
+      const buf = await readFile(real);
+      return await bufToDataUri(buf, contentTypeFor(name) ?? 'image/png');
+    } catch {
+      return null;
+    }
+  }
+  if (!/^https?:\/\//i.test(logoUrl)) return null;
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 2500);

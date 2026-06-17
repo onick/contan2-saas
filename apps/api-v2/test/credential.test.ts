@@ -2,8 +2,12 @@
 // los tokens de marca. Verifica firma + dimensiones del PNG y el contrato del QR.
 
 import { describe, it, expect } from 'vitest';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import sharp from 'sharp';
 import { qrPayload } from '@contan2/codes';
-import { generateCredentialPng } from '../src/services/credential.js';
+import { generateCredentialPng, loadLogoDataUri } from '../src/services/credential.js';
 import { resolveBrandingTokens, pickOn, generatePalette } from '../src/services/branding-tokens.js';
 
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -50,5 +54,26 @@ describe('credential · PNG', () => {
     );
     expect(buf.subarray(0, 8).equals(PNG_SIG)).toBe(true);
     expect(buf.readUInt32BE(16)).toBe(900);
+  });
+});
+
+describe('credential · loadLogoDataUri', () => {
+  it('logo relativo /uploads/<name> → lo LEE DEL DISCO y devuelve data-URI (fix del logo)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cred-logo-'));
+    const png = await sharp({ create: { width: 32, height: 32, channels: 3, background: { r: 230, g: 81, b: 0 } } }).png().toBuffer();
+    writeFileSync(join(dir, 'ccb-logo.png'), png);
+    const prev = process.env.UPLOADS_DIR;
+    process.env.UPLOADS_DIR = dir;
+    try {
+      expect(await loadLogoDataUri('/uploads/ccb-logo.png')).toMatch(/^data:image\/png;base64,/);
+      expect(await loadLogoDataUri('/uploads/no-existe.png')).toBeNull();
+    } finally {
+      if (prev === undefined) delete process.env.UPLOADS_DIR; else process.env.UPLOADS_DIR = prev;
+    }
+  });
+
+  it('null o no-URL → null (best-effort)', async () => {
+    expect(await loadLogoDataUri(null)).toBeNull();
+    expect(await loadLogoDataUri('logo.png')).toBeNull();
   });
 });
