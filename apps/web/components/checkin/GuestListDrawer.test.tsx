@@ -31,10 +31,13 @@ const listBody = {
   ],
 };
 const checkinOk = { code: 'CCB-AAA1', visitCount: 1, partySize: 1, activity: { id: 'A1', name: 'Un Siglo' }, mode: 'existing' as const, protocol: null };
+const padronItem = { id: 'p1', code: 'CCB-PAD1', firstName: 'Marcela', lastName: 'Pérez', email: 'marcela@x.do', visitCount: 4, protocol: null, invitedTo: [] };
 
-function installFetch(over: { checkin?: () => Response } = {}) {
+function installFetch(over: { checkin?: () => Response; visitors?: () => Response; invite?: () => Response } = {}) {
   const fn = vi.fn(async (url: string, init?: { method?: string }) => {
     const u = String(url);
+    if (u.includes('/check-in/api/visitors')) return over.visitors?.() ?? J(200, { items: [padronItem] });
+    if (u.includes('/invite-existing')) return over.invite?.() ?? J(201, { ok: true, summary: { invited: 1, alreadyInvited: 0, skipped: 0 } });
     if (u.includes('/invitations')) return J(200, listBody);
     if (u.includes('/check-in/api/checkin')) return over.checkin?.() ?? J(200, checkinOk);
     if (u.includes('/check-in/api/attendance/')) return new Response(null, { status: 204 });
@@ -96,5 +99,49 @@ describe('GuestListDrawer', () => {
     await waitFor(() => expect(onArrival).toHaveBeenCalled());
     const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/check-in/api/checkin'))!;
     expect(JSON.parse((call[1] as { body: string }).body).visitor.code).toBe('CCB-AAA1');
+  });
+
+  it('buscar a alguien que NO está en la lista → aparece del padrón; "Agregar y dar entrada" hace checkin con addToList', async () => {
+    const onArrival = vi.fn();
+    const fetchMock = installFetch();
+    render(<GuestListDrawer activity={activity} onClose={() => {}} onArrival={onArrival} />);
+    await screen.findByText('María Mercedes Ortíz');
+    fireEvent.change(screen.getByPlaceholderText(/Buscar en la lista/), { target: { value: 'marcela' } });
+    const row = (await screen.findByText('Marcela Pérez')).closest('li')!;
+    fireEvent.click(within(row).getByRole('button', { name: /Agregar y dar entrada/ }));
+    await waitFor(() => expect(onArrival).toHaveBeenCalled());
+    const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/check-in/api/checkin'))!;
+    const body = JSON.parse((call[1] as { body: string }).body);
+    expect(body.visitor.code).toBe('CCB-PAD1');
+    expect(body.addToList).toBe(true);
+  });
+
+  it('si no está en el padrón, "Crear «…»" abre el form (prefijado) y crea+agrega+entrada con visitor.new + addToList', async () => {
+    const onArrival = vi.fn();
+    const fetchMock = installFetch({ visitors: () => J(200, { items: [] }) });
+    render(<GuestListDrawer activity={activity} onClose={() => {}} onArrival={onArrival} />);
+    await screen.findByText('María Mercedes Ortíz');
+    fireEvent.change(screen.getByPlaceholderText(/Buscar en la lista/), { target: { value: 'Marcela Pérez' } });
+    fireEvent.click(await screen.findByRole('button', { name: /Crear visitante/ }));
+    expect(screen.getByDisplayValue('Marcela')).toBeInTheDocument(); // nombre prefijado del query
+    expect(screen.getByDisplayValue('Pérez')).toBeInTheDocument();   // apellido prefijado
+    fireEvent.click(screen.getByRole('button', { name: /Crear, agregar y dar entrada/ }));
+    await waitFor(() => expect(onArrival).toHaveBeenCalled());
+    const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/check-in/api/checkin'))!;
+    const body = JSON.parse((call[1] as { body: string }).body);
+    expect(body.visitor.new).toEqual({ firstName: 'Marcela', lastName: 'Pérez' });
+    expect(body.addToList).toBe(true);
+  });
+
+  it('"Solo agregar" usa invite-existing con el userId del padrón', async () => {
+    const fetchMock = installFetch();
+    render(<GuestListDrawer activity={activity} onClose={() => {}} onArrival={() => {}} />);
+    await screen.findByText('María Mercedes Ortíz');
+    fireEvent.change(screen.getByPlaceholderText(/Buscar en la lista/), { target: { value: 'marcela' } });
+    const row = (await screen.findByText('Marcela Pérez')).closest('li')!;
+    fireEvent.click(within(row).getByRole('button', { name: /^Solo agregar$/ }));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/invite-existing'))).toBe(true));
+    const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/invite-existing'))!;
+    expect(JSON.parse((call[1] as { body: string }).body).userIds).toEqual(['p1']);
   });
 });

@@ -48,6 +48,8 @@ run('POST /checkin (+/anonymous) · escritura', () => {
     (await db.insertInto('activities').values({ id: randomUUID(), organization_id: orgId, name, type: 'concierto', location: 'Sala', date: new Date(Date.now() + 7 * 86_400_000).toISOString(), capacity, enrolled_count: enrolled, status }).returning('id').executeTakeFirstOrThrow()).id;
   const enrolledOf = async (id: string) => Number((await db.selectFrom('activities').select('enrolled_count').where('id', '=', id).executeTakeFirstOrThrow()).enrolled_count);
   const attCount = async (orgId: string) => Number((await db.selectFrom('attendance').select(db.fn.countAll<number>().as('n')).where('organization_id', '=', orgId).executeTakeFirstOrThrow()).n);
+  const userIdOf = async (orgId: string, code: string) => (await db.selectFrom('users').select('id').where('organization_id', '=', orgId).where('code', '=', code).executeTakeFirstOrThrow()).id;
+  const invCount = async (orgId: string, activityId: string, userId: string) => Number((await db.selectFrom('invitations').select(db.fn.countAll<number>().as('n')).where('organization_id', '=', orgId).where('activity_id', '=', activityId).where('user_id', '=', userId).executeTakeFirstOrThrow()).n);
 
   beforeAll(async () => {
     db = createDb(DATABASE_URL);
@@ -68,6 +70,8 @@ run('POST /checkin (+/anonymous) · escritura', () => {
     for (const id of [orgAId, orgBId]) {
       if (!id) continue;
       await db.deleteFrom('checkin_idempotency').where('organization_id', '=', id).execute();
+      await db.deleteFrom('invitations').where('organization_id', '=', id).execute();
+      await db.deleteFrom('protocol_profiles').where('organization_id', '=', id).execute();
       await db.deleteFrom('attendance').where('organization_id', '=', id).execute();
       await db.deleteFrom('activities').where('organization_id', '=', id).execute();
       await db.deleteFrom('users').where('organization_id', '=', id).execute();
@@ -114,6 +118,36 @@ run('POST /checkin (+/anonymous) · escritura', () => {
     const res = await manual({ activityId: act, visitor: { new: { firstName: 'Adulto', lastName: 'ConNinos' } }, companionsChildren: 3 }, TOK.admin);
     expect(res.json().partySize).toBe(4);
     expect(await enrolledOf(act)).toBe(4);
+  });
+
+  it('addToList: admite a un EXISTENTE no invitado → crea la invitación (aparece en la lista) + asistencia; operator OK', async () => {
+    const act = await mkActivity(orgAId, 'AddToList existente', 'activa', 50);
+    const uid = await userIdOf(orgAId, userCode);
+    expect(await invCount(orgAId, act, uid)).toBe(0); // antes: sin invitación
+    const res = await manual({ activityId: act, visitor: { code: userCode }, companionsChildren: 0, addToList: true }, TOK.operator);
+    expect(res.statusCode).toBe(201);
+    expect(await invCount(orgAId, act, uid)).toBe(1); // ahora figura en la lista
+    expect((await db.selectFrom('invitations').select('kind').where('organization_id', '=', orgAId).where('activity_id', '=', act).where('user_id', '=', uid).executeTakeFirstOrThrow()).kind).toBe('audience');
+    expect(await enrolledOf(act)).toBe(1);
+  });
+
+  it('addToList con NUEVO visitante → crea usuario + invitación + asistencia', async () => {
+    const act = await mkActivity(orgAId, 'AddToList nuevo', 'activa', 50);
+    const res = await manual({ activityId: act, visitor: { new: { firstName: 'Walk', lastName: 'In' } }, companionsChildren: 0, addToList: true }, TOK.operator);
+    expect(res.statusCode).toBe(201);
+    const uid = await userIdOf(orgAId, res.json().code);
+    expect(await invCount(orgAId, act, uid)).toBe(1);
+  });
+
+  it('addToList hereda protocolo si la persona ya es de protocolo (kind=protocol)', async () => {
+    const act = await mkActivity(orgAId, 'AddToList proto', 'activa', 50);
+    const uid = await userIdOf(orgAId, userCode);
+    await db.insertInto('protocol_profiles').values({ user_id: uid, organization_id: orgAId, category: 'autoridad', active: true })
+      .onConflict((oc) => oc.column('user_id').doUpdateSet({ active: true })).execute();
+    const res = await manual({ activityId: act, visitor: { code: userCode }, companionsChildren: 0, addToList: true }, TOK.admin);
+    expect(res.statusCode).toBe(201);
+    expect((await db.selectFrom('invitations').select('kind').where('organization_id', '=', orgAId).where('activity_id', '=', act).where('user_id', '=', uid).executeTakeFirstOrThrow()).kind).toBe('protocol');
+    await db.deleteFrom('protocol_profiles').where('user_id', '=', uid).execute(); // no contaminar otros tests
   });
 
   it('duplicado del mismo visitante en la actividad → 409 (sin oversell)', async () => {

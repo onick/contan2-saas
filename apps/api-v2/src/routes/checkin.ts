@@ -1,6 +1,6 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
-import { getDb, sql } from '@contan2/db';
+import { getDb, sql, type DbClient } from '@contan2/db';
 import {
   AdminCheckinRequestSchema,
   AdminAnonymousCheckinRequestSchema,
@@ -19,6 +19,39 @@ import { parseSearch, likeContains } from '../query.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { CheckinError, checkinIdentified, reserveCapacity } from '../services/checkin-core.js';
 import { writeCheckinAudit } from '../services/checkin-audit.js';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Asegura que exista una fila de invitación (org, actividad, usuario) para que la
+// persona aparezca en la "Lista de invitados" tras admitirla en la puerta. Corre
+// DENTRO de la tx del check-in (idempotente; el unique de attendance ya serializa
+// admisiones concurrentes). kind: 'protocol' si la persona ya es de protocolo, si
+// no 'audience'. Una invitación cancelada se reactiva; una vigente no se toca.
+async function ensureInvitationOnAdmit(tx: DbClient, orgId: string, activityId: string, userId: string): Promise<void> {
+  const existing = await tx.selectFrom('invitations').select(['id', 'status'])
+    .where('organization_id', '=', orgId).where('activity_id', '=', activityId).where('user_id', '=', userId)
+    .executeTakeFirst();
+  if (existing && existing.status !== 'canceled') return; // ya está en la lista
+
+  const act = await tx.selectFrom('activities').select(['date'])
+    .where('organization_id', '=', orgId).where('id', '=', activityId).executeTakeFirstOrThrow();
+  const expiresAt = new Date(new Date(act.date).getTime() + DAY_MS).toISOString();
+
+  if (existing) {
+    await tx.updateTable('invitations')
+      .set({ status: 'pending', sent_at: null, responded_at: null, expires_at: expiresAt })
+      .where('id', '=', existing.id).execute();
+    return;
+  }
+  const proto = await tx.selectFrom('protocol_profiles').select('user_id')
+    .where('organization_id', '=', orgId).where('user_id', '=', userId).where('active', '=', true)
+    .executeTakeFirst();
+  await tx.insertInto('invitations').values({
+    organization_id: orgId, activity_id: activityId, user_id: userId,
+    token: randomBytes(24).toString('hex'), expires_at: expiresAt,
+    kind: proto ? 'protocol' : 'audience',
+  }).execute();
+}
 
 // Check-in administrativo · LECTURA (Check-in A). Consola operativa del staff
 // autenticado (owner/admin/operator). Todo tenant-scoped por la sesión
@@ -250,12 +283,16 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     }
     const parsed = AdminCheckinRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Datos de check-in inválidos.' }; }
-    const { activityId, visitor, companionsChildren } = parsed.data;
+    const { activityId, visitor, companionsChildren, addToList } = parsed.data;
     const staff = guard.ctx.staff;
 
     try {
       const result = await db.transaction().execute(async (tx) => {
         const r = await checkinIdentified(tx, { orgId, codePrefix: guard.ctx.org.codePrefix, activityId, visitor, companionsChildren });
+        // Admitir desde la lista de invitados: asegura la fila de invitación para
+        // que la persona figure en la lista (la asistencia recién creada la marca
+        // "Asistió" por el join derivado). Misma tx → atómico con el check-in.
+        if (addToList) await ensureInvitationOnAdmit(tx, orgId, r.activity.id, r.userId);
         await writeCheckinAudit(tx, {
           orgId, staff: { id: staff.id, email: staff.email, role: staff.role },
           action: 'checkin.manual', activityId: r.activity.id, attendanceId: r.attendanceId,

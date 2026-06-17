@@ -991,6 +991,11 @@ export const AdminCheckinRequestSchema = z.object({
   activityId: z.string().min(1),
   visitor: AdminCheckinVisitorSchema,
   companionsChildren: z.number().int().min(0).max(10),
+  // addToList: además del check-in, ASEGURA la fila de invitación para que la
+  // persona aparezca en la "Lista de invitados" de la actividad (admitir desde la
+  // puerta a alguien no invitado / recién creado). kind hereda 'protocol' si la
+  // persona ya es de protocolo; si no, 'audience'. operator permitido.
+  addToList: z.boolean().optional(),
 }).strict();
 export type AdminCheckinRequest = z.infer<typeof AdminCheckinRequestSchema>;
 export const AdminCheckinResponseSchema = z.object({
