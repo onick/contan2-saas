@@ -24,6 +24,8 @@ import {
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
+import { sendStaffInviteEmail } from '../services/staff-invite-email.js';
+import type { OrgBranding } from '../services/branding-tokens.js';
 import { hashStaffPassword } from '../services/password.js';
 import { validatePasswordStrength } from '../services/password-policy.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
@@ -133,13 +135,18 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
 
     await writeAudit(db, orgId, guard.ctx.staff, 'staff.invited', inv.id, email, { role });
 
-    // Entrega dry-run (sin RESEND_API_KEY): el link contiene el token y por eso
-    // JAMÁS se loguea — sólo metadata enmascarada.
+    // Envío REAL del correo (Resend) si hay RESEND_API_KEY; si no, dry-run honesto.
+    // Best-effort post-commit (la invitación ya existe): si el email falla, el admin
+    // puede reenviar. El token viaja SOLO en el link del correo, jamás se loguea.
     const inviteUrl = `https://${effectiveHost(req)}/invite/${plain}`;
-    req.log.info({ email: maskEmail(email), role, org: guard.ctx.org.slug, urlLen: inviteUrl.length }, 'invitación creada (email dry-run)');
+    const branding: OrgBranding = { name: guard.ctx.org.name, primaryColor: guard.ctx.org.primaryColor, secondaryColor: guard.ctx.org.secondaryColor };
+    const mail = await sendStaffInviteEmail(email, { orgName: guard.ctx.org.name, role, inviteUrl, branding });
+    const delivery = 'sent' in mail ? 'sent' : 'skipped' in mail ? 'dry-run' : 'error';
+    if ('error' in mail) req.log.error({ email: maskEmail(email), role, err: mail.error }, 'invitación de equipo: fallo al enviar el email');
+    else req.log.info({ email: maskEmail(email), role, org: guard.ctx.org.slug, delivery }, 'invitación de equipo creada');
 
     reply.code(201);
-    return { ok: true, invitation: toPublic(inv as InvRow) };
+    return { ok: true, invitation: toPublic(inv as InvRow), delivery };
   });
 
   app.post('/staff/invitations/:id/resend', async (req: FastifyRequest, reply) => {
@@ -162,8 +169,12 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
       .executeTakeFirstOrThrow();
 
     const inviteUrl = `https://${effectiveHost(req)}/invite/${plain}`;
-    req.log.info({ email: maskEmail(inv.email), org: guard.ctx.org.slug, urlLen: inviteUrl.length }, 'invitación reenviada (email dry-run)');
-    return { ok: true, invitation: toPublic(updated as InvRow) };
+    const branding: OrgBranding = { name: guard.ctx.org.name, primaryColor: guard.ctx.org.primaryColor, secondaryColor: guard.ctx.org.secondaryColor };
+    const mail = await sendStaffInviteEmail(inv.email, { orgName: guard.ctx.org.name, role: updated.role, inviteUrl, branding });
+    const delivery = 'sent' in mail ? 'sent' : 'skipped' in mail ? 'dry-run' : 'error';
+    if ('error' in mail) req.log.error({ email: maskEmail(inv.email), err: mail.error }, 'invitación de equipo: fallo al reenviar el email');
+    else req.log.info({ email: maskEmail(inv.email), org: guard.ctx.org.slug, delivery }, 'invitación reenviada');
+    return { ok: true, invitation: toPublic(updated as InvRow), delivery };
   });
 
   app.post('/staff/invitations/:id/revoke', async (req: FastifyRequest, reply) => {
