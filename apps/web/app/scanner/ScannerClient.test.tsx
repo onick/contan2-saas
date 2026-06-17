@@ -90,13 +90,13 @@ describe('/scanner · escaneo y check-in', () => {
 
   it('código válido postea check-in y muestra éxito', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      res(200, { code: 'CCB-AB12CD', visitCount: 2, partySize: 1, activity: { id: 'a1', name: 'Concierto de Jazz' } }),
+      res(200, { code: 'CCB-AB12CD', firstName: 'Ana', visitCount: 2, partySize: 1, activity: { id: 'a1', name: 'Concierto de Jazz' } }),
     );
     vi.stubGlobal('fetch', fetchMock);
     gotoScan();
     fireEvent.change(screen.getByLabelText('Código manual'), { target: { value: 'ccb-ab12cd' } });
     fireEvent.click(screen.getByRole('button', { name: 'Registrar' }));
-    expect(await screen.findByText('Registrado')).toBeInTheDocument();
+    expect(await screen.findByText('Ana, ¡ya estás registrado!')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       '/scanner/api/checkin',
       expect.objectContaining({

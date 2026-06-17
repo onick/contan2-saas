@@ -241,6 +241,10 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       });
       // Banner de protocolo (PR-5): best-effort, fuera de la tx.
       const protocol = await protocolBadgeFor(db, orgId, result.userId, result.activity.id).catch(() => null);
+      // Nombre del visitante para el mensaje del scanner ("X, ya estás registrado").
+      // Best-effort, fuera de la tx (un fallo no afecta el check-in).
+      const named = await db.selectFrom('users').select('first_name')
+        .where('id', '=', result.userId).executeTakeFirst().catch(() => null);
 
       // Commit OK. Entrega de credencial best-effort, FUERA de la transacción y
       // fire-and-forget: no bloquea ni afecta la respuesta del check-in. Marca
@@ -255,6 +259,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       const body: PublicCheckinResponse = {
         code: result.code, visitCount: result.visitCount, partySize: result.partySize,
         activity: result.activity, protocol,
+        ...(named?.first_name ? { firstName: named.first_name } : {}),
       };
       return body;
     } catch (e) {
