@@ -6,8 +6,10 @@
 
 import {
   PublicActivitiesResponseSchema,
+  PublicBrandingResponseSchema,
   PublicVisitorLookupResponseSchema,
   type PublicActivity,
+  type PublicBrandingResponse,
   type PublicVisitor,
 } from '@contan2/contracts';
 import { apiGet, ApiError } from './client';
@@ -61,6 +63,18 @@ export function toKioskVisitor(v: PublicVisitor): KioskVisitor {
     isNew: false,
     companionsChildren: 0,
   };
+}
+
+// Branding público del tenant (por host, sin cookie). null si falla → la página
+// cae al branding local. El kiosko usa el logo VERTICAL (verticalLogoUrl) y, si
+// no hay, el horizontal.
+export async function getPublicBranding(): Promise<PublicBrandingResponse['organization'] | null> {
+  try {
+    const { organization } = await apiGet('/api/v2/public/branding', PublicBrandingResponseSchema);
+    return organization;
+  } catch {
+    return null;
+  }
 }
 
 // Actividades públicas del tenant. null si falla (api caído / sin host / dev sin

@@ -6,22 +6,26 @@
 // contenido por-tenant y en vivo.
 
 import { KioskClient } from './KioskClient';
-import { getKioskActivities } from '../../lib/api/kiosko';
+import { getKioskActivities, getPublicBranding } from '../../lib/api/kiosko';
 import { KIOSK_ACTIVITIES } from '../../lib/kiosko/demoData';
 import { getLocalBranding } from '../../lib/branding/config';
 
 export default async function KioskPage() {
-  const branding = getLocalBranding();
-  const real = await getKioskActivities();
+  const local = getLocalBranding();
+  const [real, pub] = await Promise.all([getKioskActivities(), getPublicBranding()]);
   const activities = real ?? KIOSK_ACTIVITIES;
   const source = real ? 'api' : 'demo';
+
+  // El kiosko usa el logo VERTICAL del tenant; si no hay, el horizontal; si el
+  // branding público falla, el local. Último recurso: el asset estático.
+  const logoUrl = pub?.verticalLogoUrl ?? pub?.logoUrl ?? local.logoUrl ?? '/kiosko/logo.png';
 
   return (
     <KioskClient
       activities={activities}
       source={source}
-      brandName={branding.name}
-      logoUrl={branding.logoUrl ?? '/kiosko/logo.png'}
+      brandName={pub?.name ?? local.name}
+      logoUrl={logoUrl}
     />
   );
 }

@@ -19,19 +19,19 @@ describe('BrandingEditor', () => {
     expect(body).toEqual({ name: 'CCB Nuevo' }); // solo el campo cambiado
   });
 
-  it('#f39228 en primario → aviso de contraste (texto oscuro AA)', () => {
+  it('primario de bajo contraste (#f39228) → aviso AA (texto oscuro)', () => {
     vi.stubGlobal('fetch', vi.fn());
-    render(<BrandingEditor initial={INITIAL} canEdit />);
-    fireEvent.change(screen.getByLabelText('Color primario hex'), { target: { value: '#f39228' } });
+    render(<BrandingEditor initial={{ ...INITIAL, primaryColor: '#f39228' }} canEdit />);
     expect(screen.getByText(/No cumple AA → el preview usa texto OSCURO/i)).toBeInTheDocument();
   });
 
-  it('hex inválido deshabilita guardar', () => {
+  it('aplicar una paleta setea primario + acento y habilita guardar', () => {
     vi.stubGlobal('fetch', vi.fn());
     render(<BrandingEditor initial={INITIAL} canEdit />);
-    fireEvent.change(screen.getByLabelText('Color primario hex'), { target: { value: 'rojo' } });
-    expect(screen.getByText('Hex #RRGGBB')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Guardar cambios/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Paleta Turquesa/i }));
+    expect(screen.getByText('#0182a2')).toBeInTheDocument(); // primario aplicado
+    expect(screen.getByText('#34b3d0')).toBeInTheDocument(); // acento aplicado
+    expect(screen.getByRole('button', { name: /Guardar cambios/i })).not.toBeDisabled();
   });
 
   it('error de la API se muestra', async () => {

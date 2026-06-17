@@ -16,6 +16,7 @@ import {
   RsvpRespondRequestSchema,
   type PublicActivitiesResponse,
   type PublicActivity,
+  type PublicBrandingResponse,
   type PublicVisitorLookupResponse,
   type PublicCheckinResponse,
   type RsvpPreviewResponse,
@@ -58,6 +59,30 @@ async function tenantOnly(db: DbClient, req: FastifyRequest): Promise<TenantOnly
 }
 
 export const publicRoute: FastifyPluginAsync = async (app) => {
+  // GET /api/v2/public/branding · branding del tenant por host, SIN cookie.
+  // Tematiza superficies públicas (kiosko/scanner): nombre, logos y colores. Sin
+  // PII. verticalLogoUrl = logo de kiosko/credencial (credential_logo_url); si
+  // null, la superficie cae al horizontal. Lectura barata (org ya resuelta).
+  app.get('/public/branding', async (req, reply) => {
+    const db = getDb();
+    const tenant = await resolveTenantFromHost(db, effectiveHost(req));
+    if (!tenant.ok) {
+      reply.code(tenant.reason === 'suspended' ? 503 : 404);
+      return { error: tenant.reason === 'suspended' ? 'Organización suspendida' : 'Organización no encontrada' };
+    }
+    const o = tenant.org;
+    const body: PublicBrandingResponse = {
+      organization: {
+        name: o.name,
+        logoUrl: o.logoUrl,
+        verticalLogoUrl: o.credentialLogoUrl,
+        primaryColor: o.primaryColor,
+        secondaryColor: o.secondaryColor,
+      },
+    };
+    return body;
+  });
+
   // GET /api/v2/public/activities · actividades visibles (status activa y con
   // cupo). Paridad v1: enrolledCount < capacity. `date` sale en ISO; el cliente
   // del kiosko lo formatea (mismo patrón que el endpoint staff).

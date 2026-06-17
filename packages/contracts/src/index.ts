@@ -830,6 +830,21 @@ export const PublicActivitiesResponseSchema = z.object({
 });
 export type PublicActivitiesResponse = z.infer<typeof PublicActivitiesResponseSchema>;
 
+// GET /api/v2/public/branding · branding PÚBLICO del tenant (por host, sin
+// cookie). Para tematizar superficies públicas (kiosko/scanner): nombre, logos
+// (horizontal + vertical) y colores. Sin PII. `verticalLogoUrl` = el logo de
+// kiosko/credencial; si null, la superficie cae al horizontal (logoUrl).
+export const PublicBrandingResponseSchema = z.object({
+  organization: z.object({
+    name: z.string(),
+    logoUrl: z.string().nullable(),
+    verticalLogoUrl: z.string().nullable(),
+    primaryColor: z.string(),
+    secondaryColor: z.string(),
+  }),
+});
+export type PublicBrandingResponse = z.infer<typeof PublicBrandingResponseSchema>;
+
 // Lookup público de visitante: SOLO lo mínimo para confirmar identidad en el
 // kiosko. NUNCA email, phone, id ni tokens (anti-enumeración/leak de PII).
 export const PublicVisitorSchema = z.object({

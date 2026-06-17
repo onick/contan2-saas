@@ -14,6 +14,7 @@ import type { Kysely } from 'kysely';
 import { createDb, type Database } from '@contan2/db';
 import {
   PublicActivitiesResponseSchema,
+  PublicBrandingResponseSchema,
   PublicVisitorLookupResponseSchema,
 } from '@contan2/contracts';
 import { buildApp } from '../src/server.js';
@@ -117,6 +118,28 @@ run('slice público read-only (kiosko)', () => {
     expect(names).not.toContain('Concierto Lleno');
     expect(names).not.toContain('Taller Pasado');
     expect(names).not.toContain('Ajena Visible');
+  });
+
+  it('GET /public/branding (sin cookie) → 200; nombre, logos (horizontal+vertical) y colores', async () => {
+    await db.updateTable('organizations')
+      .set({ logo_url: '/uploads/h.png', credential_logo_url: '/uploads/v.png', primary_color: '#123456', secondary_color: '#abcdef' })
+      .where('id', '=', orgAId).execute();
+    const res = await get('/api/v2/public/branding', hostA);
+    expect(res.statusCode).toBe(200);
+    const body = PublicBrandingResponseSchema.parse(res.json());
+    expect(body.organization).toEqual({
+      name: `Org ${slugA}`, logoUrl: '/uploads/h.png', verticalLogoUrl: '/uploads/v.png',
+      primaryColor: '#123456', secondaryColor: '#abcdef',
+    });
+    // shape exacto (sin claves de más / sin PII)
+    expect(Object.keys(res.json().organization).sort()).toEqual([
+      'logoUrl', 'name', 'primaryColor', 'secondaryColor', 'verticalLogoUrl',
+    ]);
+  });
+
+  it('GET /public/branding: no-tenant → 404; suspendida → 503', async () => {
+    expect((await get('/api/v2/public/branding', 'admin.contan2.com')).statusCode).toBe(404);
+    expect((await get('/api/v2/public/branding', hostS)).statusCode).toBe(503);
   });
 
   it('GET /public/users/lookup?q=CODE → 200 + shape mínimo SIN PII', async () => {

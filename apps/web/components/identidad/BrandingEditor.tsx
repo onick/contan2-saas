@@ -14,6 +14,8 @@ import { Card, Button, cn, focusRing } from '../ui';
 import { textOn, isHex6 } from '../../lib/branding/contrast';
 import { updateBranding } from '../../lib/api/branding-client';
 import { LogoUploadField } from './LogoUploadField';
+import { ColorField } from './ColorField';
+import { PalettePresets, type Palette } from './PalettePresets';
 
 type SidebarTheme = 'brand' | 'dark' | 'light';
 export interface BrandingInitial {
@@ -36,6 +38,7 @@ export function BrandingEditor({ initial, canEdit }: Props) {
   const [msg, setMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   const set = <K extends keyof BrandingInitial>(k: K, v: BrandingInitial[K]) => { setForm((f) => ({ ...f, [k]: v })); setMsg(null); };
+  const pickPalette = (p: Palette) => { setForm((f) => ({ ...f, primaryColor: p.primary, secondaryColor: p.accent })); setMsg(null); };
 
   // Diff: solo los campos cambiados se mandan al PATCH.
   const diff = useMemo(() => {
@@ -85,38 +88,45 @@ export function BrandingEditor({ initial, canEdit }: Props) {
               <input value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={120} disabled={!canEdit} className={inputCls} />
             </label>
 
+            {/* Logos por orientación */}
+            <div className="flex items-center gap-3 pt-1">
+              <span className={labelCls}>Logos</span><span className="h-px flex-1 bg-line" />
+            </div>
+
             <LogoUploadField
-              label="Logo"
-              hint="Aparece en el menú lateral, el encabezado del panel y la pantalla del kiosko."
-              previewLabel="Menú · kiosko"
+              label="Logo horizontal"
+              hint="Se usa en el menú lateral y el encabezado del panel."
+              previewLabel="Menú · encabezado"
               value={form.logoUrl}
               onChange={(url) => set('logoUrl', url)}
               disabled={!canEdit}
             />
 
             <LogoUploadField
-              label="Logo de la tarjeta de miembro"
-              hint="Va en la credencial que recibe cada visitante. Si lo dejás vacío, se usa el logo principal."
-              previewLabel="Credencial"
+              label="Logo vertical"
+              hint="Se usa en el kiosko y en la credencial (tarjeta de miembro). Si lo dejás vacío, se usa el horizontal."
+              previewLabel="Kiosko · credencial"
               previewBg="#ffffff"
               value={form.credentialLogoUrl}
               onChange={(url) => set('credentialLogoUrl', url)}
               disabled={!canEdit}
             />
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {(['primaryColor', 'secondaryColor'] as const).map((key) => {
-                const ok = isHex6(form[key]);
-                return (
-                  <label key={key} className="block"><span className={labelCls}>{key === 'primaryColor' ? 'Color primario' : 'Color de acento'}</span>
-                    <div className="mt-1 flex items-center gap-2">
-                      <input type="color" value={ok ? form[key] : '#000000'} onChange={(e) => set(key, e.target.value)} disabled={!canEdit} aria-label={`${key} selector`} className="h-11 w-12 flex-none cursor-pointer rounded-lg border border-line bg-surface" />
-                      <input value={form[key]} onChange={(e) => set(key, e.target.value)} disabled={!canEdit} aria-label={key === 'primaryColor' ? 'Color primario hex' : 'Color de acento hex'} className={cn('min-h-11 flex-1 rounded-lg border bg-surface px-3 py-2.5 font-mono text-[13px] uppercase text-ink', ok ? 'border-line' : 'border-danger-fg', focusRing)} />
-                    </div>
-                    {!ok ? <p className="mt-1 text-[12px] text-danger-fg">Hex #RRGGBB</p> : null}
-                  </label>
-                );
-              })}
+            {/* Colores de marca (white-label) */}
+            <div className="flex items-center gap-3 pt-1">
+              <span className={labelCls}>Colores de marca</span><span className="h-px flex-1 bg-line" />
+            </div>
+
+            <div>
+              <span className="text-[12px] font-medium text-muted">Empezá con una paleta</span>
+              <div className="mt-2">
+                <PalettePresets primary={form.primaryColor} accent={form.secondaryColor} onPick={pickPalette} disabled={!canEdit} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <ColorField label="Color primario" value={form.primaryColor} onChange={(hex) => set('primaryColor', hex)} disabled={!canEdit} />
+              <ColorField label="Color de acento" value={form.secondaryColor} onChange={(hex) => set('secondaryColor', hex)} disabled={!canEdit} />
             </div>
 
             <label className="block sm:max-w-xs"><span className={labelCls}>Menú lateral</span>
