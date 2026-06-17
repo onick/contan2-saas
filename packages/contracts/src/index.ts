@@ -96,6 +96,10 @@ export const AdminBrandingUpdateRequestSchema = z.object({
 }).strict();
 export type AdminBrandingUpdateRequest = z.infer<typeof AdminBrandingUpdateRequestSchema>;
 
+// Subida de logo (multipart) → devuelve la ruta /uploads/<name> ya guardada.
+export const BrandingLogoUploadResponseSchema = z.object({ logoUrl: z.string() });
+export type BrandingLogoUploadResponse = z.infer<typeof BrandingLogoUploadResponseSchema>;
+
 // ─────────────────────────────────────────────────────────────────────────
 // Endpoints READ-ONLY de api-v2 (PR v2/api-readonly-endpoints).
 // Proyecciones camelCase de las tablas de negocio v1 (snake_case en la DB).

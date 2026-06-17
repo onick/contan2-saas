@@ -53,6 +53,35 @@ export function assertAllowedImage(buf: Buffer): 'jpeg' | 'png' | 'webp' {
 // recorte; escala hasta tocar el lienzo por dentro, conservando proporción) →
 // WebP. withoutEnlargement:false mantiene la garantía de nitidez previa
 // (imágenes chicas se escalan hacia arriba igual que antes).
+
+// ── LOGO del tenant ──────────────────────────────────────────────────────────
+export const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
+export const LOGO_MAX_W = 600;
+export const LOGO_MAX_H = 400;
+
+// Logos: acepta también SVG (común en identidad). Rechaza gif/desconocido.
+export function assertLogoImage(buf: Buffer): 'jpeg' | 'png' | 'webp' | 'svg' {
+  const kind = detectImageKind(buf);
+  if (kind === 'jpeg' || kind === 'png' || kind === 'webp' || kind === 'svg') return kind;
+  throw new CoverError('unsupported_type', 'Formato no permitido. Usá PNG, SVG, JPEG o WebP.');
+}
+
+// Decode REAL + normalización del logo → PNG (preserva transparencia), encajado
+// en 600×400 sin agrandar (logos chicos quedan nítidos). SVG se rasteriza con
+// densidad alta. El PNG resultante lo sirve /uploads y lo lee la credencial.
+export async function processLogo(buf: Buffer): Promise<Buffer> {
+  const kind = assertLogoImage(buf);
+  try {
+    const input = kind === 'svg' ? sharp(buf, { density: 300 }) : sharp(buf);
+    return await input
+      .resize(LOGO_MAX_W, LOGO_MAX_H, { fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toBuffer();
+  } catch {
+    throw new CoverError('decode_failed', 'No se pudo procesar el logo.');
+  }
+}
+
 export async function processCover(buf: Buffer): Promise<{ data: Buffer; width: number; height: number }> {
   try {
     const out = await sharp(buf)

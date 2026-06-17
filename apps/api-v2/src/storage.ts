@@ -112,6 +112,22 @@ export async function writeCoverAtomic(root: string, data: Buffer): Promise<stri
   return finalName;
 }
 
+// Logo del tenant: PNG inmutable `v2-logo-<uuid>.png`. Escritura atómica (tmp +
+// rename). Se sirve por /uploads/:name y lo lee la credencial (loadLogoDataUri).
+export async function writeLogoAtomic(root: string, data: Buffer): Promise<string> {
+  const finalName = `v2-logo-${randomUUID()}.png`;
+  const finalPath = path.join(root, finalName);
+  const tmpPath = path.join(root, `.tmp-${randomUUID()}.png`);
+  try {
+    await writeFile(tmpPath, data, { flag: 'wx' });
+    await rename(tmpPath, finalPath);
+  } catch (e) {
+    await unlink(tmpPath).catch(() => {});
+    throw new StorageError('write_failed', `No se pudo escribir el logo: ${(e as Error).message}`);
+  }
+  return finalName;
+}
+
 // Borra un archivo v2 por su nombre (rollback del archivo nuevo). Best-effort.
 export async function deleteCoverByName(root: string, name: string): Promise<void> {
   const abs = resolveWithinRoot(root, name);

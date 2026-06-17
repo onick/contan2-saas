@@ -1,10 +1,12 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { getDb } from '@contan2/db';
-import type { OrgBrandingResponse } from '@contan2/contracts';
+import type { OrgBrandingResponse, BrandingLogoUploadResponse } from '@contan2/contracts';
 import { AdminBrandingUpdateRequestSchema } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { hashIp, maskEmail } from '../services/audit-mask.js';
+import { ensureWritableRoot, writeLogoAtomic } from '../storage.js';
+import { processLogo, MAX_LOGO_BYTES, CoverError } from '../services/cover-upload.js';
 
 const CAN_EDIT_BRANDING = new Set(['owner', 'admin']);
 
@@ -105,5 +107,58 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
       },
     };
     return body;
+  });
+
+  // POST /api/v2/org/branding/logo · sube el logo del tenant. owner/admin,
+  // multipart (un archivo, ≤2MB). Valida por MAGIC BYTES + decode (sharp),
+  // normaliza a PNG (preserva transparencia) en /uploads y devuelve la ruta.
+  // NO persiste logo_url: el editor lo pone en el form y "Guardar" lo guarda.
+  app.post('/org/branding/logo', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const { org, staff } = guard.ctx;
+    if (!CAN_EDIT_BRANDING.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para editar la identidad.' }; }
+    if ((await writeLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' }; }
+
+    // Multipart: exactamente un archivo (igual patrón que la portada).
+    let buf: Buffer | undefined;
+    let fileCount = 0, oversize = false, parseErr = false;
+    try {
+      for await (const part of req.parts()) {
+        if (part.type !== 'file') continue;
+        fileCount += 1;
+        if (fileCount > 1) break;
+        buf = await part.toBuffer();
+        if (part.file.truncated) oversize = true;
+      }
+    } catch (e) {
+      if ((e as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') oversize = true;
+      else parseErr = true;
+    }
+    if (parseErr) { reply.code(400); return { error: 'Carga de archivo inválida.' }; }
+    if (fileCount > 1) { reply.code(400); return { error: 'Subí exactamente un archivo.' }; }
+    if (oversize || (buf && buf.length > MAX_LOGO_BYTES)) { reply.code(413); return { error: 'El logo supera el máximo de 2 MB.' }; }
+    if (fileCount === 0 || !buf) { reply.code(400); return { error: 'Se requiere un archivo de logo.' }; }
+
+    let png: Buffer;
+    try {
+      png = await processLogo(buf);
+    } catch (e) {
+      reply.code(e instanceof CoverError && e.code === 'unsupported_type' ? 415 : 400);
+      return { error: e instanceof Error ? e.message : 'Imagen inválida.' };
+    }
+
+    let root: string;
+    try { root = await ensureWritableRoot(); }
+    catch (e) { req.log.error({ err: e }, 'uploads dir no escribible (logo)'); reply.code(500); return { error: 'Almacenamiento de logos no disponible.' }; }
+
+    let name: string;
+    try { name = await writeLogoAtomic(root, png); }
+    catch (e) { req.log.error({ err: e }, 'logo: fallo al escribir'); reply.code(500); return { error: 'No se pudo guardar el logo.' }; }
+
+    req.log.info({ org: org.id, name }, 'logo de identidad subido');
+    reply.code(201);
+    return { logoUrl: `/uploads/${name}` } satisfies BrandingLogoUploadResponse;
   });
 };

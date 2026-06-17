@@ -11,10 +11,11 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import {
-  detectImageKind, assertAllowedImage, processCover, persistCover, CoverError,
+  detectImageKind, assertAllowedImage, assertLogoImage, processCover, processLogo,
+  persistCover, CoverError, LOGO_MAX_W, LOGO_MAX_H,
 } from '../src/services/cover-upload.js';
 import {
-  isSafeUploadName, resolveWithinRoot, writeCoverAtomic, deletePreviousCoverIfV2,
+  isSafeUploadName, resolveWithinRoot, writeCoverAtomic, writeLogoAtomic, deletePreviousCoverIfV2,
   ensureWritableRoot, StorageError, coverUrlFromName, isV2CoverName,
 } from '../src/storage.js';
 
@@ -72,6 +73,50 @@ describe('processCover → WebP sin recorte (inside 1600×2400)', () => {
   });
   it('lanza decode_failed con bytes inválidos', async () => {
     await expect(processCover(Buffer.from('not an image'))).rejects.toThrow(CoverError);
+  });
+});
+
+describe('logo del tenant: assertLogoImage / processLogo / writeLogoAtomic', () => {
+  it('assertLogoImage acepta png/jpeg/webp/svg y rechaza gif/garbage', async () => {
+    expect(assertLogoImage(await png())).toBe('png');
+    expect(assertLogoImage(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'))).toBe('svg');
+    for (const bad of [Buffer.from('GIF89a'), Buffer.from('xxxx')]) {
+      expect(() => assertLogoImage(bad)).toThrow(CoverError);
+    }
+  });
+
+  it('processLogo normaliza a PNG dentro de 600×400 sin agrandar', async () => {
+    // 1200×800 (excede) → encaja a 600×400 conservando proporción
+    const big = await sharp({ create: { width: 1200, height: 800, channels: 4, background: { r: 200, g: 80, b: 0, alpha: 1 } } }).png().toBuffer();
+    const out = await processLogo(big);
+    expect(detectImageKind(out)).toBe('png');
+    const meta = await sharp(out).metadata();
+    expect(meta.width).toBe(LOGO_MAX_W);
+    expect(meta.height).toBe(LOGO_MAX_H);
+  });
+
+  it('processLogo NO agranda un logo chico (withoutEnlargement)', async () => {
+    const small = await sharp({ create: { width: 120, height: 60, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const meta = await sharp(await processLogo(small)).metadata();
+    expect(meta.width).toBe(120);
+    expect(meta.height).toBe(60);
+  });
+
+  it('processLogo rasteriza SVG a PNG', async () => {
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><rect width="100" height="40" fill="#e65100"/></svg>');
+    const out = await processLogo(svg);
+    expect(detectImageKind(out)).toBe('png');
+  });
+
+  it('processLogo lanza decode_failed con bytes inválidos', async () => {
+    await expect(processLogo(Buffer.from('<svg garbage that wont decode'))).rejects.toThrow(CoverError);
+  });
+
+  it('writeLogoAtomic escribe un .png con nombre v2-logo-… y sin .tmp colgando', async () => {
+    const name = await writeLogoAtomic(dir, Buffer.from('png-bytes'));
+    expect(name).toMatch(/^v2-logo-[0-9a-f-]{36}\.png$/);
+    expect(await readFile(path.join(dir, name))).toEqual(Buffer.from('png-bytes'));
+    expect((await readdir(dir)).filter((f) => f.startsWith('.tmp-'))).toHaveLength(0);
   });
 });
 

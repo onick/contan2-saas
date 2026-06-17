@@ -9,10 +9,11 @@
 // fuera de alcance; el editor persiste y el preview refleja lo elegido.)
 
 import { useCallback, useMemo, useState } from 'react';
-import { Loader2, Check, AlertTriangle, ImageOff } from 'lucide-react';
+import { Loader2, Check, AlertTriangle } from 'lucide-react';
 import { Card, Button, cn, focusRing } from '../ui';
 import { textOn, isHex6 } from '../../lib/branding/contrast';
 import { updateBranding } from '../../lib/api/branding-client';
+import { LogoUploadField } from './LogoUploadField';
 
 type SidebarTheme = 'brand' | 'dark' | 'light';
 export interface BrandingInitial {
@@ -82,16 +83,7 @@ export function BrandingEditor({ initial, canEdit }: Props) {
               <input value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={120} disabled={!canEdit} className={inputCls} />
             </label>
 
-            <label className="block"><span className={labelCls}>Logo (URL https:// o /uploads/…)</span>
-              <div className="mt-1 flex items-center gap-3">
-                <span className="grid h-12 w-12 flex-none place-items-center overflow-hidden rounded-lg border border-line bg-page">
-                  {form.logoUrl ? <img src={form.logoUrl} alt="" className="h-full w-full object-contain" /> : <ImageOff size={18} className="text-faint" aria-hidden="true" />}
-                </span>
-                <input value={form.logoUrl ?? ''} onChange={(e) => set('logoUrl', e.target.value || null)} placeholder="https://…/logo.png" disabled={!canEdit} className={cn('min-h-11 flex-1 rounded-lg border bg-surface px-3 py-2.5 text-[14px] text-ink', logoValid ? 'border-line' : 'border-danger-fg', focusRing)} />
-                {form.logoUrl ? <Button variant="secondary" size="sm" onClick={() => set('logoUrl', null)} disabled={!canEdit}>Quitar</Button> : null}
-              </div>
-              {!logoValid ? <p className="mt-1 text-[12px] text-danger-fg">Debe ser una ruta /uploads/… o una URL https://</p> : null}
-            </label>
+            <LogoUploadField value={form.logoUrl} onChange={(url) => set('logoUrl', url)} disabled={!canEdit} />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {(['primaryColor', 'secondaryColor'] as const).map((key) => {
