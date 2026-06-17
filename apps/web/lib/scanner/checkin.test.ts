@@ -2,12 +2,18 @@ import { describe, it, expect } from 'vitest';
 import { classifyCheckin } from './checkin';
 
 describe('scanner · classifyCheckin (status/mensaje → estado)', () => {
-  it('200 → success con el código de la respuesta', () => {
-    const body = { code: 'CCB-AB12CD', visitCount: 3, partySize: 1, activity: { id: 'a1', name: 'Cine' } };
+  it('200 con firstName → mensaje personal (nombre protagonista) + código/visita', () => {
+    const body = { code: 'CCB-AB12CD', firstName: 'Braulio', visitCount: 3, partySize: 1, activity: { id: 'a1', name: 'Cine' } };
     const r = classifyCheckin(200, body);
     expect(r.kind).toBe('success');
-    expect(r.detail).toBe('CCB-AB12CD');
+    expect(r.title).toBe('Braulio, ¡ya estás registrado!');
+    expect(r.detail).toBe('CCB-AB12CD · visita N.º 3');
     expect(r.data).toEqual(body);
+  });
+
+  it('200 sin firstName → título genérico', () => {
+    const r = classifyCheckin(200, { code: 'CCB-XY99ZZ', visitCount: 1, partySize: 1, activity: { id: 'a', name: 'X' } });
+    expect(r.title).toBe('¡Registrado!');
   });
 
   it('409 "ya registrado" → already', () => {

@@ -352,7 +352,7 @@ function OutcomeBanner({ outcome }: { outcome: CheckinOutcome }) {
             {outcome.data.protocol.plusOnes > 0 ? ` · +${outcome.data.protocol.plusOnes} acompañantes` : ''}
           </p>
         ) : null}
-        <p className="font-semibold">{outcome.title}</p>
+        <p className={outcome.kind === 'success' ? 'text-[17px] font-bold leading-snug' : 'font-semibold'}>{outcome.title}</p>
         {outcome.kind === 'success' && outcome.data ? (
           <p className="font-mono text-sm">
             {outcome.data.code} · visita N.º {outcome.data.visitCount}

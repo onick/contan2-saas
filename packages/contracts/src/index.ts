@@ -877,6 +877,7 @@ export type ProtocolBadge = z.infer<typeof ProtocolBadgeSchema>;
 
 export const PublicCheckinResponseSchema = z.object({
   code: z.string(),          // código real del visitante (QR = este valor)
+  firstName: z.string().optional(), // nombre para el mensaje del scanner
   visitCount: z.number().int(),
   partySize: z.number().int(), // 1 + companionsChildren (cupos descontados)
   activity: z.object({ id: z.string(), name: z.string() }),

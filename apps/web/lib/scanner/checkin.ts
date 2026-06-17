@@ -24,7 +24,13 @@ export function classifyCheckin(status: number, body: unknown): CheckinOutcome {
   const msg = errorText(body);
   if (status === 200) {
     const data = body as PublicCheckinResponse;
-    return { kind: 'success', title: 'Registrado', detail: data.code, data };
+    // Mensaje personal: el NOMBRE como protagonista; el código/visita debajo.
+    return {
+      kind: 'success',
+      title: data.firstName ? `${data.firstName}, ¡ya estás registrado!` : '¡Registrado!',
+      detail: `${data.code} · visita N.º ${data.visitCount}`,
+      data,
+    };
   }
   if (status === 409) {
     if (/registrad/i.test(msg)) {
