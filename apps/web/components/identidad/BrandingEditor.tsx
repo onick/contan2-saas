@@ -9,6 +9,7 @@
 // fuera de alcance; el editor persiste y el preview refleja lo elegido.)
 
 import { useCallback, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2, Check, AlertTriangle } from 'lucide-react';
 import { Card, Button, cn, focusRing } from '../ui';
 import { textOn, isHex6 } from '../../lib/branding/contrast';
@@ -32,6 +33,7 @@ const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((
 const LOGO_RE = /^(\/uploads\/[\w./-]{1,200}|https:\/\/[\w.\-/?=&%:]{1,300})$/;
 
 export function BrandingEditor({ initial, canEdit }: Props) {
+  const router = useRouter();
   const [form, setForm] = useState<BrandingInitial>(initial);
   const [saved, setSaved] = useState<BrandingInitial>(initial);
   const [phase, setPhase] = useState<'idle' | 'saving'>('idle');
@@ -67,10 +69,13 @@ export function BrandingEditor({ initial, canEdit }: Props) {
       const next: BrandingInitial = { name: o.name, logoUrl: o.logoUrl, credentialLogoUrl: o.credentialLogoUrl, primaryColor: o.primaryColor, secondaryColor: o.secondaryColor, sidebarTheme: o.sidebarTheme as SidebarTheme };
       setSaved(next); setForm(next);
       setMsg({ kind: 'ok', text: 'Identidad guardada.' });
+      // Re-ejecuta el layout (server) → re-inyecta los CSS vars de marca en TODO
+      // el admin (sidebar, botones, otras páginas) sin reload manual.
+      router.refresh();
     } else {
       setMsg({ kind: 'error', text: r.error });
     }
-  }, [dirty, valid, phase, diff]);
+  }, [dirty, valid, phase, diff, router]);
 
   const inputCls = cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[14px] text-ink', focusRing);
   const labelCls = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-faint';

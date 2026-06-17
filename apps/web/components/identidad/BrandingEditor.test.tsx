@@ -2,7 +2,11 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { BrandingEditor, type BrandingInitial } from './BrandingEditor';
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+// El editor llama router.refresh() tras guardar para re-tematizar el admin.
+const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
+
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); refresh.mockClear(); });
 
 const INITIAL: BrandingInitial = { name: 'CCB', logoUrl: null, credentialLogoUrl: null, primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand' };
 const J = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -17,6 +21,7 @@ describe('BrandingEditor', () => {
     await waitFor(() => expect(screen.getByText('Identidad guardada.')).toBeInTheDocument());
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
     expect(body).toEqual({ name: 'CCB Nuevo' }); // solo el campo cambiado
+    expect(refresh).toHaveBeenCalled(); // re-tematiza el admin tras guardar
   });
 
   it('primario de bajo contraste (#f39228) → aviso AA (texto oscuro)', () => {
