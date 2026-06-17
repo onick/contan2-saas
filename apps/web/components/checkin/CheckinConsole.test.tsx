@@ -14,14 +14,16 @@ const visitor = { id: 'u1', code: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: '
 interface H {
   metrics?: () => Response; activities?: () => Response; visitors?: (q: string) => Response;
   checkin?: (b: Record<string, unknown>) => Response; anonymous?: (b: Record<string, unknown>, key: string | null) => Response;
-  recent?: () => Response;
+  recent?: () => Response; invitations?: () => Response;
 }
+const emptyInvitations = { summary: { total: 0, pending: 0, confirmed: 0, declined: 0, expired: 0, canceled: 0, attended: 0 }, invitations: [] };
 function installFetch(h: H) {
   const fn = vi.fn(async (url: string, init?: { body?: string; headers?: Record<string, string> }) => {
     const u = String(url);
     if (u.includes('/api/metrics')) return h.metrics?.() ?? J(502, {});
     if (u.includes('/api/recent')) return h.recent?.() ?? J(200, { items: [], total: 0, limit: 8, offset: 0 });
     if (u.includes('/api/activities')) return h.activities?.() ?? J(502, {});
+    if (u.includes('/invitations')) return h.invitations?.() ?? J(200, emptyInvitations);
     if (u.includes('/api/visitors')) return h.visitors?.(new URL(u, 'http://x').searchParams.get('q') ?? '') ?? J(200, { items: [] });
     if (u.includes('/api/checkin')) return h.checkin?.(JSON.parse(init?.body ?? '{}')) ?? J(502, {});
     if (u.includes('/api/anonymous')) return h.anonymous?.(JSON.parse(init?.body ?? '{}'), init?.headers?.['idempotency-key'] ?? null) ?? J(502, {});
@@ -65,6 +67,15 @@ describe('CheckinConsole', () => {
     render(<CheckinConsole />);
     await waitFor(() => expect(screen.getByText('Concierto')).toBeInTheDocument());
     expect(screen.queryByText('Listas de invitados')).not.toBeInTheDocument();
+  });
+
+  it('botón "Lista" en una actividad activa (aunque vacía) abre el modal con estado para empezar la lista', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs() }); // act1 sin guestList
+    render(<CheckinConsole />);
+    await waitFor(() => expect(screen.getByText('Concierto')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /^Lista$/ }));
+    expect(await screen.findByText('Lista de invitados')).toBeInTheDocument(); // eyebrow del modal
+    expect(await screen.findByText(/Nadie en la lista todavía/)).toBeInTheDocument(); // estado vacío que invita a buscar
   });
 
   it('API caída → estado honesto, NUNCA demo', async () => {

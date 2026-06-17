@@ -494,6 +494,11 @@ export function CheckinConsole() {
                       </p>
                     </div>
                     <div className="flex flex-none items-center gap-2">
+                      {/* Gateway al modal de lista de invitados · disponible en toda
+                          actividad activa (también vacía: ahí se empieza la lista). */}
+                      <Button variant="secondary" size="sm" onClick={() => setGuestListAct(a)}>
+                        <ListChecks size={15} strokeWidth={2} aria-hidden="true" /> Lista
+                      </Button>
                       {/* Armado → naranja ACENTO. style inline: cn no hace
                           tailwind-merge y el bg del variant ganaba por orden CSS. */}
                       <Button size="sm" disabled={!selected || a.full || busyActivity === a.id} onClick={() => registerExisting(a)}
