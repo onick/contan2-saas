@@ -53,6 +53,9 @@ export async function guestListStatsFor(
 ): Promise<Map<string, GuestListStats>> {
   if (activityIds.length === 0) return new Map();
   const rows = await db.selectFrom('invitations as i')
+    // Excluir invitados ARCHIVADOS (users.deleted_at) para que el conteo del card
+    // coincida con la lista del modal (no contar gente oculta del padrón).
+    .innerJoin('users as iu', 'iu.id', 'i.user_id')
     .leftJoin('attendance as a', (join) => join
       .onRef('a.user_id', '=', 'i.user_id')
       .onRef('a.activity_id', '=', 'i.activity_id')
@@ -63,6 +66,7 @@ export async function guestListStatsFor(
       eb.fn.count<number>('i.id').distinct().as('total'),
       eb.fn.count<number>('a.id').distinct().as('arrived'),
     ])
+    .where('iu.deleted_at', 'is', null)
     .where('i.organization_id', '=', orgId)
     .where('i.activity_id', 'in', activityIds)
     .where('i.status', '!=', 'canceled')

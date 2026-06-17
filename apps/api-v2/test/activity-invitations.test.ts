@@ -213,6 +213,26 @@ run('RSVP · invitar audiencia segmentada', () => {
     expect(invU7.attendanceId ?? null).toBeNull();
   });
 
+  it('lista: invitado ARCHIVADO (users.deleted_at) NO aparece ni cuenta; reactivar lo trae de vuelta', async () => {
+    const actA = await mkAct({ capacity: 10, enrolled_count: 0 });
+    const uVis = await mkUser(`av-${stamp}@t.local`);
+    const uArch = await mkUser(`aa-${stamp}@t.local`);
+    await call('POST', `/api/v2/activities/${actA}/invitations`, { userIds: [uVis, uArch] }, TOK.admin);
+    // archivar a uArch (= lo que hace el endpoint /users/:code/archive: deleted_at)
+    await db.updateTable('users').set({ deleted_at: new Date().toISOString() }).where('id', '=', uArch).execute();
+    const list = ActivityInvitationsResponseSchema.parse(
+      (await call('GET', `/api/v2/activities/${actA}/invitations`, undefined, TOK.admin)).json());
+    expect(list.summary.total).toBe(1); // solo el activo
+    const ids = list.invitations.map((i) => i.userId);
+    expect(ids).toContain(uVis);
+    expect(ids).not.toContain(uArch); // el archivado ya no figura en la lista
+    // reversible: reactivar (deleted_at=null) → vuelve a la lista
+    await db.updateTable('users').set({ deleted_at: null }).where('id', '=', uArch).execute();
+    const list2 = ActivityInvitationsResponseSchema.parse(
+      (await call('GET', `/api/v2/activities/${actA}/invitations`, undefined, TOK.admin)).json());
+    expect(list2.summary.total).toBe(2);
+  });
+
   it('entrega: POST en dry-run deja sent_at null; deliverInvitations con transporte real lo marca', async () => {
     const u5 = await mkUser(`f5-${stamp}@t.local`);
     await call('POST', `/api/v2/activities/${actCine}/invitations`, { userIds: [u5] }, TOK.admin);

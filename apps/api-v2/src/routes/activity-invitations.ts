@@ -332,6 +332,10 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
       .select(['i.id', 'i.user_id', 'i.status', 'i.sent_at', 'i.responded_at', 'i.expires_at', 'i.created_at',
         'i.kind', 'i.plus_ones', 'u.code', 'u.first_name', 'u.last_name', 'u.email'])
       .select((eb) => eb.fn.max('a.id').as('attendance_id'))
+      // Excluir invitados ARCHIVADOS (users.deleted_at): al ocultar a alguien del
+      // padrón también debe salir de la lista de la actividad. Reversible: si se
+      // reactiva el usuario, su invitación vuelve a verse.
+      .where('u.deleted_at', 'is', null)
       .where('i.organization_id', '=', orgId).where('i.activity_id', '=', id)
       .groupBy(['i.id', 'i.user_id', 'i.status', 'i.sent_at', 'i.responded_at', 'i.expires_at', 'i.created_at',
         'i.kind', 'i.plus_ones', 'u.code', 'u.first_name', 'u.last_name', 'u.email'])
