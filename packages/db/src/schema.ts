@@ -59,6 +59,8 @@ export interface OrganizationsTable {
   plan: DefaultedEnum<OrgPlan>;
   sidebar_style: DefaultedEnum<SidebarStyle>;
   email_logo_url: string | null;
+  // Logo propio de la credencial / tarjeta de miembro (si null, cae a logo_url).
+  credential_logo_url: string | null;
   custom_domain_verify_token: string | null;
   created_at: CreatedAt;
   updated_at: UpdatedAt;

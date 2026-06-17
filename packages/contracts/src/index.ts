@@ -69,6 +69,7 @@ export const OrgBrandingResponseSchema = z.object({
     name: z.string(),
     logoUrl: z.string().nullable(),
     emailLogoUrl: z.string().nullable(),
+    credentialLogoUrl: z.string().nullable(),
     primaryColor: z.string(),
     secondaryColor: z.string(),
     sidebarTheme: z.enum(['brand', 'dark', 'light']),
@@ -93,6 +94,7 @@ export const AdminBrandingUpdateRequestSchema = z.object({
   secondaryColor: BrandHex.optional(),
   sidebarTheme: z.enum(['brand', 'dark', 'light']).optional(),
   logoUrl: BrandLogo.optional(),
+  credentialLogoUrl: BrandLogo.optional(),
 }).strict();
 export type AdminBrandingUpdateRequest = z.infer<typeof AdminBrandingUpdateRequestSchema>;
 

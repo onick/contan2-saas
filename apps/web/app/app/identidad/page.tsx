@@ -13,13 +13,13 @@ export const metadata: Metadata = {
   description: 'Marca de la organización: nombre, logo, colores y menú',
 };
 
-const FALLBACK: BrandingInitial = { name: 'Centro Cultural', logoUrl: null, primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand' };
+const FALLBACK: BrandingInitial = { name: 'Centro Cultural', logoUrl: null, credentialLogoUrl: null, primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand' };
 
 export default async function IdentidadPage() {
   const branding = getLocalBranding();
   const gate = await getAdminGate();
   const initial: BrandingInitial = gate.status === 'ok'
-    ? { name: gate.branding.name, logoUrl: gate.branding.logoUrl, primaryColor: gate.branding.primaryColor, secondaryColor: gate.branding.secondaryColor, sidebarTheme: gate.branding.sidebarTheme }
+    ? { name: gate.branding.name, logoUrl: gate.branding.logoUrl, credentialLogoUrl: gate.branding.credentialLogoUrl, primaryColor: gate.branding.primaryColor, secondaryColor: gate.branding.secondaryColor, sidebarTheme: gate.branding.sidebarTheme }
     : FALLBACK;
   const canEdit = gate.status === 'ok' && (gate.staff.role === 'owner' || gate.staff.role === 'admin');
 

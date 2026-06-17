@@ -76,6 +76,22 @@ run('PATCH /org/branding', () => {
     expect((await patch({}, TOK.admin)).statusCode).toBe(400); // sin cambios
   });
 
+  it('credentialLogoUrl: logo propio de la credencial, independiente de logoUrl', async () => {
+    const res = await patch({ logoUrl: '/uploads/general.png', credentialLogoUrl: '/uploads/credencial.png' }, TOK.admin);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().organization).toMatchObject({ logoUrl: '/uploads/general.png', credentialLogoUrl: '/uploads/credencial.png' });
+    const row = await db.selectFrom('organizations').select(['logo_url', 'credential_logo_url']).where('id', '=', orgAId).executeTakeFirstOrThrow();
+    expect(row.logo_url).toBe('/uploads/general.png');
+    expect(row.credential_logo_url).toBe('/uploads/credencial.png');
+    // se puede limpiar solo el de la credencial sin tocar el general
+    expect((await patch({ credentialLogoUrl: null }, TOK.admin)).statusCode).toBe(200);
+    const row2 = await db.selectFrom('organizations').select(['logo_url', 'credential_logo_url']).where('id', '=', orgAId).executeTakeFirstOrThrow();
+    expect(row2.credential_logo_url).toBeNull();
+    expect(row2.logo_url).toBe('/uploads/general.png');
+    // rechaza javascript: igual que logoUrl
+    expect((await patch({ credentialLogoUrl: 'javascript:alert(1)' }, TOK.admin)).statusCode).toBe(400);
+  });
+
   it('operator → 403; sin sesión → 401; cross-tenant (admin B en host A) → 403', async () => {
     expect((await patch({ name: 'x' }, TOK.operator)).statusCode).toBe(403);
     expect((await patch({ name: 'x' })).statusCode).toBe(401);

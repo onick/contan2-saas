@@ -4,7 +4,7 @@ import { BrandingEditor, type BrandingInitial } from './BrandingEditor';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-const INITIAL: BrandingInitial = { name: 'CCB', logoUrl: null, primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand' };
+const INITIAL: BrandingInitial = { name: 'CCB', logoUrl: null, credentialLogoUrl: null, primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand' };
 const J = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 describe('BrandingEditor', () => {

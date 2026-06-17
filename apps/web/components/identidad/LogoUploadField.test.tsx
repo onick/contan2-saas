@@ -11,13 +11,14 @@ const png = (name = 'logo.png') => new File([new Uint8Array([0x89, 0x50, 0x4e, 0
 function fileInput(): HTMLInputElement {
   return document.querySelector('input[type="file"]') as HTMLInputElement;
 }
+const BASE = { label: 'Logo', previewLabel: 'Credencial' } as const;
 
 describe('LogoUploadField', () => {
   it('sube el archivo y devuelve la ruta al onChange', async () => {
     const fetchMock = vi.fn().mockResolvedValue(J(201, { logoUrl: '/uploads/v2-logo-abc.png' }));
     vi.stubGlobal('fetch', fetchMock);
     const onChange = vi.fn();
-    render(<LogoUploadField value={null} onChange={onChange} />);
+    render(<LogoUploadField {...BASE} value={null} onChange={onChange} />);
     fireEvent.change(fileInput(), { target: { files: [png()] } });
     await waitFor(() => expect(onChange).toHaveBeenCalledWith('/uploads/v2-logo-abc.png'));
     expect(fetchMock.mock.calls[0]![0]).toBe('/app/identidad/api/logo');
@@ -27,7 +28,7 @@ describe('LogoUploadField', () => {
   it('rechaza formatos no permitidos sin llamar a la API', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    render(<LogoUploadField value={null} onChange={vi.fn()} />);
+    render(<LogoUploadField {...BASE} value={null} onChange={vi.fn()} />);
     const pdf = new File([new Uint8Array([1, 2, 3])], 'doc.pdf', { type: 'application/pdf' });
     fireEvent.change(fileInput(), { target: { files: [pdf] } });
     await waitFor(() => expect(screen.getByText(/Formato no permitido/i)).toBeInTheDocument());
@@ -36,23 +37,23 @@ describe('LogoUploadField', () => {
 
   it('muestra el error que devuelve la API', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(413, { error: 'El logo supera el máximo de 2 MB.' })));
-    render(<LogoUploadField value={null} onChange={vi.fn()} />);
+    render(<LogoUploadField {...BASE} value={null} onChange={vi.fn()} />);
     fireEvent.change(fileInput(), { target: { files: [png()] } });
     await waitFor(() => expect(screen.getByText(/supera el máximo de 2 MB/i)).toBeInTheDocument());
   });
 
-  it('con valor muestra preview dual (Credencial + Sidebar) y permite quitar', () => {
+  it('renderiza label + previewLabel y permite quitar cuando hay valor', () => {
     const onChange = vi.fn();
-    render(<LogoUploadField value="/uploads/v2-logo-abc.png" onChange={onChange} />);
+    render(<LogoUploadField label="Logo de la tarjeta de miembro" previewLabel="Credencial" value="/uploads/v2-logo-abc.png" onChange={onChange} />);
+    expect(screen.getByText('Logo de la tarjeta de miembro')).toBeInTheDocument();
     expect(screen.getByText('Credencial')).toBeInTheDocument();
-    expect(screen.getByText('Sidebar')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Quitar/i }));
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
   it('opción avanzada: pegar una URL setea el valor', () => {
     const onChange = vi.fn();
-    render(<LogoUploadField value={null} onChange={onChange} />);
+    render(<LogoUploadField {...BASE} value={null} onChange={onChange} />);
     fireEvent.click(screen.getByRole('button', { name: /¿Tu logo está en una URL/i }));
     fireEvent.change(screen.getByPlaceholderText(/https:/i), { target: { value: 'https://cdn.x/logo.png' } });
     expect(onChange).toHaveBeenCalledWith('https://cdn.x/logo.png');
@@ -61,7 +62,7 @@ describe('LogoUploadField', () => {
   it('deshabilitado no dispara subida', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    render(<LogoUploadField value={null} onChange={vi.fn()} disabled />);
+    render(<LogoUploadField {...BASE} value={null} onChange={vi.fn()} disabled />);
     fireEvent.change(fileInput(), { target: { files: [png()] } });
     expect(fetchMock).not.toHaveBeenCalled();
   });

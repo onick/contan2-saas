@@ -35,6 +35,7 @@ const ORG = {
   name: 'Centro Cultural Banreservas',
   logoUrl: null,
   emailLogoUrl: null,
+  credentialLogoUrl: null,
   primaryColor: '#e65100',
   secondaryColor: '#ff6f00',
   sidebarTheme: 'brand',

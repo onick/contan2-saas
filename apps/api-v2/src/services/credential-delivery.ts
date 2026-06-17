@@ -41,7 +41,7 @@ export async function deliverCredential(
   const org = await db
     .selectFrom('organizations')
     .select([
-      'name', 'primary_color', 'secondary_color', 'logo_url', 'email_logo_url',
+      'name', 'primary_color', 'secondary_color', 'logo_url', 'email_logo_url', 'credential_logo_url',
       'email_from_addr', 'email_from_name', 'email_reply_to',
     ])
     .where('id', '=', orgId)
@@ -51,7 +51,7 @@ export async function deliverCredential(
     ? { name: org.name, primaryColor: org.primary_color, secondaryColor: org.secondary_color }
     : null;
 
-  const logo = await loadLogoDataUri(org?.logo_url ?? org?.email_logo_url ?? null);
+  const logo = await loadLogoDataUri(org?.credential_logo_url ?? org?.logo_url ?? org?.email_logo_url ?? null);
   const png = await generateCredentialPng(user, branding, logo);
 
   // Remitente: prefiere el de la org (email_from_addr/name); si no, el del env.

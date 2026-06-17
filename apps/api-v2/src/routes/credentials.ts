@@ -59,7 +59,8 @@ export const credentialsRoute: FastifyPluginAsync = async (app) => {
       primaryColor: tenant.org.primaryColor,
       secondaryColor: tenant.org.secondaryColor,
     };
-    const logo = await loadLogoDataUri(tenant.org.logoUrl ?? tenant.org.emailLogoUrl ?? null);
+    // La tarjeta de miembro usa su logo propio si existe; si no, cae al general.
+    const logo = await loadLogoDataUri(tenant.org.credentialLogoUrl ?? tenant.org.logoUrl ?? tenant.org.emailLogoUrl ?? null);
     const png = await generateCredentialPng(
       { code: user.code, firstName: user.first_name, lastName: user.last_name },
       branding,

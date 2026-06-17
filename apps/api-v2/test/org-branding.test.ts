@@ -102,11 +102,11 @@ run('GET /api/v2/org/branding', () => {
     expect(body.organization.status).toBe('active');
   });
 
-  it('payload shape · 9 keys exactas', async () => {
+  it('payload shape · 10 keys exactas', async () => {
     const res = await get(hostA, TOK.a);
     const body = res.json() as { organization: Record<string, unknown> };
     expect(Object.keys(body.organization).sort()).toEqual([
-      'emailLogoUrl', 'id', 'logoUrl', 'name', 'primaryColor',
+      'credentialLogoUrl', 'emailLogoUrl', 'id', 'logoUrl', 'name', 'primaryColor',
       'secondaryColor', 'sidebarTheme', 'slug', 'status',
     ]);
   });

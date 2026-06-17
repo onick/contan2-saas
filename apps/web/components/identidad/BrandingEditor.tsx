@@ -19,6 +19,7 @@ type SidebarTheme = 'brand' | 'dark' | 'light';
 export interface BrandingInitial {
   name: string;
   logoUrl: string | null;
+  credentialLogoUrl: string | null;
   primaryColor: string;
   secondaryColor: string;
   sidebarTheme: SidebarTheme;
@@ -47,7 +48,8 @@ export function BrandingEditor({ initial, canEdit }: Props) {
   const primaryValid = isHex6(form.primaryColor);
   const secondaryValid = isHex6(form.secondaryColor);
   const logoValid = !form.logoUrl || LOGO_RE.test(form.logoUrl);
-  const valid = primaryValid && secondaryValid && logoValid && form.name.trim().length > 0;
+  const credentialLogoValid = !form.credentialLogoUrl || LOGO_RE.test(form.credentialLogoUrl);
+  const valid = primaryValid && secondaryValid && logoValid && credentialLogoValid && form.name.trim().length > 0;
 
   // Contraste del primario (caso #f39228 → texto oscuro).
   const tone = primaryValid ? textOn(form.primaryColor) : null;
@@ -59,7 +61,7 @@ export function BrandingEditor({ initial, canEdit }: Props) {
     setPhase('idle');
     if (r.ok) {
       const o = r.data.organization;
-      const next: BrandingInitial = { name: o.name, logoUrl: o.logoUrl, primaryColor: o.primaryColor, secondaryColor: o.secondaryColor, sidebarTheme: o.sidebarTheme as SidebarTheme };
+      const next: BrandingInitial = { name: o.name, logoUrl: o.logoUrl, credentialLogoUrl: o.credentialLogoUrl, primaryColor: o.primaryColor, secondaryColor: o.secondaryColor, sidebarTheme: o.sidebarTheme as SidebarTheme };
       setSaved(next); setForm(next);
       setMsg({ kind: 'ok', text: 'Identidad guardada.' });
     } else {
@@ -83,7 +85,24 @@ export function BrandingEditor({ initial, canEdit }: Props) {
               <input value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={120} disabled={!canEdit} className={inputCls} />
             </label>
 
-            <LogoUploadField value={form.logoUrl} onChange={(url) => set('logoUrl', url)} disabled={!canEdit} />
+            <LogoUploadField
+              label="Logo"
+              hint="Aparece en el menú lateral, el encabezado del panel y la pantalla del kiosko."
+              previewLabel="Menú · kiosko"
+              value={form.logoUrl}
+              onChange={(url) => set('logoUrl', url)}
+              disabled={!canEdit}
+            />
+
+            <LogoUploadField
+              label="Logo de la tarjeta de miembro"
+              hint="Va en la credencial que recibe cada visitante. Si lo dejás vacío, se usa el logo principal."
+              previewLabel="Credencial"
+              previewBg="#ffffff"
+              value={form.credentialLogoUrl}
+              onChange={(url) => set('credentialLogoUrl', url)}
+              disabled={!canEdit}
+            />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {(['primaryColor', 'secondaryColor'] as const).map((key) => {
