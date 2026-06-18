@@ -274,8 +274,8 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
           </Card>
         </div>
 
-        {/* top + nuevos/recurrentes (la "Comparación" se fusionó en los KPIs) */}
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
+        {/* top + nuevos/recurrentes — mismo grid que Evolución+Distribución (columnas alineadas) */}
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.7fr_1fr]">
           <Card padding="lg">
             <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Top actividades</h2>
             {data.topActivities.length === 0 ? <p className="mt-5 text-[13px] text-muted">Sin actividades en el período.</p> : (
