@@ -154,7 +154,8 @@ export class MemoryActivityRepository {
   async finalizePastActivities(now = Date.now()) {
     const finalized = [];
     for (const a of this.activities.values()) {
-      if (a.status === 'activa' && new Date(a.date).getTime() < now) {
+      // Por la HORA DE CIERRE (endDate) si existe; si no, por la de inicio (date).
+      if (a.status === 'activa' && new Date(a.endDate ?? a.end_date ?? a.date).getTime() < now) {
         a.status = 'finalizada';
         a.updatedAt = new Date().toISOString();
         finalized.push({ ...a });

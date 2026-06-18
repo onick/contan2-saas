@@ -234,12 +234,14 @@ export class PostgresActivityRepository {
   }
 
   async finalizePastActivities(now = Date.now()) {
+    // Finaliza por la HORA DE CIERRE configurada (end_date); si no hay, cae a la
+    // de inicio (date). Antes usaba `date` → cerraba la actividad apenas EMPEZABA.
     const { rows } = await this.pool.query(
       `UPDATE activities
        SET status = 'finalizada', updated_at = NOW()
        WHERE organization_id = $1
          AND status = 'activa'
-         AND date < $2
+         AND COALESCE(end_date, date) < $2
        RETURNING *`,
       [this.orgId, new Date(now).toISOString()],
     );

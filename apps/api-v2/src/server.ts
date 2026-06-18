@@ -3,8 +3,9 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import { loadConfig } from '@contan2/config';
-import { closeDb } from '@contan2/db';
+import { closeDb, getDb } from '@contan2/db';
 import { closeRedis } from './redis-client.js';
+import { startAutoFinalize } from './services/auto-finalize.js';
 import { MAX_COVER_BYTES } from './services/cover-upload.js';
 import { uploadsRoute } from './routes/uploads.js';
 import { healthzRoute } from './routes/healthz.js';
@@ -121,6 +122,11 @@ if (isMain) {
   const app = buildApp();
   app
     .listen({ port: config.PORT, host: '0.0.0.0' })
+    .then(() => {
+      // Auto-finaliza actividades por su HORA DE CIERRE (end_date). Solo en el
+      // proceso real (no en buildApp de los tests).
+      startAutoFinalize(getDb());
+    })
     .catch((err: unknown) => {
       app.log.error(err);
       process.exit(1);
