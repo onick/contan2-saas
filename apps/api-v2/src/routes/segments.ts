@@ -56,6 +56,31 @@ function prettyCategory(category: string): string {
   return category.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
+// Agrupa los pares (user, categoría-cruda, n) por SLUG canónico (insensible a
+// acentos/mayúsculas) → una entrada por categoría real, con usuarios DISTINTOS y
+// el label = la grafía cruda más usada (por asistencias, conserva el acento).
+// Resuelve el duplicado "Cine Clásico" vs "Cine Clasico". Orden alfabético.
+export interface CategoryGroup { slug: string; label: string; userCount: number }
+export function groupCategoriesBySlug(pairs: Array<{ user_id: string; k: string; n: number }>): CategoryGroup[] {
+  const bySlug = new Map<string, { users: Set<string>; labels: Map<string, number> }>();
+  for (const p of pairs) {
+    if (Number(p.n) < 1) continue;
+    const slug = slugifyCategory(p.k);
+    if (!slug) continue;
+    let e = bySlug.get(slug);
+    if (!e) { e = { users: new Set<string>(), labels: new Map<string, number>() }; bySlug.set(slug, e); }
+    e.users.add(p.user_id);
+    e.labels.set(p.k, (e.labels.get(p.k) ?? 0) + Number(p.n));
+  }
+  return [...bySlug.entries()]
+    .map(([slug, e]) => ({
+      slug,
+      label: [...e.labels.entries()].sort((a, b) => b[1] - a[1])[0]![0],
+      userCount: e.users.size,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+}
+
 interface SegmentDef {
   id: string;
   label: string;
@@ -142,10 +167,12 @@ export async function resolveSegmentMembers(
   } else if (segId.startsWith('fans-cat-')) {
     const slug = segId.slice('fans-cat-'.length);
     const pairs = await fanPairs(db, orgId, 'category');
-    const cat = [...new Set(pairs.map((p) => p.k))].find((c) => slugifyCategory(c) === slug);
-    if (cat) {
-      def = { id: segId, label: `Interesados en ${prettyCategory(cat)}`, description: 'Al menos una asistencia a este ciclo o categoría', group: 'categorias' };
-      ids = pairs.filter((p) => p.k === cat && Number(p.n) >= 1).map((p) => p.user_id);
+    // Matchea TODAS las grafías cuyo slug coincide (acento/mayúsculas-insensible),
+    // con usuarios DISTINTOS — espejo de groupCategoriesBySlug del catálogo.
+    const grp = groupCategoriesBySlug(pairs).find((g) => g.slug === slug);
+    if (grp) {
+      def = { id: segId, label: `Interesados en ${prettyCategory(grp.label)}`, description: 'Al menos una asistencia a este ciclo o categoría', group: 'categorias' };
+      ids = [...new Set(pairs.filter((p) => Number(p.n) >= 1 && slugifyCategory(p.k) === slug).map((p) => p.user_id))];
     }
   } else if (segId.startsWith('fans-')) {
     const t = segId.slice('fans-'.length);
@@ -215,15 +242,17 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
       });
     }
 
-    // Categorías dinámicas (ciclos): ≥1 asistencia. Orden alfabético.
-    const cats = [...new Set(byCategory.map((p) => p.k))].sort();
-    for (const cat of cats) {
+    // Categorías dinámicas (ciclos): ≥1 asistencia. Se agrupan por SLUG (insensible
+    // a acentos/mayúsculas) para NO duplicar grafías distintas de la misma categoría
+    // ("Cine Clásico" vs "Cine Clasico"). Usuarios DISTINTOS (uno que asistió a ambas
+    // grafías cuenta una vez). El label es la grafía más usada (conserva el acento).
+    for (const c of groupCategoriesBySlug(byCategory)) {
       segments.push({
-        id: `fans-cat-${slugifyCategory(cat)}`,
-        label: `Interesados en ${prettyCategory(cat)}`,
+        id: `fans-cat-${c.slug}`,
+        label: `Interesados en ${prettyCategory(c.label)}`,
         description: 'Al menos una asistencia a este ciclo o categoría',
         group: 'categorias',
-        count: byCategory.filter((p) => p.k === cat && Number(p.n) >= 1).length,
+        count: c.userCount,
       });
     }
 

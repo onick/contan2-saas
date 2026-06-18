@@ -29,6 +29,13 @@ const TYPE_META: Record<string, { label: string; color: string; Icon: LucideIcon
   conferencia: { label: 'Conferencias', color: '#10b981', Icon: Presentation },
 };
 
+// Paleta categórica ordenada (del ejemplo). Se asigna por índice → colores
+// variados e intencionales, no el naranja de marca por fallback. "Otros" gris.
+const PALETTE = ['#3b6fe0', '#8b5cf6', '#14b8a6', '#f59e0b', '#10b981', '#ec4899', '#6366f1', '#f43f5e'] as const;
+const OTROS_COLOR = '#cbd5e1';
+const paletteAt = (i: number): string => PALETTE[i % PALETTE.length] as string;
+const shortInterest = (label: string): string => label.replace(/^Interesados? en\s+/i, '');
+
 const ENGAGEMENT_META: Record<string, { tint: string; Icon: LucideIcon }> = {
   active: { tint: 'bg-success-bg text-success-fg', Icon: Activity },
   newcomers: { tint: 'bg-[#e8f0fe] text-[#1a56b0]', Icon: Sparkles },
@@ -50,30 +57,30 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
   const afinidad = segments.filter((s) => s.group === 'afinidad');
   const categorias = segments.filter((s) => s.group === 'categorias');
 
-  // Donut: fans por TIPO (afinidad). Porcentajes relativos al total de fans
-  // tipificados (no inventamos "Otros").
-  type DonutEntry = { seg: Segment; type: string; meta: { label: string; color: string; Icon: LucideIcon } };
-  const donut: DonutEntry[] = afinidad
-    .map((s) => ({ seg: s, type: s.id.replace('fans-', ''), meta: TYPE_META[s.id.replace('fans-', '')] }))
-    .filter((d): d is DonutEntry => Boolean(d.meta) && d.seg.count > 0)
-    .sort((a, b) => b.seg.count - a.seg.count);
-  const donutSum = donut.reduce((a, d) => a + d.seg.count, 0) || 1;
+  // Donut "Distribución por interés": por CICLO/CATEGORÍA, que es donde hay
+  // espagamiento real (los fans por tipo dependen de un umbral y casi siempre
+  // sólo Cine lo cruza). Top 6 categorías + "Otros" (cola). Colores de la paleta.
+  const DONUT_MAX = 6;
+  const catsSorted = categorias.filter((s) => s.count > 0).sort((a, b) => b.count - a.count);
+  const donutTop = catsSorted.slice(0, DONUT_MAX).map((s, i) => ({ label: shortInterest(s.label), count: s.count, color: paletteAt(i) }));
+  const restCount = catsSorted.slice(DONUT_MAX).reduce((a, s) => a + s.count, 0);
+  const donutItems = restCount > 0 ? [...donutTop, { label: 'Otros', count: restCount, color: OTROS_COLOR }] : donutTop;
+  const donutSum = donutItems.reduce((a, d) => a + d.count, 0) || 1;
   let cum = 0;
-  const slices = donut.map((d) => {
-    const pc = (d.seg.count / donutSum) * 100;
+  const slices = donutItems.map((d) => {
+    const pc = (d.count / donutSum) * 100;
     const slice = { ...d, pc, offset: 25 - cum };
     cum += pc;
     return slice;
   });
 
-  // Top segmentos: afinidad + categorías por tamaño.
+  // Top segmentos: afinidad + categorías por tamaño. % = share sobre la audiencia
+  // activa (los intereses se solapan, no suman 100). Color de la paleta por orden.
   const top = [...afinidad, ...categorias]
     .filter((s) => s.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
   const topMax = top[0]?.count ?? 1;
-  const colorOf = (s: Segment): string =>
-    TYPE_META[s.id.replace('fans-', '')]?.color ?? '#e65100';
 
   const kpis: Array<{ id: string; label: string; sub: string; tint: string; Icon: LucideIcon }> = [
     { id: 'active', label: 'Activos recientes', sub: 'Asistieron en los últimos 30 días', tint: 'bg-success-bg text-success-fg', Icon: Activity },
@@ -190,9 +197,9 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
                   <circle cx="21" cy="21" r="15.91549" fill="none" stroke="var(--color-surface-container, #eef0f4)" strokeWidth="6" />
                   {slices.map((s) => (
                     <circle
-                      key={s.seg.id}
+                      key={s.label}
                       cx="21" cy="21" r="15.91549" fill="none"
-                      stroke={s.meta.color} strokeWidth="6"
+                      stroke={s.color} strokeWidth="6"
                       data-arc={s.pc.toFixed(3)}
                       style={{ strokeDasharray: `${s.pc} ${100 - s.pc}`, strokeDashoffset: s.offset }}
                     />
@@ -207,10 +214,10 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
               </div>
               <ul className="flex-1 space-y-2.5">
                 {slices.map((s) => (
-                  <li key={s.seg.id} className="flex items-center gap-3 text-[13.5px]">
-                    <span className="h-2.5 w-2.5 flex-none rounded-sm" style={{ background: s.meta.color }} />
-                    <span className="text-ink/80">{s.meta.label}</span>
-                    <span className="ml-auto font-bold tabular-nums text-ink">{fmt(s.seg.count)}</span>
+                  <li key={s.label} className="flex items-center gap-3 text-[13.5px]">
+                    <span className="h-2.5 w-2.5 flex-none rounded-sm" style={{ background: s.color }} />
+                    <span className="min-w-0 truncate text-ink/80">{s.label}</span>
+                    <span className="ml-auto font-bold tabular-nums text-ink">{fmt(s.count)}</span>
                     <span className="w-12 text-right text-faint tabular-nums">({Math.round(s.pc)}%)</span>
                   </li>
                 ))}
@@ -231,7 +238,7 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
           ) : (
             <div className="mt-3">
               {top.map((s, i) => {
-                const color = colorOf(s);
+                const color = paletteAt(i);
                 const Icon = TYPE_META[s.id.replace('fans-', '')]?.Icon ?? Heart;
                 return (
                   <a key={s.id} href={`/app/segmentos/${encodeURIComponent(s.id)}`}

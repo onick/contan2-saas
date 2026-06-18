@@ -14,10 +14,34 @@ import { createDb, type Database } from '@contan2/db';
 import { hashToken } from '@contan2/auth';
 import { SegmentsResponseSchema, SegmentMembersResponseSchema } from '@contan2/contracts';
 import { buildApp } from '../src/server.js';
-import { slugifyCategory } from '../src/routes/segments.js';
+import { slugifyCategory, groupCategoriesBySlug } from '../src/routes/segments.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const run = DATABASE_URL ? describe : describe.skip;
+
+// Unit (sin DB): dedup de categorías por acento/mayúsculas.
+describe('groupCategoriesBySlug · dedup por acento/mayúsculas', () => {
+  it('"Cine Clásico" y "Cine Clasico" se fusionan en un segmento, usuarios distintos, label acentuado', () => {
+    const pairs = [
+      { user_id: 'u1', k: 'cine clásico', n: 3 },
+      { user_id: 'u2', k: 'cine clásico', n: 1 },
+      { user_id: 'u3', k: 'cine clasico', n: 1 }, // grafía sin acento
+      { user_id: 'u1', k: 'cine clasico', n: 1 }, // u1 en ambas → cuenta UNA vez
+      { user_id: 'u4', k: 'Tertulia', n: 2 },
+    ];
+    const out = groupCategoriesBySlug(pairs);
+    const clasico = out.find((c) => c.slug === 'cine-clasico')!;
+    expect(clasico).toBeTruthy();
+    expect(clasico.userCount).toBe(3); // u1, u2, u3 (u1 una sola vez)
+    expect(clasico.label).toBe('cine clásico'); // grafía más usada (4 asistencias vs 2)
+    // sólo dos segmentos (cine-clasico + tertulia), no tres
+    expect(out.map((c) => c.slug).sort()).toEqual(['cine-clasico', 'tertulia']);
+  });
+
+  it('ignora n<1 y categorías vacías', () => {
+    expect(groupCategoriesBySlug([{ user_id: 'u1', k: '', n: 5 }])).toEqual([]);
+  });
+});
 
 const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
 
