@@ -1,45 +1,60 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+import type { PeriodSummaryResponse } from '@contan2/contracts';
 import ReportesPage from './page';
 
-// Módulo Reportes (S2): período (preview+descargas) + por actividad + export
-// operativo. Página async (trae actividades para el selector) → se renderiza
-// el JSX awaited. Cero plantillas inertes ni href="#".
+// Reportes · dashboard ejecutivo. La página fetchea el period-summary inicial
+// (server-side, mockeado) y renderiza el dashboard rico; cero controles inertes.
 vi.mock('../../../components/shell/AppShell', () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../../../lib/api/activities', () => ({
-  getActivitiesView: vi.fn().mockResolvedValue({
-    activities: [
-      { id: 'a1', title: 'Concierto real', date: '10 jun 2026', statusRaw: 'finalizada' },
-      { id: 'demo', title: 'Demo', date: 'x' }, // sin statusRaw → fuera del selector
+
+vi.mock('../../../lib/api/reports', async (orig) => {
+  const actual = await orig<typeof import('../../../lib/api/reports')>();
+  const SAMPLE: PeriodSummaryResponse = {
+    range: { from: '2026-06-01', to: '2026-06-13' },
+    prevRange: { from: '2026-05-19', to: '2026-05-31' },
+    kpis: { activities: 4, attendances: 238, uniqueVisitors: 197, occupancyPct: 48 },
+    prev: { activities: 7, attendances: 521, uniqueVisitors: 448, occupancyPct: 58 },
+    deltas: { activities: -43, attendances: -54, uniqueVisitors: -56, occupancyPct: -17 },
+    byType: [
+      { type: 'cine', label: 'Cine', attendances: 180, pct: 76 },
+      { type: 'conferencia', label: 'Conferencia', attendances: 58, pct: 24 },
     ],
-    total: 2,
-  }),
-}));
+    topActivities: [
+      { id: 'a1', name: 'Cine Dominicano: Los pasos del tiempo', type: 'cine', attendances: 80, occupancyPct: 53 },
+      { id: 'a2', name: 'Conferencia Arte & Terapia', type: 'conferencia', attendances: 58, occupancyPct: 40 },
+    ],
+    newVsReturning: { nuevos: 67, recurrentes: 130 },
+    daily: Array.from({ length: 13 }, (_, i) => ({ label: `${i + 1} jun`, current: 40 + i, previous: 30 + i })),
+    byHour: [{ hour: 19, count: 52 }, { hour: 20, count: 30 }],
+    byWeekday: [{ weekday: 6, count: 55 }, { weekday: 0, count: 40 }],
+  };
+  return { ...actual, getPeriodSummary: vi.fn().mockResolvedValue(SAMPLE) };
+});
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-describe('/app/reportes', () => {
-  it('módulo completo: período + por actividad + export operativo; cero controles inertes', async () => {
-    // La preview del período fetchea al montar → stub neutro.
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: 'x' }), { status: 400, headers: { 'content-type': 'application/json' } }),
-    ));
+describe('/app/reportes · dashboard', () => {
+  it('renderiza KPIs + paneles del período con datos reales; export con rango vivo', async () => {
     render(await ReportesPage());
 
-    expect(screen.getByText('Informe de período')).toBeInTheDocument();
-    expect(screen.getByText('Este mes')).toBeInTheDocument(); // presets
-    expect(screen.getByText('Informe por actividad')).toBeInTheDocument();
-    // Selector sólo con actividades REALES.
-    expect(screen.getByRole('option', { name: /Concierto real/ })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /Demo/ })).toBeNull();
-    // Export operativo sigue presente.
-    expect(screen.getByText(/Asistencia por actividad/i)).toBeInTheDocument();
-    // Descargas del período apuntan al BFF con rango vivo (no href="#").
-    const dead = Array.from(document.querySelectorAll('a[href="#"]'));
-    expect(dead).toHaveLength(0);
-    const pdf = screen.getByRole('link', { name: /informe del período en PDF/i });
-    expect(pdf.getAttribute('href')).toMatch(/kind=pdf&from=\d{4}-\d{2}-\d{2}&to=/);
+    expect(screen.getByRole('heading', { name: 'Reportes' })).toBeInTheDocument();
+    // KPIs (los labels también aparecen en "Comparación" → getAllByText)
+    expect(screen.getAllByText('Actividades').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Visitantes únicos').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('238').length).toBeGreaterThan(0); // asistencias (KPI + comparación)
+    // Filtros
+    expect(screen.getByText('Este mes')).toBeInTheDocument();
+    expect(screen.getByText('Todos los tipos')).toBeInTheDocument();
+    // Paneles
+    expect(screen.getByText('Evolución de asistencias')).toBeInTheDocument();
+    expect(screen.getByText('Distribución por tipo de actividad')).toBeInTheDocument();
+    expect(screen.getByText('Top actividades')).toBeInTheDocument();
+    expect(screen.getByText('Nuevos vs. recurrentes')).toBeInTheDocument();
+    // Export apunta al BFF con rango vivo (no href="#").
+    expect(document.querySelectorAll('a[href="#"]')).toHaveLength(0);
+    const pdf = screen.getByRole('link', { name: /Descargar PDF/i });
+    expect(pdf.getAttribute('href')).toMatch(/\/app\/reportes\/api\/period\?kind=pdf&from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}/);
   });
 });

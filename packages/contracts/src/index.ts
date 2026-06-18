@@ -1109,6 +1109,35 @@ export const ReportAttendanceByActivityResponseSchema = z.object({
 });
 export type ReportAttendanceByActivityResponse = z.infer<typeof ReportAttendanceByActivityResponseSchema>;
 
+// ── Dashboard ejecutivo de Reportes (period-summary) ───────────────────────
+// Todo desde datos reales: KPIs + delta vs período anterior, serie diaria,
+// distribución por tipo, top, nuevos vs recurrentes, por hora y por día.
+const PeriodKpisSchema = z.object({
+  activities: z.number().int(),
+  attendances: z.number().int(),
+  uniqueVisitors: z.number().int(),
+  occupancyPct: z.number().int(),
+});
+export const PeriodSummaryResponseSchema = z.object({
+  range: z.object({ from: z.string(), to: z.string() }),
+  prevRange: z.object({ from: z.string(), to: z.string() }),
+  kpis: PeriodKpisSchema,
+  prev: PeriodKpisSchema,
+  deltas: z.object({
+    activities: z.number().int().nullable(),
+    attendances: z.number().int().nullable(),
+    uniqueVisitors: z.number().int().nullable(),
+    occupancyPct: z.number().int().nullable(),
+  }),
+  byType: z.array(z.object({ type: z.string(), label: z.string(), attendances: z.number().int(), pct: z.number().int() })),
+  topActivities: z.array(z.object({ id: z.string(), name: z.string(), type: z.string(), attendances: z.number().int(), occupancyPct: z.number().int() })),
+  newVsReturning: z.object({ nuevos: z.number().int(), recurrentes: z.number().int() }),
+  daily: z.array(z.object({ label: z.string(), current: z.number().int(), previous: z.number().int() })),
+  byHour: z.array(z.object({ hour: z.number().int(), count: z.number().int() })),
+  byWeekday: z.array(z.object({ weekday: z.number().int(), count: z.number().int() })),
+});
+export type PeriodSummaryResponse = z.infer<typeof PeriodSummaryResponseSchema>;
+
 // ── Historial · log de auditoría del tenant (F5) ───────────────────────────
 export const AuditLogItemSchema = z.object({
   id: z.string(),

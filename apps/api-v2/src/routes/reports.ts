@@ -12,6 +12,8 @@ import type { ReportAttendanceByActivityResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { attendanceByActivity, parseRange, ReportError } from '../services/report-data.js';
+import { periodSummary } from '../services/reports/period-summary.js';
+import { ACTIVITY_TYPES, type PeriodSummaryResponse } from '@contan2/contracts';
 import { CSV_BOM, csvRow, safeFilename } from '../services/csv.js';
 import { buildAttendanceWorkbook } from '../services/report-excel.js';
 import { buildAttendancePdf } from '../services/report-pdf.js';
@@ -77,6 +79,26 @@ const CSV_HEADER = [
 ];
 
 export const reportsRoute: FastifyPluginAsync = async (app) => {
+  // Dashboard ejecutivo (read-only · cualquier staff del tenant). Agregados del
+  // período + comparación con el anterior, todo desde datos reales.
+  app.get('/reports/period-summary', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const q = req.query as Record<string, unknown>;
+    // types: CSV de tipos válidos (enum). Vacío/ausente = todos.
+    const allowed = new Set<string>(ACTIVITY_TYPES);
+    const types = String(q.types ?? '').split(',').map((t) => t.trim()).filter((t) => allowed.has(t));
+    try {
+      const range = parseRange(q.from, q.to);
+      const body: PeriodSummaryResponse = await periodSummary(db, guard.ctx.org.id, range, types.length ? types : undefined);
+      return body;
+    } catch (e) {
+      if (e instanceof ReportError) { reply.code(e.status); return { error: e.message }; }
+      throw e;
+    }
+  });
+
   app.get('/reports/attendance-by-activity', async (req, reply) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);

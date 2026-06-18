@@ -114,6 +114,22 @@ run('GET /reports/attendance-by-activity', () => {
     expect(body.period).toEqual({ from: FROM, to: TO });
   });
 
+  it('period-summary → KPIs + deltas + byType + daily + nuevos/recurrentes', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/v2/reports/period-summary?from=${FROM}&to=${TO}`, headers: { host: hostA, cookie: `contan2_session=${TOK.admin}` } });
+    expect(res.statusCode).toBe(200);
+    const b = res.json();
+    expect(b.kpis).toMatchObject({ activities: 2, attendances: 3, occupancyPct: 5 });
+    expect(b.kpis.uniqueVisitors).toBeGreaterThanOrEqual(1);
+    expect(b.byType[0]).toMatchObject({ type: 'concierto', attendances: 3, pct: 100 });
+    expect(b.topActivities[0].name).toBe('Concierto Jazz');
+    expect(b.daily.length).toBe(31); // 1..31 de marzo
+    expect(b.newVsReturning.nuevos + b.newVsReturning.recurrentes).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(b.byHour) && Array.isArray(b.byWeekday)).toBe(true);
+    expect(b.prevRange).toEqual({ from: '2026-01-29', to: '2026-02-28' }); // 31 días antes
+    // sin sesión → 401
+    expect((await app.inject({ method: 'GET', url: `/api/v2/reports/period-summary?from=${FROM}&to=${TO}`, headers: { host: hostA } })).statusCode).toBe(401);
+  });
+
   it('owner también puede; operator → 403', async () => {
     expect((await get(`?from=${FROM}&to=${TO}`, TOK.owner)).statusCode).toBe(200);
     expect((await get(`?from=${FROM}&to=${TO}`, TOK.operator)).statusCode).toBe(403);
