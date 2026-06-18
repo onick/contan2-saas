@@ -191,7 +191,7 @@ export interface ActivityReportData {
     endDate: string | null; capacity: number; enrolledCount: number;
     status: string; description: string; category: string | null;
   };
-  attendances: Array<{ userId: string | null; userCode: string | null; registeredAt: string; anonymous: boolean; companionsChildren: number }>;
+  attendances: Array<{ userId: string | null; userCode: string | null; registeredAt: string; anonymous: boolean; companionsChildren: number; companionsAdults: number }>;
   users: Array<{ id: string; code: string; firstName: string; lastName: string; email: string | null; phone: string | null; visitCount: number; createdAt: string }>;
   affinities: Array<{ totalAttendances: number }>;
   // Protocolo (PR-6): invitados especiales de la actividad (invitación kind
@@ -249,7 +249,7 @@ export async function loadActivityReportData(db: DbClient, orgId: string, activi
   if (!a) return null;
 
   const atts = await db.selectFrom('attendance')
-    .select(['user_id', 'user_code', 'registered_at', 'anonymous', 'companions_children'])
+    .select(['user_id', 'user_code', 'registered_at', 'anonymous', 'companions_children', 'companions_adults'])
     .where('organization_id', '=', orgId).where('activity_id', '=', activityId)
     .orderBy('registered_at', 'desc')
     .execute();
@@ -294,6 +294,7 @@ export async function loadActivityReportData(db: DbClient, orgId: string, activi
       registeredAt: new Date(x.registered_at as unknown as string).toISOString(),
       anonymous: x.anonymous,
       companionsChildren: x.companions_children ?? 0,
+      companionsAdults: x.companions_adults ?? 0,
     })),
     users,
     affinities,

@@ -197,7 +197,7 @@ export function CheckinConsole() {
   async function registerExisting(act: CheckinActivityItem) {
     if (!selected || busyActivity || act.full) return;
     setBusyActivity(act.id);
-    const r = await postCheckin({ activityId: act.id, visitor: { code: selected.code }, companionsChildren: 0 });
+    const r = await postCheckin({ activityId: act.id, visitor: { code: selected.code }, companionsChildren: 0, companionsAdults: 0 });
     setBusyActivity(null);
     if (r.ok) {
       const proto = r.data.protocol;

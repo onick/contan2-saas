@@ -22,7 +22,7 @@ const DETAIL = {
 const SUMMARY = {
   totalAttendances: 5, identifiedCount: 4, anonymousCount: 1, occupancyPct: 80,
   newcomers: 2, returning: 2, vipCount: 1, avgPriorAttendances: 2.8, newcomerRatio: 50,
-  companionsChildren: 3, peopleInRoom: 8,
+  companionsChildren: 3, companionsAdults: 2, peopleInRoom: 10,
 };
 
 // GET detalle (sin /summary) → DETAIL; GET /summary → lo que diga el test.
@@ -50,12 +50,12 @@ describe('ActivityDetailDrawer · resumen post-evento', () => {
     expect(screen.getByText('Prom. 2.8 visitas previas')).toBeInTheDocument();
     expect(screen.getByText('VIPs presentes')).toBeInTheDocument();
     expect(screen.getByText('Personas en sala')).toBeInTheDocument();
-    expect(screen.getByText('Incluye 3 niños acompañantes')).toBeInTheDocument();
+    expect(screen.getByText('Incluye 3 niños y 2 adultos acompañantes')).toBeInTheDocument();
     expect(screen.getByText('Sin credencial')).toBeInTheDocument();
   });
 
   it('actividad ACTIVA → el encabezado dice "Resumen en vivo"', async () => {
-    mockFetch({ status: 200, body: { summary: { ...SUMMARY, companionsChildren: 0, peopleInRoom: 5, anonymousCount: 0 } } });
+    mockFetch({ status: 200, body: { summary: { ...SUMMARY, companionsChildren: 0, companionsAdults: 0, peopleInRoom: 5, anonymousCount: 0 } } });
     render(<ActivityDetailDrawer activity={{ ...ACT, status: 'live', statusLabel: 'Activa', statusRaw: 'activa' }} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Resumen en vivo')).toBeInTheDocument());
     // sin companions ni anónimos → esas tarjetas no aparecen

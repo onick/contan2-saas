@@ -111,7 +111,7 @@ export async function attendanceByActivity(
       'a.enrolled_count as enrolledCount',
     ])
     .select((eb) => eb.fn.count('att.id').as('attendances'))
-    .select(sql<string>`coalesce(sum(1 + att.companions_children), 0)`.as('people'))
+    .select(sql<string>`coalesce(sum(1 + att.companions_children + att.companions_adults), 0)`.as('people'))
     .select(sql<string>`count(att.id) filter (where att.anonymous)`.as('anonymous'))
     .orderBy('a.date', 'desc')
     .execute();

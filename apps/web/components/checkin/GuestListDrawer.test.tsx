@@ -153,7 +153,7 @@ describe('GuestListDrawer', () => {
     fireEvent.click(within(row).getByRole('button', { name: /Dar entrada/ }));
     await waitFor(() => expect(onArrival).toHaveBeenCalled());
     const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/check-in/api/checkin'))!;
-    expect(JSON.parse((call[1] as { body: string }).body).companionsChildren).toBe(2);
+    expect(JSON.parse((call[1] as { body: string }).body).companionsAdults).toBe(2);
   });
 
   it('invitado normal: agregar acompañante (botón + stepper) → "Dar entrada" lo cuenta', async () => {
@@ -165,6 +165,6 @@ describe('GuestListDrawer', () => {
     fireEvent.click(within(row).getByRole('button', { name: /Dar entrada/ }));
     await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/check-in/api/checkin'))).toBe(true));
     const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/check-in/api/checkin'))!;
-    expect(JSON.parse((call[1] as { body: string }).body).companionsChildren).toBe(2);
+    expect(JSON.parse((call[1] as { body: string }).body).companionsAdults).toBe(2);
   });
 });

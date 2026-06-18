@@ -145,10 +145,10 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
       const att = await tx.deleteFrom('attendance')
         .where('organization_id', '=', guard.ctx.org.id)
         .where('id', '=', id)
-        .returning(['activity_id', 'companions_children', 'user_code'])
+        .returning(['activity_id', 'companions_children', 'companions_adults', 'user_code'])
         .executeTakeFirst();
       if (!att) return null;
-      const partySize = 1 + (att.companions_children ?? 0);
+      const partySize = 1 + (att.companions_children ?? 0) + (att.companions_adults ?? 0);
       await tx.updateTable('activities')
         .set(() => ({ enrolled_count: sql<number>`greatest(0, enrolled_count - ${partySize})` }))
         .where('organization_id', '=', guard.ctx.org.id)

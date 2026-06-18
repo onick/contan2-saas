@@ -123,7 +123,7 @@ describe('CheckinConsole', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Registrar/i })[0]!);
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Quedó auditado/i));
     const post = fn.mock.calls.find((c) => String(c[0]).includes('/api/checkin'))!;
-    expect(JSON.parse((post[1] as { body: string }).body)).toEqual({ activityId: 'A1', visitor: { code: 'CCB-7K2P9Q' }, companionsChildren: 0 });
+    expect(JSON.parse((post[1] as { body: string }).body)).toEqual({ activityId: 'A1', visitor: { code: 'CCB-7K2P9Q' }, companionsChildren: 0, companionsAdults: 0 });
     await waitFor(() => expect(metricCalls).toBeGreaterThan(before)); // refrescó
   });
 

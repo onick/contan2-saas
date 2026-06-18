@@ -658,7 +658,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
 
     const atts = await db
       .selectFrom('attendance')
-      .select(['user_id', 'companions_children'])
+      .select(['user_id', 'companions_children', 'companions_adults'])
       .where('organization_id', '=', orgId)
       .where('activity_id', '=', id)
       .execute();
@@ -670,6 +670,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     const identifiedIds = [...new Set(identifiedRows.map((a) => a.user_id!))];
     const identifiedCount = identifiedIds.length;
     const companionsChildren = atts.reduce((sum, a) => sum + (a.companions_children ?? 0), 0);
+    const companionsAdults = atts.reduce((sum, a) => sum + (a.companions_adults ?? 0), 0);
 
     // Asistencias TOTALES por usuario identificado (en toda la org), en un solo
     // GROUP BY — define nuevo (=1), habitual (>1) y VIP (>=10).
@@ -710,7 +711,8 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
         avgPriorAttendances: identifiedCount > 0 ? Math.round((priorSum / identifiedCount) * 10) / 10 : 0,
         newcomerRatio: identifiedCount > 0 ? Math.round((newcomers / identifiedCount) * 100) : 0,
         companionsChildren,
-        peopleInRoom: totalAttendances + companionsChildren,
+        companionsAdults,
+        peopleInRoom: totalAttendances + companionsChildren + companionsAdults,
       },
     };
     return body;

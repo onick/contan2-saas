@@ -243,8 +243,12 @@ export interface AttendanceTable {
   checked_in_at: NullableTs;
   anonymous: DefaultedBool;
   // Niños acompañantes del adulto responsable (migración 023). SMALLINT NOT NULL
-  // DEFAULT 0: aditiva, v1 la ignora. partySize = 1 + companions_children.
+  // DEFAULT 0: aditiva, v1 la ignora. partySize = 1 + companions_children +
+  // companions_adults.
   companions_children: DefaultedInt;
+  // Acompañantes ADULTOS (migración 033). Gala/público adulto + acompañantes de
+  // protocolo. Misma forma aditiva que companions_children; v1 la ignora.
+  companions_adults: DefaultedInt;
   // TIMESTAMPTZ NOT NULL DEFAULT NOW(): default, se setea al registrar.
   registered_at: CreatedAt;
 }

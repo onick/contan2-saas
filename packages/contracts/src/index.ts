@@ -266,7 +266,8 @@ export const ActivitySummarySchema = z.object({
   avgPriorAttendances: z.number(), // promedio de visitas previas (1 decimal)
   newcomerRatio: z.number().int(), // % nuevos sobre identificados
   companionsChildren: z.number().int(), // niños acompañantes (suma)
-  peopleInRoom: z.number().int(), // asistencias + acompañantes
+  companionsAdults: z.number().int(), // adultos acompañantes (suma)
+  peopleInRoom: z.number().int(), // asistencias + acompañantes (niños + adultos)
 });
 export type ActivitySummary = z.infer<typeof ActivitySummarySchema>;
 export const ActivitySummaryResponseSchema = z.object({ summary: ActivitySummarySchema });
@@ -754,6 +755,7 @@ export const UserActivityHistoryItemSchema = z.object({
   checkedInAt: z.string().nullable(),  // ISO 8601 | null (no asistió / sólo RSVP)
   attended: z.boolean(),               // checked_in_at IS NOT NULL
   companionsChildren: z.number().int(),
+  companionsAdults: z.number().int(),
 });
 export type UserActivityHistoryItem = z.infer<typeof UserActivityHistoryItemSchema>;
 export const UserActivityHistoryResponseSchema = z.object({
@@ -867,6 +869,8 @@ export type PublicVisitorLookupResponse = z.infer<typeof PublicVisitorLookupResp
 // identifica por código, por email, o se registra como nuevo (un solo adulto
 // por check-in; sólo niños como acompañantes). Tope server-side de niños.
 export const MAX_COMPANIONS_CHILDREN = 10;
+// Tope de acompañantes ADULTOS por check-in (consola de puerta / protocolo).
+export const MAX_COMPANIONS_ADULTS = 10;
 
 export const PublicCheckinRequestSchema = z.object({
   activityId: z.string().min(1),
@@ -900,7 +904,7 @@ export const PublicCheckinResponseSchema = z.object({
   code: z.string(),          // código real del visitante (QR = este valor)
   firstName: z.string().optional(), // nombre para el mensaje del scanner
   visitCount: z.number().int(),
-  partySize: z.number().int(), // 1 + companionsChildren (cupos descontados)
+  partySize: z.number().int(), // 1 + companionsChildren + companionsAdults (cupos descontados)
   activity: z.object({ id: z.string(), name: z.string() }),
   protocol: ProtocolBadgeSchema.nullable().optional(),
 });
@@ -990,7 +994,11 @@ const AdminCheckinVisitorSchema = z.union([
 export const AdminCheckinRequestSchema = z.object({
   activityId: z.string().min(1),
   visitor: AdminCheckinVisitorSchema,
-  companionsChildren: z.number().int().min(0).max(10),
+  // Acompañantes: niños (colegios/familia) y/o adultos (gala/protocolo). La
+  // consola de puerta envía adultos por defecto; el kiosko (otro schema) sólo
+  // niños. Ambos opcionales con default 0 → partySize = 1 + niños + adultos.
+  companionsChildren: z.number().int().min(0).max(MAX_COMPANIONS_CHILDREN).optional().default(0),
+  companionsAdults: z.number().int().min(0).max(MAX_COMPANIONS_ADULTS).optional().default(0),
   // addToList: además del check-in, ASEGURA la fila de invitación para que la
   // persona aparezca en la "Lista de invitados" de la actividad (admitir desde la
   // puerta a alguien no invitado / recién creado). kind hereda 'protocol' si la

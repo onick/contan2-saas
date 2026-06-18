@@ -64,10 +64,11 @@ run('GET /activities/:id/summary · resumen post-evento', () => {
     } as never).execute();
     return id;
   };
-  const attend = async (org: string, activityId: string, userId: string | null, companions = 0) => {
+  const attend = async (org: string, activityId: string, userId: string | null, companions = 0, adults = 0) => {
     await db.insertInto('attendance').values({
       id: randomUUID(), organization_id: org, user_id: userId, activity_id: activityId,
-      activity_name: 'x', user_code: null, anonymous: userId === null, companions_children: companions,
+      activity_name: 'x', user_code: null, anonymous: userId === null,
+      companions_children: companions, companions_adults: adults,
     } as never).execute();
   };
 
@@ -115,7 +116,7 @@ run('GET /activities/:id/summary · resumen post-evento', () => {
     const u3 = await mkUser(orgAId);
     await attend(orgAId, prev1, u3);
     await attend(orgAId, prev2, u3);
-    await attend(orgAId, act, u3);
+    await attend(orgAId, act, u3, 0, 2); // u3 trae 2 acompañantes ADULTOS (puerta)
 
     // u4: VIP (9 previas + esta = 10 totales).
     const u4 = await mkUser(orgAId);
@@ -147,7 +148,8 @@ run('GET /activities/:id/summary · resumen post-evento', () => {
       avgPriorAttendances: 2.8, // (0+0+2+9)/4
       newcomerRatio: 50,
       companionsChildren: 3, // 2 de u2 + 1 del anónimo
-      peopleInRoom: 8, // 5 + 3
+      companionsAdults: 2, // 2 de u3 (acompañantes adultos de puerta)
+      peopleInRoom: 10, // 5 + 3 niños + 2 adultos
     });
   });
 

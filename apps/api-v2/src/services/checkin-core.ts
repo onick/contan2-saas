@@ -61,6 +61,7 @@ export interface CheckinIdentifiedParams {
   activityId: string;
   visitor: CheckinVisitorRef;
   companionsChildren: number;
+  companionsAdults: number;
 }
 export interface CheckinIdentifiedResult {
   code: string;
@@ -75,12 +76,12 @@ export interface CheckinIdentifiedResult {
 
 // Check-in de visitante IDENTIFICADO (existente por código/email o nuevo inline).
 // Reusa reserveCapacity. La asistencia es idempotente por (org,user,activity): si
-// choca → 409 (re-check-in o carrera). partySize = 1 + companionsChildren.
+// choca → 409 (re-check-in o carrera). partySize = 1 + niños + adultos.
 export async function checkinIdentified(
   tx: DbClient,
-  { orgId, codePrefix, activityId, visitor, companionsChildren }: CheckinIdentifiedParams,
+  { orgId, codePrefix, activityId, visitor, companionsChildren, companionsAdults }: CheckinIdentifiedParams,
 ): Promise<CheckinIdentifiedResult> {
-  const partySize = 1 + companionsChildren;
+  const partySize = 1 + companionsChildren + companionsAdults;
 
   // 1 · Resolver o crear visitante (scoped al tenant).
   let user: { id: string; code: string; visit_count: number };
@@ -139,7 +140,7 @@ export async function checkinIdentified(
   if (!isNew) {
     const reservaPrevia = await tx
       .selectFrom('attendance')
-      .select(['id', 'checked_in_at', 'companions_children'])
+      .select(['id', 'checked_in_at', 'companions_children', 'companions_adults'])
       .where('organization_id', '=', orgId)
       .where('activity_id', '=', activityId)
       .where('user_id', '=', user.id)
@@ -167,7 +168,7 @@ export async function checkinIdentified(
       return {
         code: user.code,
         visitCount: user.visit_count + 1,
-        partySize: 1 + reservaPrevia.companions_children,
+        partySize: 1 + reservaPrevia.companions_children + reservaPrevia.companions_adults,
         activity: { id: act.id, name: act.name },
         userId: user.id,
         attendanceId: reservaPrevia.id,
@@ -192,6 +193,7 @@ export async function checkinIdentified(
       activity_id: reserved.id,
       activity_name: reserved.name,
       companions_children: companionsChildren,
+      companions_adults: companionsAdults,
       checked_in_at: new Date().toISOString(),
       anonymous: false,
     })

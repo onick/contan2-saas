@@ -464,6 +464,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
           'attendance.registered_at as registeredAt',
           'attendance.checked_in_at as checkedInAt',
           'attendance.companions_children as companionsChildren',
+          'attendance.companions_adults as companionsAdults',
         ])
         // Orden determinista: por asistencia/registro desc, desempate por activity_id.
         .orderBy(sql`coalesce(attendance.checked_in_at, attendance.registered_at) desc`)
@@ -482,6 +483,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
         checkedInAt: r.checkedInAt ? toIso(r.checkedInAt) : null,
         attended: r.checkedInAt != null,
         companionsChildren: r.companionsChildren,
+        companionsAdults: r.companionsAdults,
       })),
       total: Number(count.n),
       limit,

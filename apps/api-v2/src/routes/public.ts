@@ -260,7 +260,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       const result = await db.transaction().execute(async (tx) => {
         // Núcleo COMPARTIDO: resuelve/crea visitante + reserva cupo atómica +
         // asistencia idempotente + visitas (mismo comportamiento que antes).
-        const r = await checkinIdentified(tx, { orgId, codePrefix: t.codePrefix, activityId, visitor, companionsChildren });
+        const r = await checkinIdentified(tx, { orgId, codePrefix: t.codePrefix, activityId, visitor, companionsChildren, companionsAdults: 0 });
         deliver = r.deliver;
         return r;
       });
@@ -403,6 +403,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
           activity_name: act.name,
           anonymous: false,
           companions_children: 0,
+          companions_adults: 0,
           checked_in_at: null, // reserva por RSVP; el check-in real es en puerta
         } as never).execute();
       }

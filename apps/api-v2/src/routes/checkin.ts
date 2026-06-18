@@ -283,12 +283,12 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     }
     const parsed = AdminCheckinRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Datos de check-in inválidos.' }; }
-    const { activityId, visitor, companionsChildren, addToList } = parsed.data;
+    const { activityId, visitor, companionsChildren, companionsAdults, addToList } = parsed.data;
     const staff = guard.ctx.staff;
 
     try {
       const result = await db.transaction().execute(async (tx) => {
-        const r = await checkinIdentified(tx, { orgId, codePrefix: guard.ctx.org.codePrefix, activityId, visitor, companionsChildren });
+        const r = await checkinIdentified(tx, { orgId, codePrefix: guard.ctx.org.codePrefix, activityId, visitor, companionsChildren, companionsAdults });
         // Admitir desde la lista de invitados: asegura la fila de invitación para
         // que la persona figure en la lista (la asistencia recién creada la marca
         // "Asistió" por el join derivado). Misma tx → atómico con el check-in.
@@ -377,7 +377,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
         const reserved = await reserveCapacity(tx, orgId, activityId, 1);
         await tx.insertInto('attendance').values({
           id: attendanceId, organization_id: orgId, user_id: null, user_code: null,
-          activity_id: reserved.id, activity_name: reserved.name, companions_children: 0,
+          activity_id: reserved.id, activity_name: reserved.name, companions_children: 0, companions_adults: 0,
           checked_in_at: new Date().toISOString(), anonymous: true,
         }).execute();
         await writeCheckinAudit(tx, {

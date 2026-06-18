@@ -78,6 +78,7 @@ export function NewVisitorDrawer({ open, activities, onClose, onDone, initialNam
       activityId: form.activityId,
       visitor: { new: { firstName: form.firstName.trim(), lastName: form.lastName.trim(), ...(form.email.trim() ? { email: form.email.trim() } : {}), ...(form.phone.trim() ? { phone: form.phone.trim() } : {}) } },
       companionsChildren: 0,
+      companionsAdults: 0,
     });
     setBusy(false);
     if (r.ok) {

@@ -98,9 +98,11 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
 
   async function darEntrada(inv: Inv) {
     if (!activityId || busy) return;
-    const companions = companionsOf(inv); // acompañantes a contar en el aforo
+    const companions = companionsOf(inv); // acompañantes ADULTOS a contar en el aforo
     setBusy(inv.id);
-    const r = await postCheckin({ activityId, visitor: { code: inv.code }, companionsChildren: companions });
+    // La puerta registra acompañantes ADULTOS (gala/protocolo). Los niños van por
+    // el kiosko (flujo "¿vienes con niños?"). Ambos cuentan aforo por separado.
+    const r = await postCheckin({ activityId, visitor: { code: inv.code }, companionsChildren: 0, companionsAdults: companions });
     setBusy(null);
     if (r.ok) {
       flash(companions > 0
@@ -130,7 +132,7 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
   async function admit(visitor: AdminCheckinRequest['visitor'], label: string, key: string) {
     if (!activityId || addBusy) return;
     setAddBusy(key);
-    const r = await postCheckin({ activityId, visitor, companionsChildren: 0, addToList: true });
+    const r = await postCheckin({ activityId, visitor, companionsChildren: 0, companionsAdults: 0, addToList: true });
     setAddBusy(null);
     if (r.ok) {
       flash(`${label} entró.`);

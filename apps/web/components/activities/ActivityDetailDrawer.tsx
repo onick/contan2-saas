@@ -8,12 +8,12 @@
 // RESUMEN POST-EVENTO / EN VIVO (paridad v1 insights/activity-summary): tarjetas
 // de asistencias (con % de ocupación y walk-ins), nuevos visitantes (con ratio
 // sobre identificados), habituales (con promedio de visitas previas), VIPs (≥10
-// visitas) y — mejora v2 — personas en sala contando niños acompañantes. La
+// visitas) y — mejora v2 — personas en sala contando acompañantes. La
 // sección sólo aparece cuando hay asistencias; si el fetch falla, se omite (no
 // bloquea el resto del detalle).
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { X, CalendarDays, MapPin, Tag, Users, ImageOff, Pencil, FileText, Loader2, Sparkles, Repeat2, Crown, UserPlus, Baby, BarChart3 } from 'lucide-react';
+import { X, CalendarDays, MapPin, Tag, Users, ImageOff, Pencil, FileText, Loader2, Sparkles, Repeat2, Crown, UserPlus, BarChart3 } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
 import { fetchActivityDetail, fetchActivitySummary } from '../../lib/api/activity-detail';
 import type { ActivitySummary } from '@contan2/contracts';
@@ -168,12 +168,12 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
                   value={summary.totalAttendances}
                   extra={`${summary.occupancyPct}% ocupación${summary.anonymousCount > 0 ? ` · ${summary.anonymousCount} sin credencial` : ''}`}
                 />
-                {summary.companionsChildren > 0 ? (
+                {summary.companionsChildren + summary.companionsAdults > 0 ? (
                   <StatTile
-                    icon={Baby}
+                    icon={Users}
                     label="Personas en sala"
                     value={summary.peopleInRoom}
-                    extra={`Incluye ${summary.companionsChildren} niño${summary.companionsChildren === 1 ? '' : 's'} acompañante${summary.companionsChildren === 1 ? '' : 's'}`}
+                    extra={companionsBreakdown(summary.companionsChildren, summary.companionsAdults)}
                   />
                 ) : null}
                 <StatTile
@@ -318,6 +318,17 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
       ) : null}
     </div>
   );
+}
+
+// Sublínea de "Personas en sala": distingue niños (kiosko) de adultos (puerta).
+// "Incluye 2 niños y 3 adultos acompañantes" / "Incluye 3 adultos acompañantes" /
+// "Incluye 2 niños acompañantes". Asume children + adults > 0 (el caller filtra).
+function companionsBreakdown(children: number, adults: number): string {
+  const parts: string[] = [];
+  if (children > 0) parts.push(`${children} niño${children === 1 ? '' : 's'}`);
+  if (adults > 0) parts.push(`${adults} adulto${adults === 1 ? '' : 's'}`);
+  const plural = children + adults === 1 ? '' : 's';
+  return `Incluye ${parts.join(' y ')} acompañante${plural}`;
 }
 
 // Tarjeta de métrica del resumen: número grande + label + sublínea honesta
