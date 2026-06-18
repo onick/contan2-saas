@@ -117,7 +117,7 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
       {/* Cuenta + cerrar sesión (compacto en modo riel) */}
       <div className="m-2 rounded-2xl bg-surface-container p-2 group-data-[sidebar=collapsed]/shell:bg-transparent group-data-[sidebar=collapsed]/shell:p-0">
         <div className={`flex items-center gap-3 px-2 py-1.5 ${HIDE}`}>
-          <BrandChip slug={branding.slug} name={branding.name} rounded="rounded-full" />
+          <BrandChip slug={branding.slug} name={branding.name} rounded="rounded-full" bg="bg-brand" />
           <span className="min-w-0">
             <span className="block truncate text-[13px] font-semibold text-ink">Administración</span>
             <span className="block text-xs text-muted">Panel del tenant</span>

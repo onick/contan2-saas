@@ -39,16 +39,19 @@ export function splitBrandName(name: string): [string, string | null] {
   return [words.slice(0, -1).join(' '), words[words.length - 1] ?? null];
 }
 
-export function BrandChip({ slug, name, className, rounded = 'rounded-[11px]' }: {
+export function BrandChip({ slug, name, className, rounded = 'rounded-[11px]', bg = 'bg-brand-strong' }: {
   slug: string;
   name: string;
   className?: string;
   rounded?: string;
+  // Fondo del chip. Default brand-strong (AA con texto/ícono blanco); el pie del
+  // sidebar lo sobreescribe a bg-brand para igualar el botón "Crear campaña".
+  bg?: string;
 }) {
   const Icon = TENANT_ICONS[slug];
   return (
     <span
-      className={`grid flex-none place-items-center bg-brand-strong text-white shadow-sm ${rounded} ${className ?? 'h-9 w-9'}`}
+      className={`grid flex-none place-items-center ${bg} text-white shadow-sm ${rounded} ${className ?? 'h-9 w-9'}`}
       title={name}
       data-testid="brand-chip"
     >

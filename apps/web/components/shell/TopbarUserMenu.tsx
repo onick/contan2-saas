@@ -72,7 +72,7 @@ export function TopbarUserMenu({ orgName }: { orgName: string }) {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'ml-0.5 grid h-9 w-9 flex-none place-items-center rounded-full bg-brand-strong text-xs font-semibold text-white hover:opacity-90',
+          'ml-0.5 grid h-9 w-9 flex-none place-items-center rounded-full bg-brand text-xs font-semibold text-white hover:opacity-90',
           focusRing,
         )}
       >
