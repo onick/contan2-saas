@@ -26,7 +26,7 @@ vi.mock('../../../lib/api/reports', async (orig) => {
       { id: 'a2', name: 'Conferencia Arte & Terapia', type: 'conferencia', attendances: 58, occupancyPct: 40 },
     ],
     newVsReturning: { nuevos: 67, recurrentes: 130 },
-    daily: Array.from({ length: 13 }, (_, i) => ({ label: `${i + 1} jun`, current: 40 + i, previous: 30 + i })),
+    daily: Array.from({ length: 13 }, (_, i) => ({ label: `${i + 1} jun`, current: 40 + i, previous: 30 + i, visitors: 20 + i, activities: 2 })),
     byHour: [{ hour: 19, count: 52 }, { hour: 20, count: 30 }],
     byWeekday: [{ weekday: 6, count: 55 }, { weekday: 0, count: 40 }],
   };

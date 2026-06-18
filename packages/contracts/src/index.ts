@@ -1132,7 +1132,7 @@ export const PeriodSummaryResponseSchema = z.object({
   byType: z.array(z.object({ type: z.string(), label: z.string(), attendances: z.number().int(), pct: z.number().int() })),
   topActivities: z.array(z.object({ id: z.string(), name: z.string(), type: z.string(), attendances: z.number().int(), occupancyPct: z.number().int() })),
   newVsReturning: z.object({ nuevos: z.number().int(), recurrentes: z.number().int() }),
-  daily: z.array(z.object({ label: z.string(), current: z.number().int(), previous: z.number().int() })),
+  daily: z.array(z.object({ label: z.string(), current: z.number().int(), previous: z.number().int(), visitors: z.number().int(), activities: z.number().int() })),
   byHour: z.array(z.object({ hour: z.number().int(), count: z.number().int() })),
   byWeekday: z.array(z.object({ weekday: z.number().int(), count: z.number().int() })),
 });

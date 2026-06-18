@@ -66,10 +66,6 @@ function DeltaPct({ pct }: { pct: number | null }) {
     </span>
   );
 }
-function Delta({ pct }: { pct: number | null }) {
-  return <span className="inline-flex items-center gap-1.5"><DeltaPct pct={pct} /><span className="font-medium text-faint">vs. período anterior</span></span>;
-}
-
 const PALETTE = ['#e65100', '#14b8a6', '#8b5cf6', '#10b981', '#3b6fe0', '#ec4899', '#94a3b8'];
 
 export interface ReportesDashboardProps {
@@ -150,17 +146,12 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
 
   // ── derivados de presentación ──────────────────────────────────────────────
   const k = data.kpis, dl = data.deltas, pr = data.prev;
+  // KPIs con valor anterior incorporado (sin panel "Comparación" aparte).
   const kpis = [
-    { label: 'Actividades', value: k.activities, delta: dl.activities, tint: 'bg-[#e8f0fe] text-[#1a56b0]', Icon: Calendar },
-    { label: 'Asistencias', value: k.attendances, delta: dl.attendances, tint: 'bg-success-bg text-success-fg', Icon: Users },
-    { label: 'Visitantes únicos', value: k.uniqueVisitors, delta: dl.uniqueVisitors, tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: User },
-    { label: 'Ocupación promedio', value: k.occupancyPct, suffix: '%', delta: dl.occupancyPct, tint: 'bg-brand/10 text-brand', Icon: TrendingUp },
-  ];
-  const cmp = [
-    { nm: 'Asistencias', v: k.attendances, d: dl.attendances, prev: fmt(pr.attendances), tint: 'bg-success-bg text-success-fg', Icon: Users },
-    { nm: 'Visitantes únicos', v: k.uniqueVisitors, d: dl.uniqueVisitors, prev: fmt(pr.uniqueVisitors), tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: User },
-    { nm: 'Actividades', v: k.activities, d: dl.activities, prev: fmt(pr.activities), tint: 'bg-[#e8f0fe] text-[#1a56b0]', Icon: Calendar },
-    { nm: 'Ocupación promedio', v: k.occupancyPct, suffix: '%', d: dl.occupancyPct, prev: `${pr.occupancyPct}%`, tint: 'bg-brand/10 text-brand', Icon: TrendingUp },
+    { label: 'Actividades', value: k.activities, prev: pr.activities, delta: dl.activities, tint: 'bg-[#e8f0fe] text-[#1a56b0]', Icon: Calendar },
+    { label: 'Asistencias', value: k.attendances, prev: pr.attendances, delta: dl.attendances, tint: 'bg-success-bg text-success-fg', Icon: Users },
+    { label: 'Visitantes únicos', value: k.uniqueVisitors, prev: pr.uniqueVisitors, delta: dl.uniqueVisitors, tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: User },
+    { label: 'Ocupación promedio', value: k.occupancyPct, prev: pr.occupancyPct, suffix: '%', delta: dl.occupancyPct, tint: 'bg-brand/10 text-brand', Icon: TrendingUp },
   ];
   // donut por tipo
   const typeSlices = buildSlices(data.byType.filter((t) => t.attendances > 0).map((t) => ({ label: t.label, count: t.attendances, color: TYPE_COLOR[t.type] ?? '#94a3b8' })));
@@ -242,7 +233,10 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
               <div className="min-w-0">
                 <span className="block text-[11px] font-bold uppercase tracking-[0.04em] text-faint">{kp.label}</span>
                 <p className="mt-1 text-[30px] font-extrabold leading-none tracking-tight text-ink tabular-nums"><span data-count={kp.value}>{fmt(kp.value)}</span>{kp.suffix}</p>
-                <p className="mt-2"><Delta pct={kp.delta} /></p>
+                <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[11.5px]">
+                  <DeltaPct pct={kp.delta} />
+                  <span className="text-faint">· {fmt(kp.prev)}{kp.suffix ?? ''} antes</span>
+                </p>
               </div>
             </Card>
           ))}
@@ -280,8 +274,8 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
           </Card>
         </div>
 
-        {/* top + comparación + nuevos/recurrentes */}
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* top + nuevos/recurrentes (la "Comparación" se fusionó en los KPIs) */}
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
           <Card padding="lg">
             <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Top actividades</h2>
             {data.topActivities.length === 0 ? <p className="mt-5 text-[13px] text-muted">Sin actividades en el período.</p> : (
@@ -301,22 +295,6 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
                 })}
               </div>
             )}
-          </Card>
-          <Card padding="lg">
-            <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Comparación con el período anterior</h2>
-            <div className="mt-3">
-              {cmp.map((c) => (
-                <div key={c.nm} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
-                  <span className={cn('grid h-9 w-9 flex-none place-items-center rounded-lg', c.tint)}><c.Icon size={17} strokeWidth={1.9} /></span>
-                  <span className="text-[13px] text-ink/80">{c.nm}</span>
-                  <span className="ml-auto text-[15px] font-extrabold tabular-nums text-ink"><span data-count={c.v}>{fmt(c.v)}</span>{c.suffix}</span>
-                  <span className="min-w-[84px] text-right">
-                    <DeltaPct pct={c.d} />
-                    <span className="block text-[10.5px] text-faint">{c.prev} anterior</span>
-                  </span>
-                </div>
-              ))}
-            </div>
           </Card>
           <Card padding="lg">
             <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Nuevos vs. recurrentes</h2>
@@ -419,6 +397,8 @@ function Bars({ items, max, color, empty }: { items: Array<{ label: string; valu
 }
 
 function LineChart({ daily }: { daily: PeriodSummaryResponse['daily'] }) {
+  const [hi, setHi] = useState<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   if (daily.length < 2) return <p className="mt-8 text-[13px] text-muted">Período muy corto para una serie.</p>;
   const W = 640, H = 220, pad = { l: 28, r: 8, t: 12, b: 26 };
   const max = Math.max(1, ...daily.map((d) => Math.max(d.current, d.previous))) * 1.15;
@@ -428,8 +408,19 @@ function LineChart({ daily }: { daily: PeriodSummaryResponse['daily'] }) {
   const area = `${line('current')} L${x(daily.length - 1).toFixed(1)},${y(0)} L${x(0)},${y(0)} Z`;
   const ticks = Array.from(new Set([0, Math.round(max / 4), Math.round(max / 2), Math.round((3 * max) / 4), Math.round(max)])).filter((v) => v <= max);
   const labelIdx = daily.length <= 8 ? daily.map((_, i) => i) : [0, Math.floor(daily.length / 4), Math.floor(daily.length / 2), Math.floor((3 * daily.length) / 4), daily.length - 1];
+
+  function onMove(e: React.MouseEvent) {
+    const el = wrapRef.current; if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const fx = ((e.clientX - rect.left) / rect.width) * W;
+    const frac = Math.max(0, Math.min(1, (fx - pad.l) / (W - pad.l - pad.r)));
+    setHi(Math.round(frac * (daily.length - 1)));
+  }
+  const hd = hi !== null ? daily[hi] : null;
+  const tipLeft = hi !== null ? Math.max(15, Math.min(85, (x(hi) / W) * 100)) : 0;
+
   return (
-    <div className="mt-2">
+    <div ref={wrapRef} className="relative mt-2" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 230 }}>
         {ticks.map((v) => (<g key={v}><line x1={pad.l} y1={y(v)} x2={W - pad.r} y2={y(v)} stroke="var(--color-line)" /><text x="2" y={y(v) + 3} className="fill-faint text-[10px]">{v}</text></g>))}
         {labelIdx.map((i) => (<text key={i} x={x(i)} y={H - 6} textAnchor="middle" className="fill-faint text-[10px]">{daily[i]!.label}</text>))}
@@ -437,7 +428,23 @@ function LineChart({ daily }: { daily: PeriodSummaryResponse['daily'] }) {
         <path d={area} fill="url(#repArea)" />
         <path data-line d={line('previous')} fill="none" stroke="#c7ccd4" strokeWidth="2" strokeDasharray="4 4" />
         <path data-line d={line('current')} fill="none" stroke="#e65100" strokeWidth="2.5" strokeLinecap="round" />
+        {hi !== null && (
+          <g>
+            <line x1={x(hi)} y1={pad.t} x2={x(hi)} y2={H - pad.b} stroke="#e65100" strokeOpacity="0.35" strokeDasharray="3 3" />
+            <circle cx={x(hi)} cy={y(daily[hi]!.previous)} r="3.5" fill="#fff" stroke="#c7ccd4" strokeWidth="2" />
+            <circle cx={x(hi)} cy={y(daily[hi]!.current)} r="4.5" fill="#fff" stroke="#e65100" strokeWidth="2.5" />
+          </g>
+        )}
       </svg>
+      {hd && (
+        <div className="pointer-events-none absolute top-1 z-10 min-w-[168px] -translate-x-1/2 rounded-xl border border-line bg-surface px-3 py-2 text-[12px] shadow-lg" style={{ left: `${tipLeft}%` }}>
+          <p className="mb-1.5 text-[11px] font-bold text-faint">{hd.label}</p>
+          {[{ c: '#e65100', l: 'Asistencias', v: hd.current }, { c: '#7c3aed', l: 'Visitantes únicos', v: hd.visitors }, { c: '#1a56b0', l: 'Actividades', v: hd.activities }].map((r) => (
+            <div key={r.l} className="flex items-center gap-2 py-0.5"><span className="h-2 w-2 flex-none rounded-full" style={{ background: r.c }} /><span className="text-ink/80">{r.l}</span><span className="ml-auto font-extrabold tabular-nums text-ink">{fmt(r.v)}</span></div>
+          ))}
+          <div className="mt-1 flex items-center gap-2 border-t border-line pt-1.5 text-faint"><span className="h-2 w-2 flex-none rounded-full" style={{ background: '#c7ccd4' }} /><span>Período anterior</span><span className="ml-auto font-bold tabular-nums">{fmt(hd.previous)}</span></div>
+        </div>
+      )}
     </div>
   );
 }

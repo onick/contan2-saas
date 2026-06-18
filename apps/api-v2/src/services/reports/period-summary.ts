@@ -30,7 +30,7 @@ export interface PeriodSummary {
   byType: Array<{ type: string; label: string; attendances: number; pct: number }>;
   topActivities: Array<{ id: string; name: string; type: string; attendances: number; occupancyPct: number }>;
   newVsReturning: { nuevos: number; recurrentes: number };
-  daily: Array<{ label: string; current: number; previous: number }>;
+  daily: Array<{ label: string; current: number; previous: number; visitors: number; activities: number }>;
   byHour: Array<{ hour: number; count: number }>;
   byWeekday: Array<{ weekday: number; count: number }>;
 }
@@ -85,7 +85,7 @@ export async function periodSummary(
     return Number(row.n);
   }
 
-  // Asistencias por DÍA (date_trunc en UTC) → mapa fecha→count.
+  // Por DÍA (date_trunc UTC): asistencias + visitantes únicos + actividades.
   async function daily(r: ReportRange) {
     const rows = await db
       .selectFrom('attendance as att')
@@ -94,11 +94,16 @@ export async function periodSummary(
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
-      .select([sql<string>`to_char(date_trunc('day', a.date), 'YYYY-MM-DD')`.as('d'), sql<string>`count(att.id)`.as('n')])
+      .select([
+        sql<string>`to_char(date_trunc('day', a.date), 'YYYY-MM-DD')`.as('d'),
+        sql<string>`count(att.id)`.as('att'),
+        sql<string>`count(distinct att.user_id)`.as('visitors'),
+        sql<string>`count(distinct a.id)`.as('activities'),
+      ])
       .groupBy(sql`date_trunc('day', a.date)`)
       .execute();
-    const m = new Map<string, number>();
-    for (const x of rows) m.set(x.d, Number(x.n));
+    const m = new Map<string, { att: number; visitors: number; activities: number }>();
+    for (const x of rows) m.set(x.d, { att: Number(x.att), visitors: Number(x.visitors), activities: Number(x.activities) });
     return m;
   }
 
@@ -174,11 +179,16 @@ export async function periodSummary(
   const days = Math.round((range.toExclusive.getTime() - range.fromDate.getTime()) / DAY_MS);
   const dayKey = (base: Date, i: number) => new Date(base.getTime() + i * DAY_MS).toISOString().slice(0, 10);
   const fmtLabel = (d: string) => { const dt = new Date(`${d}T00:00:00Z`); return `${dt.getUTCDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][dt.getUTCMonth()]}`; };
-  const dailySeries = Array.from({ length: days }, (_, i) => ({
-    label: fmtLabel(dayKey(range.fromDate, i)),
-    current: curDaily.get(dayKey(range.fromDate, i)) ?? 0,
-    previous: prevDaily.get(dayKey(prevR.fromDate, i)) ?? 0,
-  }));
+  const dailySeries = Array.from({ length: days }, (_, i) => {
+    const c = curDaily.get(dayKey(range.fromDate, i));
+    return {
+      label: fmtLabel(dayKey(range.fromDate, i)),
+      current: c?.att ?? 0,
+      previous: prevDaily.get(dayKey(prevR.fromDate, i))?.att ?? 0,
+      visitors: c?.visitors ?? 0,
+      activities: c?.activities ?? 0,
+    };
+  });
 
   const byHour = [...hw.hours.entries()].map(([hour, count]) => ({ hour, count })).sort((a, b) => a.hour - b.hour);
   const byWeekday = Array.from({ length: 7 }, (_, d) => ({ weekday: d, count: hw.days.get(d) ?? 0 }));
