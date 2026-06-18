@@ -4,7 +4,8 @@
 // del flujo lo orquesta app/kiosko/page.tsx; estas reciben datos + callbacks.
 // CodeScreen y NewVisitorScreen manejan su propio estado de input local.
 
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, type FormEvent } from 'react';
+import { loadGsap, prefersReducedMotion } from '../../lib/kiosko/reveal';
 import QRCode from 'qrcode';
 import {
   Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
@@ -185,6 +186,31 @@ function KioskHeader() {
 export function ActivityScreen({
   activities, onSelect, onHome,
 }: { activities: KioskActivity[]; onSelect: (a: KioskActivity) => void; onHome: () => void }) {
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  // Entrada escalonada de las tarjetas (degradación elegante: visibles por
+  // defecto; sin animación con movimiento reducido o si GSAP no carga).
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || prefersReducedMotion()) return;
+    const cards = Array.from(grid.children) as HTMLElement[];
+    if (!cards.length) return;
+    cards.forEach((el) => { el.style.opacity = '0'; });
+    const reveal = () => cards.forEach((el) => { el.style.opacity = ''; });
+    let cancelled = false;
+    let ctx: { revert: () => void } | undefined;
+    const watchdog = window.setTimeout(reveal, 1200);
+    void loadGsap().then((api) => {
+      if (cancelled) return;
+      window.clearTimeout(watchdog);
+      if (!api || !gridRef.current) { reveal(); return; }
+      ctx = api.gsap.context(() => {
+        api.gsap.fromTo(cards, { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out', stagger: 0.07 });
+      }, grid);
+    });
+    return () => { cancelled = true; window.clearTimeout(watchdog); ctx?.revert(); reveal(); };
+  }, [activities.length]);
+
   return (
     <div className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
       <KioskHeader />
@@ -195,7 +221,7 @@ export function ActivityScreen({
         </h1>
         <p className="mt-3 text-[#a2a5b4] md:text-lg">Estas son las actividades con cupo disponible hoy</p>
       </div>
-      <div className="kiosk-focus-grid mt-9 grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(290px,1fr))]">
+      <div ref={gridRef} className="kiosk-focus-grid mt-9 grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(290px,1fr))]">
         {activities.map((a, i) => (
           <ActivityCard key={a.id} activity={a} index={i} onSelect={onSelect} />
         ))}
@@ -628,27 +654,87 @@ export function ConfirmationScreen({
 }: { visitor: KioskVisitor; activityName: string; real: boolean; secondsLeft: number; onHome: () => void; audience?: ActivityAudience }) {
   const party = partySize(visitor);
   const companions = companionsLabel(visitor, audience);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Animación de entrada de la confirmación (el "momento wow"). Lazy-load de GSAP
+  // SÓLO en cliente y SÓLO si el usuario permite movimiento. Degradación elegante:
+  // el contenido es visible por defecto; si GSAP no carga o hay movimiento
+  // reducido, no se anima y nada queda oculto. Se re-dispara por cada check-in
+  // (clave = código del visitante).
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root || prefersReducedMotion()) return;
+    const HIDE = '[data-anim="eyebrow"],[data-anim="listo"],[data-anim="greet"],[data-anim="sub"],[data-anim="cred"]';
+    const hideEls = Array.from(root.querySelectorAll<HTMLElement>(HIDE));
+    // Anti-flash: ocultar de forma síncrona antes del primer paint.
+    hideEls.forEach((el) => { el.style.opacity = '0'; });
+    const reveal = () => hideEls.forEach((el) => { el.style.opacity = ''; });
+
+    let cancelled = false;
+    let ctx: { revert: () => void } | undefined;
+    let split: { revert: () => void } | undefined;
+    const watchdog = window.setTimeout(reveal, 1500); // si GSAP tarda/falla → mostrar igual
+
+    void loadGsap().then((api) => {
+      if (cancelled) return;
+      window.clearTimeout(watchdog);
+      if (!api || !rootRef.current) { reveal(); return; }
+      const { gsap, SplitText } = api;
+      ctx = gsap.context(() => {
+        const greetEl = root.querySelector('[data-anim="greet"]');
+        split = greetEl ? new SplitText(greetEl as Element, { type: 'chars' }) : undefined;
+        const chars = (split as unknown as { chars?: Element[] } | undefined)?.chars ?? [];
+        gsap.set('[data-anim="eyebrow"]', { opacity: 0, y: 8 });
+        gsap.set('[data-anim="listo"]', { opacity: 0, y: 18, scale: 0.96, transformOrigin: 'left center' });
+        gsap.set('[data-anim="greet"]', { opacity: 1 });
+        gsap.set(chars, { opacity: 0, y: 14, rotateX: -40 });
+        gsap.set('[data-anim="sub"]', { opacity: 0, y: 10 });
+        gsap.set('[data-anim="cred"]', { opacity: 0, y: 22, scale: 0.97 });
+        gsap.set('[data-anim="qr"]', { opacity: 0, scale: 0.8 });
+        gsap.set('[data-anim="badge"]', { opacity: 0, y: 8, scale: 0.9 });
+
+        const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+        tl.to('[data-anim="eyebrow"]', { opacity: 1, y: 0, duration: 0.5 })
+          .to('[data-anim="listo"]', { opacity: 1, y: 0, scale: 1, duration: 0.7 }, '-=0.15');
+        if (chars.length) tl.to(chars, { opacity: 1, y: 0, rotateX: 0, duration: 0.6, stagger: 0.022 }, '-=0.35');
+        tl.to('[data-anim="sub"]', { opacity: 1, y: 0, duration: 0.5 }, '-=0.25')
+          .to('[data-anim="cred"]', { opacity: 1, y: 0, scale: 1, duration: 0.7 }, '-=0.3')
+          .to('[data-anim="qr"]', { opacity: 1, scale: 1, duration: 0.5, ease: 'back.out(1.7)' }, '-=0.45')
+          .to('[data-anim="code"]', { duration: 0.9, scrambleText: { text: visitor.code, chars: 'upperCase', speed: 0.4, revealDelay: 0.2 } }, '-=0.4')
+          .to('[data-anim="badge"]', { opacity: 1, y: 0, scale: 1, stagger: 0.1, duration: 0.4 }, '-=0.35');
+      }, root);
+    });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(watchdog);
+      try { split?.revert(); } catch { /* noop */ }
+      ctx?.revert();
+      reveal();
+    };
+  }, [visitor.code]);
+
   return (
-    <div className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
+    <div ref={rootRef} className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
       <KioskHeader />
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
         <div className="mt-8">
           {/* Eyebrow en verde + check: señal de éxito dentro del mismo slot y
               estilo de eyebrow del resto del flujo (mono, uppercase, tracking). */}
-          <p style={kioskMono} className="mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
+          <p data-anim="eyebrow" style={kioskMono} className="mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
             <Check size={14} strokeWidth={3} aria-hidden="true" /> Registro completado
           </p>
-          <h1 className="text-[clamp(2.25rem,5.5vw,4rem)] font-extrabold uppercase leading-[0.95] tracking-[-0.03em] text-[#f4f5f8]">
+          <h1 data-anim="listo" className="text-[clamp(2.25rem,5.5vw,4rem)] font-extrabold uppercase leading-[0.95] tracking-[-0.03em] text-[#f4f5f8]">
             ¡Listo!
           </h1>
           {/* Saludo con el NOMBRE como protagonista: línea propia, mayor peso y
               acento de marca en el nombre. Copy NEUTRO en género (no asumimos el
               género del visitante; no hay ese dato): 'Te damos la bienvenida'. */}
-          <p className="mt-4 text-[clamp(1.5rem,3.2vw,2.25rem)] font-bold leading-tight tracking-tight text-[#f4f5f8]">
+          <p data-anim="greet" className="mt-4 text-[clamp(1.5rem,3.2vw,2.25rem)] font-bold leading-tight tracking-tight text-[#f4f5f8]">
             {visitor.isNew ? '¡Te damos la bienvenida, ' : '¡Hola de nuevo, '}
             <span className="text-[#ff8a3d]">{visitor.firstName}</span>!
           </p>
-          <p className="mt-2 text-[#a2a5b4] md:text-lg">
+          <p data-anim="sub" className="mt-2 text-[#a2a5b4] md:text-lg">
             {companions
               ? <>Registrados <span className="font-medium text-[#f4f5f8]">{visitor.firstName} {companions}</span> en <span className="font-medium text-[#f4f5f8]">{activityName}</span>.</>
               : <>Tu asistencia a <span className="font-medium text-[#f4f5f8]">{activityName}</span> quedó registrada.</>}
@@ -657,16 +743,16 @@ export function ConfirmationScreen({
 
         {/* Credencial: en prod (real) un QR REAL escaneable del código; en demo,
             el FauxQr de preview. + código + badges, centrados en una tarjeta. */}
-        <div className="mt-8 flex flex-col items-center gap-6 rounded-3xl border border-white/10 bg-[linear-gradient(180deg,#191b22_0%,#15171e_100%)] p-8 text-center">
-          {real ? <RealQr code={visitor.code} /> : <FauxQr code={visitor.code} />}
+        <div data-anim="cred" className="mt-8 flex flex-col items-center gap-6 rounded-3xl border border-white/10 bg-[linear-gradient(180deg,#191b22_0%,#15171e_100%)] p-8 text-center">
+          <div data-anim="qr">{real ? <RealQr code={visitor.code} /> : <FauxQr code={visitor.code} />}</div>
           <div className="flex flex-col items-center gap-2">
-            <p className="text-2xl font-bold tracking-[0.08em] tabular-nums text-[#f4f5f8]">{visitor.code}</p>
+            <p data-anim="code" className="text-2xl font-bold tracking-[0.08em] tabular-nums text-[#f4f5f8]">{visitor.code}</p>
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-sm text-[#a2a5b4]">
+              <span data-anim="badge" className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-sm text-[#a2a5b4]">
                 {visitor.isNew ? 'Tu primera visita' : `Visita número ${visitor.visitCount}`}
               </span>
               {party > 1 ? (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#e65100]/15 px-3 py-1 text-sm font-medium text-[#ff8a3d]">
+                <span data-anim="badge" className="inline-flex items-center gap-2 rounded-full bg-[#e65100]/15 px-3 py-1 text-sm font-medium text-[#ff8a3d]">
                   Ocupa {party} cupos
                 </span>
               ) : null}

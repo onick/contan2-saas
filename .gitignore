@@ -36,3 +36,7 @@ release-evidence/
 **/.next/
 next-env.d.ts
 outputs/
+
+# Descarga vendored de GSAP (referencia; en runtime se usa el paquete npm gsap)
+gsap-public/
+gsap-public.zip
