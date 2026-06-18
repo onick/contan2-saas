@@ -257,19 +257,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
             {typeSlices.length === 0 ? (
               <p className="mt-6 text-[13px] text-muted">Sin asistencias en el período.</p>
             ) : (
-              <div className="mt-3 flex items-center gap-5">
-                <Donut slices={typeSlices} centerValue={data.kpis.attendances} centerLabel="Total" />
-                <ul className="flex-1 space-y-2">
-                  {data.byType.map((t) => (
-                    <li key={t.type} className="flex items-center gap-2.5 text-[12.5px]">
-                      <span className="h-2.5 w-2.5 flex-none rounded-sm" style={{ background: TYPE_COLOR[t.type] ?? '#94a3b8' }} />
-                      <span className="text-ink/80">{t.label}</span>
-                      <span className="ml-auto font-bold tabular-nums text-ink">{fmt(t.attendances)}</span>
-                      <span className="w-10 text-right text-faint tabular-nums">({t.pct}%)</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <Donut slices={typeSlices} centerValue={data.kpis.attendances} centerLabel="Total" />
             )}
           </Card>
         </div>
@@ -299,19 +287,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
           <Card padding="lg">
             <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Nuevos vs. recurrentes</h2>
             {nr.nuevos + nr.recurrentes === 0 ? <p className="mt-6 text-[13px] text-muted">Sin visitantes en el período.</p> : (
-              <div className="mt-3 flex items-center gap-5">
-                <Donut slices={nrSlices} centerValue={nr.nuevos + nr.recurrentes} centerLabel="Únicos" />
-                <ul className="flex-1 space-y-2.5">
-                  {nrSlices.map((s) => (
-                    <li key={s.label} className="flex items-center gap-2.5 text-[13px]">
-                      <span className="h-2.5 w-2.5 flex-none rounded-sm" style={{ background: s.color }} />
-                      <span className="text-ink/80">{s.label}</span>
-                      <span className="ml-auto font-bold tabular-nums text-ink">{fmt(s.count)}</span>
-                      <span className="w-10 text-right text-faint tabular-nums">({Math.round(s.pc)}%)</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <Donut slices={nrSlices} centerValue={nr.nuevos + nr.recurrentes} centerLabel="Únicos" />
             )}
           </Card>
         </div>
@@ -363,21 +339,47 @@ function buildSlices(items: Array<{ label: string; count: number; color: string 
   return items.filter((s) => s.count > 0).map((s) => { const pc = (s.count / sum) * 100; const out = { ...s, pc, offset: 25 - cum }; cum += pc; return out; });
 }
 
+// Donut interactivo y autocontenido (gráfico + leyenda con hover compartido).
 function Donut({ slices, centerValue, centerLabel }: { slices: Slice[]; centerValue: number; centerLabel: string }) {
+  const [hi, setHi] = useState<number | null>(null);
+  const active = hi !== null ? slices[hi] : null;
   return (
-    <div className="relative h-[150px] w-[150px] flex-none">
-      <svg viewBox="0 0 42 42" className="h-[150px] w-[150px]">
-        <circle cx="21" cy="21" r="15.91549" fill="none" stroke="var(--color-surface-container,#eef0f4)" strokeWidth="6" />
-        {slices.map((s) => (
-          <circle key={s.label} cx="21" cy="21" r="15.91549" fill="none" stroke={s.color} strokeWidth="6" data-arc={s.pc.toFixed(3)} style={{ strokeDasharray: `${s.pc} ${100 - s.pc}`, strokeDashoffset: s.offset }} />
-        ))}
-      </svg>
-      <div className="absolute inset-0 grid place-items-center text-center">
-        <div>
-          <div className="text-[22px] font-extrabold leading-none tabular-nums text-ink"><span data-count={centerValue}>{fmt(centerValue)}</span></div>
-          <div className="mt-0.5 text-[9.5px] uppercase tracking-[0.08em] text-faint">{centerLabel}</div>
+    <div className="mt-3 flex flex-col items-center gap-5 sm:flex-row">
+      <div className="relative h-[184px] w-[184px] flex-none">
+        <svg viewBox="0 0 42 42" className="h-[184px] w-[184px]">
+          <circle cx="21" cy="21" r="15.91549" fill="none" stroke="var(--color-surface-container,#eef0f4)" strokeWidth="6" />
+          {slices.map((s, i) => (
+            <circle key={s.label} cx="21" cy="21" r="15.91549" fill="none" stroke={s.color}
+              data-arc={s.pc.toFixed(3)} onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(null)}
+              style={{ strokeDasharray: `${s.pc} ${100 - s.pc}`, strokeDashoffset: s.offset, strokeWidth: hi === i ? 7.6 : 6, opacity: hi === null || hi === i ? 1 : 0.4, cursor: 'pointer', transition: 'stroke-width .15s, opacity .15s' }} />
+          ))}
+        </svg>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+          {active ? (
+            <div className="px-4">
+              <div className="text-[24px] font-extrabold leading-none tabular-nums" style={{ color: active.color }}>{fmt(active.count)}</div>
+              <div className="mt-1 text-[10.5px] font-semibold leading-tight text-ink">{active.label}</div>
+              <div className="text-[10px] text-faint tabular-nums">{Math.round(active.pc)}%</div>
+            </div>
+          ) : (
+            <div>
+              <div className="text-[26px] font-extrabold leading-none tabular-nums text-ink"><span data-count={centerValue}>{fmt(centerValue)}</span></div>
+              <div className="mt-0.5 text-[10px] uppercase tracking-[0.08em] text-faint">{centerLabel}</div>
+            </div>
+          )}
         </div>
       </div>
+      <ul className="w-full flex-1 space-y-2">
+        {slices.map((s, i) => (
+          <li key={s.label} onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(null)}
+            className={cn('flex cursor-pointer items-center gap-2.5 rounded-md px-1.5 py-1 text-[13px] transition-colors', hi === i && 'bg-surface-container', hi !== null && hi !== i && 'opacity-50')}>
+            <span className="h-2.5 w-2.5 flex-none rounded-sm" style={{ background: s.color }} />
+            <span className="truncate text-ink/80">{s.label}</span>
+            <span className="ml-auto font-bold tabular-nums text-ink">{fmt(s.count)}</span>
+            <span className="w-10 text-right text-faint tabular-nums">({Math.round(s.pc)}%)</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
