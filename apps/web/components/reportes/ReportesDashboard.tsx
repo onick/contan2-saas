@@ -211,7 +211,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
               <label className={cn('flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] hover:bg-surface-container')}>
                 <input type="checkbox" checked={types.length === 0} onChange={() => setTypes([])} className="h-4 w-4 accent-brand" /> Todos los tipos
               </label>
-              <div className="my-1 h-px bg-line2" />
+              <div className="my-1 h-px bg-line" />
               {TYPE_OPTIONS.map((o) => (
                 <label key={o.v} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-ink hover:bg-surface-container">
                   <input type="checkbox" checked={types.includes(o.v)} onChange={() => toggleType(o.v)} className="h-4 w-4 accent-brand" /> {o.l}
@@ -289,11 +289,11 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
                 {data.topActivities.slice(0, 5).map((a, i) => {
                   const color = TYPE_COLOR[a.type] ?? PALETTE[i % PALETTE.length];
                   return (
-                    <div key={a.id} className="flex items-center gap-3 border-t border-line2 py-2.5 first:border-t-0">
+                    <div key={a.id} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
                       <span className="grid h-5 w-5 flex-none place-items-center rounded-md bg-brand/10 text-[11px] font-extrabold text-brand">{i + 1}</span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] font-semibold leading-tight text-ink">{a.name}</p>
-                        <div className="mt-1 h-[5px] overflow-hidden rounded-full bg-line2"><i className="block h-full rounded-full" data-bar="w" data-val={(a.attendances / topMax) * 100} style={{ width: `${(a.attendances / topMax) * 100}%`, background: color }} /></div>
+                        <div className="mt-1 h-[5px] overflow-hidden rounded-full bg-surface-container"><i className="block h-full rounded-full" data-bar="w" data-val={(a.attendances / topMax) * 100} style={{ width: `${(a.attendances / topMax) * 100}%`, background: color }} /></div>
                       </div>
                       <div className="text-right"><div className="text-[14px] font-extrabold tabular-nums text-ink" data-count={a.attendances}>{fmt(a.attendances)}</div><div className="text-[10px] text-faint">asistencias</div></div>
                     </div>
@@ -306,7 +306,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
             <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Comparación con el período anterior</h2>
             <div className="mt-3">
               {cmp.map((c) => (
-                <div key={c.nm} className="flex items-center gap-3 border-t border-line2 py-2.5 first:border-t-0">
+                <div key={c.nm} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
                   <span className={cn('grid h-9 w-9 flex-none place-items-center rounded-lg', c.tint)}><c.Icon size={17} strokeWidth={1.9} /></span>
                   <span className="text-[13px] text-ink/80">{c.nm}</span>
                   <span className="ml-auto text-[15px] font-extrabold tabular-nums text-ink"><span data-count={c.v}>{fmt(c.v)}</span>{c.suffix}</span>
@@ -431,7 +431,7 @@ function LineChart({ daily }: { daily: PeriodSummaryResponse['daily'] }) {
   return (
     <div className="mt-2">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 230 }}>
-        {ticks.map((v) => (<g key={v}><line x1={pad.l} y1={y(v)} x2={W - pad.r} y2={y(v)} stroke="var(--color-line2,#eef0f4)" /><text x="2" y={y(v) + 3} className="fill-faint text-[10px]">{v}</text></g>))}
+        {ticks.map((v) => (<g key={v}><line x1={pad.l} y1={y(v)} x2={W - pad.r} y2={y(v)} stroke="var(--color-line)" /><text x="2" y={y(v) + 3} className="fill-faint text-[10px]">{v}</text></g>))}
         {labelIdx.map((i) => (<text key={i} x={x(i)} y={H - 6} textAnchor="middle" className="fill-faint text-[10px]">{daily[i]!.label}</text>))}
         <linearGradient id="repArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#e65100" stopOpacity="0.20" /><stop offset="1" stopColor="#e65100" stopOpacity="0" /></linearGradient>
         <path d={area} fill="url(#repArea)" />
