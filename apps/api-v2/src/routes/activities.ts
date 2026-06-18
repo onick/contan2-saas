@@ -75,7 +75,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
 
     let rowsQ = db
       .selectFrom('activities')
-      .select(['id', 'name', 'type', 'location', 'date', 'capacity', 'enrolled_count', 'status', 'category', 'image_url', 'image_pos_y'])
+      .select(['id', 'name', 'type', 'location', 'date', 'capacity', 'enrolled_count', 'status', 'category', 'image_url', 'image_pos_y', 'audience'])
       .where('organization_id', '=', orgId);
     let countQ = db
       .selectFrom('activities')
@@ -103,6 +103,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       category: r.category,
       imageUrl: r.image_url,
       imagePosY: r.image_pos_y,
+      audience: r.audience,
     }));
 
     const body: ActivitiesListResponse = { items, total: Number(count.n), limit, offset };
@@ -183,6 +184,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
         image_url: null,
         image_pos_y: parsed.data.imagePosY ?? null,
         category: input.category,
+        audience: input.audience,
         status: 'activa',
         // enrolled_count: omitido → default 0.
       })
@@ -278,6 +280,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       ...(fields.imagePosY !== undefined && fields.imagePosY !== '' ? { imagePosY: Number(fields.imagePosY) } : {}),
       ...(fields.description ? { description: fields.description } : {}),
       ...(fields.category ? { category: fields.category } : {}),
+      ...(fields.audience ? { audience: fields.audience } : {}),
     };
     const parsed = ActivityCreateRequestSchema.safeParse(candidate);
     if (!parsed.success) {
@@ -329,6 +332,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
               image_url: url,
               image_pos_y: parsed.data.imagePosY ?? null,
               category: input.category,
+              audience: input.audience,
               status: 'activa',
             })
             .returning(ACTIVITY_DETAIL_COLUMNS)

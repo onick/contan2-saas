@@ -49,6 +49,7 @@ export function toKioskActivity(a: PublicActivity): KioskActivity {
     enrolled: a.enrolledCount,
     imageUrl: a.imageUrl,
     imagePosY: a.imagePosY,
+    audience: a.audience,
   };
 }
 

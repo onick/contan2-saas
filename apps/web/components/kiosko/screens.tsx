@@ -8,12 +8,13 @@ import { useState, useEffect, useRef, type FormEvent } from 'react';
 import QRCode from 'qrcode';
 import {
   Home, QrCode, UserPlus, Search, Check, CalendarDays, MapPin, X, UserCheck,
-  Baby, Info, Minus, Plus, Film, Music, MessagesSquare, Palette, Ban, RotateCcw, type LucideIcon,
+  Baby, Users, Info, Minus, Plus, Film, Music, MessagesSquare, Palette, Ban, RotateCcw, type LucideIcon,
 } from 'lucide-react';
 import { KioskButton, TicketButton, KioskBackPill, FauxQr, cx, kioskFocus, kioskMono } from './ui';
 import { BorderBeam } from '../ui/BorderBeam';
 import { KioskClock } from './KioskClock';
 import { partySize, type KioskActivity, type KioskVisitor } from '../../lib/kiosko/demoData';
+import type { ActivityAudience } from '@contan2/contracts';
 
 const MAX_CHILDREN = 6;
 
@@ -36,22 +37,28 @@ function RealQr({ code, size = 196 }: { code: string; size?: number }) {
   return <img src={src} width={size} height={size} alt={`Código QR de ${code}`} className="rounded-xl bg-white p-3" style={{ width: size, height: size }} />;
 }
 
-// Control de niños acompañantes. Regla de producto: SÓLO niños van como
-// acompañantes (asociados al adulto responsable, sin credencial propia pero
-// cuentan para el aforo). Cada ADULTO se registra con identidad propia.
+// Control de acompañantes. El TIPO DE PÚBLICO de la actividad decide la clase:
+// 'infantil' → niños (asociados al adulto responsable); 'adultos' → adultos
+// acompañantes. En ambos casos ocupan cupo y van sin credencial propia.
 function CompanionsControl({
-  children, onChildren,
-}: { children: number; onChildren: (n: number) => void }) {
+  children, onChildren, audience = 'adultos',
+}: { children: number; onChildren: (n: number) => void; audience?: ActivityAudience }) {
+  const infantil = audience === 'infantil';
   return (
     <div className="rounded-2xl border border-white/10 bg-[#191b22] p-5">
-      <p className="text-sm font-medium text-[#f4f5f8]">¿Vienes con niños?</p>
+      <p className="text-sm font-medium text-[#f4f5f8]">{infantil ? '¿Vienes con niños?' : '¿Vienes con acompañantes?'}</p>
       <p className="mt-0.5 text-xs text-[#71748a]">Opcional · ocupan cupo, sin credencial propia</p>
       <div className="mt-4">
-        <StepperRow icon={<Baby size={20} aria-hidden="true" />} label="Niños" value={children} onChange={onChildren} />
+        <StepperRow
+          icon={infantil ? <Baby size={20} aria-hidden="true" /> : <Users size={20} aria-hidden="true" />}
+          label={infantil ? 'Niños' : 'Adultos'}
+          value={children}
+          onChange={onChildren}
+        />
       </div>
       <p className="mt-4 flex items-center gap-2 border-t border-white/10 pt-3 text-xs text-[#a2a5b4]">
         <Info size={14} aria-hidden="true" className="flex-none text-[#ff8a3d]" />
-        Cada adulto debe registrarse por separado.
+        {infantil ? 'Cada adulto debe registrarse por separado.' : 'Cada acompañante adulto ocupa un cupo.'}
       </p>
     </div>
   );
@@ -80,10 +87,13 @@ function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 }
 
-// "+ 2 niños", "+ 1 niño", "" si va solo.
-function companionsLabel(v: KioskVisitor): string {
+// "+ 2 niños" / "+ 3 adultos" / "" si va solo. La clase la decide el tipo de
+// público de la actividad (infantil → niños; adultos → adultos).
+function companionsLabel(v: KioskVisitor, audience: ActivityAudience = 'adultos'): string {
   if (v.companionsChildren <= 0) return '';
-  return `+ ${v.companionsChildren} ${v.companionsChildren === 1 ? 'niño' : 'niños'}`;
+  const n = v.companionsChildren;
+  const noun = audience === 'infantil' ? (n === 1 ? 'niño' : 'niños') : (n === 1 ? 'adulto' : 'adultos');
+  return `+ ${n} ${noun}`;
 }
 
 // Acento por categoría (dato categórico → color), tenue sobre fondo oscuro.
@@ -333,7 +343,7 @@ function ChoiceCard({ index, icon, title, subtitle, onClick }: { index: number; 
 
 // ── 4a · Buscar por código / email ─────────────────────────────────────────
 export function CodeScreen({
-  onLookup, onFound, submitting, onNew, onBack,
+  onLookup, onFound, submitting, onNew, onBack, audience = 'adultos',
 }: {
   // Async: en modo API resuelve por la red; en demo es Promise.resolve(local).
   // null = no encontrado (404); { matches } = homónimos (el visitante elige);
@@ -345,6 +355,7 @@ export function CodeScreen({
   submitting?: boolean; // confirmando el check-in real (modo API)
   onNew: () => void;
   onBack: () => void;
+  audience?: ActivityAudience; // tipo de público → acompañantes niños o adultos
 }) {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<KioskVisitor | null>(null);
@@ -439,7 +450,7 @@ export function CodeScreen({
               </div>
             </div>
             <div className="mt-4">
-              <CompanionsControl children={kids} onChildren={setKids} />
+              <CompanionsControl children={kids} onChildren={setKids} audience={audience} />
             </div>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
               <KioskButton onClick={() => onFound({ ...result, companionsChildren: kids })} disabled={submitting} className="flex-1">
@@ -536,8 +547,8 @@ export interface NewVisitorForm {
 type NewVisitorFields = Pick<NewVisitorForm, 'firstName' | 'lastName' | 'email' | 'phone'>;
 
 export function NewVisitorScreen({
-  onSubmit, submitting, onBack,
-}: { onSubmit: (f: NewVisitorForm) => void; submitting?: boolean; onBack: () => void }) {
+  onSubmit, submitting, onBack, audience = 'adultos',
+}: { onSubmit: (f: NewVisitorForm) => void; submitting?: boolean; onBack: () => void; audience?: ActivityAudience }) {
   const [form, setForm] = useState<NewVisitorFields>({ firstName: '', lastName: '', email: '', phone: '' });
   const [kids, setKids] = useState(0);
   // El correo es opcional, pero si se escribe debe ser válido (el contrato del
@@ -585,7 +596,7 @@ export function NewVisitorScreen({
             </KField>
           </div>
           <div className="kiosk-card-in" style={{ animationDelay: '210ms' }}>
-            <CompanionsControl children={kids} onChildren={setKids} />
+            <CompanionsControl children={kids} onChildren={setKids} audience={audience} />
           </div>
           <div className="kiosk-card-in mt-2" style={{ animationDelay: '280ms' }}>
             <KioskButton type="submit" size="xl" disabled={!valid || submitting} className="w-full">
@@ -613,10 +624,10 @@ function KField({ label, hint, required, children }: { label: string; hint?: str
 
 // ── 5 · Confirmación ───────────────────────────────────────────────────────
 export function ConfirmationScreen({
-  visitor, activityName, real, secondsLeft, onHome,
-}: { visitor: KioskVisitor; activityName: string; real: boolean; secondsLeft: number; onHome: () => void }) {
+  visitor, activityName, real, secondsLeft, onHome, audience = 'adultos',
+}: { visitor: KioskVisitor; activityName: string; real: boolean; secondsLeft: number; onHome: () => void; audience?: ActivityAudience }) {
   const party = partySize(visitor);
-  const companions = companionsLabel(visitor);
+  const companions = companionsLabel(visitor, audience);
   return (
     <div className="flex min-h-dvh w-full flex-col px-6 pb-12 md:px-12">
       <KioskHeader />

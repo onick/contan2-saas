@@ -27,8 +27,8 @@ import { IconButton, Button, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
 
-interface FormState { name: string; type: string; location: string; date: string; endDate: string; capacity: string; category: string; description: string; }
-const EMPTY: FormState = { name: '', type: '', location: '', date: '', endDate: '', capacity: '', category: '', description: '' };
+interface FormState { name: string; type: string; location: string; date: string; endDate: string; capacity: string; category: string; description: string; audience: string; }
+const EMPTY: FormState = { name: '', type: '', location: '', date: '', endDate: '', capacity: '', category: '', description: '', audience: 'adultos' };
 type FieldKey = keyof FormState;
 type Errors = Partial<Record<FieldKey | '_form', string>>;
 
@@ -159,6 +159,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
       ...(capNum !== undefined ? { capacity: capNum } : {}),
       ...(form.description.trim() ? { description: form.description.trim() } : {}),
       ...(form.category.trim() ? { category: form.category.trim() } : {}),
+      audience: form.audience,
     };
     const parsed = ActivityCreateRequestSchema.safeParse(candidate);
     if (!parsed.success) for (const issue of parsed.error.issues) { const k = issue.path[0]; if (typeof k === 'string' && !fe[k as FieldKey]) fe[k as FieldKey] = friendly(issue); }
@@ -171,6 +172,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
     if (endIso) fields.endDate = endIso;
     if (form.description.trim()) fields.description = form.description.trim();
     if (form.category.trim()) fields.category = form.category.trim();
+    fields.audience = form.audience;
     return { ok: true, fields };
   }
 
@@ -340,6 +342,17 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
                 <span className={labelCls}>Categoría <span className="normal-case text-faint">(opcional)</span></span>
                 <input type="text" value={form.category} onChange={(e) => set('category', e.target.value)} aria-invalid={!!errors.category} aria-describedby={errors.category ? errId('category') : undefined} className={inputCls(!!errors.category)} placeholder="Ej: Ciclo de cine dominicano" />
                 <FieldError k="category" />
+              </label>
+
+              <label className="block">
+                <span className={labelCls}>Tipo de público</span>
+                <select value={form.audience} onChange={(e) => set('audience', e.target.value)} className={inputCls(false)}>
+                  <option value="adultos">Adultos</option>
+                  <option value="infantil">Infantil (niños)</option>
+                </select>
+                <span className="mt-1 block text-[11px] leading-snug text-faint">
+                  Define cómo se cuentan los acompañantes en la puerta y el kiosko: en una actividad infantil son niños; en una de adultos, adultos.
+                </span>
               </label>
 
               <label className="block">

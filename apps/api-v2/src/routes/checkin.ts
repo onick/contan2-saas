@@ -146,9 +146,10 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       id: string; name: string; location: string; date: Date;
       capacity: number; enrolled_count: number; recent: string;
       image_url: string | null; image_pos_y: number | null;
+      audience: CheckinActivityItem['audience'];
     }>`
       SELECT a.id, a.name, a.location, a.date, a.capacity, a.enrolled_count,
-             a.image_url, a.image_pos_y,
+             a.image_url, a.image_pos_y, a.audience,
              COALESCE(r.recent, 0) AS recent
       FROM activities a
       LEFT JOIN (
@@ -183,6 +184,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
         imagePosY: row.image_pos_y,
         // Solo cuando hay lista (≥1 invitación no cancelada); si no, null.
         guestList: gl && gl.total > 0 ? { total: gl.total, arrived: gl.arrived } : null,
+        audience: row.audience,
       };
     });
     const body: CheckinActivitiesResponse = { items, serverNow: new Date().toISOString() };

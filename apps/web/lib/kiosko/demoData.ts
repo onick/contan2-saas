@@ -4,6 +4,8 @@
 // check-in (PR de escrituras, aparte). La forma imita la respuesta pública de
 // v1 (publicActivity / publicUser) para que el swap sea directo.
 
+import type { ActivityAudience } from '@contan2/contracts';
+
 export type KioskScreen =
   | 'welcome'
   | 'activities'
@@ -28,6 +30,9 @@ export interface KioskActivity {
   imageUrl: string | null;
   // Encuadre vertical 0–100; ausente = centro.
   imagePosY?: number | null;
+  // Tipo de público (migración 034): 'adultos' (default) | 'infantil'. Decide si
+  // los acompañantes del check-in cuentan como adultos o niños. Ausente = adultos.
+  audience?: ActivityAudience;
 }
 
 export interface KioskVisitor {
@@ -53,7 +58,7 @@ export function partySize(v: Pick<KioskVisitor, 'companionsChildren'>): number {
 
 // Actividades disponibles (status activo, con cupo) como las vería el visitante.
 export const KIOSK_ACTIVITIES: KioskActivity[] = [
-  { id: 'a1', name: 'Tertulia: Poesía dominicana contemporánea', category: 'Tertulia', date: 'Hoy · 7:00 p.m.', location: 'Sala de lectura', capacity: 60, enrolled: 13, imageUrl: null },
+  { id: 'a1', name: 'Taller infantil: Cuenta-cuentos', category: 'Tertulia', date: 'Hoy · 7:00 p.m.', location: 'Sala de lectura', capacity: 60, enrolled: 13, imageUrl: null, audience: 'infantil' },
   { id: 'a2', name: 'Concierto: Los Congos de Villa Mella', category: 'Concierto', date: 'Hoy · 8:00 p.m.', location: 'Auditorio principal', capacity: 220, enrolled: 189, imageUrl: null },
   { id: 'a3', name: 'Ciclo de Cine Dominicano 2026', category: 'Cine', date: 'Mañana · 6:30 p.m.', location: 'Sala audiovisual', capacity: 80, enrolled: 41, imageUrl: '/kiosko/demo/cine.jpg' },
   { id: 'a4', name: 'Exposición: Trazos de la cordillera', category: 'Exposición', date: 'Todo el día', location: 'Galería este', capacity: 150, enrolled: 96, imageUrl: null },

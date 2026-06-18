@@ -59,7 +59,7 @@ const selectCover = async (type = 'image/png') => {
 };
 function fillFields() {
   fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: 'Recital con portada' } });
-  fireEvent.change(screen.getByLabelText(/Tipo/), { target: { value: 'concierto' } });
+  fireEvent.change(screen.getByLabelText('Tipo', { exact: true }), { target: { value: 'concierto' } });
   fireEvent.change(screen.getByLabelText(/Lugar/), { target: { value: 'Sala 2' } });
   fireEvent.change(screen.getByLabelText(/Fecha y hora/), { target: { value: DATE_LOCAL } });
   fireEvent.change(screen.getByLabelText(/Capacidad/), { target: { value: '120' } });

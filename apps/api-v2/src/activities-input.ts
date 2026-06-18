@@ -16,7 +16,7 @@ import type { ActivityCreateRequest, ActivityUpdateRequest, ActivityDetail } fro
 export const ACTIVITY_DETAIL_COLUMNS = [
   'id', 'name', 'type', 'location', 'date', 'end_date', 'capacity',
   'enrolled_count', 'status', 'description', 'image_url', 'image_pos_y', 'category',
-  'created_at', 'updated_at',
+  'audience', 'created_at', 'updated_at',
 ] as const;
 
 // Fila tal como la devuelve Kysely al seleccionar ACTIVITY_DETAIL_COLUMNS.
@@ -34,6 +34,7 @@ export interface ActivityDetailRow {
   image_url: string | null;
   image_pos_y: number | null;
   category: string | null;
+  audience: ActivityDetail['audience'];
   created_at: Date;
   updated_at: Date;
 }
@@ -53,6 +54,7 @@ export function mapActivityDetailRow(r: ActivityDetailRow): ActivityDetail {
     imageUrl: r.image_url,
     imagePosY: r.image_pos_y,
     category: r.category,
+    audience: r.audience,
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
   };
@@ -67,6 +69,7 @@ export interface NormalizedActivityInput {
   capacity: number;
   description: string;
   category: string | null;
+  audience: ActivityDetail['audience'];
 }
 
 // SET parcial (snake_case) para el UPDATE de edición: SÓLO las claves enviadas,
@@ -82,6 +85,7 @@ export interface ActivityUpdateSet {
   description?: string;
   category?: string | null;
   image_pos_y?: number | null;
+  audience?: ActivityDetail['audience'];
 }
 
 export function normalizeActivityUpdate(data: ActivityUpdateRequest): ActivityUpdateSet {
@@ -98,6 +102,7 @@ export function normalizeActivityUpdate(data: ActivityUpdateRequest): ActivityUp
     set.category = c ? c.toLowerCase().replace(/\s+/g, ' ') : null;
   }
   if (data.imagePosY !== undefined) set.image_pos_y = data.imagePosY; // null = centro
+  if (data.audience !== undefined) set.audience = data.audience;
   return set;
 }
 
@@ -113,5 +118,6 @@ export function normalizeActivityInput(data: ActivityCreateRequest): NormalizedA
     capacity: data.capacity,
     description: data.description?.trim() ?? '',
     category,
+    audience: data.audience ?? 'adultos', // default de producto
   };
 }

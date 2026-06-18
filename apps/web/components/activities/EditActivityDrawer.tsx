@@ -49,11 +49,11 @@ type CoverState =
 
 interface FormState {
   name: string; type: string; location: string; date: string;
-  endDate: string; capacity: string; category: string; description: string;
+  endDate: string; capacity: string; category: string; description: string; audience: string;
 }
 type FieldKey = keyof FormState;
 type Errors = Partial<Record<FieldKey | '_form', string>>;
-const EMPTY: FormState = { name: '', type: '', location: '', date: '', endDate: '', capacity: '', category: '', description: '' };
+const EMPTY: FormState = { name: '', type: '', location: '', date: '', endDate: '', capacity: '', category: '', description: '', audience: 'adultos' };
 
 // ISO → "YYYY-MM-DDTHH:mm" en hora LOCAL (lo que espera datetime-local).
 function isoToLocalInput(iso: string | null): string {
@@ -81,6 +81,7 @@ function formFromDetail(d: ActivityDetail): FormState {
     capacity: String(d.capacity),
     category: d.category ?? '',
     description: d.description ?? '',
+    audience: d.audience,
   };
 }
 
@@ -184,7 +185,7 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
 
   // Campos modificados (por string de form, robusto al round-trip de fechas).
   const dirty = useMemo(() => {
-    const keys: FieldKey[] = ['name', 'type', 'location', 'date', 'endDate', 'capacity', 'category', 'description'];
+    const keys: FieldKey[] = ['name', 'type', 'location', 'date', 'endDate', 'capacity', 'category', 'description', 'audience'];
     return keys.filter((k) => form[k] !== initial[k]);
   }, [form, initial]);
   const coverChanged = cover.phase === 'ready';
@@ -243,6 +244,7 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
     }
     if (dirty.includes('description')) body.description = form.description.trim();
     if (dirty.includes('category')) { const c = form.category.trim(); body.category = c === '' ? null : c; }
+    if (dirty.includes('audience')) body.audience = form.audience;
     if (posYChanged) body.imagePosY = posY;
 
     const effDate = (body.date as string | undefined) ?? loaded?.date ?? undefined;
@@ -480,6 +482,17 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
                   <input type="text" value={form.category} onChange={(e) => set('category', e.target.value)}
                     aria-invalid={!!errors.category} aria-describedby={errors.category ? errId('category') : undefined} className={inputCls(!!errors.category)} />
                   <FieldError k="category" />
+                </label>
+
+                <label className="block">
+                  <span className={labelCls}>Tipo de público</span>
+                  <select value={form.audience} onChange={(e) => set('audience', e.target.value)} className={inputCls(false)}>
+                    <option value="adultos">Adultos</option>
+                    <option value="infantil">Infantil (niños)</option>
+                  </select>
+                  <span className="mt-1 block text-[11px] leading-snug text-faint">
+                    Define cómo se cuentan los acompañantes en la puerta y el kiosko: infantil = niños, adultos = adultos.
+                  </span>
                 </label>
 
                 <label className="block">

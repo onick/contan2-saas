@@ -122,6 +122,13 @@ export type DashboardMetricsResponse = z.infer<typeof DashboardMetricsResponseSc
 
 export const ActivityStatusSchema = z.enum(['activa', 'finalizada', 'cancelada']);
 
+// Tipo de público (migración 034). Gobierna cómo se clasifican los acompañantes
+// de cada check-in: 'adultos' → adultos (companions_adults), 'infantil' → niños
+// (companions_children). Una sola decisión al crear gobierna kiosko + puerta +
+// resumen. Default 'adultos' (el caso más común en el CCB).
+export const ActivityAudienceSchema = z.enum(['adultos', 'infantil']);
+export type ActivityAudience = z.infer<typeof ActivityAudienceSchema>;
+
 export const ActivityListItemSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -134,6 +141,7 @@ export const ActivityListItemSchema = z.object({
   category: z.string().nullable(),
   imageUrl: z.string().nullable(), // ruta de portada (/uploads/...) o null
   imagePosY: z.number().int().nullable(), // encuadre vertical 0–100 (null = centro)
+  audience: ActivityAudienceSchema, // tipo de público (adultos | infantil)
 });
 export type ActivityListItem = z.infer<typeof ActivityListItemSchema>;
 
@@ -176,6 +184,8 @@ export const ActivityCreateRequestSchema = z
     category: z.string().max(60).optional(),
     // Encuadre vertical de la portada (0–100; omitido = centro). Migración 027.
     imagePosY: z.number().int().min(0).max(100).optional(),
+    // Tipo de público (migración 034; omitido = 'adultos' lo fija el server).
+    audience: ActivityAudienceSchema.optional(),
   })
   .superRefine((data, ctx) => {
     const start = new Date(data.date).getTime();
@@ -218,6 +228,8 @@ export const ActivityUpdateRequestSchema = z
     category: z.string().max(60).nullable(),
     // Encuadre vertical de la portada (0–100; null = volver al centro).
     imagePosY: z.number().int().min(0).max(100).nullable(),
+    // Tipo de público (migración 034). Editable.
+    audience: ActivityAudienceSchema,
   })
   .partial()
   .strict();
@@ -244,6 +256,7 @@ export const ActivityDetailSchema = z.object({
   imageUrl: z.string().nullable(),
   imagePosY: z.number().int().nullable(), // encuadre vertical 0–100 (null = centro)
   category: z.string().nullable(),
+  audience: ActivityAudienceSchema, // tipo de público (adultos | infantil)
   createdAt: z.string(), // ISO 8601
   updatedAt: z.string(), // ISO 8601
 });
@@ -823,6 +836,7 @@ export const PublicActivitySchema = z.object({
   enrolledCount: z.number().int(),
   imageUrl: z.string().nullable(),
   imagePosY: z.number().int().nullable(), // encuadre vertical 0–100 (null = centro)
+  audience: ActivityAudienceSchema, // tipo de público → acompañantes niños o adultos
 });
 export type PublicActivity = z.infer<typeof PublicActivitySchema>;
 
@@ -886,7 +900,10 @@ export const PublicCheckinRequestSchema = z.object({
       }),
     }),
   ]),
-  companionsChildren: z.number().int().min(0).max(MAX_COMPANIONS_CHILDREN),
+  // El kiosko envía UNO de los dos según el tipo de público de la actividad:
+  // infantil → companionsChildren, adultos → companionsAdults. Ambos default 0.
+  companionsChildren: z.number().int().min(0).max(MAX_COMPANIONS_CHILDREN).optional().default(0),
+  companionsAdults: z.number().int().min(0).max(MAX_COMPANIONS_ADULTS).optional().default(0),
 });
 export type PublicCheckinRequest = z.infer<typeof PublicCheckinRequestSchema>;
 
@@ -945,6 +962,8 @@ export const CheckinActivityItemSchema = z.object({
   // Lista de invitados: total (invitaciones no canceladas) y cuántos ya hicieron
   // check-in real. null = la actividad no tiene lista → la sección no la muestra.
   guestList: z.object({ total: z.number().int(), arrived: z.number().int() }).nullable().optional(),
+  // Tipo de público → la puerta sabe si los acompañantes son niños o adultos.
+  audience: ActivityAudienceSchema.optional(),
 });
 export type CheckinActivityItem = z.infer<typeof CheckinActivityItemSchema>;
 export const CheckinActivitiesResponseSchema = z.object({

@@ -98,11 +98,18 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
 
   async function darEntrada(inv: Inv) {
     if (!activityId || busy) return;
-    const companions = companionsOf(inv); // acompañantes ADULTOS a contar en el aforo
+    const companions = companionsOf(inv); // acompañantes a contar en el aforo
     setBusy(inv.id);
-    // La puerta registra acompañantes ADULTOS (gala/protocolo). Los niños van por
-    // el kiosko (flujo "¿vienes con niños?"). Ambos cuentan aforo por separado.
-    const r = await postCheckin({ activityId, visitor: { code: inv.code }, companionsChildren: 0, companionsAdults: companions });
+    // El TIPO DE PÚBLICO de la actividad decide si los acompañantes son niños
+    // (infantil) o adultos (default). Una sola decisión al crear la actividad
+    // gobierna el rótulo; el aforo los suma por separado.
+    const infantil = activity?.audience === 'infantil';
+    const r = await postCheckin({
+      activityId,
+      visitor: { code: inv.code },
+      companionsChildren: infantil ? companions : 0,
+      companionsAdults: infantil ? 0 : companions,
+    });
     setBusy(null);
     if (r.ok) {
       flash(companions > 0

@@ -23,6 +23,7 @@ import {
   type KioskScreen, type KioskActivity, type KioskVisitor,
 } from '../../lib/kiosko/demoData';
 import { checkinErrorMessage, type KioskCheckinResult } from '../../lib/kiosko/checkin';
+import type { ActivityAudience } from '@contan2/contracts';
 
 const CONFIRM_SECONDS = 15;
 
@@ -64,13 +65,22 @@ type CheckinVisitor =
 async function postCheckin(
   activityId: string,
   visitor: CheckinVisitor,
-  companionsChildren: number,
+  companions: number,
+  audience: ActivityAudience,
 ): Promise<{ ok: true; data: KioskCheckinResult } | { ok: false; message: string }> {
+  // El TIPO DE PÚBLICO de la actividad decide si los acompañantes son niños
+  // (infantil) o adultos (default). Uno de los dos viaja; el otro queda en 0.
+  const infantil = audience === 'infantil';
   try {
     const res = await fetch('/kiosko/checkin', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ activityId, visitor, companionsChildren }),
+      body: JSON.stringify({
+        activityId,
+        visitor,
+        companionsChildren: infantil ? companions : 0,
+        companionsAdults: infantil ? 0 : companions,
+      }),
     });
     let body: unknown = null;
     try {
@@ -132,7 +142,7 @@ export function KioskClient({
     if (source !== 'api') { confirmVisitor(found); return; }
     if (!activity || submitting) return;
     setSubmitting(true);
-    const r = await postCheckin(activity.id, { code: found.code }, found.companionsChildren);
+    const r = await postCheckin(activity.id, { code: found.code }, found.companionsChildren, activity.audience ?? 'adultos');
     setSubmitting(false);
     if (r.ok) {
       // Código real (el mismo que ya tenía) + conteo de visitas actualizado.
@@ -159,7 +169,7 @@ export function KioskClient({
       ...(f.email ? { email: f.email } : {}),
       ...(f.phone ? { phone: f.phone } : {}),
     };
-    const r = await postCheckin(activity.id, { new: newVisitor }, f.children);
+    const r = await postCheckin(activity.id, { new: newVisitor }, f.children, activity.audience ?? 'adultos');
     setSubmitting(false);
     if (r.ok) {
       confirmVisitor({
@@ -201,11 +211,12 @@ export function KioskClient({
           submitting={submitting}
           onNew={() => setScreen('new')}
           onBack={() => setScreen('identify')}
+          audience={activity?.audience ?? 'adultos'}
         />
       )}
 
       {screen === 'new' && (
-        <NewVisitorScreen onSubmit={registerNew} submitting={submitting} onBack={() => setScreen('identify')} />
+        <NewVisitorScreen onSubmit={registerNew} submitting={submitting} onBack={() => setScreen('identify')} audience={activity?.audience ?? 'adultos'} />
       )}
 
       {screen === 'confirmation' && visitor && activity && (
@@ -215,6 +226,7 @@ export function KioskClient({
           real={source === 'api'}
           secondsLeft={countdown}
           onHome={() => reset.current()}
+          audience={activity.audience ?? 'adultos'}
         />
       )}
 

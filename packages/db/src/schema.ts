@@ -17,6 +17,7 @@ import type {
   AccountStatus,
   StaffRole,
   ActivityStatus,
+  ActivityAudience,
   InvitationStatus,
 } from './enums.js';
 
@@ -225,6 +226,9 @@ export interface ActivitiesTable {
   status: DefaultedEnum<ActivityStatus>;
   organization_id: string;
   category: string | null;
+  // Tipo de público (migración 034): 'adultos' (default) | 'infantil'. Define
+  // si los acompañantes de cada check-in cuentan como adultos o niños.
+  audience: DefaultedEnum<ActivityAudience>;
   // SMALLINT NULL (migración 027): encuadre vertical de la portada (0–100;
   // NULL = centro). v1 la ignora.
   image_pos_y: number | null;

@@ -96,7 +96,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
 
     const rows = await db
       .selectFrom('activities')
-      .select(['id', 'name', 'type', 'category', 'location', 'date', 'capacity', 'enrolled_count', 'image_url', 'image_pos_y'])
+      .select(['id', 'name', 'type', 'category', 'location', 'date', 'capacity', 'enrolled_count', 'image_url', 'image_pos_y', 'audience'])
       .where('organization_id', '=', t.orgId)
       .where('status', '=', 'activa')
       .orderBy('date', 'asc')
@@ -116,6 +116,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
         enrolledCount: r.enrolled_count,
         imageUrl: r.image_url,
         imagePosY: r.image_pos_y,
+        audience: r.audience,
       }));
 
     const body: PublicActivitiesResponse = { activities, total: activities.length };
@@ -250,7 +251,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       reply.code(400);
       return { error: 'Datos de check-in inválidos.' };
     }
-    const { activityId, visitor, companionsChildren } = parsed.data;
+    const { activityId, visitor, companionsChildren, companionsAdults } = parsed.data;
     const orgId = t.orgId;
     // Visitante NUEVO con email → tras el commit se le entrega la credencial por
     // correo (best-effort, fuera de la tx). El visitante EXISTENTE no reenvía.
@@ -260,7 +261,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       const result = await db.transaction().execute(async (tx) => {
         // Núcleo COMPARTIDO: resuelve/crea visitante + reserva cupo atómica +
         // asistencia idempotente + visitas (mismo comportamiento que antes).
-        const r = await checkinIdentified(tx, { orgId, codePrefix: t.codePrefix, activityId, visitor, companionsChildren, companionsAdults: 0 });
+        const r = await checkinIdentified(tx, { orgId, codePrefix: t.codePrefix, activityId, visitor, companionsChildren, companionsAdults });
         deliver = r.deliver;
         return r;
       });
