@@ -38,6 +38,7 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
   const [padronPhase, setPadronPhase] = useState<'idle' | 'loading' | 'done'>('idle');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [newComp, setNewComp] = useState(0); // acompañantes del visitante nuevo (0..10)
   const [addBusy, setAddBusy] = useState<string | null>(null); // userId del padrón o 'new' en curso
   // Acompañantes por invitado al dar entrada (cuentan aforo, sin credencial).
   // Default = +N autorizados del invitado de protocolo; ajustable 0..10.
@@ -136,14 +137,25 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
   }
 
   // Admitir (check-in + asegurar en la lista) a un visitante existente o nuevo.
-  async function admit(visitor: AdminCheckinRequest['visitor'], label: string, key: string) {
+  async function admit(visitor: AdminCheckinRequest['visitor'], label: string, key: string, companions = 0) {
     if (!activityId || addBusy) return;
     setAddBusy(key);
-    const r = await postCheckin({ activityId, visitor, companionsChildren: 0, companionsAdults: 0, addToList: true });
+    // El tipo de público de la actividad decide si los acompañantes son niños
+    // (infantil) o adultos (default), igual que al dar entrada desde la lista.
+    const infantil = activity?.audience === 'infantil';
+    const r = await postCheckin({
+      activityId,
+      visitor,
+      companionsChildren: infantil ? companions : 0,
+      companionsAdults: infantil ? 0 : companions,
+      addToList: true,
+    });
     setAddBusy(null);
     if (r.ok) {
-      flash(`${label} entró.`);
-      setQ(''); setCreateOpen(false); setForm({ firstName: '', lastName: '', email: '', phone: '' });
+      flash(companions > 0
+        ? `${label} entró con +${companions} acompañante${companions > 1 ? 's' : ''} (${companions + 1} en total).`
+        : `${label} entró.`);
+      setQ(''); setCreateOpen(false); setForm({ firstName: '', lastName: '', email: '', phone: '' }); setNewComp(0);
       void load(); onArrival();
     } else {
       flash(r.status === 409 ? (r.error || 'Cupo agotado.') : (r.error || 'No se pudo registrar.'));
@@ -169,7 +181,7 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
     const firstName = form.firstName.trim(), lastName = form.lastName.trim();
     if (!firstName || !lastName) { flash('Nombre y apellido son obligatorios.'); return; }
     const email = form.email.trim(), phone = form.phone.trim();
-    void admit({ new: { firstName, lastName, ...(email ? { email } : {}), ...(phone ? { phone } : {}) } }, firstName, 'new');
+    void admit({ new: { firstName, lastName, ...(email ? { email } : {}), ...(phone ? { phone } : {}) } }, firstName, 'new', newComp);
   }
 
   const s = data?.summary;
@@ -401,10 +413,28 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
                             </label>
                           ))}
                         </div>
+                        {/* Acompañantes del nuevo visitante (cuentan aforo). Niños o
+                            adultos según el tipo de público de la actividad. */}
+                        <div className="mt-3 flex items-center justify-between rounded-lg border border-line bg-surface px-3 py-2">
+                          <span className="text-[13px] text-ink">
+                            ¿Viene con acompañantes{activity?.audience === 'infantil' ? ' (niños)' : ''}?
+                          </span>
+                          <span className="flex items-center rounded-lg border border-line" title="Acompañantes">
+                            <button type="button" aria-label="Menos acompañantes" disabled={addBusy === 'new' || newComp <= 0} onClick={() => setNewComp((n) => Math.max(0, n - 1))}
+                              className={cn('grid h-8 w-8 place-items-center text-muted disabled:opacity-40', focusRing)}>
+                              <Minus size={15} aria-hidden="true" />
+                            </button>
+                            <span className="min-w-[34px] text-center text-[13px] font-semibold tabular-nums text-ink">+{newComp}</span>
+                            <button type="button" aria-label="Más acompañantes" disabled={addBusy === 'new' || newComp >= 10} onClick={() => setNewComp((n) => Math.min(10, n + 1))}
+                              className={cn('grid h-8 w-8 place-items-center text-muted disabled:opacity-40', focusRing)}>
+                              <Plus size={15} aria-hidden="true" />
+                            </button>
+                          </span>
+                        </div>
                         <div className="mt-3 flex items-center justify-end gap-2">
-                          <button type="button" onClick={() => setCreateOpen(false)} className={cn('rounded-lg px-3 py-2 text-[13px] font-semibold text-muted hover:bg-surface-container', focusRing)}>Cancelar</button>
+                          <button type="button" onClick={() => { setCreateOpen(false); setNewComp(0); }} className={cn('rounded-lg px-3 py-2 text-[13px] font-semibold text-muted hover:bg-surface-container', focusRing)}>Cancelar</button>
                           <Button size="sm" disabled={addBusy === 'new'} style={{ backgroundColor: 'var(--color-brand)' }} onClick={createAndAdmit}>
-                            {addBusy === 'new' ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Crear, agregar y dar entrada
+                            {addBusy === 'new' ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Crear, agregar y dar entrada{newComp > 0 ? ` · +${newComp}` : ''}
                           </Button>
                         </div>
                       </div>
