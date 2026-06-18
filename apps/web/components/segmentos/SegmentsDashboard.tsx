@@ -10,7 +10,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Crown, Activity, Sparkles, Moon, ChevronRight, Heart, BarChart3, Send, Download, Users,
-  Film, Music, Wrench, Image as ImageIcon, Drama, Presentation, type LucideIcon,
+  Film, Music, Wrench, Image as ImageIcon, Drama, Presentation, ArrowUp, ArrowDown, type LucideIcon,
 } from 'lucide-react';
 import type { Segment } from '@contan2/contracts';
 import { Card, cn, focusRing } from '../ui';
@@ -45,6 +45,26 @@ const ENGAGEMENT_META: Record<string, { tint: string; Icon: LucideIcon }> = {
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
+// Chip de variación "vs último mes": ↑ verde / ↓ rojo / "—" neutro (sin base o 0).
+function DeltaChip({ pct }: { pct: number | null }) {
+  if (pct === null) {
+    return <span className="inline-flex items-center rounded-full bg-surface-container px-2 py-0.5 text-[11.5px] font-bold text-faint">—</span>;
+  }
+  if (pct === 0) {
+    return <span className="inline-flex items-center rounded-full bg-surface-container px-2 py-0.5 text-[11.5px] font-bold text-faint">0%</span>;
+  }
+  const up = pct > 0;
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11.5px] font-bold',
+      up ? 'bg-success-bg text-success-fg' : 'bg-danger-bg text-danger-fg',
+    )}>
+      {up ? <ArrowUp size={11} strokeWidth={2.75} aria-hidden="true" /> : <ArrowDown size={11} strokeWidth={2.75} aria-hidden="true" />}
+      {Math.abs(pct)}%
+    </span>
+  );
+}
+
 export interface SegmentsDashboardProps {
   segments: Segment[];
   totalVisitors: number;
@@ -54,6 +74,7 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
   const rootRef = useRef<HTMLDivElement>(null);
 
   const get = (id: string) => segments.find((s) => s.id === id)?.count ?? 0;
+  const deltaOf = (id: string): number | null => segments.find((s) => s.id === id)?.deltaPct ?? null;
   const afinidad = segments.filter((s) => s.group === 'afinidad');
   const categorias = segments.filter((s) => s.group === 'categorias');
 
@@ -167,10 +188,14 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((k) => (
           <Card key={k.id} padding="md">
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between">
               <span className={cn('grid h-10 w-10 place-items-center rounded-xl', k.tint)}>
                 <k.Icon size={20} strokeWidth={1.9} aria-hidden="true" />
               </span>
+              <div className="flex flex-col items-end gap-1">
+                <DeltaChip pct={deltaOf(k.id)} />
+                <span className="text-[11px] text-faint">vs. último mes</span>
+              </div>
             </div>
             <p className="mt-3.5 text-[11.5px] font-bold uppercase tracking-[0.04em] text-faint">{k.label}</p>
             <p className="mt-0.5 text-[34px] font-extrabold leading-none tracking-tight text-ink tabular-nums" data-count={get(k.id)}>{fmt(get(k.id))}</p>
@@ -285,6 +310,10 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
                     <p className="text-[14px] font-bold text-ink">{s.label}</p>
                     <p className="mt-0.5 text-[30px] font-extrabold leading-none tracking-tight text-ink tabular-nums" data-count={s.count}>{fmt(s.count)}</p>
                     <p className="mt-1.5 text-[12.5px] text-muted">{s.description}</p>
+                    <p className="mt-2.5 flex items-center gap-1.5">
+                      <DeltaChip pct={s.deltaPct ?? null} />
+                      <span className="text-[11px] text-faint">vs. último mes</span>
+                    </p>
                   </Card>
                 </a>
               );

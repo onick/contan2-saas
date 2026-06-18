@@ -100,7 +100,9 @@ const STATIC_DEFS: SegmentDef[] = [
 // Afinidad agregada por usuario (un solo GROUP BY sobre attendance, scoped al
 // tenant; sólo identificados y no archivados).
 interface AffinityRow { user_id: string; n: number; last_at: Date }
-async function affinityBase(db: DbClient, orgId: string): Promise<AffinityRow[]> {
+// `before` (ISO) → "como estaba en esa fecha": sólo cuenta asistencias registradas
+// hasta ese momento. Sin `before` = estado actual (todo el historial).
+async function affinityBase(db: DbClient, orgId: string, before?: string): Promise<AffinityRow[]> {
   const rows = await db
     .selectFrom('attendance as a')
     .innerJoin('users as u', (join) => join.onRef('u.id', '=', 'a.user_id'))
@@ -108,13 +110,15 @@ async function affinityBase(db: DbClient, orgId: string): Promise<AffinityRow[]>
     .where('a.organization_id', '=', orgId)
     .where('a.user_id', 'is not', null)
     .where('u.deleted_at', 'is', null)
+    .$if(before != null, (qb) => qb.where(sql<boolean>`a.registered_at <= ${before}`))
     .groupBy('a.user_id')
     .execute();
   return rows as AffinityRow[];
 }
 
 // Pares (usuario, clave) con conteo — para fans por tipo y por categoría.
-async function fanPairs(db: DbClient, orgId: string, key: 'type' | 'category'): Promise<Array<{ user_id: string; k: string; n: number }>> {
+// `before` (ISO) → estado a esa fecha (sólo asistencias hasta ese momento).
+async function fanPairs(db: DbClient, orgId: string, key: 'type' | 'category', before?: string): Promise<Array<{ user_id: string; k: string; n: number }>> {
   const col = key === 'type' ? 'act.type' : 'act.category';
   const rows = await db
     .selectFrom('attendance as a')
@@ -125,6 +129,7 @@ async function fanPairs(db: DbClient, orgId: string, key: 'type' | 'category'): 
     .where('a.user_id', 'is not', null)
     .where('u.deleted_at', 'is', null)
     .$if(key === 'category', (qb) => qb.where('act.category', 'is not', null))
+    .$if(before != null, (qb) => qb.where(sql<boolean>`a.registered_at <= ${before}`))
     .groupBy([sql`${sql.ref(col)}`, 'a.user_id'])
     .execute();
   return rows as Array<{ user_id: string; k: string; n: number }>;
@@ -137,6 +142,29 @@ function memberStatus(n: number, lastAt: Date | null, now: number): SegmentMembe
   if (age > DORMANT_DAYS * DAY_MS) return 'dormido';
   return 'regular';
 }
+
+// Conteos de engagement desde un set de afinidad evaluado con una referencia
+// temporal `refMs` (ahora, o hace 30 días para el delta "vs último mes").
+function engagementCounts(rows: AffinityRow[], refMs: number): { vip: number; active: number; newcomers: number; dormant: number } {
+  const c = { vip: 0, active: 0, newcomers: 0, dormant: 0 };
+  for (const a of rows) {
+    const n = Number(a.n);
+    if (n >= VIP_MIN) c.vip += 1;
+    if (n === 1) c.newcomers += 1;
+    const status = memberStatus(n, a.last_at, refMs);
+    if (status === 'activo') c.active += 1;
+    if (status === 'dormido') c.dormant += 1;
+  }
+  return c;
+}
+
+// % de variación vs el valor previo. null si no hay base (prev<=0) → la UI muestra "—".
+function deltaPct(curr: number, prev: number): number | null {
+  if (prev <= 0) return null;
+  return Math.round(((curr - prev) / prev) * 100);
+}
+const fansCount = (pairs: Array<{ k: string; n: number }>, t: string, th: number): number =>
+  pairs.filter((p) => p.k === t && Number(p.n) >= th).length;
 
 // Resuelve definición + user_ids de un segmento (REUTILIZABLE: lo consumen la
 // ruta de miembros y el motor de invitaciones por actividad). null = no existe.
@@ -200,7 +228,12 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
     const orgId = guard.ctx.org.id;
     const now = Date.now();
 
-    const [affs, byType, byCategory, emailFacets] = await Promise.all([
+    // Estado "hace 30 días" (cutoff) en paralelo → delta REAL "vs último mes"
+    // desde el historial, sin tabla de snapshots ni números inventados.
+    const monthAgoMs = now - ACTIVE_DAYS * DAY_MS;
+    const cutoffISO = new Date(monthAgoMs).toISOString();
+
+    const [affs, byType, byCategory, emailFacets, affsThen, byTypeThen] = await Promise.all([
       affinityBase(db, orgId),
       fanPairs(db, orgId, 'type'),
       fanPairs(db, orgId, 'category'),
@@ -212,33 +245,36 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
         .where('organization_id', '=', orgId)
         .where('deleted_at', 'is', null)
         .executeTakeFirstOrThrow(),
+      affinityBase(db, orgId, cutoffISO),
+      fanPairs(db, orgId, 'type', cutoffISO),
     ]);
 
-    const counts: Record<string, number> = { vip: 0, active: 0, newcomers: 0, dormant: 0 };
-    for (const a of affs) {
-      const n = Number(a.n);
-      if (n >= VIP_MIN) counts.vip! += 1;
-      if (n === 1) counts.newcomers! += 1;
-      const status = memberStatus(n, a.last_at, now);
-      if (status === 'activo') counts.active! += 1;
-      if (status === 'dormido') counts.dormant! += 1;
-    }
+    const cur = engagementCounts(affs, now);
+    const prev = engagementCounts(affsThen, monthAgoMs);
+    const counts: Record<string, number> = { ...cur };
     counts['with-email'] = Number(emailFacets.with_email);
     counts['without-email'] = Number(emailFacets.all) - Number(emailFacets.with_email);
+    const deltas: Record<string, number | null> = {
+      vip: deltaPct(cur.vip, prev.vip),
+      active: deltaPct(cur.active, prev.active),
+      newcomers: deltaPct(cur.newcomers, prev.newcomers),
+      dormant: deltaPct(cur.dormant, prev.dormant),
+    };
 
-    const segments: Segment[] = STATIC_DEFS.map((d) => ({ ...d, count: counts[d.id] ?? 0 }));
+    const segments: Segment[] = STATIC_DEFS.map((d) => ({ ...d, count: counts[d.id] ?? 0, deltaPct: deltas[d.id] ?? null }));
 
-    // Fans por tipo (orden fijo del enum; 'otro' no es un fandom).
+    // Fans por tipo (orden fijo del enum; 'otro' no es un fandom). Con delta mensual.
     for (const t of ACTIVITY_TYPES) {
       if (t === 'otro') continue;
       const th = fanThreshold(t);
-      const count = byType.filter((p) => p.k === t && Number(p.n) >= th).length;
+      const count = fansCount(byType, t, th);
       segments.push({
         id: `fans-${t}`,
         label: `Fans de ${TYPE_LABELS[t] ?? t}`,
         description: `${th} o más asistencias de ${(TYPE_LABELS[t] ?? t).toLowerCase()}`,
         group: 'afinidad',
         count,
+        deltaPct: deltaPct(count, fansCount(byTypeThen, t, th)),
       });
     }
 
