@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, X, Search, Loader2, Medal, MailX, RotateCw, ListChecks, UserPlus } from 'lucide-react';
+import { CheckCircle2, X, Search, Loader2, Medal, MailX, RotateCw, ListChecks, UserPlus, Plus, Minus, Users } from 'lucide-react';
 import type { ActivityInvitationsResponse, CheckinActivityItem, CheckinVisitorItem, CheckinVisitorsResponse, AdminCheckinRequest } from '@contan2/contracts';
 import { Button, IconButton, cn, focusRing } from '../ui';
 import { postCheckin } from '../../lib/api/checkin-client';
@@ -39,6 +39,11 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [addBusy, setAddBusy] = useState<string | null>(null); // userId del padrón o 'new' en curso
+  // Acompañantes por invitado al dar entrada (cuentan aforo, sin credencial).
+  // Default = +N autorizados del invitado de protocolo; ajustable 0..10.
+  const [comp, setComp] = useState<Record<string, number>>({});
+  const companionsOf = (inv: Inv): number => comp[inv.id] ?? (isProto(inv) ? inv.plusOnes : 0);
+  const setCompFor = (id: string, n: number) => setComp((c) => ({ ...c, [id]: Math.min(10, Math.max(0, n)) }));
 
   const flash = useCallback((m: string) => {
     setToast(m);
@@ -93,13 +98,13 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
 
   async function darEntrada(inv: Inv) {
     if (!activityId || busy) return;
+    const companions = companionsOf(inv); // acompañantes a contar en el aforo
     setBusy(inv.id);
-    const r = await postCheckin({ activityId, visitor: { code: inv.code }, companionsChildren: 0 });
+    const r = await postCheckin({ activityId, visitor: { code: inv.code }, companionsChildren: companions });
     setBusy(null);
     if (r.ok) {
-      const proto = r.data.protocol;
-      flash(proto && proto.plusOnes > 0
-        ? `${inv.firstName} entró · trae +${proto.plusOnes} acompañantes autorizados.`
+      flash(companions > 0
+        ? `${inv.firstName} entró con +${companions} acompañante${companions > 1 ? 's' : ''} (${companions + 1} en total).`
         : `${inv.firstName} entró.`);
       void load(); onArrival();
     } else {
@@ -287,10 +292,26 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
                         ) : null}
                       </div>
                     ) : (
-                      <Button size="sm" className="flex-none" disabled={busy === inv.id}
-                        style={{ backgroundColor: 'var(--color-brand)' }} onClick={() => void darEntrada(inv)}>
-                        {busy === inv.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Dar entrada
-                      </Button>
+                      <div className="flex flex-none items-center gap-1.5">
+                        {/* Acompañantes (cuentan aforo, sin credencial). 0 → botón
+                            "+"; >0 → stepper. Protocolo arranca con sus +N. */}
+                        {companionsOf(inv) > 0 ? (
+                          <span className="flex items-center rounded-lg border border-line" title="Acompañantes">
+                            <button type="button" aria-label="Menos acompañantes" disabled={busy === inv.id} onClick={() => setCompFor(inv.id, companionsOf(inv) - 1)}
+                              className={cn('grid h-9 w-8 place-items-center text-muted hover:text-ink disabled:opacity-50', focusRing)}><Minus size={14} strokeWidth={2.5} aria-hidden="true" /></button>
+                            <span className="min-w-[34px] text-center text-[13px] font-semibold tabular-nums text-ink">+{companionsOf(inv)}</span>
+                            <button type="button" aria-label="Más acompañantes" disabled={busy === inv.id || companionsOf(inv) >= 10} onClick={() => setCompFor(inv.id, companionsOf(inv) + 1)}
+                              className={cn('grid h-9 w-8 place-items-center text-muted hover:text-ink disabled:opacity-50', focusRing)}><Plus size={14} strokeWidth={2.5} aria-hidden="true" /></button>
+                          </span>
+                        ) : (
+                          <button type="button" aria-label={`Agregar acompañante a ${inv.firstName}`} title="Vino con acompañante" disabled={busy === inv.id} onClick={() => setCompFor(inv.id, 1)}
+                            className={cn('grid h-9 w-9 place-items-center rounded-lg border border-line text-faint hover:bg-surface-container hover:text-ink disabled:opacity-50', focusRing)}><Users size={16} strokeWidth={2} aria-hidden="true" /></button>
+                        )}
+                        <Button size="sm" disabled={busy === inv.id}
+                          style={{ backgroundColor: 'var(--color-brand)' }} onClick={() => void darEntrada(inv)}>
+                          {busy === inv.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Dar entrada{companionsOf(inv) > 0 ? ` · +${companionsOf(inv)}` : ''}
+                        </Button>
+                      </div>
                     )}
                   </li>
                 );

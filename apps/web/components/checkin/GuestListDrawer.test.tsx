@@ -144,4 +144,27 @@ describe('GuestListDrawer', () => {
     const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/invite-existing'))!;
     expect(JSON.parse((call[1] as { body: string }).body).userIds).toEqual(['p1']);
   });
+
+  it('protocolo con +N: "Dar entrada" cuenta los acompañantes autorizados en el aforo', async () => {
+    const onArrival = vi.fn();
+    const fetchMock = installFetch();
+    render(<GuestListDrawer activity={activity} onClose={() => {}} onArrival={onArrival} />);
+    const row = (await screen.findByText('Amelia Deschamps')).closest('li')!; // protocolo, plusOnes 2
+    fireEvent.click(within(row).getByRole('button', { name: /Dar entrada/ }));
+    await waitFor(() => expect(onArrival).toHaveBeenCalled());
+    const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/check-in/api/checkin'))!;
+    expect(JSON.parse((call[1] as { body: string }).body).companionsChildren).toBe(2);
+  });
+
+  it('invitado normal: agregar acompañante (botón + stepper) → "Dar entrada" lo cuenta', async () => {
+    const fetchMock = installFetch();
+    render(<GuestListDrawer activity={activity} onClose={() => {}} onArrival={() => {}} />);
+    const row = (await screen.findByText('María Mercedes Ortíz')).closest('li')!; // audiencia, plusOnes 0
+    fireEvent.click(within(row).getByRole('button', { name: /Agregar acompañante/ })); // 0 → 1 (aparece el stepper)
+    fireEvent.click(within(row).getByRole('button', { name: 'Más acompañantes' }));     // 1 → 2
+    fireEvent.click(within(row).getByRole('button', { name: /Dar entrada/ }));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/check-in/api/checkin'))).toBe(true));
+    const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/check-in/api/checkin'))!;
+    expect(JSON.parse((call[1] as { body: string }).body).companionsChildren).toBe(2);
+  });
 });
