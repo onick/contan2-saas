@@ -160,8 +160,18 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
   const topMax = data.topActivities[0]?.attendances || 1;
   const [selAct, setSelAct] = useState(0);
   const sel = data.topActivities[Math.min(selAct, Math.max(0, data.topActivities.length - 1))];
-  const hourMax = Math.max(1, ...data.byHour.map((h) => h.count));
-  const wdMax = Math.max(1, ...data.byWeekday.map((w) => w.count));
+  // Eje de horas CONTINUO: rellena las horas sin asistencias entre la primera y
+  // la última con datos (en vez de saltarlas) para no falsear la distribución.
+  const hourItems = (() => {
+    if (data.byHour.length === 0) return [] as Array<{ label: string; value: number }>;
+    const lo = Math.min(...data.byHour.map((h) => h.hour));
+    const hi = Math.max(...data.byHour.map((h) => h.hour));
+    const m = new Map(data.byHour.map((h) => [h.hour, h.count]));
+    return Array.from({ length: hi - lo + 1 }, (_, i) => ({ label: `${lo + i}h`, value: m.get(lo + i) ?? 0 }));
+  })();
+  const hourMax = Math.max(1, ...hourItems.map((h) => h.value));
+  const wdItems = data.byWeekday.map((w) => ({ label: WEEKDAYS[w.weekday] ?? '', value: w.count }));
+  const wdMax = Math.max(1, ...wdItems.map((w) => w.value));
 
   return (
     <div ref={rootRef}>
@@ -304,15 +314,19 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
                   {data.topActivities.map((a, i) => <option key={a.id} value={i}>{a.name}</option>)}
                 </select>
                 <div className="mt-3.5 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-line p-3.5">
-                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-success-bg text-success-fg"><Users size={16} strokeWidth={1.9} /></span>
-                    <p className="mt-2 text-[11px] text-muted">Asistencias</p>
-                    <p className="text-[22px] font-extrabold tabular-nums text-ink">{fmt(sel?.attendances ?? 0)}</p>
+                  <div className="flex items-center gap-3 rounded-xl border border-line p-3.5">
+                    <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-success-bg text-success-fg"><Users size={17} strokeWidth={1.9} /></span>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted">Asistencias</p>
+                      <p className="text-[22px] font-extrabold leading-tight tabular-nums text-ink">{fmt(sel?.attendances ?? 0)}</p>
+                    </div>
                   </div>
-                  <div className="rounded-xl border border-line p-3.5">
-                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand/10 text-brand"><TrendingUp size={16} strokeWidth={1.9} /></span>
-                    <p className="mt-2 text-[11px] text-muted">Ocupación</p>
-                    <p className="text-[22px] font-extrabold tabular-nums text-ink">{sel?.occupancyPct ?? 0}%</p>
+                  <div className="flex items-center gap-3 rounded-xl border border-line p-3.5">
+                    <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-brand/10 text-brand"><TrendingUp size={17} strokeWidth={1.9} /></span>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted">Ocupación</p>
+                      <p className="text-[22px] font-extrabold leading-tight tabular-nums text-ink">{sel?.occupancyPct ?? 0}%</p>
+                    </div>
                   </div>
                 </div>
               </>
@@ -320,11 +334,11 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
           </Card>
           <Card padding="lg">
             <h2 className="flex items-center gap-1.5 text-[15.5px] font-bold tracking-tight text-ink"><Clock size={15} strokeWidth={2} className="text-faint" /> Asistencias por hora</h2>
-            <Bars items={data.byHour.map((h) => ({ label: `${h.hour}h`, value: h.count }))} max={hourMax} color="#e65100" empty="Sin datos por hora todavía." />
+            <Bars items={hourItems} max={hourMax} color="#e65100" empty="Sin datos por hora todavía." />
           </Card>
           <Card padding="lg">
             <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Asistencias por día</h2>
-            <Bars items={data.byWeekday.map((w) => ({ label: WEEKDAYS[w.weekday] ?? '', value: w.count }))} max={wdMax} color="#8fb3ef" empty="Sin datos por día todavía." />
+            <Bars items={wdItems} max={wdMax} color="#8fb3ef" empty="Sin datos por día todavía." />
           </Card>
         </div>
       </div>
@@ -386,15 +400,29 @@ function Donut({ slices, centerValue, centerLabel }: { slices: Slice[]; centerVa
 }
 
 function Bars({ items, max, color, empty }: { items: Array<{ label: string; value: number }>; max: number; color: string; empty: string }) {
+  const [hi, setHi] = useState<number | null>(null);
   if (items.length === 0 || items.every((i) => i.value === 0)) return <p className="mt-6 text-[13px] text-muted">{empty}</p>;
+  const peak = items.reduce((b, it, i) => (it.value > items[b]!.value ? i : b), 0);
   return (
-    <div className="mt-4 flex h-[130px] items-end gap-2 pt-1.5">
-      {items.map((it, k) => (
-        <div key={k} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
-          <i className="w-full max-w-[28px] rounded-t-md" data-bar="h" data-val={(it.value / max) * 100} style={{ height: `${(it.value / max) * 100}%`, background: color }} />
-          <span className="text-[10px] text-faint">{it.label}</span>
-        </div>
-      ))}
+    <div className="mt-3">
+      <div className="flex h-[136px] items-end gap-2.5 border-b border-line">
+        {items.map((it, k) => {
+          const h = (it.value / max) * 100;
+          const dim = hi !== null && hi !== k;
+          const lit = hi === k || (hi === null && k === peak);
+          return (
+            <div key={k} onMouseEnter={() => setHi(k)} onMouseLeave={() => setHi(null)}
+              className="flex h-full flex-1 cursor-default flex-col items-center justify-end gap-1.5">
+              <span className={cn('text-[10.5px] font-bold tabular-nums transition-colors', it.value === 0 ? 'opacity-0' : hi === k ? 'text-ink' : 'text-faint')}>{fmt(it.value)}</span>
+              <i className="w-full max-w-[30px] rounded-t-md transition-all duration-150" data-bar="h" data-val={h}
+                style={{ height: `${h}%`, minHeight: it.value > 0 ? 5 : 0, background: color, opacity: dim ? 0.4 : lit ? 1 : 0.78 }} />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1.5 flex gap-2.5">
+        {items.map((it, k) => (<span key={k} className={cn('flex-1 text-center text-[10.5px] transition-colors', hi === k ? 'font-bold text-ink' : 'text-faint')}>{it.label}</span>))}
+      </div>
     </div>
   );
 }
