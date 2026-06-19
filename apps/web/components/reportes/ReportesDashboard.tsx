@@ -228,15 +228,16 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
         {/* KPIs (ícono izquierda, info derecha) */}
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {kpis.map((kp) => (
-            <Card key={kp.label} padding="md" className="flex items-start gap-3.5">
+            <Card key={kp.label} padding="md" className="relative flex items-start gap-3.5">
+              {/* delta en la esquina superior derecha */}
+              <div className="absolute right-4 top-4 flex flex-col items-end gap-0.5">
+                <DeltaPct pct={kp.delta} />
+                <span className="text-[10px] text-faint tabular-nums">{fmt(kp.prev)}{kp.suffix ?? ''} antes</span>
+              </div>
               <span className={cn('grid h-11 w-11 flex-none place-items-center rounded-xl', kp.tint)}><kp.Icon size={21} strokeWidth={1.9} /></span>
-              <div className="min-w-0">
+              <div className="min-w-0 pr-16">
                 <span className="block text-[11px] font-bold uppercase tracking-[0.04em] text-faint">{kp.label}</span>
                 <p className="mt-1 text-[30px] font-extrabold leading-none tracking-tight text-ink tabular-nums"><span data-count={kp.value}>{fmt(kp.value)}</span>{kp.suffix}</p>
-                <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[11.5px]">
-                  <DeltaPct pct={kp.delta} />
-                  <span className="text-faint">· {fmt(kp.prev)}{kp.suffix ?? ''} antes</span>
-                </p>
               </div>
             </Card>
           ))}
