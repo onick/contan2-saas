@@ -26,6 +26,8 @@ import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { effectiveHost } from '../tenant.js';
 import { deliverInvitations, type DeliverableInvitation } from '../services/invitation-email.js';
+import { protocolDashboard } from '../services/protocol-dashboard.js';
+import type { ProtocolDashboardResponse } from '@contan2/contracts';
 
 // owner/admin gestionan todo; la cuenta 'protocolo' usa SOLO este módulo.
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'protocolo']);
@@ -59,6 +61,17 @@ async function writeProtocolAudit(db: DbClient, p: {
 }
 
 export const protocolRoute: FastifyPluginAsync = async (app) => {
+  // ── Dashboard ejecutivo (KPIs+deltas, invitados con stats, actividad reciente,
+  //    próximos eventos). Read-only · roles de gestión de protocolo.
+  app.get('/protocol/dashboard', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar protocolo.' }; }
+    const body: ProtocolDashboardResponse = await protocolDashboard(db, guard.ctx.org.id);
+    return body;
+  });
+
   // ── Directorio ─────────────────────────────────────────────────────────
   app.get('/protocol', async (req: FastifyRequest, reply) => {
     const db = getDb();
