@@ -118,28 +118,47 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
     } finally { setBusy(null); setMenuOpen(null); }
   }
 
-  // ── animación GSAP (coherente con Segmentos): las tarjetas YA están; sólo el
-  //    CONTENIDO aparece — count-up de los números. Sin hide-then-reveal de
-  //    contenedores → SSR-safe (el contenido nunca se oculta si gsap no carga).
+  // ── animación GSAP (coherente con Segmentos): la CAJA de cada tarjeta ya está;
+  //    aparece su CONTENIDO INTERNO (no la caja) con un fade+rise escalonado, y
+  //    los números cuentan hacia arriba. Se ocultan sólo los hijos internos
+  //    (opacity), nunca el contenedor → la tarjeta se ve desde el primer frame.
+  //    Watchdog + settle reponen todo si gsap no carga (SSR-safe).
   useIso(() => {
     const root = rootRef.current;
     if (!root || prefersReducedMotion()) return;
+    // Contenido interno a revelar, por grupo (la caja queda intacta).
+    const groups: Array<HTMLElement[]> = [
+      Array.from(root.querySelectorAll<HTMLElement>('[data-anim="kpi"] > *')),
+      Array.from(root.querySelectorAll<HTMLElement>('[data-anim="tab"]')),
+      Array.from(root.querySelectorAll<HTMLElement>('[data-anim="gcard"] > *')),
+      Array.from(root.querySelectorAll<HTMLElement>('[data-anim="feed"]')),
+      Array.from(root.querySelectorAll<HTMLElement>('[data-anim="ev"]')),
+    ];
+    const reveal = groups.flat();
     const counters = Array.from(root.querySelectorAll<HTMLElement>('[data-count]'));
-    if (!counters.length) return;
+    reveal.forEach((el) => { el.style.opacity = '0'; });
     counters.forEach((el) => { el.textContent = '0'; });
-    const settle = () => { counters.forEach((el) => { el.textContent = fmt(Number(el.dataset.count)); }); };
+    const settle = () => {
+      reveal.forEach((el) => { el.style.opacity = ''; el.style.transform = ''; });
+      counters.forEach((el) => { el.textContent = fmt(Number(el.dataset.count)); });
+    };
     let cancelled = false; let ctx: { revert: () => void } | undefined;
-    const watchdog = window.setTimeout(settle, 1600);
+    const watchdog = window.setTimeout(settle, 1700);
     void loadAnim().then((api) => {
       if (cancelled) return; window.clearTimeout(watchdog);
       if (!api || !rootRef.current) { settle(); return; }
       const { gsap } = api;
       ctx = gsap.context(() => {
         const tl = gsap.timeline({ defaults: { ease: 'power2.out' } });
-        // KPIs primero (los 4), luego el resto de contadores escalonados.
+        groups.forEach((els, gi) => {
+          if (!els.length) return;
+          gsap.set(els, { opacity: 0, y: 10 });
+          tl.to(els, { opacity: 1, y: 0, duration: 0.5, stagger: 0.05 }, gi === 0 ? 0 : '-=0.32');
+        });
+        // Números: en paralelo al reveal, cuentan hacia arriba.
         counters.forEach((el, i) => {
           const o = { v: 0 };
-          tl.to(o, { v: Number(el.dataset.count), duration: 1.1, onUpdate: () => { el.textContent = fmt(o.v); } }, i < 4 ? 0.05 * i : 0.3 + 0.02 * i);
+          tl.to(o, { v: Number(el.dataset.count), duration: 1.1, onUpdate: () => { el.textContent = fmt(o.v); } }, i < 4 ? 0.1 + 0.05 * i : 0.4 + 0.02 * i);
         });
       }, root);
     });
