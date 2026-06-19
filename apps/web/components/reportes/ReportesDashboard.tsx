@@ -154,7 +154,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
     { label: 'Ocupación promedio', value: k.occupancyPct, prev: pr.occupancyPct, suffix: '%', delta: dl.occupancyPct, tint: 'bg-brand/10 text-brand', Icon: TrendingUp },
   ];
   // donut por tipo
-  const typeSlices = buildSlices(data.byType.filter((t) => t.attendances > 0).map((t) => ({ label: t.label, count: t.attendances, color: TYPE_COLOR[t.type] ?? '#94a3b8' })));
+  const typeSlices = buildSlices(data.byType.map((t) => ({ label: t.label, count: t.attendances, color: TYPE_COLOR[t.type] ?? '#94a3b8' })));
   const nr = data.newVsReturning;
   const nrSlices = buildSlices([{ label: 'Nuevos', count: nr.nuevos, color: '#e65100' }, { label: 'Recurrentes', count: nr.recurrentes, color: '#9fd8cf' }]);
   const topMax = data.topActivities[0]?.attendances || 1;
@@ -265,7 +265,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
           </Card>
           <Card padding="lg">
             <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Distribución por tipo de actividad</h2>
-            {typeSlices.length === 0 ? (
+            {data.kpis.attendances === 0 ? (
               <p className="mt-6 text-[13px] text-muted">Sin asistencias en el período.</p>
             ) : (
               <Donut slices={typeSlices} centerValue={data.kpis.attendances} centerLabel="Total" />
@@ -351,7 +351,9 @@ interface Slice { label: string; count: number; color: string; pc: number; offse
 function buildSlices(items: Array<{ label: string; count: number; color: string }>): Slice[] {
   const sum = items.reduce((a, s) => a + s.count, 0) || 1;
   let cum = 0;
-  return items.filter((s) => s.count > 0).map((s) => { const pc = (s.count / sum) * 100; const out = { ...s, pc, offset: 25 - cum }; cum += pc; return out; });
+  // Incluye los de count 0 (aparecen en la leyenda como "0 · 0%"; su arco es
+  // invisible) para no "perder" tipos con actividad pero sin asistencias aún.
+  return items.map((s) => { const pc = (s.count / sum) * 100; const out = { ...s, pc, offset: 25 - cum }; cum += pc; return out; });
 }
 
 // Donut interactivo y autocontenido (gráfico + leyenda con hover compartido).
@@ -366,7 +368,7 @@ function Donut({ slices, centerValue, centerLabel }: { slices: Slice[]; centerVa
           {slices.map((s, i) => (
             <circle key={s.label} cx="21" cy="21" r="15.91549" fill="none" stroke={s.color}
               data-arc={s.pc.toFixed(3)} onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(null)}
-              style={{ strokeDasharray: `${s.pc} ${100 - s.pc}`, strokeDashoffset: s.offset, strokeWidth: hi === i ? 7.6 : 6, opacity: hi === null || hi === i ? 1 : 0.4, cursor: 'pointer', transition: 'stroke-width .15s, opacity .15s' }} />
+              style={{ strokeDasharray: `${s.pc} ${100 - s.pc}`, strokeDashoffset: s.offset, strokeWidth: hi === i ? 7.6 : 6, opacity: hi === null || hi === i || active?.pc === 0 ? 1 : 0.4, cursor: 'pointer', transition: 'stroke-width .15s, opacity .15s' }} />
           ))}
         </svg>
         <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
