@@ -1241,6 +1241,32 @@ export const ProtocolDashboardResponseSchema = z.object({
 });
 export type ProtocolDashboardResponse = z.infer<typeof ProtocolDashboardResponseSchema>;
 
+// Protocolo POR ACTIVIDAD · la lista de invitados especiales DE ese evento (sus
+// invitations kind=protocol). Estado derivado: 'attended' si registró entrada,
+// si no el status de la invitación. partySize = 1 + plusOnes.
+export const ActivityProtocolGuestSchema = z.object({
+  userId: z.string(), code: z.string(), firstName: z.string(), lastName: z.string(),
+  email: z.string().nullable(), category: ProtocolCategorySchema,
+  honorific: z.string().nullable(), orgTitle: z.string().nullable(),
+  status: z.enum(['pending', 'confirmed', 'declined', 'expired', 'canceled', 'attended']),
+  plusOnes: z.number().int(), partySize: z.number().int(),
+  attended: z.boolean(), sentAt: z.string().nullable(), respondedAt: z.string().nullable(),
+});
+export type ActivityProtocolGuest = z.infer<typeof ActivityProtocolGuestSchema>;
+
+export const ActivityProtocolListResponseSchema = z.object({
+  activity: z.object({
+    id: z.string(), name: z.string(), date: z.string(), status: z.string(),
+    location: z.string().nullable(), imageUrl: z.string().nullable(),
+  }),
+  kpis: z.object({
+    invited: z.number().int(), confirmed: z.number().int(), attended: z.number().int(),
+    declined: z.number().int(), pending: z.number().int(), totalPartySize: z.number().int(),
+  }),
+  guests: z.array(ActivityProtocolGuestSchema),
+});
+export type ActivityProtocolListResponse = z.infer<typeof ActivityProtocolListResponseSchema>;
+
 // Designar (o actualizar la designación de) un visitante existente.
 export const ProtocolDesignateRequestSchema = z.object({
   userId: z.string().min(1),

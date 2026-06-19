@@ -27,7 +27,7 @@ import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { effectiveHost } from '../tenant.js';
 import { deliverInvitations, type DeliverableInvitation } from '../services/invitation-email.js';
 import { protocolDashboard } from '../services/protocol-dashboard.js';
-import type { ProtocolDashboardResponse } from '@contan2/contracts';
+import type { ProtocolDashboardResponse, ActivityProtocolListResponse } from '@contan2/contracts';
 
 // owner/admin gestionan todo; la cuenta 'protocolo' usa SOLO este módulo.
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'protocolo']);
@@ -373,5 +373,72 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     req.log.info({ activity: id, created, reused, skipped, dryRun }, 'invitaciones de protocolo creadas');
     reply.code(201);
     return { ok: true, summary: { created, reused, skipped, dryRun } };
+  });
+
+  // ── Protocolo DE una actividad (lista de lectura + KPIs) ─────────────────
+  // El reverso de invitar: "¿quiénes fueron el protocolo de la Expo?". Son las
+  // invitations kind=protocol del evento, con estado derivado (attended si
+  // registró entrada) y acompañantes. Roles de gestión de protocolo.
+  app.get('/activities/:id/protocol-invitations', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar protocolo.' }; }
+    const orgId = guard.ctx.org.id;
+    const id = (req.params as { id: string }).id;
+
+    const act = await db.selectFrom('activities')
+      .select(['id', 'name', 'date', 'status', 'location', 'image_url'])
+      .where('organization_id', '=', orgId).where('id', '=', id).executeTakeFirst();
+    if (!act) { reply.code(404); return { error: 'Actividad no encontrada.' }; }
+
+    // Invitaciones de protocolo del evento + identidad (perfil aunque esté
+    // archivado: fue protocolo de este evento) + si registró entrada.
+    const rows = await db.selectFrom('invitations as i')
+      .innerJoin('users as u', 'u.id', 'i.user_id')
+      .leftJoin('protocol_profiles as p', (j) => j.onRef('p.user_id', '=', 'i.user_id').on('p.organization_id', '=', orgId))
+      .leftJoin('attendance as a', (j) =>
+        j.onRef('a.user_id', '=', 'i.user_id').on('a.activity_id', '=', id).on('a.organization_id', '=', orgId))
+      .select([
+        'i.user_id', 'i.status', 'i.plus_ones', 'i.sent_at', 'i.responded_at',
+        'u.code', 'u.first_name', 'u.last_name', 'u.email',
+        'p.category', 'p.honorific', 'p.org_title',
+        sql<boolean>`(a.user_id is not null)`.as('attended'),
+      ])
+      .where('i.organization_id', '=', orgId).where('i.activity_id', '=', id)
+      .where('i.kind', '=', 'protocol')
+      .orderBy('u.last_name').orderBy('u.first_name')
+      .execute();
+
+    let invited = 0; let confirmed = 0; let attended = 0; let declined = 0; let pending = 0; let totalPartySize = 0;
+    const guests = rows.map((r) => {
+      const plusOnes = r.plus_ones ?? 0;
+      const partySize = 1 + plusOnes;
+      const status = r.attended ? 'attended' as const : (r.status as ActivityProtocolListResponse['guests'][number]['status']);
+      if (r.status !== 'canceled') invited += 1;
+      if (status === 'attended') attended += 1;
+      else if (status === 'confirmed') confirmed += 1;
+      else if (status === 'declined' || status === 'expired') declined += 1;
+      else if (status === 'pending') pending += 1;
+      if (status === 'attended' || status === 'confirmed') totalPartySize += partySize;
+      return {
+        userId: r.user_id, code: r.code, firstName: r.first_name, lastName: r.last_name,
+        email: r.email, category: (r.category ?? 'otro') as ActivityProtocolListResponse['guests'][number]['category'],
+        honorific: r.honorific, orgTitle: r.org_title,
+        status, plusOnes, partySize, attended: r.attended,
+        sentAt: r.sent_at ? new Date(r.sent_at).toISOString() : null,
+        respondedAt: r.responded_at ? new Date(r.responded_at).toISOString() : null,
+      };
+    });
+
+    const body: ActivityProtocolListResponse = {
+      activity: {
+        id: act.id, name: act.name, date: new Date(act.date).toISOString(), status: act.status,
+        location: act.location, imageUrl: act.image_url,
+      },
+      kpis: { invited, confirmed, attended, declined, pending, totalPartySize },
+      guests,
+    };
+    return body;
   });
 };
