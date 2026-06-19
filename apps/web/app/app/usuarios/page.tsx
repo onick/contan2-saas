@@ -74,15 +74,18 @@ export default async function UsuariosPage({
   // pendientes (S1 · bulk-send) + Exportar padrón (E2 · binario CSV/XLSX). Los
   // tres administrativos sólo owner/admin (la API arbitra con 403).
   const pendingCreds = facets?.noCredential ?? 0;
+  // Botones como hijos DIRECTOS (Fragment): SectionHeader ya los envuelve en un
+  // contenedor flex-wrap, así en móvil envuelven en varias filas en vez de
+  // desbordar el contenedor (el <span> anterior era un único ítem que no envolvía).
   const actions = (
-    <span className="flex items-center gap-2">
+    <>
       {canWrite ? <ImportButton /> : null}
       {canWrite && view ? (
         <ExportButton cohort={cohort} status={status} q={qForApi(q) ?? ''} filteredTotal={view.total} />
       ) : null}
       {canWrite ? <BulkCredentialsButton pendingCount={pendingCreds} /> : null}
       <NewUserButton />
-    </span>
+    </>
   );
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Usuarios" activeKey="usuarios">
