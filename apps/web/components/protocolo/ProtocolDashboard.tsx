@@ -184,6 +184,23 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
     return () => { cancelled = true; window.clearTimeout(watchdog); ctx?.revert(); settle(); };
   }, [data]);
 
+  // Reveal al CAMBIAR de vista (filas/tarjetas): el reveal principal sólo corre
+  // al montar, así que al togglear animamos los ítems visibles. Se saltea el
+  // montaje inicial (ya lo animó el efecto de arriba) para no doble-animar.
+  const didMountRef = useRef(false);
+  useEffect(() => {
+    if (!didMountRef.current) { didMountRef.current = true; return; }
+    const root = rootRef.current;
+    if (!root || prefersReducedMotion()) return;
+    let cancelled = false;
+    void loadAnim().then((api) => {
+      if (cancelled || !api || !rootRef.current) return;
+      const items = rootRef.current.querySelectorAll('[data-anim="gcard"]');
+      if (items.length) api.gsap.from(items, { opacity: 0, y: 12, duration: 0.45, stagger: 0.05, ease: 'power2.out' });
+    });
+    return () => { cancelled = true; };
+  }, [view]);
+
   return (
     <div ref={rootRef}>
       {/* header */}
