@@ -25,7 +25,7 @@ const CATEGORIES = Object.keys(CATEGORY_LABEL) as ProtocolCategory[];
 
 type Phase = 'loading' | 'ready' | 'forbidden' | 'error';
 
-interface FormState {
+export interface FormState {
   userId: string;
   userLabel: string;
   category: ProtocolCategory;
@@ -35,7 +35,7 @@ interface FormState {
   editing: boolean; // true = PATCH (designación existente)
 }
 
-const EMPTY_FORM: FormState = { userId: '', userLabel: '', category: 'autoridad', honorific: '', orgTitle: '', notes: '', editing: false };
+export const EMPTY_FORM: FormState = { userId: '', userLabel: '', category: 'autoridad', honorific: '', orgTitle: '', notes: '', editing: false };
 
 export function ProtocolDirectory() {
   const [phase, setPhase] = useState<Phase>('loading');
@@ -214,7 +214,7 @@ export function ProtocolDirectory() {
 }
 
 // Selector simple de ACTIVIDAD ACTIVA (mismo endpoint vivo del check-in).
-function ActivityPicker({ onClose, onPick }: {
+export function ActivityPicker({ onClose, onPick }: {
   onClose: () => void;
   onPick: (a: { id: string; name: string }) => void;
 }) {
@@ -293,7 +293,7 @@ function CatPill({ label, active, onClick }: { label: string; active: boolean; o
 
 // Drawer de designar/editar: autocomplete de visitantes (mismo buscador del
 // check-in: nombre multi-palabra, código o email) + formulario.
-function DesignateDrawer({ form, onClose, onSaved }: {
+export function DesignateDrawer({ form, onClose, onSaved }: {
   form: FormState; onClose: () => void; onSaved: () => void;
 }) {
   const [f, setF] = useState<FormState>(form);
