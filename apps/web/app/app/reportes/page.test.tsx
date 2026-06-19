@@ -22,8 +22,8 @@ vi.mock('../../../lib/api/reports', async (orig) => {
       { type: 'conferencia', label: 'Conferencia', attendances: 58, pct: 24 },
     ],
     topActivities: [
-      { id: 'a1', name: 'Cine Dominicano: Los pasos del tiempo', type: 'cine', attendances: 80, occupancyPct: 53 },
-      { id: 'a2', name: 'Conferencia Arte & Terapia', type: 'conferencia', attendances: 58, occupancyPct: 40 },
+      { id: 'a1', name: 'Cine Dominicano: Los pasos del tiempo', type: 'cine', attendances: 80, occupancyPct: 53, imageUrl: null },
+      { id: 'a2', name: 'Conferencia Arte & Terapia', type: 'conferencia', attendances: 58, occupancyPct: 40, imageUrl: null },
     ],
     newVsReturning: { nuevos: 67, recurrentes: 130 },
     daily: Array.from({ length: 13 }, (_, i) => ({ label: `${i + 1} jun`, current: 40 + i, previous: 30 + i, visitors: 20 + i, activities: 2 })),

@@ -281,9 +281,17 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
               <div className="mt-3">
                 {data.topActivities.slice(0, 5).map((a, i) => {
                   const color = TYPE_COLOR[a.type] ?? PALETTE[i % PALETTE.length];
+                  const Ic = TYPE_ICON[a.type] ?? Film;
                   return (
                     <div key={a.id} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
                       <span className="grid h-5 w-5 flex-none place-items-center rounded-md bg-brand/10 text-[11px] font-extrabold text-brand">{i + 1}</span>
+                      {/* miniatura: portada de la actividad o fallback al ícono del tipo */}
+                      <span className="grid h-9 w-9 flex-none place-items-center overflow-hidden rounded-lg" style={{ background: `${color}1f` }}>
+                        {a.imageUrl
+                          // eslint-disable-next-line @next/next/no-img-element
+                          ? <img src={a.imageUrl} alt="" className="h-full w-full object-cover" />
+                          : <Ic size={16} strokeWidth={1.9} style={{ color }} aria-hidden="true" />}
+                      </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] font-semibold leading-tight text-ink">{a.name}</p>
                         <div className="mt-1 h-[5px] overflow-hidden rounded-full bg-surface-container"><i className="block h-full rounded-full" data-bar="w" data-val={(a.attendances / topMax) * 100} style={{ width: `${(a.attendances / topMax) * 100}%`, background: color }} /></div>

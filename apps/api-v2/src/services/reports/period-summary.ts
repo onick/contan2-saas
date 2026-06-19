@@ -28,7 +28,7 @@ export interface PeriodSummary {
   prev: { activities: number; attendances: number; uniqueVisitors: number; occupancyPct: number };
   deltas: { activities: number | null; attendances: number | null; uniqueVisitors: number | null; occupancyPct: number | null };
   byType: Array<{ type: string; label: string; attendances: number; pct: number }>;
-  topActivities: Array<{ id: string; name: string; type: string; attendances: number; occupancyPct: number }>;
+  topActivities: Array<{ id: string; name: string; type: string; attendances: number; occupancyPct: number; imageUrl: string | null }>;
   newVsReturning: { nuevos: number; recurrentes: number };
   daily: Array<{ label: string; current: number; previous: number; visitors: number; activities: number }>;
   byHour: Array<{ hour: number; count: number }>;
@@ -60,8 +60,8 @@ export async function periodSummary(
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
-      .groupBy(['a.id', 'a.type', 'a.name', 'a.capacity'])
-      .select(['a.id as id', 'a.type as type', 'a.name as name', 'a.capacity as capacity'])
+      .groupBy(['a.id', 'a.type', 'a.name', 'a.capacity', 'a.image_url'])
+      .select(['a.id as id', 'a.type as type', 'a.name as name', 'a.capacity as capacity', 'a.image_url as imageUrl'])
       .select((eb) => eb.fn.count('att.id').as('attendances'))
       .select(sql<string>`coalesce(sum(1 + att.companions_children + att.companions_adults), 0)`.as('people'))
       .execute();
@@ -171,7 +171,7 @@ export async function periodSummary(
 
   // topActivities (del período actual, por asistencias).
   const topActivities = [...cur.rows]
-    .map((x) => ({ id: x.id, name: x.name, type: x.type, attendances: Number(x.attendances), occupancyPct: pct(Number(x.people), Number(x.capacity)) }))
+    .map((x) => ({ id: x.id, name: x.name, type: x.type, attendances: Number(x.attendances), occupancyPct: pct(Number(x.people), Number(x.capacity)), imageUrl: x.imageUrl }))
     .sort((a, b) => b.attendances - a.attendances)
     .slice(0, 8);
 
