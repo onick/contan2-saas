@@ -49,6 +49,7 @@ run('PATCH /org/team/:id (role|status)', () => {
     await mkStaff(orgAId, 'mrole', 'operator'); // target: admin lo promueve a admin
     await mkStaff(orgAId, 'mstatus', 'operator', SESSION_OF_STATUS); // target: admin lo suspende (con sesión)
     await mkStaff(orgAId, 'mpromote', 'operator'); // target: owner lo promueve a owner
+    await mkStaff(orgAId, 'mconsulta', 'operator'); // target: admin lo pasa a consulta (read-only)
     await mkStaff(orgBId, 'b', 'admin', TOK.b);
     app = buildApp();
     await app.ready();
@@ -107,6 +108,14 @@ run('PATCH /org/team/:id (role|status)', () => {
     expect((await patchStatus(id.mrole, 'suspended')).statusCode).toBe(401);
     expect((await patchStatus(id.mrole, 'suspended', TOK.b)).statusCode).toBe(403);
     expect((await patchRole(randomUUID(), 'admin', TOK.admin)).statusCode).toBe(404);
+  });
+
+  it("admin asigna rol 'consulta' (solo lectura) → 200; persiste (CHECK migración 035)", async () => {
+    const r = await patchRole(id.mconsulta, 'consulta', TOK.admin);
+    expect(r.statusCode).toBe(200);
+    expect(r.json().role).toBe('consulta');
+    const row = await db.selectFrom('staff_members').select('role').where('id', '=', id.mconsulta).executeTakeFirstOrThrow();
+    expect(row.role).toBe('consulta');
   });
 
   it('auditoría: role_changed/status_changed con actor enmascarado, sin PII', async () => {

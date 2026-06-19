@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 import { createDb, type Database } from '@contan2/db';
 import { hashToken } from '@contan2/auth';
+import { TeamOverviewResponseSchema } from '@contan2/contracts';
 import { buildApp } from '../src/server.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -106,5 +107,23 @@ run('GET /org/team', () => {
     const p2 = (await get('?limit=2&cursor=2', TOK.admin)).json();
     expect(p2.items).toHaveLength(2);
     expect(p2.nextCursor).toBeNull();
+  });
+
+  it('overview → KPIs + resumen por rol (5 roles, incl. consulta); operator 403', async () => {
+    const ov = (host = hostA, token?: string) =>
+      app.inject({ method: 'GET', url: '/api/v2/org/team/overview', headers: { host, ...(token ? { cookie: `contan2_session=${token}` } : {}) } });
+    expect((await ov(hostA, TOK.operator)).statusCode).toBe(403);
+    const res = await ov(hostA, TOK.admin);
+    expect(res.statusCode).toBe(200);
+    const d = TeamOverviewResponseSchema.parse(res.json());
+    // activos: owner+admin+operator (Dani suspendido y el soft-deleted no cuentan).
+    expect(d.kpis.activeMembers).toBe(3);
+    expect(d.kpis.admins).toBe(2); // owner + admin (activos)
+    expect(d.kpis.pendingInvites).toBe(0);
+    // resumen por rol: las 5 categorías, conteo de NO soft-deleted por rol.
+    expect(d.roles.map((r) => r.role)).toEqual(['owner', 'admin', 'operator', 'protocolo', 'consulta']);
+    const byRole = Object.fromEntries(d.roles.map((r) => [r.role, r.count]));
+    expect(byRole).toMatchObject({ owner: 1, admin: 2, operator: 1, protocolo: 0, consulta: 0 });
+    expect(d.kpis.activeThisWeekPct).toBeGreaterThanOrEqual(0);
   });
 });
