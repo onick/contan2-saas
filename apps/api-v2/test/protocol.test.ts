@@ -14,7 +14,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 import { createDb, type Database } from '@contan2/db';
 import { hashToken } from '@contan2/auth';
-import { ProtocolListResponseSchema, ActivityInvitationsResponseSchema, RsvpPreviewResponseSchema } from '@contan2/contracts';
+import { ProtocolListResponseSchema, ActivityInvitationsResponseSchema, RsvpPreviewResponseSchema, ProtocolDashboardResponseSchema } from '@contan2/contracts';
 import { buildApp } from '../src/server.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -248,5 +248,19 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     // con ?all=1 sigue visible (historial)
     const all = ProtocolListResponseSchema.parse((await call('GET', '/api/v2/protocol?all=1', undefined, TOK.admin)).json());
     expect(all.profiles.map((p) => p.userId)).toContain(uSinEmail);
+  });
+
+  it('dashboard → KPIs + invitados con stats + actividad reciente + próximos eventos; operator 403', async () => {
+    expect((await call('GET', '/api/v2/protocol/dashboard', undefined, TOK.operator)).statusCode).toBe(403);
+    const res = await call('GET', '/api/v2/protocol/dashboard', undefined, TOK.admin);
+    expect(res.statusCode).toBe(200);
+    const d = ProtocolDashboardResponseSchema.parse(res.json());
+    expect(d.kpis.guests).toBeGreaterThanOrEqual(2);
+    expect(d.kpis.guests).toBe(d.guests.length); // KPI = nº de invitados activos
+    expect(d.kpis.activeCategories).toBe(new Set(d.guests.map((g) => g.category)).size);
+    expect(d.guests.map((g) => g.userId)).toContain(uEmb); // diplomático sigue activo
+    expect(d.guests.every((g) => typeof g.eventsLastYear === 'number')).toBe(true);
+    expect(Array.isArray(d.recentActivity) && Array.isArray(d.upcomingEvents)).toBe(true);
+    expect(d.kpis.attendanceRate).toBeGreaterThanOrEqual(0);
   });
 });

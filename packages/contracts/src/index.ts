@@ -1217,6 +1217,30 @@ export const ProtocolListResponseSchema = z.object({
 });
 export type ProtocolListResponse = z.infer<typeof ProtocolListResponseSchema>;
 
+// Dashboard de Protocolo Institucional (KPIs+deltas, invitados con stats,
+// actividad reciente, próximos eventos). Todo desde datos reales.
+const ProtocolKpisSchema = z.object({
+  guests: z.number().int(), activeCategories: z.number().int(), pendingInvites: z.number().int(), attendanceRate: z.number().int(),
+});
+export const ProtocolGuestSchema = z.object({
+  userId: z.string(), code: z.string(), firstName: z.string(), lastName: z.string(),
+  email: z.string().nullable(), phone: z.string().nullable(),
+  category: ProtocolCategorySchema, honorific: z.string().nullable(), orgTitle: z.string().nullable(),
+  lastAttendanceAt: z.string().nullable(), lastActivityName: z.string().nullable(), eventsLastYear: z.number().int(),
+});
+export const ProtocolDashboardResponseSchema = z.object({
+  kpis: ProtocolKpisSchema,
+  deltas: z.object({
+    guests: z.number().int().nullable(), activeCategories: z.number().int().nullable(),
+    pendingInvites: z.number().int().nullable(), attendanceRate: z.number().int().nullable(),
+  }),
+  counts: z.record(z.string(), z.number()),
+  guests: z.array(ProtocolGuestSchema),
+  recentActivity: z.array(z.object({ kind: z.enum(['sent', 'confirmed', 'declined', 'pending', 'attended']), who: z.string(), activityName: z.string(), at: z.string() })),
+  upcomingEvents: z.array(z.object({ id: z.string(), name: z.string(), date: z.string(), location: z.string(), confirmed: z.number().int(), pending: z.number().int() })),
+});
+export type ProtocolDashboardResponse = z.infer<typeof ProtocolDashboardResponseSchema>;
+
 // Designar (o actualizar la designación de) un visitante existente.
 export const ProtocolDesignateRequestSchema = z.object({
   userId: z.string().min(1),

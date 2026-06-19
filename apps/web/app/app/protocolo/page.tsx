@@ -1,31 +1,43 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import { AppShell } from '../../../components/shell/AppShell';
-import { SectionHeader } from '../../../components/ui';
-import { ProtocolDirectory } from '../../../components/protocolo/ProtocolDirectory';
+import { Unavailable } from '../../../components/shell/Unavailable';
+import { ProtocolDashboard } from '../../../components/protocolo/ProtocolDashboard';
 import { getLocalBranding } from '../../../lib/branding/config';
+import { getProtocolDashboard } from '../../../lib/api/protocol';
 
-// Protocolo (PR-3 del módulo · plan en docs/migration-v2/protocol-module-plan.md):
-// directorio de invitados ESPECIALES del centro (autoridades, diplomáticos,
-// prensa, patrocinadores, directivos, artistas). Designación manual por
-// owner/admin — distinta del segmento VIP automático. Desde acá se gestiona
-// el directorio; invitarlos a una actividad vive en el detalle de la
-// actividad (PR-4). El RBAC real lo arbitra el API (operator → 403 honesto).
+// Protocolo · dashboard institucional. Invitados ESPECIALES del centro
+// (autoridades, diplomáticos, prensa, patrocinadores, directivos, artistas) con
+// KPIs + deltas, stats reales por invitado (última asistencia, eventos del año),
+// actividad reciente y próximos eventos. Todo desde protocol-dashboard (datos
+// reales); el layout rico + animaciones GSAP viven en el client component.
+// AppShell intacto. RBAC real lo arbitra el API (operator → dashboard null).
 export const metadata: Metadata = {
   title: 'Contan2 v2 · Protocolo',
-  description: 'Invitados especiales del centro: designación y directorio',
+  description: 'Invitados especiales del centro: autoridades, prensa, patrocinadores y aliados',
 };
 
 export const dynamic = 'force-dynamic';
 
-export default function ProtocoloPage() {
+export default async function ProtocoloPage() {
   const branding = getLocalBranding();
-  return (
+  const data = await getProtocolDashboard();
+
+  const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Protocolo" activeKey="protocolo">
-      <SectionHeader
-        title="Protocolo"
-        subtitle="Invitados especiales del centro: autoridades, prensa, patrocinadores y aliados"
-      />
-      <ProtocolDirectory />
+      <div className="mx-auto w-full max-w-[1500px]">{children}</div>
     </AppShell>
   );
+
+  if (!data) {
+    return shell(
+      <Unavailable
+        inline
+        title="Protocolo no disponible"
+        description="No pudimos cargar el directorio de invitados especiales. Si tu rol no tiene acceso a protocolo, pedile a un administrador que te habilite."
+      />,
+    );
+  }
+
+  return shell(<ProtocolDashboard initial={data} />);
 }
