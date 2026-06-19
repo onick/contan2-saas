@@ -260,21 +260,24 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
       newcomers: deltaPct(cur.newcomers, prev.newcomers),
       dormant: deltaPct(cur.dormant, prev.dormant),
     };
+    const prevCounts: Record<string, number> = { vip: prev.vip, active: prev.active, newcomers: prev.newcomers, dormant: prev.dormant };
 
-    const segments: Segment[] = STATIC_DEFS.map((d) => ({ ...d, count: counts[d.id] ?? 0, deltaPct: deltas[d.id] ?? null }));
+    const segments: Segment[] = STATIC_DEFS.map((d) => ({ ...d, count: counts[d.id] ?? 0, deltaPct: deltas[d.id] ?? null, prevCount: prevCounts[d.id] ?? null }));
 
     // Fans por tipo (orden fijo del enum; 'otro' no es un fandom). Con delta mensual.
     for (const t of ACTIVITY_TYPES) {
       if (t === 'otro') continue;
       const th = fanThreshold(t);
       const count = fansCount(byType, t, th);
+      const prevC = fansCount(byTypeThen, t, th);
       segments.push({
         id: `fans-${t}`,
         label: `Fans de ${TYPE_LABELS[t] ?? t}`,
         description: `${th} o más asistencias de ${(TYPE_LABELS[t] ?? t).toLowerCase()}`,
         group: 'afinidad',
         count,
-        deltaPct: deltaPct(count, fansCount(byTypeThen, t, th)),
+        deltaPct: deltaPct(count, prevC),
+        prevCount: prevC,
       });
     }
 

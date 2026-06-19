@@ -75,6 +75,7 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
 
   const get = (id: string) => segments.find((s) => s.id === id)?.count ?? 0;
   const deltaOf = (id: string): number | null => segments.find((s) => s.id === id)?.deltaPct ?? null;
+  const prevOf = (id: string): number | null => segments.find((s) => s.id === id)?.prevCount ?? null;
   const afinidad = segments.filter((s) => s.group === 'afinidad');
   const categorias = segments.filter((s) => s.group === 'categorias');
 
@@ -187,19 +188,19 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
       {/* KPIs */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((k) => (
-          <Card key={k.id} padding="md">
-            <div className="flex items-start justify-between">
-              <span className={cn('grid h-10 w-10 place-items-center rounded-xl', k.tint)}>
-                <k.Icon size={20} strokeWidth={1.9} aria-hidden="true" />
-              </span>
-              <div className="flex flex-col items-end gap-1">
+          <Card key={k.id} padding="md" className="flex items-start gap-3.5">
+            <span className={cn('grid h-11 w-11 flex-none place-items-center rounded-xl', k.tint)}>
+              <k.Icon size={21} strokeWidth={1.9} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <span className="block text-[11px] font-bold uppercase tracking-[0.04em] text-faint">{k.label}</span>
+              <p className="mt-1 text-[30px] font-extrabold leading-none tracking-tight text-ink tabular-nums" data-count={get(k.id)}>{fmt(get(k.id))}</p>
+              <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[11.5px]">
                 <DeltaChip pct={deltaOf(k.id)} />
-                <span className="text-[11px] text-faint">vs. último mes</span>
-              </div>
+                {prevOf(k.id) !== null && <span className="text-faint">· {fmt(prevOf(k.id)!)} antes</span>}
+              </p>
+              <p className="mt-1.5 text-[12px] text-muted">{k.sub}</p>
             </div>
-            <p className="mt-3.5 text-[11.5px] font-bold uppercase tracking-[0.04em] text-faint">{k.label}</p>
-            <p className="mt-0.5 text-[34px] font-extrabold leading-none tracking-tight text-ink tabular-nums" data-count={get(k.id)}>{fmt(get(k.id))}</p>
-            <p className="mt-1.5 text-[12.5px] text-muted">{k.sub}</p>
           </Card>
         ))}
       </div>

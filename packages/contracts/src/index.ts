@@ -395,6 +395,8 @@ export const SegmentSchema = z.object({
   // Variación vs hace 30 días (entero, +/-/0). null = sin base de comparación o
   // segmento sin delta (categorías/contacto). Calculado del historial real.
   deltaPct: z.number().int().nullable().optional(),
+  // Conteo de hace 30 días (para "X antes"). null en categorías/contacto.
+  prevCount: z.number().int().nullable().optional(),
 });
 export type Segment = z.infer<typeof SegmentSchema>;
 
