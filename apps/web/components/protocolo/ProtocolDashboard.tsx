@@ -10,7 +10,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Users, FolderOpen, Send, TrendingUp, ArrowUp, ArrowDown, Download, Plus, Search, ChevronDown,
   Calendar, BarChart3, Mail, User, Crown, Globe, Newspaper, Gem, Building2, Star, Circle,
-  MoreVertical, CheckCircle2, Clock, XCircle, type LucideIcon,
+  MoreVertical, CheckCircle2, Clock, XCircle, List, LayoutGrid, type LucideIcon,
 } from 'lucide-react';
 import { ProtocolDashboardResponseSchema, type ProtocolDashboardResponse, type ProtocolCategory } from '@contan2/contracts';
 import { Card, cn, focusRing } from '../ui';
@@ -71,6 +71,7 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
   const [data, setData] = useState(initial);
   const [cat, setCat] = useState<ProtocolCategory | 'todas'>('todas');
   const [q, setQ] = useState('');
+  const [view, setView] = useState<'grid' | 'list'>('grid');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Designar (agregar/editar al directorio) · invitar a actividad (selector →
@@ -247,12 +248,23 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, institución o cargo…" className="w-full bg-transparent text-[13px] text-ink outline-none placeholder:text-faint" />
             </div>
             <span className="hidden items-center gap-2 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[13px] text-ink sm:flex"><span className="text-muted">Ordenar por</span> Nombre A-Z <ChevronDown size={13} strokeWidth={2.5} className="text-faint" /></span>
+            {/* Toggle de vista: filas / tarjetas */}
+            <div className="flex flex-none items-center gap-0.5 rounded-xl border border-line bg-surface p-1">
+              <button type="button" onClick={() => setView('list')} aria-pressed={view === 'list'} aria-label="Vista de filas"
+                className={cn('grid h-8 w-8 place-items-center rounded-lg transition-colors', focusRing, view === 'list' ? 'bg-surface-container text-ink' : 'text-faint hover:text-ink')}>
+                <List size={16} strokeWidth={2} />
+              </button>
+              <button type="button" onClick={() => setView('grid')} aria-pressed={view === 'grid'} aria-label="Vista de tarjetas"
+                className={cn('grid h-8 w-8 place-items-center rounded-lg transition-colors', focusRing, view === 'grid' ? 'bg-surface-container text-ink' : 'text-faint hover:text-ink')}>
+                <LayoutGrid size={16} strokeWidth={2} />
+              </button>
+            </div>
           </div>
 
           {/* tarjetas de invitados */}
           {visible.length === 0 ? (
             <Card padding="lg" className="mt-4"><p className="text-[13.5px] text-muted">{data.guests.length === 0 ? 'Todavía no hay invitados de protocolo designados.' : 'Ningún invitado coincide con el filtro.'}</p></Card>
-          ) : (
+          ) : view === 'grid' ? (
             <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
               {visible.map((g) => {
                 const m = CAT[g.category];
@@ -301,6 +313,46 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
                 );
               })}
             </div>
+          ) : (
+            /* Vista de filas (compacta) */
+            <Card padding="none" className="mt-4 overflow-hidden">
+              <ul className="divide-y divide-line/70">
+                {visible.map((g) => {
+                  const m = CAT[g.category];
+                  return (
+                    <li key={g.userId} data-anim="gcard" className="relative flex items-center gap-3 px-4 py-3">
+                      <span className="grid h-10 w-10 flex-none place-items-center rounded-full text-[13px] font-extrabold" style={{ background: m.bg, color: m.text }}>{initials(g.firstName, g.lastName)}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[14px] font-bold leading-tight text-ink">{g.honorific ? `${g.honorific} ` : ''}{g.firstName} {g.lastName}</p>
+                        <p className="truncate text-[12px] text-muted">{g.orgTitle ?? g.email ?? '—'}</p>
+                      </div>
+                      <span className="hidden flex-none rounded-full px-2.5 py-0.5 text-[11px] font-bold sm:inline-block" style={{ background: m.bg, color: m.text }}>{m.label}</span>
+                      <div className="hidden w-28 flex-none md:block">
+                        <p className="text-[10.5px] font-semibold text-faint">Última asistencia</p>
+                        <p className="text-[12.5px] font-bold text-ink">{fdate(g.lastAttendanceAt)}</p>
+                      </div>
+                      <div className="hidden w-20 flex-none lg:block">
+                        <p className="text-[10.5px] font-semibold text-faint">Eventos/año</p>
+                        <p className="text-[12.5px] font-bold text-ink tabular-nums">{fmt(g.eventsLastYear)}</p>
+                      </div>
+                      <button type="button" onClick={() => setPickOpen(true)} aria-label={`Invitar a ${g.firstName} a una actividad`}
+                        className={cn('hidden flex-none items-center gap-1.5 rounded-lg px-3 py-2 text-[12.5px] font-bold text-white sm:inline-flex', focusRing)} style={{ background: TEAL }}>
+                        <Send size={14} strokeWidth={1.9} /> Invitar
+                      </button>
+                      <div className="relative flex-none" onClick={(e) => e.stopPropagation()}>
+                        <button type="button" aria-label="Acciones" onClick={() => setMenuOpen((v) => (v === g.userId ? null : g.userId))} className={cn('grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container', focusRing)}><MoreVertical size={16} /></button>
+                        {menuOpen === g.userId && (
+                          <div className="absolute right-0 top-9 z-20 w-44 rounded-xl border border-line bg-surface p-1.5 shadow-xl">
+                            <a href={`/app/usuarios?q=${encodeURIComponent(g.code)}`} className="block rounded-lg px-3 py-2 text-[13px] text-ink hover:bg-surface-container">Ver perfil</a>
+                            <button type="button" disabled={busy === g.userId} onClick={() => void deactivate(g.userId)} className="block w-full rounded-lg px-3 py-2 text-left text-[13px] text-danger-fg hover:bg-danger-bg disabled:opacity-50">Quitar de protocolo</button>
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
           )}
         </div>
 
