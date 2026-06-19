@@ -12,9 +12,11 @@ import {
   Calendar, BarChart3, Mail, User, Crown, Globe, Newspaper, Gem, Building2, Star, Circle,
   MoreVertical, CheckCircle2, Clock, XCircle, type LucideIcon,
 } from 'lucide-react';
-import type { ProtocolDashboardResponse, ProtocolCategory } from '@contan2/contracts';
+import { ProtocolDashboardResponseSchema, type ProtocolDashboardResponse, type ProtocolCategory } from '@contan2/contracts';
 import { Card, cn, focusRing } from '../ui';
 import { loadAnim, prefersReducedMotion } from '../../lib/anim';
+import { DesignateDrawer, ActivityPicker, EMPTY_FORM, type FormState } from './ProtocolDirectory';
+import { InviteProtocolPanel } from '../activities/InviteProtocolPanel';
 
 const useIso = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -71,7 +73,20 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
   const [q, setQ] = useState('');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Designar (agregar/editar al directorio) · invitar a actividad (selector →
+  // panel). Reusan los componentes del directorio para no duplicar lógica.
+  const [designate, setDesignate] = useState<FormState | null>(null);
+  const [pickOpen, setPickOpen] = useState(false);
+  const [inviteTarget, setInviteTarget] = useState<{ id: string; name: string } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // Refetch del dashboard tras designar/invitar/quitar (KPIs + tabs + tarjetas).
+  async function reload() {
+    try {
+      const r = await fetch('/app/protocolo/api/dashboard', { cache: 'no-store' });
+      if (r.ok) setData(ProtocolDashboardResponseSchema.parse(await r.json()));
+    } catch { /* mantiene el estado actual */ }
+  }
 
   const k = data.kpis, dl = data.deltas;
   const kpis = [
@@ -81,10 +96,12 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
     { label: 'Tasa de asistencia', value: k.attendanceRate, suffix: '%', delta: dl.attendanceRate, sub: 'Promedio general', tint: 'bg-success-bg text-success-fg', Icon: TrendingUp },
   ];
 
-  const tabs = useMemo(() => {
-    const present = CAT_ORDER.filter((c) => (data.counts[c] ?? 0) > 0);
-    return [{ key: 'todas' as const, label: 'Todas', n: data.guests.length }, ...present.map((c) => ({ key: c, label: CAT[c].label, n: data.counts[c] ?? 0 }))];
-  }, [data]);
+  // Todas las categorías siempre visibles (aunque tengan 0): son el universo
+  // de filtros del protocolo, no solo las que ya tienen invitados.
+  const tabs = useMemo(() => [
+    { key: 'todas' as const, label: 'Todas', n: data.guests.length },
+    ...CAT_ORDER.map((c) => ({ key: c, label: CAT[c].label, n: data.counts[c] ?? 0 })),
+  ], [data]);
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -114,6 +131,7 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
           if (g && counts[g.category] != null) counts[g.category] = Math.max(0, counts[g.category]! - 1);
           return { ...d, guests: d.guests.filter((x) => x.userId !== userId), counts, kpis: { ...d.kpis, guests: Math.max(0, d.kpis.guests - 1) } };
         });
+        void reload(); // sincroniza KPIs/deltas/tabs con el servidor
       }
     } finally { setBusy(null); setMenuOpen(null); }
   }
@@ -173,13 +191,18 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
           <h1 data-anim="title" className="text-[28px] font-extrabold tracking-tight text-ink sm:text-[30px]">Protocolo Institucional</h1>
           <p className="mt-1 text-[14px] text-muted">Invitados especiales del centro: autoridades, prensa, patrocinadores y aliados.</p>
         </div>
-        <div className="flex flex-none gap-2.5 sm:ml-auto">
+        <div className="flex flex-none flex-wrap gap-2.5 sm:ml-auto">
           <a href="/app/usuarios" className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <Download size={16} strokeWidth={1.9} /> Exportar invitados
           </a>
-          <a href="/app/actividades" className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
-            <Plus size={16} strokeWidth={2.2} /> Invitar a actividad
-          </a>
+          <button type="button" onClick={() => setPickOpen(true)}
+            className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+            <Send size={16} strokeWidth={1.9} /> Invitar a actividad
+          </button>
+          <button type="button" onClick={() => setDesignate({ ...EMPTY_FORM })}
+            className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
+            <Plus size={16} strokeWidth={2.2} /> Designar invitado
+          </button>
         </div>
       </div>
 
@@ -272,7 +295,7 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
                     </div>
                     <div className="mt-3.5 flex gap-2.5">
                       <a href={`/app/usuarios?q=${encodeURIComponent(g.code)}`} className={cn('flex flex-1 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-3 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}><User size={15} strokeWidth={1.9} /> Ver perfil</a>
-                      <a href="/app/actividades" className={cn('flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-bold text-white', focusRing)} style={{ background: TEAL }}><Send size={15} strokeWidth={1.9} /> Invitar a actividad</a>
+                      <button type="button" onClick={() => setPickOpen(true)} className={cn('flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-bold text-white', focusRing)} style={{ background: TEAL }}><Send size={15} strokeWidth={1.9} /> Invitar a actividad</button>
                     </div>
                   </Card>
                 );
@@ -309,6 +332,25 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
           </Card>
         </aside>
       </div>
+
+      {/* Designar invitado (agregar/editar al directorio) */}
+      {designate ? (
+        <DesignateDrawer form={designate} onClose={() => setDesignate(null)} onSaved={() => { setDesignate(null); void reload(); }} />
+      ) : null}
+
+      {/* Invitar a actividad: elegir actividad activa → panel de invitar protocolo */}
+      {pickOpen ? (
+        <ActivityPicker onClose={() => setPickOpen(false)} onPick={(a) => { setPickOpen(false); setInviteTarget(a); }} />
+      ) : null}
+      {inviteTarget ? (
+        <InviteProtocolPanel
+          activityId={inviteTarget.id}
+          activityName={inviteTarget.name}
+          open
+          onClose={() => setInviteTarget(null)}
+          onSent={() => void reload()}
+        />
+      ) : null}
     </div>
   );
 }
