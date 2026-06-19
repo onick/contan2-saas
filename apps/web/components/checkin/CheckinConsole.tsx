@@ -479,7 +479,7 @@ export function CheckinConsole() {
             ) : (
               <ul>
                 {activities.data?.map((a) => (
-                  <li key={a.id} className={cn('flex flex-wrap items-center gap-3 border-t border-line px-5 py-4 md:px-6 transition-opacity', isToday(a.date) && 'bg-accent-soft', focusedActivity?.id === a.id && 'opacity-45')}>
+                  <li key={a.id} className={cn('flex flex-col gap-3 border-t border-line px-5 py-4 md:px-6 transition-opacity sm:flex-row sm:flex-wrap sm:items-center', isToday(a.date) && 'bg-accent-soft', focusedActivity?.id === a.id && 'opacity-45')}>
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-2 truncate text-sm font-medium tracking-tight text-ink">
                         <span className="truncate">{a.name}</span>
@@ -493,19 +493,22 @@ export function CheckinConsole() {
                         {a.full ? <span className="ml-2 font-semibold text-danger-fg">Lleno</span> : null}
                       </p>
                     </div>
-                    <div className="flex flex-none items-center gap-2">
+                    {/* Móvil: la info queda arriba a ancho completo y los botones
+                        bajan en grilla 2-col (con "+1 sin credencial" full-width),
+                        para que el texto de la actividad no se aplaste. */}
+                    <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-none sm:items-center">
                       {/* Gateway al modal de lista de invitados · disponible en toda
                           actividad activa (también vacía: ahí se empieza la lista). */}
-                      <Button variant="secondary" size="sm" onClick={() => setGuestListAct(a)}>
+                      <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={() => setGuestListAct(a)}>
                         <ListChecks size={15} strokeWidth={2} aria-hidden="true" /> Lista
                       </Button>
                       {/* Armado → naranja ACENTO. style inline: cn no hace
                           tailwind-merge y el bg del variant ganaba por orden CSS. */}
-                      <Button size="sm" disabled={!selected || a.full || busyActivity === a.id} onClick={() => registerExisting(a)}
+                      <Button size="sm" className="w-full sm:w-auto" disabled={!selected || a.full || busyActivity === a.id} onClick={() => registerExisting(a)}
                         style={selected && !a.full ? { backgroundColor: 'var(--color-brand-accent)' } : undefined}>
                         {busyActivity === a.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Registrar
                       </Button>
-                      <Button variant="secondary" size="sm" disabled={a.full} onClick={() => openAnon(a)}>
+                      <Button variant="secondary" size="sm" className="col-span-2 w-full sm:col-span-1 sm:w-auto" disabled={a.full} onClick={() => openAnon(a)}>
                         <Sparkle size={15} strokeWidth={2} aria-hidden="true" /> +1 sin credencial
                       </Button>
                     </div>
