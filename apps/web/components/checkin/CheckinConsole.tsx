@@ -400,9 +400,13 @@ export function CheckinConsole() {
                         <span className="flex-none rounded-md bg-brand-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
                       ) : null}
                     </p>
-                    <p className="mt-0.5 text-xs text-faint">
-                      {focusedActivity.location} · <span className="tabular-nums">{fmtHour(focusedActivity.date)}</span> · <span className="tabular-nums">{focusedActivity.enrolledCount}/{focusedActivity.capacity}</span> ({focusedActivity.occupancyPct}%)
-                      {focusedActivity.full ? <span className="ml-2 font-semibold text-danger-fg">Lleno</span> : null}
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-faint">
+                      <span className="min-w-0 max-w-full truncate">{focusedActivity.location}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="whitespace-nowrap tabular-nums">{fmtHour(focusedActivity.date)}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="whitespace-nowrap tabular-nums">{focusedActivity.enrolledCount}/{focusedActivity.capacity} ({focusedActivity.occupancyPct}%)</span>
+                      {focusedActivity.full ? <span className="font-semibold text-danger-fg">Lleno</span> : null}
                     </p>
                   </div>
                   <Button size="sm" className="flex-none" disabled={focusedActivity.full || busyActivity === focusedActivity.id}
@@ -487,10 +491,14 @@ export function CheckinConsole() {
                           <span className="flex-none rounded-md bg-brand-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
                         ) : null}
                       </p>
-                      <p className="mt-0.5 text-xs text-faint">
-                        {a.location} · <span className="tabular-nums">{fmtHour(a.date)}</span> · <span className="tabular-nums">{a.enrolledCount}/{a.capacity}</span> ({a.occupancyPct}%)
-                        {a.recentMovement > 0 ? <span className="ml-2 text-success-fg">+{a.recentMovement} en 10 min</span> : null}
-                        {a.full ? <span className="ml-2 font-semibold text-danger-fg">Lleno</span> : null}
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-faint">
+                        <span className="min-w-0 max-w-full truncate">{a.location}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="whitespace-nowrap tabular-nums">{fmtHour(a.date)}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="whitespace-nowrap tabular-nums">{a.enrolledCount}/{a.capacity} ({a.occupancyPct}%)</span>
+                        {a.recentMovement > 0 ? <span className="whitespace-nowrap text-success-fg">+{a.recentMovement} en 10 min</span> : null}
+                        {a.full ? <span className="font-semibold text-danger-fg">Lleno</span> : null}
                       </p>
                     </div>
                     {/* Móvil: la info queda arriba a ancho completo y los botones
