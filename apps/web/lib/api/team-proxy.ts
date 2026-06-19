@@ -41,3 +41,10 @@ export const proxyTeamRole = (id: string, body: string) =>
   relay(`/api/v2/org/team/${encodeURIComponent(id)}/role`, { method: 'PATCH', body }, 'No pudimos cambiar el rol.');
 export const proxyTeamStatus = (id: string, body: string) =>
   relay(`/api/v2/org/team/${encodeURIComponent(id)}/status`, { method: 'PATCH', body }, 'No pudimos cambiar el estado.');
+
+export const proxyTeamOverview = () =>
+  relay('/api/v2/org/team/overview', { method: 'GET' }, 'No pudimos cargar el resumen del equipo.');
+
+// Feed de actividad del dashboard: reusa el historial de auditoría (acotado).
+export const proxyTeamActivity = (search: string) =>
+  relay(`/api/v2/org/audit${search}`, { method: 'GET' }, 'No pudimos cargar la actividad del equipo.');

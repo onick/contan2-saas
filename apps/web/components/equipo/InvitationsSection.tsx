@@ -12,7 +12,7 @@ import { StaffInvitationsListResponseSchema, type StaffInvitation } from '@conta
 import { Button, Card, Chip, cn, focusRing } from '../ui';
 
 const FMT = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-const ROLE_LABEL: Record<StaffInvitation['role'], string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador', protocolo: 'Protocolo' };
+const ROLE_LABEL: Record<StaffInvitation['role'], string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador', protocolo: 'Protocolo', consulta: 'Consulta' };
 const STATUS_CHIP: Record<StaffInvitation['status'], { label: string; cls: string }> = {
   pending: { label: 'Pendiente', cls: 'bg-[#fbf0d8] text-[#8a6116]' },
   accepted: { label: 'Aceptada', cls: 'bg-success-bg text-success-fg' },
@@ -25,7 +25,7 @@ export function InvitationsSection({ canInviteOwner }: { canInviteOwner: boolean
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'admin' | 'operator' | 'owner' | 'protocolo'>('operator');
+  const [role, setRole] = useState<'admin' | 'operator' | 'owner' | 'protocolo' | 'consulta'>('operator');
   const [busy, setBusy] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
@@ -100,6 +100,7 @@ export function InvitationsSection({ canInviteOwner }: { canInviteOwner: boolean
         <label className="block">
           <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Rol</span>
           <select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className={inputCls}>
+            <option value="consulta">Consulta (solo lectura)</option>
             <option value="operator">Operador</option>
             <option value="protocolo">Protocolo</option>
             <option value="admin">Administrador</option>
