@@ -1161,6 +1161,26 @@ export const AuditLogResponseSchema = z.object({
 });
 export type AuditLogResponse = z.infer<typeof AuditLogResponseSchema>;
 
+// Overview del Historial (dashboard de auditoría): KPIs hoy + delta vs ayer,
+// resumen por categoría (donut), actores más activos (con nombre real del staff)
+// y señales de actividad sospechosa derivadas del audit. Todo read-only.
+export const AuditOverviewResponseSchema = z.object({
+  kpis: z.object({
+    eventsToday: z.number().int(), eventsDeltaPct: z.number().int().nullable(),
+    activeUsersToday: z.number().int(), activeUsersDeltaPct: z.number().int().nullable(),
+    reportsToday: z.number().int(), reportsDeltaPct: z.number().int().nullable(),
+    activitiesToday: z.number().int(), activitiesDeltaPct: z.number().int().nullable(),
+    deletions24h: z.number().int(),
+  }),
+  byCategory: z.array(z.object({ category: z.string(), count: z.number().int() })),
+  topActors: z.array(z.object({
+    staffId: z.string().nullable(), name: z.string(), role: z.string().nullable(), count: z.number().int(),
+  })),
+  // Señales sospechosas SOPORTADAS (reales): exportaciones hoy, eliminaciones 24h.
+  suspicious: z.object({ exportsToday: z.number().int(), deletions24h: z.number().int() }),
+});
+export type AuditOverviewResponse = z.infer<typeof AuditOverviewResponseSchema>;
+
 // ── Mi equipo · staff_members (F5) ─────────────────────────────────────────
 export const TeamMemberSchema = z.object({
   id: z.string(),

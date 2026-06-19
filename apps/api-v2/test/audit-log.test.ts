@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 import { createDb, type Database } from '@contan2/db';
 import { hashToken } from '@contan2/auth';
+import { AuditOverviewResponseSchema } from '@contan2/contracts';
 import { buildApp } from '../src/server.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -21,10 +22,14 @@ run('GET /org/audit', () => {
   const stamp = Date.now();
   const slugA = `aud-a-${stamp}`;
   const slugB = `aud-b-${stamp}`;
+  const slugC = `aud-c-${stamp}`;
   const hostA = `${slugA}.contan2.com`;
+  const hostC = `${slugC}.contan2.com`;
   let orgAId: string;
   let orgBId: string;
-  const TOK = { owner: `aud-own-${stamp}`, admin: `aud-adm-${stamp}`, operator: `aud-ope-${stamp}`, b: `aud-b-${stamp}` };
+  let orgCId: string;
+  let cOwnerId: string;
+  const TOK = { owner: `aud-own-${stamp}`, admin: `aud-adm-${stamp}`, operator: `aud-ope-${stamp}`, b: `aud-b-${stamp}`, c: `aud-c-${stamp}`, cop: `aud-cop-${stamp}` };
 
   const mkOrg = async (slug: string) =>
     (await db.insertInto('organizations').values({ slug, name: `Org ${slug}`, status: 'active', code_prefix: 'TST' }).returning('id').executeTakeFirstOrThrow()).id;
@@ -33,9 +38,9 @@ run('GET /org/audit', () => {
     await db.insertInto('staff_auth_sessions').values({ staff_member_id: s.id, token_hash: hashToken(token), expires_at: new Date(Date.now() + 3_600_000).toISOString(), remember_me: false }).execute();
     return s.id;
   };
-  const mkAudit = async (orgId: string, action: string, opts: { actorEmail?: string; targetType?: string; createdAt?: string; metadata?: Record<string, unknown> } = {}) =>
+  const mkAudit = async (orgId: string, action: string, opts: { actorEmail?: string; actorStaffId?: string; targetType?: string; createdAt?: string; metadata?: Record<string, unknown> } = {}) =>
     db.insertInto('tenant_audit_log').values({
-      organization_id: orgId, actor_staff_id: null,
+      organization_id: orgId, actor_staff_id: opts.actorStaffId ?? null,
       actor_email_masked: opts.actorEmail ?? 'a***@t.local', actor_role: 'admin',
       action, target_type: opts.targetType ?? 'user', target_id: 't1', target_label: null,
       metadata: JSON.stringify(opts.metadata ?? { k: 'v' }),
@@ -58,13 +63,28 @@ run('GET /org/audit', () => {
     await mkAudit(orgAId, 'report.generated', { actorEmail: 'm***@ccb.do', targetType: 'report', createdAt: '2026-03-20T10:00:00.000Z', metadata: { report: 'attendance-by-activity', rows: 3 } });
     await mkAudit(orgBId, 'user.updated'); // tenant B → NO debe verse
 
+    // Org C: dataset para el OVERVIEW (hoy vs ayer, con actor staff real).
+    orgCId = await mkOrg(slugC);
+    cOwnerId = await mkStaff(orgCId, TOK.c, 'owner');
+    await mkStaff(orgCId, TOK.cop, 'operator');
+    const now = new Date();
+    const todayISO = now.toISOString();
+    const todayStartUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const ydayISO = new Date(todayStartUTC - 2 * 3_600_000).toISOString(); // ayer 22:00 UTC
+    // HOY: 5 eventos del owner → reporte x2, actividad creada x1, actividad borrada x1, checkin x1.
+    for (const a of ['report.generated', 'report.generated', 'activity.created', 'activity.deleted', 'checkin.manual']) {
+      await mkAudit(orgCId, a, { actorStaffId: cOwnerId, createdAt: todayISO });
+    }
+    // AYER: 1 evento (para el delta).
+    await mkAudit(orgCId, 'report.generated', { actorStaffId: cOwnerId, createdAt: ydayISO });
+
     app = buildApp();
     await app.ready();
   });
 
   afterAll(async () => {
     if (app) await app.close();
-    for (const id of [orgAId, orgBId]) {
+    for (const id of [orgAId, orgBId, orgCId]) {
       if (!id) continue;
       await db.deleteFrom('tenant_audit_log').where('organization_id', '=', id).execute();
       await db.deleteFrom('staff_members').where('organization_id', '=', id).execute();
@@ -116,5 +136,27 @@ run('GET /org/audit', () => {
     expect(p2.items).toHaveLength(1); // queda 1
     expect(p2.nextCursor).toBeNull();
     expect(p2.items[0].action).toBe('user.updated'); // el más viejo
+  });
+
+  it('overview → KPIs hoy/delta + donut + top actores (nombre real) + sospechosa; operator 403', async () => {
+    const ov = (token?: string) =>
+      app.inject({ method: 'GET', url: '/api/v2/org/audit/overview', headers: { host: hostC, ...(token ? { cookie: `contan2_session=${token}` } : {}) } });
+    expect((await ov(TOK.cop)).statusCode).toBe(403);
+    const res = await ov(TOK.c);
+    expect(res.statusCode).toBe(200);
+    const d = AuditOverviewResponseSchema.parse(res.json());
+    expect(d.kpis.eventsToday).toBe(5);
+    expect(d.kpis.eventsDeltaPct).toBe(400); // 5 hoy vs 1 ayer
+    expect(d.kpis.reportsToday).toBe(2);
+    expect(d.kpis.reportsDeltaPct).toBe(100); // 2 vs 1
+    expect(d.kpis.activitiesToday).toBe(1); // activity.created
+    expect(d.kpis.activeUsersToday).toBe(1);
+    expect(d.kpis.deletions24h).toBe(1); // activity.deleted hoy
+    // donut por categoría (hoy): actividad=2 (created+deleted), reporte=2, checkin=1
+    const cat = Object.fromEntries(d.byCategory.map((c) => [c.category, c.count]));
+    expect(cat).toMatchObject({ actividad: 2, reporte: 2, checkin: 1 });
+    // top actores con NOMBRE real del staff (no enmascarado)
+    expect(d.topActors[0]).toMatchObject({ staffId: cOwnerId, name: 'S owner', count: 5 });
+    expect(d.suspicious).toMatchObject({ exportsToday: 2, deletions24h: 1 });
   });
 });
