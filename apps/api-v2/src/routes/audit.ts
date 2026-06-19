@@ -6,13 +6,26 @@
 
 import type { FastifyPluginAsync } from 'fastify';
 import { getDb } from '@contan2/db';
-import type { AuditLogResponse } from '@contan2/contracts';
+import type { AuditLogResponse, AuditOverviewResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { readAuditLog, AUDIT_PAGE_MAX } from '../services/audit-read.js';
+import { auditOverview } from '../services/audit-overview.js';
 
 const CAN_READ_AUDIT = new Set(['owner', 'admin']);
 
 export const auditRoute: FastifyPluginAsync = async (app) => {
+  // Overview del dashboard: KPIs + donut + top actores + sospechosa. Read-only,
+  // owner/admin (misma allowlist que el historial).
+  app.get('/org/audit/overview', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const { org, staff } = guard.ctx;
+    if (!CAN_READ_AUDIT.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para ver el historial.' }; }
+    const body: AuditOverviewResponse = await auditOverview(db, org.id);
+    return body;
+  });
+
   app.get('/org/audit', async (req, reply) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
