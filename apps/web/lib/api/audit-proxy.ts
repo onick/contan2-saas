@@ -9,11 +9,11 @@ import { forwardingHeaders } from './forwarded';
 const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:3001';
 const SESSION_COOKIE = 'contan2_session';
 
-export async function proxyAuditLog(search: string): Promise<Response> {
+async function relayAudit(path: string, netError: string): Promise<Response> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   let upstream: Response;
   try {
-    upstream = await fetch(`${API_BASE_URL}/api/v2/org/audit${search}`, {
+    upstream = await fetch(`${API_BASE_URL}${path}`, {
       method: 'GET',
       headers: {
         ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
@@ -22,7 +22,7 @@ export async function proxyAuditLog(search: string): Promise<Response> {
       cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'No pudimos cargar el historial.' }, { status: 502 });
+    return Response.json({ error: netError }, { status: 502 });
   }
   const text = await upstream.text();
   return new Response(text, {
@@ -30,3 +30,9 @@ export async function proxyAuditLog(search: string): Promise<Response> {
     headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
   });
 }
+
+export const proxyAuditLog = (search: string) =>
+  relayAudit(`/api/v2/org/audit${search}`, 'No pudimos cargar el historial.');
+
+export const proxyAuditOverview = () =>
+  relayAudit('/api/v2/org/audit/overview', 'No pudimos cargar el resumen del historial.');

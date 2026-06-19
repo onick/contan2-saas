@@ -126,6 +126,9 @@ run('GET /org/audit', () => {
     const ranged = (await get('?from=2026-03-14&to=2026-03-16', TOK.admin)).json();
     expect(ranged.items).toHaveLength(1);
     expect(ranged.items[0].action).toBe('checkin.manual');
+    // filtro por categoría (prefijo de acción): reporte → report.generated.
+    expect((await get('?category=reporte', TOK.admin)).json().items.map((e: { action: string }) => e.action)).toEqual(['report.generated']);
+    expect((await get('?category=usuario', TOK.admin)).json().items.map((e: { action: string }) => e.action)).toEqual(['user.updated']);
   });
 
   it('paginación keyset: limit + nextCursor', async () => {

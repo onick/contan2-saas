@@ -42,6 +42,7 @@ export const auditRoute: FastifyPluginAsync = async (app) => {
       action: q.action ? String(q.action) : undefined,
       actor: q.actor ? String(q.actor).slice(0, 120) : undefined,
       targetType: q.targetType ? String(q.targetType) : undefined,
+      category: q.category ? String(q.category) : undefined,
       from: q.from ? String(q.from) : undefined,
       to: q.to ? String(q.to) : undefined,
       cursor: q.cursor ? String(q.cursor) : undefined,

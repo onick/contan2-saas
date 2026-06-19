@@ -13,15 +13,17 @@ import { ACTION_LABEL, actionLabel } from '../../lib/audit/labels';
 import { Card, Button, cn, focusRing } from '../ui';
 
 interface Item {
-  id: string; category: string; action: string; actorEmailMasked: string | null; actorRole: string | null;
+  id: string; category: string; action: string; actorName: string | null; actorEmailMasked: string | null; actorRole: string | null;
   targetType: string | null; targetId: string | null; targetLabel: string | null; metadata: Record<string, unknown>; createdAt: string;
 }
-interface Filters { action: string; actor: string; from: string; to: string }
+interface Filters { action: string; actor: string; category: string; from: string; to: string }
 
 // Acciones conocidas → opciones del <select>. El mapa de etiquetas vive en
 // lib/audit/labels (compartido con las notificaciones del Topbar).
 const ACTION_OPTIONS = Object.entries(ACTION_LABEL);
 const catMeta = (c: string) => CATEGORY_META[(c as EventCategory)] ?? CATEGORY_META.usuario;
+// Tabs por categoría (mismo orden del módulo). El server filtra por prefijo.
+const CATEGORY_TABS: EventCategory[] = ['actividad', 'checkin', 'usuario', 'reporte', 'equipo', 'identidad', 'segmento', 'auth'];
 
 function dayOf(iso: string): { key: string; label: string } {
   const d = new Date(iso); const that = new Date(d); that.setHours(0, 0, 0, 0);
@@ -33,7 +35,7 @@ function dayOf(iso: string): { key: string; label: string } {
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
 
 export function AuditTimeline() {
-  const [filters, setFilters] = useState<Filters>({ action: '', actor: '', from: '', to: '' });
+  const [filters, setFilters] = useState<Filters>({ action: '', actor: '', category: '', from: '', to: '' });
   const [items, setItems] = useState<Item[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error' | 'more'>('loading');
@@ -44,6 +46,7 @@ export function AuditTimeline() {
     const p = new URLSearchParams();
     if (f.action) p.set('action', f.action);
     if (f.actor.trim()) p.set('actor', f.actor.trim());
+    if (f.category) p.set('category', f.category);
     if (f.from) p.set('from', f.from);
     if (f.to) p.set('to', f.to);
     p.set('limit', '50');
@@ -114,6 +117,17 @@ export function AuditTimeline() {
         </div>
       </Card>
 
+      {/* Tabs por categoría (filtro server por prefijo de acción) */}
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <CatTab label="Todos" active={filters.category === ''} onClick={() => set('category', '')} />
+        {CATEGORY_TABS.map((c) => {
+          const m = CATEGORY_META[c]; const Icon = m.icon;
+          return (
+            <CatTab key={c} label={m.label} Icon={Icon} active={filters.category === c} onClick={() => set('category', c)} />
+          );
+        })}
+      </div>
+
       {/* Feed */}
       <div className="mt-4">
         {phase === 'loading' ? (
@@ -142,7 +156,7 @@ export function AuditTimeline() {
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className="text-[13px] text-ink">
-                              <span className="font-semibold tabular-nums">{e.actorEmailMasked ?? 'Sistema'}</span>{' '}
+                              <span className="font-semibold">{e.actorName ?? e.actorEmailMasked ?? 'Sistema'}</span>{' '}
                               <span className="text-muted">{actionLabel(e.action)}</span>
                               {e.targetLabel ? <> · <span className="text-ink">{e.targetLabel}</span></> : e.targetId ? <> · <span className="text-faint tabular-nums">{e.targetType}:{e.targetId}</span></> : null}
                             </p>
@@ -167,5 +181,15 @@ export function AuditTimeline() {
         )}
       </div>
     </div>
+  );
+}
+
+function CatTab({ label, Icon, active, onClick }: { label: string; Icon?: typeof Search; active: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={active}
+      className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors', focusRing,
+        active ? 'bg-brand text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
+      {Icon ? <Icon size={13} strokeWidth={1.9} aria-hidden="true" /> : null}{label}
+    </button>
   );
 }

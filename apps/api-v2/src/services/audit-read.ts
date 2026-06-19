@@ -16,16 +16,31 @@ export interface AuditFilters {
   action?: string;
   actor?: string; // substring sobre actor_email_masked
   targetType?: string;
+  category?: string; // categoría UI (mapea a prefijos de acción, ver categoryOf)
   from?: string; // YYYY-MM-DD inclusive
   to?: string; // YYYY-MM-DD inclusive
   cursor?: string; // id bigint del último item de la página previa
   limit?: number;
 }
 
+// Prefijos de acción por categoría UI (consistente con categoryOf). Para el
+// filtro por categoría del dashboard (tabs).
+const CATEGORY_PREFIXES: Record<string, string[]> = {
+  checkin: ['checkin'],
+  usuario: ['user', 'credential', 'attendance'],
+  reporte: ['report'],
+  actividad: ['activity', 'actividad'],
+  identidad: ['branding', 'identity'],
+  equipo: ['staff', 'team'],
+  auth: ['auth', 'login', 'session'],
+  segmento: ['segment'],
+};
+
 export interface AuditItem {
   id: string;
   category: string;
   action: string;
+  actorName: string | null; // nombre real del staff (join), null si actor de sistema
   actorEmailMasked: string | null;
   actorRole: string | null;
   targetType: string | null;
@@ -60,18 +75,21 @@ export async function readAuditLog(db: DbClient, orgId: string, f: AuditFilters)
   const limit = Math.min(Math.max(1, f.limit ?? AUDIT_PAGE_DEFAULT), AUDIT_PAGE_MAX);
 
   let q = db
-    .selectFrom('tenant_audit_log')
-    .select(['id', 'action', 'actor_email_masked', 'actor_role', 'target_type', 'target_id', 'target_label', 'metadata', 'created_at'])
-    .where('organization_id', '=', orgId)
-    .orderBy('id', 'desc')
+    .selectFrom('tenant_audit_log as t')
+    .leftJoin('staff_members as s', 's.id', 't.actor_staff_id')
+    .select(['t.id', 't.action', 's.full_name as actorName', 't.actor_email_masked', 't.actor_role', 't.target_type', 't.target_id', 't.target_label', 't.metadata', 't.created_at'])
+    .where('t.organization_id', '=', orgId)
+    .orderBy('t.id', 'desc')
     .limit(limit + 1);
 
-  if (f.cursor && /^\d+$/.test(f.cursor)) q = q.where('id', '<', f.cursor);
-  if (f.action) q = q.where('action', '=', f.action);
-  if (f.actor) q = q.where('actor_email_masked', 'ilike', `%${f.actor}%`);
-  if (f.targetType) q = q.where('target_type', '=', f.targetType);
-  if (f.from && DATE_RE.test(f.from)) q = q.where('created_at', '>=', new Date(`${f.from}T00:00:00.000Z`));
-  if (f.to && DATE_RE.test(f.to)) q = q.where('created_at', '<', new Date(new Date(`${f.to}T00:00:00.000Z`).getTime() + DAY_MS));
+  if (f.cursor && /^\d+$/.test(f.cursor)) q = q.where('t.id', '<', f.cursor);
+  if (f.action) q = q.where('t.action', '=', f.action);
+  if (f.actor) q = q.where('t.actor_email_masked', 'ilike', `%${f.actor}%`);
+  if (f.targetType) q = q.where('t.target_type', '=', f.targetType);
+  const prefixes = f.category ? CATEGORY_PREFIXES[f.category] : undefined;
+  if (prefixes && prefixes.length) q = q.where((eb) => eb.or(prefixes.map((p) => eb('t.action', 'like', `${p}.%`))));
+  if (f.from && DATE_RE.test(f.from)) q = q.where('t.created_at', '>=', new Date(`${f.from}T00:00:00.000Z`));
+  if (f.to && DATE_RE.test(f.to)) q = q.where('t.created_at', '<', new Date(new Date(`${f.to}T00:00:00.000Z`).getTime() + DAY_MS));
 
   const rows = await q.execute();
   const hasMore = rows.length > limit;
@@ -81,6 +99,7 @@ export async function readAuditLog(db: DbClient, orgId: string, f: AuditFilters)
     id: String(r.id),
     category: categoryOf(r.action),
     action: r.action,
+    actorName: r.actorName ?? null,
     actorEmailMasked: r.actor_email_masked,
     actorRole: r.actor_role,
     targetType: r.target_type,
