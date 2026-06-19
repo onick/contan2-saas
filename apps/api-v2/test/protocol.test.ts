@@ -14,7 +14,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 import { createDb, type Database } from '@contan2/db';
 import { hashToken } from '@contan2/auth';
-import { ProtocolListResponseSchema, ActivityInvitationsResponseSchema, RsvpPreviewResponseSchema, ProtocolDashboardResponseSchema } from '@contan2/contracts';
+import { ProtocolListResponseSchema, ActivityInvitationsResponseSchema, RsvpPreviewResponseSchema, ProtocolDashboardResponseSchema, ActivityProtocolListResponseSchema } from '@contan2/contracts';
 import { buildApp } from '../src/server.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -262,5 +262,26 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     expect(d.guests.every((g) => typeof g.eventsLastYear === 'number')).toBe(true);
     expect(Array.isArray(d.recentActivity) && Array.isArray(d.upcomingEvents)).toBe(true);
     expect(d.kpis.attendanceRate).toBeGreaterThanOrEqual(0);
+  });
+
+  it('protocolo POR actividad → lista con estado derivado (attended) + KPIs; operator 403; 404 inexistente', async () => {
+    expect((await call('GET', `/api/v2/activities/${act}/protocol-invitations`, undefined, TOK.operator)).statusCode).toBe(403);
+    expect((await call('GET', `/api/v2/activities/${randomUUID()}/protocol-invitations`, undefined, TOK.admin)).statusCode).toBe(404);
+
+    const res = await call('GET', `/api/v2/activities/${act}/protocol-invitations`, undefined, TOK.admin);
+    expect(res.statusCode).toBe(200);
+    const body = ActivityProtocolListResponseSchema.parse(res.json());
+    expect(body.activity.id).toBe(act);
+    // uEmb (admin check-in) y uDip (check-in público) registraron entrada.
+    const emb = body.guests.find((g) => g.userId === uEmb)!;
+    expect(emb.attended).toBe(true);
+    expect(emb.status).toBe('attended');
+    expect(emb.partySize).toBe(3); // 1 + plusOnes 2
+    expect(emb.honorific).toBe('Sr. Embajador');
+    expect(body.kpis.attended).toBeGreaterThanOrEqual(2);
+    // invited cuenta las invitaciones de protocolo no canceladas del evento.
+    expect(body.kpis.invited).toBe(body.guests.filter((g) => g.status !== 'canceled').length);
+    // totalPartySize = suma de party de confirmados/asistidos (≥ los 3 del embajador).
+    expect(body.kpis.totalPartySize).toBeGreaterThanOrEqual(3);
   });
 });

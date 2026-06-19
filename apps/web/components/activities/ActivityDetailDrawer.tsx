@@ -25,6 +25,7 @@ import { InviteProtocolPanel } from './InviteProtocolPanel';
 import { ImportGuestsPanel } from './ImportGuestsPanel';
 import { AddFromPadronPanel } from './AddFromPadronPanel';
 import { InvitationsSection } from './InvitationsSection';
+import { ProtocolSection } from './ProtocolSection';
 import { Megaphone, Medal, Upload } from 'lucide-react';
 import { Button, IconButton, cn, focusRing, useDrawerLifecycle } from '../ui';
 
@@ -219,6 +220,12 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
                 </Button>
               ) : undefined}
             />
+          ) : null}
+
+          {/* Protocolo del evento · invitados especiales DE esta actividad
+              (estado + acompañantes). Sólo aparece si los hay. */}
+          {shown.statusRaw ? (
+            <ProtocolSection activityId={shown.id} refreshKey={invKey} />
           ) : null}
 
           {/* Invitaciones RSVP (S3) · resumen + lista con cancelar (PR-3) */}

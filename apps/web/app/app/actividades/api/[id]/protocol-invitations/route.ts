@@ -1,6 +1,11 @@
-// POST lote de invitaciones de protocolo {invites:[{userId, plusOnes}]} → api-v2.
+// Protocolo de una actividad: GET lista (protocolo del evento) · POST lote de
+// invitaciones {invites:[{userId, plusOnes}]} → api-v2.
 import { proxyAuth } from '../../../../../../lib/api/auth-proxy';
 export const dynamic = 'force-dynamic';
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
+  const { id } = await ctx.params;
+  return proxyAuth('GET', `/api/v2/activities/${encodeURIComponent(id)}/protocol-invitations`, undefined, true);
+}
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await ctx.params;
   let body: unknown;
