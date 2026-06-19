@@ -1145,6 +1145,7 @@ export const AuditLogItemSchema = z.object({
   id: z.string(),
   category: z.string(),
   action: z.string(),
+  actorName: z.string().nullable(),
   actorEmailMasked: z.string().nullable(),
   actorRole: z.string().nullable(),
   targetType: z.string().nullable(),
