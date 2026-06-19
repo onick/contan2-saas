@@ -188,17 +188,18 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
       {/* KPIs */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((k) => (
-          <Card key={k.id} padding="md" className="flex items-start gap-3.5">
+          <Card key={k.id} padding="md" className="relative flex items-start gap-3.5">
+            {/* delta en la esquina superior derecha */}
+            <div className="absolute right-4 top-4 flex flex-col items-end gap-0.5">
+              <DeltaChip pct={deltaOf(k.id)} />
+              {prevOf(k.id) !== null && <span className="text-[10px] text-faint tabular-nums">{fmt(prevOf(k.id)!)} antes</span>}
+            </div>
             <span className={cn('grid h-11 w-11 flex-none place-items-center rounded-xl', k.tint)}>
               <k.Icon size={21} strokeWidth={1.9} aria-hidden="true" />
             </span>
-            <div className="min-w-0">
+            <div className="min-w-0 pr-16">
               <span className="block text-[11px] font-bold uppercase tracking-[0.04em] text-faint">{k.label}</span>
               <p className="mt-1 text-[30px] font-extrabold leading-none tracking-tight text-ink tabular-nums" data-count={get(k.id)}>{fmt(get(k.id))}</p>
-              <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[11.5px]">
-                <DeltaChip pct={deltaOf(k.id)} />
-                {prevOf(k.id) !== null && <span className="text-faint">· {fmt(prevOf(k.id)!)} antes</span>}
-              </p>
               <p className="mt-1.5 text-[12px] text-muted">{k.sub}</p>
             </div>
           </Card>
@@ -304,17 +305,18 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
               return (
                 <a key={s.id} href={`/app/segmentos/${encodeURIComponent(s.id)}`} className={cn('group block rounded-2xl', focusRing)}>
                   <Card padding="md" interactive className="relative h-full">
-                    <ChevronRight size={18} strokeWidth={2} aria-hidden="true" className="absolute right-4 top-4 text-faint transition-transform group-hover:translate-x-0.5" />
+                    {/* delta + chevron en la esquina superior derecha */}
+                    <div className="absolute right-4 top-4 flex flex-col items-end gap-1.5">
+                      <ChevronRight size={18} strokeWidth={2} aria-hidden="true" className="text-faint transition-transform group-hover:translate-x-0.5" />
+                      <DeltaChip pct={s.deltaPct ?? null} />
+                      {s.prevCount != null && <span className="text-[10px] text-faint tabular-nums">{fmt(s.prevCount)} antes</span>}
+                    </div>
                     <span className={cn('mb-3 grid h-9 w-9 place-items-center rounded-xl', meta.tint)}>
                       <meta.Icon size={19} strokeWidth={1.9} aria-hidden="true" />
                     </span>
-                    <p className="text-[14px] font-bold text-ink">{s.label}</p>
+                    <p className="pr-16 text-[14px] font-bold text-ink">{s.label}</p>
                     <p className="mt-0.5 text-[30px] font-extrabold leading-none tracking-tight text-ink tabular-nums" data-count={s.count}>{fmt(s.count)}</p>
                     <p className="mt-1.5 text-[12.5px] text-muted">{s.description}</p>
-                    <p className="mt-2.5 flex items-center gap-1.5">
-                      <DeltaChip pct={s.deltaPct ?? null} />
-                      <span className="text-[11px] text-faint">vs. último mes</span>
-                    </p>
                   </Card>
                 </a>
               );
