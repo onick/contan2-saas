@@ -118,39 +118,29 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
     } finally { setBusy(null); setMenuOpen(null); }
   }
 
-  // ── animaciones GSAP del prototipo (entrada de KPIs/tarjetas/timeline) ──────
+  // ── animación GSAP (coherente con Segmentos): las tarjetas YA están; sólo el
+  //    CONTENIDO aparece — count-up de los números. Sin hide-then-reveal de
+  //    contenedores → SSR-safe (el contenido nunca se oculta si gsap no carga).
   useIso(() => {
     const root = rootRef.current;
     if (!root || prefersReducedMotion()) return;
-    const groups: Array<[string, { y?: number; x?: number }]> = [
-      ['[data-anim="kpi"]', { y: 18 }], ['[data-anim="tab"]', { y: 8 }],
-      ['[data-anim="gcard"]', { y: 22 }], ['[data-anim="feed"]', { x: 12 }], ['[data-anim="ev"]', { x: 12 }],
-    ];
-    const all = root.querySelectorAll<HTMLElement>('[data-anim]');
-    all.forEach((el) => { el.style.opacity = '0'; });
     const counters = Array.from(root.querySelectorAll<HTMLElement>('[data-count]'));
+    if (!counters.length) return;
     counters.forEach((el) => { el.textContent = '0'; });
-    const settle = () => { all.forEach((el) => { el.style.opacity = ''; el.style.transform = ''; }); counters.forEach((el) => { el.textContent = fmt(Number(el.dataset.count)); }); };
+    const settle = () => { counters.forEach((el) => { el.textContent = fmt(Number(el.dataset.count)); }); };
     let cancelled = false; let ctx: { revert: () => void } | undefined;
-    const watchdog = window.setTimeout(settle, 1700);
+    const watchdog = window.setTimeout(settle, 1600);
     void loadAnim().then((api) => {
       if (cancelled) return; window.clearTimeout(watchdog);
       if (!api || !rootRef.current) { settle(); return; }
-      const { gsap, SplitText } = api;
+      const { gsap } = api;
       ctx = gsap.context(() => {
-        const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-        const title = root.querySelector('[data-anim="title"]');
-        let split: { chars?: Element[]; revert: () => void } | undefined;
-        if (title) { split = new SplitText(title as Element, { type: 'chars' }) as unknown as typeof split; gsap.set(split!.chars ?? [], { opacity: 0, y: 12 }); }
-        if (split?.chars?.length) tl.to(split.chars, { opacity: 1, y: 0, duration: 0.5, stagger: 0.02 });
-        groups.forEach(([sel, from], gi) => {
-          const els = root.querySelectorAll(sel);
-          if (!els.length) return;
-          gsap.set(els, { opacity: 0, ...(from.y ? { y: from.y } : {}), ...(from.x ? { x: from.x } : {}) });
-          tl.to(els, { opacity: 1, y: 0, x: 0, duration: 0.55, stagger: 0.07 }, gi === 0 ? '-=0.1' : '-=0.35');
+        const tl = gsap.timeline({ defaults: { ease: 'power2.out' } });
+        // KPIs primero (los 4), luego el resto de contadores escalonados.
+        counters.forEach((el, i) => {
+          const o = { v: 0 };
+          tl.to(o, { v: Number(el.dataset.count), duration: 1.1, onUpdate: () => { el.textContent = fmt(o.v); } }, i < 4 ? 0.05 * i : 0.3 + 0.02 * i);
         });
-        counters.forEach((el, i) => { const o = { v: 0 }; tl.to(o, { v: Number(el.dataset.count), duration: 1.0, ease: 'power2.out', onUpdate: () => { el.textContent = fmt(o.v); } }, 0.3 + i * 0.02); });
-        return () => { try { split?.revert(); } catch { /* noop */ } };
       }, root);
     });
     return () => { cancelled = true; window.clearTimeout(watchdog); ctx?.revert(); settle(); };
