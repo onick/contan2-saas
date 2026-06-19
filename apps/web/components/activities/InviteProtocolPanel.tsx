@@ -30,6 +30,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   autoridad: 'Autoridad', diplomatico: 'Diplomático', prensa: 'Prensa',
   patrocinador: 'Patrocinador', directivo: 'Directivo', artista: 'Artista', otro: 'Otro',
 };
+const CAT_ORDER = ['autoridad', 'diplomatico', 'prensa', 'patrocinador', 'directivo', 'artista', 'otro'];
 const MAX_PLUS = 10;
 
 export function InviteProtocolPanel({ activityId, activityName, open, onClose, onSent }: {
@@ -44,6 +45,7 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
   // userId → plusOnes; presencia en el mapa = seleccionado.
   const [picked, setPicked] = useState<Map<string, number>>(new Map());
   const [q, setQ] = useState('');
+  const [catFilter, setCatFilter] = useState<string>('todas');
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,17 +74,34 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
 
   useEffect(() => {
     if (!open) return;
-    setOutcome(null); setQ('');
+    setOutcome(null); setQ(''); setCatFilter('todas');
     void load();
   }, [open, load]);
+
+  // Conteo por categoría (para los chips) + chips presentes, en orden.
+  const catCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    data?.candidates.forEach((c) => { m[c.category] = (m[c.category] ?? 0) + 1; });
+    return m;
+  }, [data]);
+  const chips = useMemo(() => CAT_ORDER.filter((c) => (catCounts[c] ?? 0) > 0), [catCounts]);
 
   const filtered = useMemo(() => {
     if (!data) return [];
     const needle = q.trim().toLowerCase();
-    if (!needle) return data.candidates;
     return data.candidates.filter((c) =>
-      `${c.honorific ?? ''} ${c.firstName} ${c.lastName} ${c.code} ${c.orgTitle ?? ''} ${CATEGORY_LABEL[c.category] ?? ''}`.toLowerCase().includes(needle));
-  }, [data, q]);
+      (catFilter === 'todas' || c.category === catFilter) &&
+      (!needle || `${c.honorific ?? ''} ${c.firstName} ${c.lastName} ${c.code} ${c.orgTitle ?? ''} ${CATEGORY_LABEL[c.category] ?? ''}`.toLowerCase().includes(needle)));
+  }, [data, q, catFilter]);
+
+  // Seleccionar/limpiar TODOS los visibles (el flujo "todos los de Prensa").
+  const allVisibleSelected = filtered.length > 0 && filtered.every((c) => picked.has(c.userId));
+  const toggleAllVisible = () => setPicked((prev) => {
+    const next = new Map(prev);
+    if (filtered.every((c) => next.has(c.userId))) filtered.forEach((c) => next.delete(c.userId));
+    else filtered.forEach((c) => { if (!next.has(c.userId)) next.set(c.userId, 0); });
+    return next;
+  });
 
   const toggle = (id: string) => setPicked((prev) => {
     const next = new Map(prev);
@@ -172,6 +191,27 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
                       className="w-full bg-transparent text-[13px] text-ink placeholder:text-faint focus:outline-none" />
                   </label>
 
+                  {/* Chips de categoría: filtran la lista (se combinan con la búsqueda) */}
+                  {chips.length > 1 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      <CatChip label={`Todas (${data.candidates.length})`} active={catFilter === 'todas'} onClick={() => setCatFilter('todas')} />
+                      {chips.map((c) => (
+                        <CatChip key={c} label={`${CATEGORY_LABEL[c]} (${catCounts[c]})`} active={catFilter === c} onClick={() => setCatFilter(c)} />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {/* Seleccionar/limpiar todos los visibles (clave para invitar por categoría) */}
+                  {filtered.length > 0 ? (
+                    <div className="flex items-center justify-between px-0.5">
+                      <span className="text-[11.5px] text-faint">{filtered.length} visible{filtered.length === 1 ? '' : 's'}</span>
+                      <button type="button" onClick={toggleAllVisible}
+                        className={cn('rounded-lg px-2 py-1 text-[12px] font-semibold text-brand hover:bg-accent-soft', focusRing)}>
+                        {allVisibleSelected ? 'Quitar selección visible' : 'Seleccionar todos los visibles'}
+                      </button>
+                    </div>
+                  ) : null}
+
                   <ul className="min-h-0 divide-y divide-line overflow-y-auto rounded-lg border border-line">
                     {filtered.map((c) => {
                       const sel = picked.get(c.userId);
@@ -205,7 +245,7 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
                         </li>
                       );
                     })}
-                    {filtered.length === 0 ? <li className="px-3 py-3 text-[13px] text-faint">Nadie coincide con esa búsqueda.</li> : null}
+                    {filtered.length === 0 ? <li className="px-3 py-3 text-[13px] text-faint">Nadie coincide con el filtro.</li> : null}
                   </ul>
                 </>
               ) : (
@@ -236,5 +276,18 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
       </div>
     </div>,
     document.body,
+  );
+}
+
+function CatChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={active}
+      className={cn(
+        'rounded-full px-3 py-1 text-[12px] font-semibold transition-colors',
+        active ? 'bg-brand text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container',
+        focusRing,
+      )}>
+      {label}
+    </button>
   );
 }
