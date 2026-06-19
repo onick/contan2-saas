@@ -6,11 +6,12 @@
 
 import type { FastifyPluginAsync } from 'fastify';
 import { getDb } from '@contan2/db';
-import type { TeamListResponse } from '@contan2/contracts';
+import type { TeamListResponse, TeamOverviewResponse } from '@contan2/contracts';
 import { TeamRoleUpdateRequestSchema, TeamStatusUpdateRequestSchema } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { readTeam, TEAM_PAGE_MAX } from '../services/team-read.js';
+import { teamOverview } from '../services/team-overview.js';
 import { changeRole, changeStatus, TeamWriteError } from '../services/team-write.js';
 
 const CAN_VIEW_TEAM = new Set(['owner', 'admin']);
@@ -41,6 +42,18 @@ export const teamRoute: FastifyPluginAsync = async (app) => {
     });
 
     const body: TeamListResponse = page;
+    return body;
+  });
+
+  // GET /org/team/overview · KPIs + resumen por rol para el dashboard. Read-only,
+  // owner/admin (misma allowlist que ver el equipo).
+  app.get('/org/team/overview', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const { org, staff } = guard.ctx;
+    if (!CAN_VIEW_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para ver el equipo.' }; }
+    const body: TeamOverviewResponse = await teamOverview(db, org.id);
     return body;
   });
 

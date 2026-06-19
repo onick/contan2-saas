@@ -9,7 +9,9 @@ export type SidebarStyle = 'brand' | 'dark' | 'light';
 // staff_members.status y platform_admins.status comparten este conjunto.
 export type AccountStatus = 'active' | 'suspended' | 'deleted';
 
-export type StaffRole = 'owner' | 'admin' | 'operator' | 'protocolo';
+// 'consulta' (migración 035): rol de SOLO LECTURA. Ve la información pero no
+// gestiona (queda fuera de toda allowlist de escritura). v1 le da 403 en todo.
+export type StaffRole = 'owner' | 'admin' | 'operator' | 'protocolo' | 'consulta';
 
 // activities.status CHECK (migración 001_initial.sql).
 export type ActivityStatus = 'activa' | 'finalizada' | 'cancelada';

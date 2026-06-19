@@ -17,7 +17,7 @@ export const PublicStaffSchema = z.object({
   email: z.string(),
   fullName: z.string(),
   status: z.enum(['active', 'suspended', 'deleted']),
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']),
   mustChangePassword: z.boolean(),
   mfaEnabled: z.boolean(),
   lastLoginAt: z.string().nullable(),
@@ -316,7 +316,7 @@ export const StaffInvitationSchema = z.object({
   id: z.string(),
   email: z.string(),
   fullName: z.string().nullable(),
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']),
   status: z.enum(['pending', 'accepted', 'revoked', 'expired']),
   expiresAt: z.string(),
   createdAt: z.string(),
@@ -328,7 +328,7 @@ export type StaffInvitationsListResponse = z.infer<typeof StaffInvitationsListRe
 export const StaffInviteCreateRequestSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   fullName: z.string().trim().max(120).optional(),
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']),
 }).strict();
 export type StaffInviteCreateRequest = z.infer<typeof StaffInviteCreateRequestSchema>;
 
@@ -336,7 +336,7 @@ export const InvitationPreviewResponseSchema = z.object({
   invitation: z.object({
     email: z.string(),
     fullName: z.string().nullable(),
-    role: z.enum(['owner', 'admin', 'operator', 'protocolo']),
+    role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']),
     expiresAt: z.string(),
     organization: z.object({ slug: z.string(), name: z.string() }).nullable(),
   }),
@@ -1179,8 +1179,24 @@ export const TeamListResponseSchema = z.object({
 });
 export type TeamListResponse = z.infer<typeof TeamListResponseSchema>;
 
-export const TeamRoleUpdateRequestSchema = z.object({ role: z.enum(['owner', 'admin', 'operator', 'protocolo']) }).strict();
+export const TeamRoleUpdateRequestSchema = z.object({ role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']) }).strict();
 export type TeamRoleUpdateRequest = z.infer<typeof TeamRoleUpdateRequestSchema>;
+// Overview del equipo (dashboard "Mi equipo"): KPIs + resumen por rol. Todo
+// desde datos reales (staff_members + staff_invitations + tenant_audit_log).
+export const TeamOverviewResponseSchema = z.object({
+  kpis: z.object({
+    activeMembers: z.number().int(),     // status=active, no soft-deleted
+    admins: z.number().int(),            // owner + admin
+    pendingInvites: z.number().int(),    // staff_invitations status=pending
+    activeThisWeek: z.number().int(),    // actores distintos en audit últimos 7d
+    activeThisWeekPct: z.number().int(), // sobre activeMembers (0–100)
+    activeDeltaPts: z.number().int(),    // puntos vs semana anterior (puede ser <0)
+  }),
+  // Conteo de miembros (no soft-deleted) por rol, en orden de jerarquía.
+  roles: z.array(z.object({ role: z.string(), count: z.number().int() })),
+});
+export type TeamOverviewResponse = z.infer<typeof TeamOverviewResponseSchema>;
+
 export const TeamStatusUpdateRequestSchema = z.object({ status: z.enum(['active', 'suspended']) }).strict();
 export type TeamStatusUpdateRequest = z.infer<typeof TeamStatusUpdateRequestSchema>;
 export const TeamMutationResponseSchema = z.object({ id: z.string(), role: z.string().optional(), status: z.string().optional() });
