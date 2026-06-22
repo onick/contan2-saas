@@ -30,6 +30,7 @@ import { credentialsBulkRoute } from './routes/credentials-bulk.js';
 import { activityInvitationsRoute } from './routes/activity-invitations.js';
 import { protocolRoute } from './routes/protocol.js';
 import { scannerRoute } from './routes/scanner.js';
+import { contactRoute } from './routes/contact.js';
 
 // Detrás de un reverse proxy (Traefik / web-v2), Fastify debe derivar `req.ip`
 // del `X-Forwarded-For` en vez del socket (que sería el proxy) — si no, TODOS los
@@ -77,6 +78,9 @@ export function buildApp(): FastifyInstance {
   app.register(healthzRoute, { prefix: '/api/v2' });
   // Gated por DB_CHECK_ENABLED; no registra ruta si está apagado.
   app.register(dbCheckRoute, { prefix: '/api/v2' });
+  // Formulario público de la landing (sin tenant scope, sin auth). Antes que
+  // los routes tenant-scoped para no pasar por resolveTenant.
+  app.register(contactRoute, { prefix: '/api/v2' });
   app.register(authMeRoute, { prefix: '/api/v2' });
   // Login/logout del admin v2 (ESCRITURA · única superficie que escribe en
   // staff_auth_sessions, byte-compatible con v1).

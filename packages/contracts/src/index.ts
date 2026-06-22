@@ -1313,3 +1313,19 @@ export const ProtocolDesignateRequestSchema = z.object({
   notes: z.string().trim().max(500).nullable().optional(),
 }).strict();
 export type ProtocolDesignateRequest = z.infer<typeof ProtocolDesignateRequestSchema>;
+
+// ── Contacto (landing pública · sin tenant scope) ───────────────────────────
+// Port del schema de v1 (backend/src/routes/landing.js). Honeypot `fax`: si
+// trae contenido, el handler descarta silenciosamente (200 OK) para que el bot
+// crea que pasó. El modal de la landing (web-v2) envía a POST /api/v2/contact.
+export const ContactRequestSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  organization: z.string().trim().min(2).max(160),
+  email: z.string().trim().toLowerCase().email().max(255),
+  message: z.string().trim().max(2000).optional().default(''),
+  fax: z.string().max(200).optional().default(''),
+}).strict();
+export type ContactRequest = z.infer<typeof ContactRequestSchema>;
+
+export const ContactResponseSchema = z.object({ ok: z.literal(true) });
+export type ContactResponse = z.infer<typeof ContactResponseSchema>;

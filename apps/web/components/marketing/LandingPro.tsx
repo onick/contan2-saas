@@ -1,17 +1,18 @@
 import { Fraunces } from 'next/font/google';
 import { ArrowRight } from 'lucide-react';
+import { ContactTrigger } from './ContactTrigger';
 
 // components/marketing/LandingPro.tsx · landing de contan2.com (rediseño
 // aprobado 2026-06-12, mockup outputs/mockups/landing-pro.html). Editorial
 // premium estilo musesoftware.ai con identidad propia (tinta + naranja
 // Contan2) y CAPTURAS REALES del producto. Server Component estático; las
-// imágenes viven en public/marketing/. CTA → mailto soporte (paridad v1).
+// imágenes viven en public/marketing/. CTAs abren el modal de contacto
+// (ContactTrigger → ContactModal → POST /api/contact).
 
 const fraunces = Fraunces({ subsets: ['latin'], weight: ['400', '500', '600'], style: ['normal', 'italic'] });
 
 const INK = '#16181d';
 const ACCENT = '#e65100';
-const DEMO_HREF = 'mailto:soporte@contan2.com?subject=Quiero%20una%20demo%20de%20Contan2';
 
 const MODULES: Array<{
   kicker: string; title: string; body: string; bullets: string[]; shot: string; alt: string; reverse?: boolean;
@@ -58,9 +59,9 @@ export function LandingPro() {
             <a href="/login" className="inline-flex items-center rounded-full border border-[#e6e3dd] px-5 py-2.5 text-sm font-semibold text-[#16181d] hover:bg-white">
               Iniciar sesión
             </a>
-            <a href={DEMO_HREF} className="inline-flex items-center gap-2 rounded-full bg-[#16181d] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90">
+            <ContactTrigger className="inline-flex items-center gap-2 rounded-full bg-[#16181d] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90">
               Solicitar demo
-            </a>
+            </ContactTrigger>
           </div>
         </div>
       </nav>
@@ -78,9 +79,9 @@ export function LandingPro() {
             audiencias segmentadas, protocolo institucional y reportes con tu marca.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3.5">
-            <a href={DEMO_HREF} className="inline-flex items-center gap-2 rounded-full bg-[#e65100] px-6 py-3 text-[14.5px] font-semibold text-white hover:opacity-95">
+            <ContactTrigger className="inline-flex items-center gap-2 rounded-full bg-[#e65100] px-6 py-3 text-[14.5px] font-semibold text-white hover:opacity-95">
               Solicitar demo <ArrowRight size={15} strokeWidth={2.25} aria-hidden="true" />
-            </a>
+            </ContactTrigger>
             <a href="#modulos" className="inline-flex items-center rounded-full border border-[#e6e3dd] px-6 py-3 text-[14.5px] font-semibold text-[#16181d] hover:bg-white">
               Ver cómo funciona
             </a>
@@ -192,12 +193,12 @@ export function LandingPro() {
           Registro en segundos, acceso con QR y audiencias listas para comunicar. Sin listas en papel.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3.5">
-          <a href={DEMO_HREF} className="inline-flex items-center gap-2 rounded-full bg-[#e65100] px-6 py-3 text-[14.5px] font-semibold text-white hover:opacity-95">
+          <ContactTrigger className="inline-flex items-center gap-2 rounded-full bg-[#e65100] px-6 py-3 text-[14.5px] font-semibold text-white hover:opacity-95">
             Solicitar demo <ArrowRight size={15} strokeWidth={2.25} aria-hidden="true" />
-          </a>
-          <a href="mailto:soporte@contan2.com" className="inline-flex items-center rounded-full border border-[#e6e3dd] px-6 py-3 text-[14.5px] font-semibold text-[#16181d] hover:bg-white">
+          </ContactTrigger>
+          <ContactTrigger className="inline-flex items-center rounded-full border border-[#e6e3dd] px-6 py-3 text-[14.5px] font-semibold text-[#16181d] hover:bg-white">
             Hablar con nosotros
-          </a>
+          </ContactTrigger>
         </div>
       </section>
 
