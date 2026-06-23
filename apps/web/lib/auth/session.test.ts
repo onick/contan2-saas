@@ -40,6 +40,7 @@ const ORG = {
   secondaryColor: '#ff6f00',
   sidebarTheme: 'brand',
   status: 'active',
+  plan: 'free',
 };
 
 const resp = (status: number, json: unknown): Response =>

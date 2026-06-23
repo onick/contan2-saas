@@ -31,7 +31,7 @@ export function effectiveHost(req: FastifyRequest): string | undefined {
 
 // Subdominios que NUNCA son tenants (admin incluido → admin.contan2.com
 // no resuelve como org). Igual conjunto que v1.
-const RESERVED_SUBDOMAINS = new Set([
+export const RESERVED_SUBDOMAINS = new Set([
   'www', 'app', 'api', 'admin', 'mail', 'email', 'smtp', 'imap', 'pop', 'pop3',
   'ftp', 'sftp', 'ssh', 'ns', 'ns1', 'ns2', 'dns', 'mx',
   'dashboard', 'panel', 'console', 'docs', 'help', 'support', 'status',

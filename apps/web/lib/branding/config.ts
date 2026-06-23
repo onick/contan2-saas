@@ -19,6 +19,8 @@ export const DEFAULT_BRANDING: BrandingOrg = {
   secondaryColor: '#ff6f00',
   sidebarTheme: 'brand',
   status: 'active',
+  plan: 'free',
+  trialEndsAt: null,
 };
 
 // Mapa local de tenants conocidos. Por ahora solo el ancla; la firma con slug

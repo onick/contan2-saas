@@ -24,7 +24,12 @@ const pinLimiter = createRateLimiter({ max: 8, windowMs: 60_000, prefix: endpoin
 
 async function resolveOrg(db: DbClient, req: FastifyRequest) {
   const tenant = await resolveTenantFromHost(db, effectiveHost(req));
-  if (tenant.ok) return { ok: true as const, orgId: tenant.org.id, slug: tenant.org.slug };
+  if (tenant.ok) {
+    if (tenant.org.status === 'trial_ended') {
+      return { ok: false as const, status: 402, error: 'Período de prueba terminado' };
+    }
+    return { ok: true as const, orgId: tenant.org.id, slug: tenant.org.slug };
+  }
   return tenant.reason === 'suspended'
     ? { ok: false as const, status: 503, error: 'Organización suspendida' }
     : { ok: false as const, status: 404, error: 'Organización no encontrada' };

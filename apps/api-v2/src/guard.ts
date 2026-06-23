@@ -25,13 +25,21 @@ export type GuardResult =
 //   host no-tenant / inexistente → 404 (suspended → 503)
 //   sin cookie / inválida        → 401
 //   staff de otra org            → 403
-export async function requireTenantStaff(db: DbClient, req: FastifyRequest): Promise<GuardResult> {
+export async function requireTenantStaff(
+  db: DbClient,
+  req: FastifyRequest,
+  options?: { allowTrialEnded?: boolean }
+): Promise<GuardResult> {
   const tenant = await resolveTenantFromHost(db, effectiveHost(req));
   if (!tenant.ok) {
     if (tenant.reason === 'suspended') {
       return { ok: false, status: 503, error: 'Organización suspendida' };
     }
     return { ok: false, status: 404, error: 'Organización no encontrada' };
+  }
+
+  if (tenant.org.status === 'trial_ended' && !options?.allowTrialEnded) {
+    return { ok: false, status: 402, error: 'Período de prueba terminado' };
   }
 
   const token = req.cookies?.[SESSION_COOKIE];

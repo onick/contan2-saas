@@ -22,6 +22,17 @@ const HIDE = 'group-data-[sidebar=collapsed]/shell:hidden';
 // tablet/desktop (oculto en mobile).
 export function Sidebar({ branding, activeKey }: SidebarProps) {
   const [nameTop, nameSub] = splitBrandName(branding.name);
+  let trialBadge = null;
+  if (branding.status === 'active' && branding.plan === 'free' && branding.trialEndsAt) {
+    const ends = new Date(branding.trialEndsAt);
+    const now = new Date();
+    const diffTime = ends.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays > 0) {
+      trialBadge = `Prueba: ${diffDays} ${diffDays === 1 ? 'día restante' : 'días restantes'}`;
+    }
+  }
+
   return (
     <aside
       id="app-sidebar"
@@ -116,6 +127,11 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
 
       {/* Cuenta + cerrar sesión (compacto en modo riel) */}
       <div className="m-2 rounded-2xl bg-surface-container p-2 group-data-[sidebar=collapsed]/shell:bg-transparent group-data-[sidebar=collapsed]/shell:p-0">
+        {trialBadge ? (
+          <div className={`mx-2 mb-2.5 rounded-lg bg-accent-soft px-2.5 py-1.5 text-[11px] font-semibold text-[#b35400] text-center ${HIDE}`}>
+            {trialBadge}
+          </div>
+        ) : null}
         <div className={`flex items-center gap-3 px-2 py-1.5 ${HIDE}`}>
           <BrandChip slug={branding.slug} name={branding.name} rounded="rounded-full" bg="bg-brand" />
           <span className="min-w-0">

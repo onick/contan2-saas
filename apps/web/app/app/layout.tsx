@@ -5,6 +5,7 @@ import { getLocalBranding } from '../../lib/branding/config';
 import { brandingToCssVars } from '../../lib/branding/theme';
 import { getAdminGate, sanitizeNext } from '../../lib/auth/session';
 import { Unavailable } from '../../components/shell/Unavailable';
+import { TrialExpired } from '../../components/shell/TrialExpired';
 
 // Gate AUTORITATIVO del tenant-admin (/app/*). El middleware ya hizo el chequeo
 // barato de presencia de cookie; acá validamos de verdad contra api-v2:
@@ -24,6 +25,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     return (
       <div style={themeVars}>
         <Unavailable />
+      </div>
+    );
+  }
+
+  if (gate.status === 'trial-ended') {
+    const themeVars = brandingToCssVars(gate.branding) as CSSProperties;
+    return (
+      <div style={themeVars}>
+        <TrialExpired branding={gate.branding} />
       </div>
     );
   }

@@ -91,16 +91,35 @@ export function MobileNav({ branding, activeKey }: { branding: BrandingOrg; acti
         </nav>
 
         {/* Cuenta + cerrar sesión */}
-        <div className="m-2 rounded-2xl bg-surface-container p-2">
-          <div className="flex items-center gap-3 px-2 py-1.5">
-            <BrandChip slug={branding.slug} name={branding.name} rounded="rounded-full" />
-            <span className="min-w-0">
-              <span className="block truncate text-[13px] font-semibold text-ink">Administración</span>
-              <span className="block text-xs text-muted">Panel del tenant</span>
-            </span>
-          </div>
-          <LogoutButton className="mt-1" />
-        </div>
+        {(() => {
+          let trialBadge = null;
+          if (branding.status === 'active' && branding.plan === 'free' && branding.trialEndsAt) {
+            const ends = new Date(branding.trialEndsAt);
+            const now = new Date();
+            const diffTime = ends.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays > 0) {
+              trialBadge = `Prueba: ${diffDays} ${diffDays === 1 ? 'día restante' : 'días restantes'}`;
+            }
+          }
+          return (
+            <div className="m-2 rounded-2xl bg-surface-container p-2">
+              {trialBadge ? (
+                <div className="mx-2 mb-2.5 rounded-lg bg-accent-soft px-2.5 py-1.5 text-[11px] font-semibold text-[#b35400] text-center">
+                  {trialBadge}
+                </div>
+              ) : null}
+              <div className="flex items-center gap-3 px-2 py-1.5">
+                <BrandChip slug={branding.slug} name={branding.name} rounded="rounded-full" />
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold text-ink">Administración</span>
+                  <span className="block text-xs text-muted">Panel del tenant</span>
+                </span>
+              </div>
+              <LogoutButton className="mt-1" />
+            </div>
+          );
+        })()}
       </aside>
     </div>
   );

@@ -12,6 +12,7 @@ import { healthzRoute } from './routes/healthz.js';
 import { dbCheckRoute } from './routes/db-check.js';
 import { authMeRoute } from './routes/auth-me.js';
 import { authLoginRoute } from './routes/auth-login.js';
+import { authSignupRoute } from './routes/auth-signup.js';
 import { orgBrandingRoute } from './routes/org-branding.js';
 import { dashboardMetricsRoute } from './routes/dashboard-metrics.js';
 import { activitiesRoute } from './routes/activities.js';
@@ -85,6 +86,7 @@ export function buildApp(): FastifyInstance {
   // Login/logout del admin v2 (ESCRITURA · única superficie que escribe en
   // staff_auth_sessions, byte-compatible con v1).
   app.register(authLoginRoute, { prefix: '/api/v2' });
+  app.register(authSignupRoute, { prefix: '/api/v2' });
   app.register(authPasswordRoute, { prefix: '/api/v2' });
   app.register(staffInvitationsRoute, { prefix: '/api/v2' });
   app.register(credentialsBulkRoute, { prefix: '/api/v2' });

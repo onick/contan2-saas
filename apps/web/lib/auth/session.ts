@@ -22,6 +22,7 @@ const SESSION_COOKIE = 'contan2_session';
 
 export type AdminGate =
   | { status: 'ok'; staff: PublicStaff; branding: BrandingOrg }
+  | { status: 'trial-ended'; staff: PublicStaff; branding: BrandingOrg } // trial expirado
   | { status: 'unauthenticated' } // sin cookie, inválida o expirada
   | { status: 'cross-tenant' } // sesión de otra organización (403)
   | { status: 'unknown-host' } // host sin tenant (404)
@@ -53,6 +54,9 @@ export async function resolveAdminGate(): Promise<AdminGate> {
   try {
     const { staff } = StaffMeResponseSchema.parse(await meRes.json());
     const { organization } = OrgBrandingResponseSchema.parse(await brRes.json());
+    if (organization.status === 'trial_ended') {
+      return { status: 'trial-ended', staff, branding: organization };
+    }
     return { status: 'ok', staff, branding: organization };
   } catch {
     return { status: 'unavailable' };

@@ -4,7 +4,7 @@
 
 import type { Kysely } from 'kysely';
 import type { Database } from './schema.js';
-import type { OrgStatus, SidebarStyle } from './enums.js';
+import type { OrgStatus, SidebarStyle, OrgPlan } from './enums.js';
 
 export interface TenantOrg {
   id: string;
@@ -23,6 +23,8 @@ export interface TenantOrg {
   // Prefijo de códigos de visitante del tenant (ej. 'CCB'). Lo usa el lookup
   // público para resolver códigos cortos `XXXXXX` → `${codePrefix}-XXXXXX`.
   codePrefix: string;
+  trialEndsAt: Date | null;
+  plan: OrgPlan;
 }
 
 const SELECT_COLUMNS = [
@@ -39,6 +41,8 @@ const SELECT_COLUMNS = [
   'custom_domain',
   'custom_domain_verified_at',
   'code_prefix',
+  'trial_ends_at',
+  'plan',
 ] as const;
 
 interface OrgRow {
@@ -55,9 +59,20 @@ interface OrgRow {
   custom_domain: string | null;
   custom_domain_verified_at: Date | null;
   code_prefix: string;
+  trial_ends_at: Date | null;
+  plan: OrgPlan;
 }
 
 function toTenantOrg(r: OrgRow): TenantOrg {
+  let status = r.status;
+  if (
+    status === 'active' &&
+    r.plan === 'free' &&
+    r.trial_ends_at &&
+    new Date() > new Date(r.trial_ends_at)
+  ) {
+    status = 'trial_ended';
+  }
   return {
     id: r.id,
     slug: r.slug,
@@ -68,10 +83,12 @@ function toTenantOrg(r: OrgRow): TenantOrg {
     primaryColor: r.primary_color,
     secondaryColor: r.secondary_color,
     sidebarStyle: r.sidebar_style,
-    status: r.status,
+    status,
     customDomain: r.custom_domain,
     customDomainVerifiedAt: r.custom_domain_verified_at,
     codePrefix: r.code_prefix,
+    trialEndsAt: r.trial_ends_at ? new Date(r.trial_ends_at) : null,
+    plan: r.plan,
   };
 }
 
@@ -87,7 +104,7 @@ export async function findOrgBySlug(
     .where('deleted_at', 'is', null)
     .limit(1)
     .executeTakeFirst();
-  return row ? toTenantOrg(row) : null;
+  return row ? toTenantOrg(row as any) : null;
 }
 
 export async function findOrgByCustomDomain(
@@ -102,5 +119,5 @@ export async function findOrgByCustomDomain(
     .where('deleted_at', 'is', null)
     .limit(1)
     .executeTakeFirst();
-  return row ? toTenantOrg(row) : null;
+  return row ? toTenantOrg(row as any) : null;
 }

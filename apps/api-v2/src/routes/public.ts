@@ -52,7 +52,12 @@ type TenantOnly =
 // codePrefix para resolver códigos cortos en el lookup.
 async function tenantOnly(db: DbClient, req: FastifyRequest): Promise<TenantOnly> {
   const tenant = await resolveTenantFromHost(db, effectiveHost(req));
-  if (tenant.ok) return { ok: true, orgId: tenant.org.id, codePrefix: tenant.org.codePrefix };
+  if (tenant.ok) {
+    if (tenant.org.status === 'trial_ended') {
+      return { ok: false, status: 402, error: 'Período de prueba terminado' };
+    }
+    return { ok: true, orgId: tenant.org.id, codePrefix: tenant.org.codePrefix };
+  }
   return tenant.reason === 'suspended'
     ? { ok: false, status: 503, error: 'Organización suspendida' }
     : { ok: false, status: 404, error: 'Organización no encontrada' };

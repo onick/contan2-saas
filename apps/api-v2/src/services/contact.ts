@@ -32,7 +32,7 @@ export type ContactEmailResult =
   | { ok: true; skipped: true; reason: string };
 
 const DEFAULT_FROM = 'contan2-saas <onboarding@resend.dev>';
-const DEFAULT_INBOX = 'mfranciscomartinez@gmail.com';
+const DEFAULT_INBOX = 'onickgrafica@gmail.com';
 
 export function inboxHtml(input: ContactInput & ContactMeta): string {
   const { name, organization, email, message, ip, ua } = input;

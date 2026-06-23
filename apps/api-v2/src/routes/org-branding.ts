@@ -20,7 +20,7 @@ const writeLimiter = createRateLimiter({ max: 20, windowMs: 60_000, prefix: endp
 export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
   app.get('/org/branding', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = await requireTenantStaff(db, req, { allowTrialEnded: true });
     if (!guard.ok) {
       reply.code(guard.status);
       return { error: guard.error };
@@ -39,6 +39,8 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
         secondaryColor: org.secondaryColor,
         sidebarTheme: org.sidebarStyle,
         status: org.status,
+        plan: org.plan,
+        trialEndsAt: org.trialEndsAt ? org.trialEndsAt.toISOString() : null,
       },
     };
     return body;
@@ -88,12 +90,22 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
       }).execute();
       return tx
         .selectFrom('organizations')
-        .select(['id', 'slug', 'name', 'logo_url', 'email_logo_url', 'credential_logo_url', 'primary_color', 'secondary_color', 'sidebar_style', 'status'])
+        .select(['id', 'slug', 'name', 'logo_url', 'email_logo_url', 'credential_logo_url', 'primary_color', 'secondary_color', 'sidebar_style', 'status', 'plan', 'trial_ends_at'])
         .where('id', '=', org.id)
         .executeTakeFirstOrThrow();
     });
 
     // invalidateTenantCache(updated.slug) — no-op hasta que tenant.ts cachee.
+
+    let status = updated.status;
+    if (
+      status === 'active' &&
+      updated.plan === 'free' &&
+      updated.trial_ends_at &&
+      new Date() > new Date(updated.trial_ends_at)
+    ) {
+      status = 'trial_ended';
+    }
 
     const body: OrgBrandingResponse = {
       organization: {
@@ -106,7 +118,9 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
         primaryColor: updated.primary_color,
         secondaryColor: updated.secondary_color,
         sidebarTheme: updated.sidebar_style,
-        status: updated.status,
+        status,
+        plan: updated.plan,
+        trialEndsAt: updated.trial_ends_at ? new Date(updated.trial_ends_at).toISOString() : null,
       },
     };
     return body;

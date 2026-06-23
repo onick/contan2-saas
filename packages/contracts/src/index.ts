@@ -48,6 +48,26 @@ export const StaffLoginRequestSchema = z.object({
 });
 export type StaffLoginRequest = z.infer<typeof StaffLoginRequestSchema>;
 
+// Request y Response para el registro automático y trial de 14 días.
+export const StaffSignupRequestSchema = z.object({
+  organizationName: z.string().trim().min(2).max(100),
+  fullName: z.string().trim().min(2).max(100),
+  email: z.string().email().max(255),
+  password: z.string().min(8).max(200),
+  confirmPassword: z.string().min(8).max(200),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Las contraseñas no coinciden",
+  path: ["confirmPassword"],
+});
+export type StaffSignupRequest = z.infer<typeof StaffSignupRequestSchema>;
+
+export const StaffSignupResponseSchema = z.object({
+  ok: z.literal(true),
+  slug: z.string(),
+  token: z.string(),
+});
+export type StaffSignupResponse = z.infer<typeof StaffSignupResponseSchema>;
+
 // Respuesta del login OK. `mustChangePassword` se expone también al tope (igual
 // que v1) para que el cliente pueda forzar el cambio sin releer el staff.
 export const StaffLoginResponseSchema = z.object({
@@ -74,6 +94,8 @@ export const OrgBrandingResponseSchema = z.object({
     secondaryColor: z.string(),
     sidebarTheme: z.enum(['brand', 'dark', 'light']),
     status: z.enum(['active', 'suspended', 'trial_ended', 'deleted']),
+    plan: z.enum(['free', 'pro', 'enterprise']),
+    trialEndsAt: z.string().nullable().optional(),
   }),
 });
 

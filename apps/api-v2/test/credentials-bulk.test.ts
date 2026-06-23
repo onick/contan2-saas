@@ -55,8 +55,8 @@ run('POST /credentials/bulk-send', () => {
       headers: {
         host: hostA, 'content-type': 'application/json',
         'x-forwarded-for': `10.6.0.${(ipSeq++ % 250) + 1}`, // bulk-limiter 2/min por org+IP
-        ...(token ? { cookie: `contan2_session=${token}` } : {}),
       },
+      ...(token ? { cookies: { contan2_session: token } } : {}),
       payload: body as object,
     });
 
