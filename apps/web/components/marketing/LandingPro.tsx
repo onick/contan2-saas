@@ -6,8 +6,8 @@ import { SignupTrigger } from './SignupTrigger';
 // aprobado 2026-06-12, mockup outputs/mockups/landing-pro.html). Editorial
 // premium estilo musesoftware.ai con identidad propia (tinta + naranja
 // Contan2) y CAPTURAS REALES del producto. Server Component estático; las
-// imágenes viven en public/marketing/. CTAs abren el modal de contacto
-// (ContactTrigger → ContactModal → POST /api/contact).
+// imágenes viven en public/marketing/. CTAs abren el modal de registro
+// (SignupTrigger → SignupModal → POST /api/auth/signup).
 
 const fraunces = Fraunces({ subsets: ['latin'], weight: ['400', '500', '600'], style: ['normal', 'italic'] });
 

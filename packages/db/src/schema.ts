@@ -312,6 +312,22 @@ export interface ProtocolProfilesTable {
   updated_at: ColumnType<Date, string | undefined, string>;
 }
 
+// signup_verifications: códigos de verificación de email para auto-registro.
+// El registro no crea la org hasta que el código se verifica.
+export interface SignupVerificationsTable {
+  id: Generated<string>;
+  email: string;
+  code: string;                // código de 6 dígitos
+  organization_name: string;   // datos del registro pendientes
+  slug: string;                // slug pre-calculado
+  full_name: string;
+  password_hash: string;
+  attempts: DefaultedInt;      // intentos de verificación (max 5)
+  expires_at: RequiredTs;      // expira en 15 minutos
+  verified_at: NullableTs;     // null = pendiente
+  created_at: CreatedAt;
+}
+
 export interface Database {
   protocol_profiles: ProtocolProfilesTable;
   organizations: OrganizationsTable;
@@ -327,4 +343,6 @@ export interface Database {
   attendance: AttendanceTable;
   invitations: InvitationsTable;
   checkin_idempotency: CheckinIdempotencyTable;
+  signup_verifications: SignupVerificationsTable;
 }
+

@@ -1,13 +1,18 @@
 'use client';
 
-import { useState, useEffect, useId, type FormEvent, type ReactNode } from 'react';
-import { X, UserPlus, Loader2 } from 'lucide-react';
+// components/marketing/SignupModal.tsx · modal de registro en 2 pasos:
+// Paso 1: formulario de datos → envía código de verificación al email.
+// Paso 2: input de 6 dígitos → verifica y crea la cuenta.
+
+import { useState, useEffect, useRef, useId, type FormEvent, type ReactNode, type KeyboardEvent as RKE } from 'react';
+import { X, UserPlus, Loader2, Mail, RotateCcw } from 'lucide-react';
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
+type Step = 'form' | 'verify';
 type Status = 'idle' | 'submitting' | 'success' | 'error';
 
 const INK = '#16181d';
@@ -15,7 +20,7 @@ const ACCENT = '#e65100';
 const MUTED = '#6b7077';
 const LINE = '#e6e3dd';
 
-function LabeldField({
+function LabeledField({
   id,
   label,
   required,
@@ -41,19 +46,21 @@ const inputClass =
   'w-full rounded-lg border bg-white px-3 py-2 text-[14px] text-[#16181d] outline-none transition-shadow placeholder:text-[#9ca3af] focus:border-[#16181d] focus:shadow-[0_0_0_3px_rgba(22,24,29,0.08)]';
 
 export function SignupModal({ open, onClose }: Props) {
+  const [step, setStep] = useState<Step>('form');
   const [status, setStatus] = useState<Status>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [rawEmail, setRawEmail] = useState('');
+  const [formData, setFormData] = useState<Record<string, string> | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const digitRefs = useRef<(HTMLInputElement | null)[]>([]);
   const fid = useId();
-  const orgNameId = `${fid}-orgName`;
-  const fullNameId = `${fid}-fullName`;
-  const emailId = `${fid}-email`;
-  const passwordId = `${fid}-password`;
-  const confirmPasswordId = `${fid}-confirmPassword`;
 
-  // Lock scroll + Escape mientras está abierto.
+  // Lock scroll + Escape
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKey);
@@ -65,17 +72,31 @@ export function SignupModal({ open, onClose }: Props) {
     };
   }, [open, onClose]);
 
-  // Reset al cerrar.
+  // Reset on close
   useEffect(() => {
-    if (!open && status !== 'idle') {
+    if (!open) {
+      setStep('form');
       setStatus('idle');
       setErrorMsg(null);
+      setMaskedEmail('');
+      setRawEmail('');
+      setFormData(null);
+      setDigits(['', '', '', '', '', '']);
+      setResendCooldown(0);
     }
-  }, [open, status]);
+  }, [open]);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   if (!open) return null;
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+  // ── Step 1: Submit form ──
+  async function onSubmitForm(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setStatus('submitting');
     setErrorMsg(null);
@@ -118,11 +139,17 @@ export function SignupModal({ open, onClose }: Props) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = (await res.json().catch(() => ({}))) as { redirectUrl?: string; error?: string };
-      if (res.ok && data.redirectUrl) {
-        setStatus('success');
-        // Redirigir al callback de la organización
-        window.location.href = data.redirectUrl;
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; email?: string; error?: string };
+      if (res.ok && data.ok) {
+        setMaskedEmail(data.email ?? emailVal);
+        setRawEmail(emailVal);
+        setFormData(payload);
+        setStep('verify');
+        setStatus('idle');
+        setResendCooldown(60);
+        setDigits(['', '', '', '', '', '']);
+        // Focus first digit after render
+        setTimeout(() => digitRefs.current[0]?.focus(), 100);
         return;
       }
       setErrorMsg(data.error ?? 'Algo salió mal. Intentá de nuevo.');
@@ -133,132 +160,334 @@ export function SignupModal({ open, onClose }: Props) {
     }
   }
 
+  // ── Step 2: Verify code ──
+  async function onVerify(codeStr?: string) {
+    const code = codeStr ?? digits.join('');
+    if (code.length !== 6) {
+      setErrorMsg('Ingresá el código completo de 6 dígitos.');
+      setStatus('error');
+      return;
+    }
+    setStatus('submitting');
+    setErrorMsg(null);
+
+    try {
+      const res = await fetch('/api/auth/signup-verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: rawEmail, code }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { redirectUrl?: string; error?: string };
+      if (res.ok && data.redirectUrl) {
+        setStatus('success');
+        window.location.href = data.redirectUrl;
+        return;
+      }
+      setErrorMsg(data.error ?? 'Código inválido. Intentá de nuevo.');
+      setStatus('error');
+    } catch {
+      setErrorMsg('No pudimos conectar con el servidor. Intentá de nuevo.');
+      setStatus('error');
+    }
+  }
+
+  // ── Resend code ──
+  async function onResend() {
+    if (resendCooldown > 0 || !formData) return;
+    setStatus('submitting');
+    setErrorMsg(null);
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (res.ok && data.ok) {
+        setResendCooldown(60);
+        setDigits(['', '', '', '', '', '']);
+        setStatus('idle');
+        setErrorMsg(null);
+        setTimeout(() => digitRefs.current[0]?.focus(), 100);
+        return;
+      }
+      setErrorMsg(data.error ?? 'No pudimos reenviar el código.');
+      setStatus('error');
+    } catch {
+      setErrorMsg('No pudimos conectar con el servidor.');
+      setStatus('error');
+    }
+  }
+
+  // ── Digit input handlers ──
+  function handleDigitChange(idx: number, val: string) {
+    // Handle paste of full code
+    if (val.length > 1) {
+      const cleaned = val.replace(/\D/g, '').slice(0, 6);
+      if (cleaned.length === 6) {
+        const newDigits = cleaned.split('');
+        setDigits(newDigits);
+        digitRefs.current[5]?.focus();
+        // Auto-submit on paste
+        setTimeout(() => onVerify(cleaned), 50);
+        return;
+      }
+    }
+
+    const char = val.replace(/\D/g, '').slice(-1);
+    const newDigits = [...digits];
+    newDigits[idx] = char;
+    setDigits(newDigits);
+    setErrorMsg(null);
+
+    if (char && idx < 5) {
+      digitRefs.current[idx + 1]?.focus();
+    }
+
+    // Auto-submit when all 6 digits are filled
+    if (char && idx === 5) {
+      const code = newDigits.join('');
+      if (code.length === 6) {
+        setTimeout(() => onVerify(code), 50);
+      }
+    }
+  }
+
+  function handleDigitKeyDown(idx: number, e: RKE<HTMLInputElement>) {
+    if (e.key === 'Backspace' && !digits[idx] && idx > 0) {
+      digitRefs.current[idx - 1]?.focus();
+    }
+  }
+
+  // ── Render ──
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
-      {/* Backdrop: clic NO cierra (anti-pérdida de datos). */}
-      <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto px-4 py-8 sm:items-center">
+      <div className="fixed inset-0 bg-black/40" aria-hidden="true" onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${fid}-title`}
-        className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_24px_60px_-12px_rgba(22,24,29,0.4)]"
+        className="relative my-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_24px_60px_-12px_rgba(22,24,29,0.4)]"
       >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 id={`${fid}-title`} className="text-[18px] font-semibold" style={{ color: INK }}>
-              Comenzar prueba gratuita
-            </h2>
-            <p className="mt-1 text-[13px]" style={{ color: MUTED }}>
-              Registra tu organización e ingresa al panel al instante.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="-mr-1 -mt-1 rounded-full p-1.5 transition-colors hover:bg-[#f3f1ed]"
-            style={{ color: MUTED }}
-          >
-            <X size={18} strokeWidth={2} aria-hidden="true" />
-          </button>
-        </div>
+        {step === 'form' ? (
+          <>
+            {/* ── PASO 1: Formulario de datos ── */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id={`${fid}-title`} className="text-[18px] font-semibold" style={{ color: INK }}>
+                  Comenzar prueba gratuita
+                </h2>
+                <p className="mt-1 text-[13px]" style={{ color: MUTED }}>
+                  Registra tu organización. Te enviaremos un código al email.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Cerrar"
+                className="-mr-1 -mt-1 rounded-full p-1.5 transition-colors hover:bg-[#f3f1ed]"
+                style={{ color: MUTED }}
+              >
+                <X size={18} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </div>
 
-        <form onSubmit={onSubmit} className="mt-5 space-y-3.5" noValidate>
-          <LabeldField id={orgNameId} label="Nombre de la Organización" required>
-            <input
-              id={orgNameId}
-              name="organizationName"
-              type="text"
-              required
-              autoFocus
-              placeholder="Centro Cultural de Arte..."
-              maxLength={100}
-              className={inputClass}
-              style={{ borderColor: LINE }}
-            />
-          </LabeldField>
+            <form onSubmit={onSubmitForm} className="mt-5 space-y-3.5" noValidate>
+              <LabeledField id={`${fid}-orgName`} label="Nombre de la Organización" required>
+                <input
+                  id={`${fid}-orgName`}
+                  name="organizationName"
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder="Centro Cultural de Arte..."
+                  maxLength={100}
+                  className={inputClass}
+                  style={{ borderColor: LINE }}
+                />
+              </LabeledField>
 
-          <LabeldField id={fullNameId} label="Nombre Completo del Administrador" required>
-            <input
-              id={fullNameId}
-              name="fullName"
-              type="text"
-              required
-              placeholder="Carlos Gómez"
-              maxLength={100}
-              className={inputClass}
-              style={{ borderColor: LINE }}
-            />
-          </LabeldField>
+              <LabeledField id={`${fid}-fullName`} label="Nombre Completo del Administrador" required>
+                <input
+                  id={`${fid}-fullName`}
+                  name="fullName"
+                  type="text"
+                  required
+                  placeholder="Carlos Gómez"
+                  maxLength={100}
+                  className={inputClass}
+                  style={{ borderColor: LINE }}
+                />
+              </LabeledField>
 
-          <LabeldField id={emailId} label="Email del Administrador" required>
-            <input
-              id={emailId}
-              name="email"
-              type="email"
-              required
-              placeholder="carlos@mi-centro.org"
-              maxLength={255}
-              className={inputClass}
-              style={{ borderColor: LINE }}
-            />
-          </LabeldField>
+              <LabeledField id={`${fid}-email`} label="Email del Administrador" required>
+                <input
+                  id={`${fid}-email`}
+                  name="email"
+                  type="email"
+                  required
+                  placeholder="carlos@mi-centro.org"
+                  maxLength={255}
+                  className={inputClass}
+                  style={{ borderColor: LINE }}
+                />
+              </LabeledField>
 
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-            <LabeldField id={passwordId} label="Contraseña" required>
-              <input
-                id={passwordId}
-                name="password"
-                type="password"
-                required
-                placeholder="Mín. 8 caracteres"
-                className={inputClass}
-                style={{ borderColor: LINE }}
-              />
-            </LabeldField>
-            <LabeldField id={confirmPasswordId} label="Confirmar Contraseña" required>
-              <input
-                id={confirmPasswordId}
-                name="confirmPassword"
-                type="password"
-                required
-                placeholder="Repetir contraseña"
-                className={inputClass}
-                style={{ borderColor: LINE }}
-              />
-            </LabeldField>
-          </div>
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                <LabeledField id={`${fid}-password`} label="Contraseña" required>
+                  <input
+                    id={`${fid}-password`}
+                    name="password"
+                    type="password"
+                    required
+                    placeholder="Mín. 8 caracteres"
+                    className={inputClass}
+                    style={{ borderColor: LINE }}
+                  />
+                </LabeledField>
+                <LabeledField id={`${fid}-confirmPassword`} label="Confirmar Contraseña" required>
+                  <input
+                    id={`${fid}-confirmPassword`}
+                    name="confirmPassword"
+                    type="password"
+                    required
+                    placeholder="Repetir contraseña"
+                    className={inputClass}
+                    style={{ borderColor: LINE }}
+                  />
+                </LabeledField>
+              </div>
 
-          {errorMsg ? (
-            <p role="alert" className="text-[13px] font-medium" style={{ color: '#b91c1c' }}>
-              {errorMsg}
-            </p>
-          ) : null}
+              {errorMsg ? (
+                <p role="alert" className="text-[13px] font-medium" style={{ color: '#b91c1c' }}>
+                  {errorMsg}
+                </p>
+              ) : null}
 
-          <button
-            type="submit"
-            disabled={status === 'submitting' || status === 'success'}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[14.5px] font-semibold text-white transition-opacity disabled:opacity-70"
-            style={{ background: ACCENT }}
-          >
-            {status === 'submitting' || status === 'success' ? (
-              <>
-                <Loader2 size={15} strokeWidth={2.25} className="animate-spin" aria-hidden="true" />
-                Creando cuenta e ingresando…
-              </>
-            ) : (
-              <>
-                Comenzar prueba de 14 días
-                <UserPlus size={15} strokeWidth={2.25} aria-hidden="true" />
-              </>
-            )}
-          </button>
+              <button
+                type="submit"
+                disabled={status === 'submitting'}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[14.5px] font-semibold text-white transition-opacity disabled:opacity-70"
+                style={{ background: ACCENT }}
+              >
+                {status === 'submitting' ? (
+                  <>
+                    <Loader2 size={15} strokeWidth={2.25} className="animate-spin" aria-hidden="true" />
+                    Enviando código…
+                  </>
+                ) : (
+                  <>
+                    Continuar
+                    <UserPlus size={15} strokeWidth={2.25} aria-hidden="true" />
+                  </>
+                )}
+              </button>
 
-          <p className="text-center text-[12px] leading-relaxed" style={{ color: MUTED }}>
-            Al registrarte aceptas las condiciones y políticas. <br />
-            No se requiere tarjeta de crédito.
-          </p>
-        </form>
+              <p className="text-center text-[12px] leading-relaxed" style={{ color: MUTED }}>
+                Al registrarte aceptas las condiciones y políticas. <br />
+                No se requiere tarjeta de crédito.
+              </p>
+            </form>
+          </>
+        ) : (
+          <>
+            {/* ── PASO 2: Verificación de código ── */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id={`${fid}-title`} className="text-[18px] font-semibold" style={{ color: INK }}>
+                  Verifica tu email
+                </h2>
+                <p className="mt-1 text-[13px] leading-relaxed" style={{ color: MUTED }}>
+                  Enviamos un código de 6 dígitos a <b style={{ color: INK }}>{maskedEmail}</b>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Cerrar"
+                className="-mr-1 -mt-1 rounded-full p-1.5 transition-colors hover:bg-[#f3f1ed]"
+                style={{ color: MUTED }}
+              >
+                <X size={18} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="mt-6">
+              {/* Mail icon */}
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full mb-5" style={{ background: 'rgba(230,81,0,0.08)' }}>
+                <Mail size={26} strokeWidth={1.8} style={{ color: ACCENT }} aria-hidden="true" />
+              </div>
+
+              {/* 6 digit inputs */}
+              <div className="flex justify-center gap-2.5">
+                {digits.map((d, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => { digitRefs.current[i] = el; }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={d}
+                    onChange={(e) => handleDigitChange(i, e.target.value)}
+                    onKeyDown={(e) => handleDigitKeyDown(i, e)}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+                      if (pasted.length === 6) {
+                        e.preventDefault();
+                        handleDigitChange(i, pasted);
+                      }
+                    }}
+                    className="h-12 w-10 rounded-lg border-2 bg-[#faf9f7] text-center text-[20px] font-bold outline-none transition-all focus:border-[#e65100] focus:shadow-[0_0_0_3px_rgba(230,81,0,0.1)]"
+                    style={{ borderColor: d ? ACCENT : LINE, color: INK }}
+                    aria-label={`Dígito ${i + 1}`}
+                  />
+                ))}
+              </div>
+
+              {errorMsg ? (
+                <p role="alert" className="mt-4 text-center text-[13px] font-medium" style={{ color: '#b91c1c' }}>
+                  {errorMsg}
+                </p>
+              ) : null}
+
+              {status === 'submitting' || status === 'success' ? (
+                <div className="mt-5 flex items-center justify-center gap-2 text-[14px] font-medium" style={{ color: MUTED }}>
+                  <Loader2 size={16} strokeWidth={2} className="animate-spin" aria-hidden="true" />
+                  {status === 'success' ? 'Creando cuenta e ingresando…' : 'Verificando…'}
+                </div>
+              ) : null}
+
+              <div className="mt-6 flex items-center justify-center gap-1 text-[13px]" style={{ color: MUTED }}>
+                <span>¿No recibiste el código?</span>
+                {resendCooldown > 0 ? (
+                  <span className="font-medium" style={{ color: INK }}>
+                    Reenviar en {resendCooldown}s
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onResend}
+                    disabled={status === 'submitting'}
+                    className="inline-flex items-center gap-1 font-semibold hover:underline disabled:opacity-50"
+                    style={{ color: ACCENT }}
+                  >
+                    <RotateCcw size={13} strokeWidth={2} aria-hidden="true" />
+                    Reenviar
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => { setStep('form'); setErrorMsg(null); setStatus('idle'); }}
+                className="mt-4 block w-full text-center text-[12.5px] font-medium hover:underline"
+                style={{ color: MUTED }}
+              >
+                ← Volver al formulario
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

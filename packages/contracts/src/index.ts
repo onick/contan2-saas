@@ -61,12 +61,26 @@ export const StaffSignupRequestSchema = z.object({
 });
 export type StaffSignupRequest = z.infer<typeof StaffSignupRequestSchema>;
 
+// Paso 1: respuesta del signup (envío de código de verificación).
 export const StaffSignupResponseSchema = z.object({
+  ok: z.literal(true),
+  email: z.string(), // email enmascarado para UI
+});
+export type StaffSignupResponse = z.infer<typeof StaffSignupResponseSchema>;
+
+// Paso 2: verificación del código → creación real de org + staff + sesión.
+export const SignupVerifyRequestSchema = z.object({
+  email: z.string().email().max(255),
+  code: z.string().length(6),
+});
+export type SignupVerifyRequest = z.infer<typeof SignupVerifyRequestSchema>;
+
+export const SignupVerifyResponseSchema = z.object({
   ok: z.literal(true),
   slug: z.string(),
   token: z.string(),
 });
-export type StaffSignupResponse = z.infer<typeof StaffSignupResponseSchema>;
+export type SignupVerifyResponse = z.infer<typeof SignupVerifyResponseSchema>;
 
 // Respuesta del login OK. `mustChangePassword` se expone también al tope (igual
 // que v1) para que el cliente pueda forzar el cambio sin releer el staff.

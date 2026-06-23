@@ -14,7 +14,7 @@ export async function POST(req: Request): Promise<Response> {
 
   let upstream: Response;
   try {
-    upstream = await fetch(`${API_BASE_URL}/api/v2/auth/signup`, {
+    upstream = await fetch(`${API_BASE_URL}/api/v2/auth/signup/verify`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -32,9 +32,19 @@ export async function POST(req: Request): Promise<Response> {
 
   const data = await upstream.json().catch(() => ({}));
   if (!upstream.ok) {
-    return Response.json({ error: data.error ?? 'Algo salió mal en el registro.' }, { status: upstream.status });
+    return Response.json({ error: data.error ?? 'Código inválido.' }, { status: upstream.status });
   }
 
-  // Paso 1: solo devuelve { ok, email } — no hay redirect todavía
-  return Response.json({ ok: true, email: data.email });
+  // Paso 2: construir redirect URL al subdominio del tenant
+  const { slug, token } = data;
+  const reqHeaders = req.headers;
+  const host = reqHeaders.get('x-forwarded-host') ?? reqHeaders.get('host') ?? 'localhost:3000';
+  const rootDomain = process.env.ROOT_DOMAIN ?? 'contan2.com';
+
+  const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('::1');
+  const redirectUrl = isLocal
+    ? `http://${host}/api/auth/signup-callback?token=${token}`
+    : `https://${slug}.${rootDomain}/api/auth/signup-callback?token=${token}`;
+
+  return Response.json({ ok: true, redirectUrl });
 }

@@ -12,6 +12,7 @@ export type {
   ActivitiesTable,
   AttendanceTable,
   InvitationsTable,
+  SignupVerificationsTable,
 } from './schema.js';
 
 export type {
