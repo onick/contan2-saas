@@ -311,10 +311,13 @@ export const authSignupRoute: FastifyPluginAsync = async (app) => {
         token,
       };
       return body;
-    } catch (err: any) {
+    } catch (err) {
+      // El error completo queda en el log del servidor; al cliente solo un
+      // mensaje genérico para no filtrar internals de la DB (p. ej. el texto
+      // de una constraint única).
       req.log.error({ err }, 'signup/verify: error al crear organización');
       reply.code(500);
-      return { error: err.message || 'Error al procesar el registro.' };
+      return { error: 'Error al procesar el registro.' };
     }
   });
 };
