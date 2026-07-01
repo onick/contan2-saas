@@ -219,8 +219,8 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
             <p className="mt-6 text-[13px] text-muted">Aún no hay suficientes asistencias para calcular la distribución por interés.</p>
           ) : (
             <div className="mt-4 flex flex-col items-center gap-6 sm:flex-row">
-              <div className="relative h-[200px] w-[200px] flex-none">
-                <svg viewBox="0 0 42 42" className="h-[200px] w-[200px] -rotate-0">
+              <div className="relative h-[160px] w-[160px] flex-none sm:h-[200px] sm:w-[200px]">
+                <svg viewBox="0 0 42 42" className="h-full w-full -rotate-0">
                   <circle cx="21" cy="21" r="15.91549" fill="none" stroke="var(--color-surface-container, #eef0f4)" strokeWidth="6" />
                   {slices.map((s) => (
                     <circle

@@ -286,7 +286,7 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] font-semibold text-ink">
-                        <span className="truncate">{inv.firstName} {inv.lastName}</span>
+                        <span className="min-w-0 max-w-full truncate">{inv.firstName} {inv.lastName}</span>
                         {isProto(inv) ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9a6b00]">
                             <Medal size={10} strokeWidth={2.5} aria-hidden="true" /> Protocolo{inv.plusOnes > 0 ? ` · +${inv.plusOnes}` : ''}

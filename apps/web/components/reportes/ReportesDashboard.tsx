@@ -222,7 +222,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
           )}
         </div>
         {/* rango de fechas */}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Desde</span>
             <input type="date" value={range.from} onChange={(e) => setDate('from', e.target.value)} className={cn('rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-ink', focusRing)} />
@@ -370,8 +370,8 @@ function Donut({ slices, centerValue, centerLabel }: { slices: Slice[]; centerVa
   const active = hi !== null ? slices[hi] : null;
   return (
     <div className="mt-3 flex flex-col items-center gap-5 sm:flex-row">
-      <div className="relative h-[184px] w-[184px] flex-none">
-        <svg viewBox="0 0 42 42" className="h-[184px] w-[184px]">
+      <div className="relative h-[150px] w-[150px] flex-none sm:h-[184px] sm:w-[184px]">
+        <svg viewBox="0 0 42 42" className="h-full w-full">
           <circle cx="21" cy="21" r="15.91549" fill="none" stroke="var(--color-surface-container,#eef0f4)" strokeWidth="6" />
           {slices.map((s, i) => (
             <circle key={s.label} cx="21" cy="21" r="15.91549" fill="none" stroke={s.color}
