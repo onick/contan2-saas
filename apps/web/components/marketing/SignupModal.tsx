@@ -5,6 +5,7 @@
 // Paso 2: input de 6 dígitos → verifica y crea la cuenta.
 
 import { useState, useEffect, useRef, useId, type FormEvent, type ReactNode, type KeyboardEvent as RKE } from 'react';
+import { createPortal } from 'react-dom';
 import { X, UserPlus, Loader2, Mail, RotateCcw } from 'lucide-react';
 
 interface Props {
@@ -93,7 +94,7 @@ export function SignupModal({ open, onClose }: Props) {
     return () => clearTimeout(t);
   }, [resendCooldown]);
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
   // ── Step 1: Submit form ──
   async function onSubmitForm(e: FormEvent<HTMLFormElement>) {
@@ -259,8 +260,10 @@ export function SignupModal({ open, onClose }: Props) {
     }
   }
 
-  // ── Render ──
-  return (
+  // ── Render (portal a document.body: así `fixed` se ancla al viewport y no a un
+  // ancestro con transform/filter —p.ej. el header sticky con backdrop-blur—, que
+  // era lo que dejaba el modal "metido" arriba y tapado por el navegador). ──
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto px-4 py-8 sm:items-center">
       <div className="fixed inset-0 bg-black/40" aria-hidden="true" onClick={onClose} />
       <div
@@ -489,6 +492,7 @@ export function SignupModal({ open, onClose }: Props) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
