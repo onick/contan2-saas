@@ -261,23 +261,23 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
           // Acciones del detalle: Invitar audiencia / Protocolo / Importar lista
           // + Editar. Finalizar/Cancelar/Reactivar/Eliminar viven en el menú ⋯
           // de cada fila de la tabla de actividades (acá serían duplicados).
-          <footer className="flex items-center justify-end gap-2 border-t border-line px-5 py-4">
+          <footer className="flex flex-col gap-2 border-t border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-end">
             {canExportAttendees && shown.statusRaw === 'activa' ? (
-              <span className="mr-auto flex flex-1 gap-2 sm:flex-none">
-                <Button type="button" className="flex-1 sm:flex-none" onClick={() => setInviteOpen(true)}
+              <span className="mr-auto grid grid-cols-2 gap-2 sm:flex sm:flex-none">
+                <Button type="button" className="w-full sm:w-auto" onClick={() => setInviteOpen(true)}
                   style={{ backgroundColor: 'var(--color-brand-accent)' }}>
                   <Megaphone size={16} strokeWidth={2} aria-hidden="true" /> Invitar audiencia
                 </Button>
-                <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => setInviteProtoOpen(true)}>
+                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setInviteProtoOpen(true)}>
                   <Medal size={16} strokeWidth={2} aria-hidden="true" /> Protocolo
                 </Button>
-                <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => setImportGuestsOpen(true)}>
+                <Button type="button" variant="secondary" className="col-span-2 w-full sm:col-span-1 sm:w-auto" onClick={() => setImportGuestsOpen(true)}>
                   <Upload size={16} strokeWidth={2} aria-hidden="true" /> Importar lista
                 </Button>
               </span>
             ) : null}
             {onEdit ? (
-              <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => onEdit(shown)}>
+              <Button type="button" variant="secondary" className="w-full sm:w-auto sm:flex-none" onClick={() => onEdit(shown)}>
                 <Pencil size={16} strokeWidth={2} aria-hidden="true" /> Editar actividad
               </Button>
             ) : null}

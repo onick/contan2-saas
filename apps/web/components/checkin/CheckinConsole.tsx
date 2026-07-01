@@ -449,7 +449,7 @@ export function CheckinConsole() {
                         </p>
                         <p className="mt-0.5 text-xs text-faint">{a.location} · <span className="tabular-nums">{fmtHour(a.date)}</span></p>
                       </div>
-                      <div className="min-w-[180px] flex-1 sm:flex-none">
+                      <div className="w-full sm:w-auto sm:min-w-[180px] sm:flex-none">
                         <div className="h-1.5 overflow-hidden rounded-full bg-surface-container" aria-hidden="true">
                           <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, var(--color-brand), var(--color-brand-accent))' }} />
                         </div>

@@ -447,7 +447,7 @@ export function CodeScreen({
             Busca tu registro
           </h1>
         </div>
-        <form onSubmit={search} className="mt-8 flex flex-col gap-3">
+        <form onSubmit={search} className="mt-8 flex w-full max-w-2xl flex-col gap-3">
           <label htmlFor="k-code" className="text-sm font-medium text-[#a2a5b4]">Código (CCB-XXXXXX), correo, o tu nombre y apellido</label>
           <div className="flex flex-col gap-3 sm:flex-row">
             <input

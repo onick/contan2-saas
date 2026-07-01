@@ -116,8 +116,8 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
             {DATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
 
-          <div className="ml-auto flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-full bg-surface-container px-3 py-1.5">
+          <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+            <div className="flex flex-1 items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 sm:flex-none">
               <Search size={16} strokeWidth={1.75} aria-hidden="true" className="text-faint" />
               <input
                 type="search"
@@ -125,7 +125,7 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar actividad…"
                 aria-label="Buscar actividad"
-                className={cn('w-36 bg-transparent text-[13px] text-ink placeholder:text-faint focus:outline-none sm:w-48', focusRing)}
+                className={cn('w-full bg-transparent text-[13px] text-ink placeholder:text-faint focus:outline-none sm:w-48', focusRing)}
               />
             </div>
             <div className="flex items-center rounded-lg border border-line bg-surface p-0.5">
