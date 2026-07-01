@@ -845,8 +845,21 @@ export const AttendanceListItemSchema = z.object({
   anonymous: z.boolean(),
   checkedInAt: z.string().nullable(), // ISO 8601 | null
   registeredAt: z.string(), // ISO 8601
+  companionsChildren: z.number().int(),
+  companionsAdults: z.number().int(),
 });
 export type AttendanceListItem = z.infer<typeof AttendanceListItemSchema>;
+
+// Corregir acompañantes de una asistencia ya registrada (owner/admin). Al menos
+// uno de los dos campos; el server recalcula la ocupación por la diferencia de
+// party y valida capacidad.
+export const AttendanceCompanionsUpdateRequestSchema = z.object({
+  companionsChildren: z.number().int().min(0).max(20).optional(),
+  companionsAdults: z.number().int().min(0).max(20).optional(),
+}).strict().refine((b) => b.companionsChildren !== undefined || b.companionsAdults !== undefined, {
+  message: 'Indicá al menos companionsChildren o companionsAdults.',
+});
+export type AttendanceCompanionsUpdateRequest = z.infer<typeof AttendanceCompanionsUpdateRequestSchema>;
 
 export const AttendanceListResponseSchema = z.object({
   items: z.array(AttendanceListItemSchema),

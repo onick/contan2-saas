@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, UsersRound, Search, Sparkle, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { Loader2, UsersRound, Search, Sparkle, FileSpreadsheet, Trash2, Pencil, Minus, Plus } from 'lucide-react';
 import { AttendanceListResponseSchema, type AttendanceListItem } from '@contan2/contracts';
 import { useProfileActions } from '../usuarios/ProfileProvider';
 import { cn, focusRing } from '../ui';
@@ -58,6 +58,42 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
       }
     } finally {
       setDeleting(null);
+    }
+  }
+
+  // Editar acompañantes (corrige el conteo sin borrar/re-escanear). El server
+  // ajusta la ocupación y valida capacidad; 409 si no hay cupo al aumentar.
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editKids, setEditKids] = useState(0);
+  const [editAdults, setEditAdults] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function startEdit(a: AttendanceListItem) {
+    setConfirmId(null); setEditError(null);
+    setEditId(a.id); setEditKids(a.companionsChildren); setEditAdults(a.companionsAdults);
+  }
+  async function saveCompanions(id: string) {
+    if (saving) return;
+    setSaving(true); setEditError(null);
+    try {
+      const res = await fetch(`/app/check-in/api/attendance/${encodeURIComponent(id)}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ companionsChildren: editKids, companionsAdults: editAdults }),
+      });
+      if (res.ok) {
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, companionsChildren: editKids, companionsAdults: editAdults } : i)));
+        setEditId(null);
+        onMutated?.();
+        router.refresh();
+      } else {
+        const b = (await res.json().catch(() => null)) as { error?: string } | null;
+        setEditError(res.status === 409 ? 'No hay cupo suficiente.' : (b?.error ?? 'No se pudo guardar.'));
+      }
+    } catch {
+      setEditError('Problema de red. Reintentá.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -146,14 +182,37 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
                           className={cn('rounded-md px-1.5 py-1 text-[11px] text-faint hover:text-ink', focusRing)}>No</button>
                       </span>
                     ) : (
-                      <button type="button" onClick={() => setConfirmId(a.id)}
-                        aria-label="Quitar esta asistencia"
-                        className={cn('grid h-7 w-7 flex-none place-items-center rounded-md text-faint hover:bg-danger-bg hover:text-danger-fg', focusRing)}>
-                        <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
-                      </button>
+                      <span className="flex flex-none items-center gap-0.5">
+                        <button type="button" onClick={() => startEdit(a)}
+                          aria-label="Editar acompañantes"
+                          className={cn('grid h-7 w-7 place-items-center rounded-md text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
+                          <Pencil size={13} strokeWidth={2} aria-hidden="true" />
+                        </button>
+                        <button type="button" onClick={() => setConfirmId(a.id)}
+                          aria-label="Quitar esta asistencia"
+                          className={cn('grid h-7 w-7 place-items-center rounded-md text-faint hover:bg-danger-bg hover:text-danger-fg', focusRing)}>
+                          <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+                        </button>
+                      </span>
                     )
                   ) : null}
                 </div>
+                {editId === a.id ? (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-surface-container/40 px-3 py-2.5">
+                    <span className="text-[12px] font-semibold text-muted">Acompañantes</span>
+                    <Stepper label="Niños" value={editKids} onChange={setEditKids} />
+                    <Stepper label="Adultos" value={editAdults} onChange={setEditAdults} />
+                    {editError ? <span className="text-[11.5px] font-semibold text-danger-fg">{editError}</span> : null}
+                    <span className="ml-auto flex items-center gap-1.5">
+                      <button type="button" disabled={saving} onClick={() => void saveCompanions(a.id)}
+                        className={cn('rounded-md bg-brand px-2.5 py-1 text-[12px] font-bold text-white hover:bg-brand-strong disabled:opacity-50', focusRing)}>
+                        {saving ? 'Guardando…' : 'Guardar'}
+                      </button>
+                      <button type="button" onClick={() => setEditId(null)}
+                        className={cn('rounded-md px-2 py-1 text-[12px] font-semibold text-faint hover:text-ink', focusRing)}>Cancelar</button>
+                    </span>
+                  </div>
+                ) : null}
               </li>
             ))}
             {filtered.length === 0 ? (
@@ -170,10 +229,40 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
   );
 }
 
+function companionLabel(a: AttendanceListItem): string | null {
+  const parts: string[] = [];
+  if (a.companionsChildren > 0) parts.push(`+${a.companionsChildren} niño${a.companionsChildren === 1 ? '' : 's'}`);
+  if (a.companionsAdults > 0) parts.push(`+${a.companionsAdults} adulto${a.companionsAdults === 1 ? '' : 's'}`);
+  return parts.length ? parts.join(' ') : null;
+}
+
 function Meta({ a }: { a: AttendanceListItem }) {
+  const comp = companionLabel(a);
   return (
     <span className="flex flex-none items-center gap-2 text-[11px] tabular-nums text-faint">
+      {comp ? <span className="rounded-full bg-surface-container px-1.5 py-0.5 font-semibold text-muted">{comp}</span> : null}
       {WHEN.format(new Date(a.registeredAt))}
+    </span>
+  );
+}
+
+function Stepper({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="text-[11px] text-faint">{label}</span>
+      <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-1 py-0.5">
+        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} disabled={value <= 0}
+          aria-label={`Quitar ${label.toLowerCase()}`}
+          className={cn('grid h-6 w-6 place-items-center rounded-full text-muted hover:bg-surface-container disabled:opacity-40', focusRing)}>
+          <Minus size={12} strokeWidth={2.5} aria-hidden="true" />
+        </button>
+        <span className="min-w-5 text-center text-[12px] font-semibold tabular-nums text-ink">{value}</span>
+        <button type="button" onClick={() => onChange(Math.min(20, value + 1))} disabled={value >= 20}
+          aria-label={`Sumar ${label.toLowerCase()}`}
+          className={cn('grid h-6 w-6 place-items-center rounded-full text-muted hover:bg-surface-container disabled:opacity-40', focusRing)}>
+          <Plus size={12} strokeWidth={2.5} aria-hidden="true" />
+        </button>
+      </span>
     </span>
   );
 }

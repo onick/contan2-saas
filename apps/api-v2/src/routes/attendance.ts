@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { getDb, sql } from '@contan2/db';
 import type { AttendanceListResponse, AttendanceListItem } from '@contan2/contracts';
+import { AttendanceCompanionsUpdateRequestSchema } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { parsePage, parseSearch, likeContains, parseIsoDate } from '../query.js';
@@ -11,6 +12,7 @@ import { parsePage, parseSearch, likeContains, parseIsoDate } from '../query.js'
 // de fechas. Filtros + count + paginación SIEMPRE en SQL (nada en memoria).
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 const deleteLimiter = createRateLimiter({ max: 20, windowMs: 60_000, prefix: endpointPrefix('attendance-delete') });
+const editLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('attendance-edit') });
 
 export const attendanceRoute: FastifyPluginAsync = async (app) => {
   app.get('/attendance', async (req, reply) => {
@@ -60,6 +62,7 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
       .select([
         'a.id', 'a.user_code', 'a.activity_id', 'a.activity_name',
         'a.anonymous', 'a.checked_in_at', 'a.registered_at',
+        'a.companions_children', 'a.companions_adults',
         'u.first_name', 'u.last_name',
       ])
       .where('a.organization_id', '=', orgId);
@@ -119,6 +122,8 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
       anonymous: r.anonymous,
       checkedInAt: r.checked_in_at ? r.checked_in_at.toISOString() : null,
       registeredAt: r.registered_at.toISOString(),
+      companionsChildren: r.companions_children ?? 0,
+      companionsAdults: r.companions_adults ?? 0,
     }));
 
     const body: AttendanceListResponse = { items, total: Number(count.n), limit, offset };
@@ -170,5 +175,72 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
     if (!removed) { reply.code(404); return { error: 'Registro no encontrado.' }; }
     reply.code(204);
     return null;
+  });
+
+  // PATCH /api/v2/attendance/:id · corregir acompañantes de una asistencia ya
+  // registrada (owner/admin). Ajusta enrolled_count por la diferencia de party y
+  // valida capacidad al aumentar. Auditado. Cierra el hueco de "puse mal los
+  // acompañantes" sin tener que borrar + re-escanear.
+  app.patch('/attendance/:id', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) {
+      reply.code(403); return { error: 'No tenés permiso para editar asistencias.' };
+    }
+    if ((await editLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
+      reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' };
+    }
+    const parsed = AttendanceCompanionsUpdateRequestSchema.safeParse(req.body);
+    if (!parsed.success) { reply.code(400); return { error: 'Body inválido: companionsChildren/companionsAdults (0..20).' }; }
+    const orgId = guard.ctx.org.id;
+    const id = (req.params as { id: string }).id;
+
+    const outcome = await db.transaction().execute(async (tx) => {
+      const att = await tx.selectFrom('attendance')
+        .select(['activity_id', 'companions_children', 'companions_adults', 'user_code'])
+        .where('organization_id', '=', orgId).where('id', '=', id)
+        .executeTakeFirst();
+      if (!att) return { code: 404 as const };
+
+      const newChildren = parsed.data.companionsChildren ?? att.companions_children;
+      const newAdults = parsed.data.companionsAdults ?? att.companions_adults;
+      const delta = (newChildren + newAdults) - (att.companions_children + att.companions_adults);
+      if (delta === 0) return { code: 200 as const }; // sin cambios
+
+      if (delta > 0) {
+        const act = await tx.selectFrom('activities').select(['capacity', 'enrolled_count'])
+          .where('organization_id', '=', orgId).where('id', '=', att.activity_id).executeTakeFirst();
+        if (act && act.enrolled_count + delta > act.capacity) return { code: 409 as const };
+      }
+
+      await tx.updateTable('attendance')
+        .set({ companions_children: newChildren, companions_adults: newAdults })
+        .where('organization_id', '=', orgId).where('id', '=', id).execute();
+      await tx.updateTable('activities')
+        .set(() => ({ enrolled_count: sql<number>`greatest(0, enrolled_count + ${delta})` }))
+        .where('organization_id', '=', orgId).where('id', '=', att.activity_id).execute();
+      await tx.insertInto('tenant_audit_log').values({
+        organization_id: orgId,
+        actor_staff_id: guard.ctx.staff.id,
+        actor_email_masked: null,
+        actor_role: guard.ctx.staff.role,
+        action: 'attendance.companions_edited',
+        target_type: 'attendance',
+        target_id: id,
+        target_label: att.user_code,
+        metadata: JSON.stringify({
+          activityId: att.activity_id,
+          from: { children: att.companions_children, adults: att.companions_adults },
+          to: { children: newChildren, adults: newAdults },
+        }),
+      }).execute();
+      return { code: 200 as const };
+    });
+
+    if (outcome.code === 404) { reply.code(404); return { error: 'Registro no encontrado.' }; }
+    if (outcome.code === 409) { reply.code(409); return { error: 'No hay cupo suficiente para agregar acompañantes.' }; }
+    reply.code(200);
+    return { ok: true };
   });
 };

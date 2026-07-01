@@ -11,6 +11,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'checkin.manual': 'registró un check-in',
   'checkin.anonymous': 'registró un +1 sin credencial',
   'attendance.deleted': 'quitó una asistencia',
+  'attendance.companions_edited': 'corrigió los acompañantes de una asistencia',
   'activity.deleted': 'eliminó una actividad',
   'activity.audience_invited': 'invitó audiencia a una actividad',
   'activity.protocol_invited': 'invitó protocolo a una actividad',
