@@ -14,8 +14,8 @@ vi.mock('next/navigation', () => ({
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const ITEMS = [
-  { id: 't1', userCode: 'CCB-AAA111', firstName: 'Ana', lastName: 'Pérez', activityId: 'A1', activityName: 'X', anonymous: false, checkedInAt: null, registeredAt: '2026-06-11T15:00:00.000Z' },
-  { id: 't2', userCode: null, firstName: null, lastName: null, activityId: 'A1', activityName: 'X', anonymous: true, checkedInAt: null, registeredAt: '2026-06-11T15:05:00.000Z' },
+  { id: 't1', userCode: 'CCB-AAA111', firstName: 'Ana', lastName: 'Pérez', activityId: 'A1', activityName: 'X', anonymous: false, checkedInAt: null, registeredAt: '2026-06-11T15:00:00.000Z', companionsChildren: 0, companionsAdults: 0 },
+  { id: 't2', userCode: null, firstName: null, lastName: null, activityId: 'A1', activityName: 'X', anonymous: true, checkedInAt: null, registeredAt: '2026-06-11T15:05:00.000Z', companionsChildren: 0, companionsAdults: 0 },
 ];
 
 function mockFetch(items = ITEMS) {

@@ -229,8 +229,8 @@ describe('CheckinConsole', () => {
       metrics: okMetrics, activities: okActs(),
       recent: () => J(200, {
         items: [
-          { id: 'r1', userCode: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', activityId: 'A1', activityName: 'Concierto', anonymous: false, checkedInAt: new Date().toISOString(), registeredAt: new Date().toISOString() },
-          { id: 'r2', userCode: null, firstName: null, lastName: null, activityId: 'A1', activityName: 'Concierto', anonymous: true, checkedInAt: new Date().toISOString(), registeredAt: new Date(Date.now() - 5 * 60_000 - 30_000).toISOString() },
+          { id: 'r1', userCode: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', activityId: 'A1', activityName: 'Concierto', anonymous: false, checkedInAt: new Date().toISOString(), registeredAt: new Date().toISOString(), companionsChildren: 0, companionsAdults: 0 },
+          { id: 'r2', userCode: null, firstName: null, lastName: null, activityId: 'A1', activityName: 'Concierto', anonymous: true, checkedInAt: new Date().toISOString(), registeredAt: new Date(Date.now() - 5 * 60_000 - 30_000).toISOString(), companionsChildren: 0, companionsAdults: 0 },
         ],
         total: 2, limit: 8, offset: 0,
       }),

@@ -53,10 +53,22 @@ run('DELETE /attendance/:id', () => {
     } as never).returning('id').executeTakeFirstOrThrow();
     return r.id;
   };
+  const mkAttAdults = async (org: string, act: string, adults: number) => {
+    const r = await db.insertInto('attendance').values({
+      id: randomUUID(), organization_id: org, user_id: null, activity_id: act,
+      activity_name: 'A', user_code: null, anonymous: true, companions_children: 0, companions_adults: adults,
+    } as never).returning('id').executeTakeFirstOrThrow();
+    return r.id;
+  };
   let ipSeq = 0;
   const del = (id: string, token?: string) => app.inject({
     method: 'DELETE', url: `/api/v2/attendance/${id}`,
     headers: { host: hostA, 'x-forwarded-for': `10.3.0.${(ipSeq++ % 250) + 1}`, ...(token ? { cookie: `contan2_session=${token}` } : {}) },
+  });
+  const patch = (id: string, body: unknown, token?: string) => app.inject({
+    method: 'PATCH', url: `/api/v2/attendance/${id}`,
+    headers: { host: hostA, 'x-forwarded-for': `10.3.0.${(ipSeq++ % 250) + 1}`, 'content-type': 'application/json', ...(token ? { cookie: `contan2_session=${token}` } : {}) },
+    payload: body as object,
   });
 
   beforeAll(async () => {
@@ -111,5 +123,38 @@ run('DELETE /attendance/:id', () => {
     const attB = await mkAtt(orgBId, actB);
     expect((await del(attB, TOK.admin)).statusCode).toBe(404); // org-scoped
     expect((await del(randomUUID(), TOK.admin)).statusCode).toBe(404);
+  });
+
+  it('PATCH editar acompañantes 2→1 ajusta ocupación (-1) y audita', async () => {
+    const act = await mkAct(orgAId, 4); // party del att = 1+2 = 3, incluido en los 4
+    const att = await mkAttAdults(orgAId, act, 2);
+    const r = await patch(att, { companionsAdults: 1 }, TOK.admin);
+    expect(r.statusCode).toBe(200);
+    const row = await db.selectFrom('attendance').select('companions_adults').where('id', '=', att).executeTakeFirstOrThrow();
+    expect(row.companions_adults).toBe(1);
+    const a = await db.selectFrom('activities').select('enrolled_count').where('id', '=', act).executeTakeFirstOrThrow();
+    expect(a.enrolled_count).toBe(3); // 4 - 1
+    const audit = await db.selectFrom('tenant_audit_log').select('id')
+      .where('organization_id', '=', orgAId).where('action', '=', 'attendance.companions_edited').execute();
+    expect(audit.length).toBe(1);
+  });
+
+  it('PATCH que excede la capacidad → 409 sin cambios', async () => {
+    const act = await mkAct(orgAId, 50); // capacity 50, enrolled 50 (lleno)
+    const att = await mkAttAdults(orgAId, act, 0); // party 1
+    const r = await patch(att, { companionsAdults: 2 }, TOK.admin); // +2 → 52 > 50
+    expect(r.statusCode).toBe(409);
+    const row = await db.selectFrom('attendance').select('companions_adults').where('id', '=', att).executeTakeFirstOrThrow();
+    expect(row.companions_adults).toBe(0); // sin cambios
+    const a = await db.selectFrom('activities').select('enrolled_count').where('id', '=', act).executeTakeFirstOrThrow();
+    expect(a.enrolled_count).toBe(50);
+  });
+
+  it('PATCH: operator 403; body vacío 400; inexistente 404', async () => {
+    const act = await mkAct(orgAId, 5);
+    const att = await mkAttAdults(orgAId, act, 1);
+    expect((await patch(att, { companionsAdults: 0 }, TOK.operator)).statusCode).toBe(403);
+    expect((await patch(att, {}, TOK.admin)).statusCode).toBe(400);
+    expect((await patch(randomUUID(), { companionsAdults: 0 }, TOK.admin)).statusCode).toBe(404);
   });
 });
