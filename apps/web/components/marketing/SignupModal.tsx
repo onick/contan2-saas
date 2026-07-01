@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef, useId, type FormEvent, type ReactNode, type KeyboardEvent as RKE } from 'react';
 import { createPortal } from 'react-dom';
-import { X, UserPlus, Loader2, Mail, RotateCcw } from 'lucide-react';
+import { X, UserPlus, Loader2, Mail, RotateCcw, Eye, EyeOff } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -55,8 +55,12 @@ export function SignupModal({ open, onClose }: Props) {
   const [formData, setFormData] = useState<Record<string, string> | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [showPw, setShowPw] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const digitRefs = useRef<(HTMLInputElement | null)[]>([]);
   const fid = useId();
+
+  const eyeBtn = 'absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-[#9ca3af] transition-colors hover:text-[#16181d]';
 
   // Lock scroll + Escape
   useEffect(() => {
@@ -84,6 +88,8 @@ export function SignupModal({ open, onClose }: Props) {
       setFormData(null);
       setDigits(['', '', '', '', '', '']);
       setResendCooldown(0);
+      setShowPw(false);
+      setShowConfirm(false);
     }
   }, [open]);
 
@@ -338,26 +344,38 @@ export function SignupModal({ open, onClose }: Props) {
 
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                 <LabeledField id={`${fid}-password`} label="Contraseña" required>
-                  <input
-                    id={`${fid}-password`}
-                    name="password"
-                    type="password"
-                    required
-                    placeholder="Mín. 8 caracteres"
-                    className={inputClass}
-                    style={{ borderColor: LINE }}
-                  />
+                  <div className="relative">
+                    <input
+                      id={`${fid}-password`}
+                      name="password"
+                      type={showPw ? 'text' : 'password'}
+                      required
+                      placeholder="Mín. 8 caracteres"
+                      className={`${inputClass} pr-10`}
+                      style={{ borderColor: LINE }}
+                    />
+                    <button type="button" onClick={() => setShowPw((v) => !v)} className={eyeBtn}
+                      aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+                      {showPw ? <EyeOff size={16} strokeWidth={2} aria-hidden="true" /> : <Eye size={16} strokeWidth={2} aria-hidden="true" />}
+                    </button>
+                  </div>
                 </LabeledField>
                 <LabeledField id={`${fid}-confirmPassword`} label="Confirmar Contraseña" required>
-                  <input
-                    id={`${fid}-confirmPassword`}
-                    name="confirmPassword"
-                    type="password"
-                    required
-                    placeholder="Repetir contraseña"
-                    className={inputClass}
-                    style={{ borderColor: LINE }}
-                  />
+                  <div className="relative">
+                    <input
+                      id={`${fid}-confirmPassword`}
+                      name="confirmPassword"
+                      type={showConfirm ? 'text' : 'password'}
+                      required
+                      placeholder="Repetir contraseña"
+                      className={`${inputClass} pr-10`}
+                      style={{ borderColor: LINE }}
+                    />
+                    <button type="button" onClick={() => setShowConfirm((v) => !v)} className={eyeBtn}
+                      aria-label={showConfirm ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+                      {showConfirm ? <EyeOff size={16} strokeWidth={2} aria-hidden="true" /> : <Eye size={16} strokeWidth={2} aria-hidden="true" />}
+                    </button>
+                  </div>
                 </LabeledField>
               </div>
 
