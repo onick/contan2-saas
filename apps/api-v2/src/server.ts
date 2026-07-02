@@ -32,6 +32,7 @@ import { activityInvitationsRoute } from './routes/activity-invitations.js';
 import { protocolRoute } from './routes/protocol.js';
 import { scannerRoute } from './routes/scanner.js';
 import { contactRoute } from './routes/contact.js';
+import { shellRoute } from './routes/shell.js';
 
 // Detrás de un reverse proxy (Traefik / web-v2), Fastify debe derivar `req.ip`
 // del `X-Forwarded-For` en vez del socket (que sería el proxy) — si no, TODOS los
@@ -95,6 +96,7 @@ export function buildApp(): FastifyInstance {
   app.register(orgBrandingRoute, { prefix: '/api/v2' });
   // Endpoints read-only de negocio (tenant-scoped, sesión staff requerida).
   app.register(dashboardMetricsRoute, { prefix: '/api/v2' });
+  app.register(shellRoute, { prefix: '/api/v2' });
   app.register(activitiesRoute, { prefix: '/api/v2' });
   app.register(segmentsRoute, { prefix: '/api/v2' });
   app.register(usersRoute, { prefix: '/api/v2' });
