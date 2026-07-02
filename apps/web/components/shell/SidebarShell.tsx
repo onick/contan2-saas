@@ -16,6 +16,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { PanelLeftClose, PanelLeftOpen, Menu } from 'lucide-react';
 import { cn, focusRing } from '../ui/cn';
+import { ShellDataProvider } from './ShellData';
+import { CommandPalette } from './CommandPalette';
 
 export const SIDEBAR_COOKIE = 'sidebar_collapsed';
 
@@ -73,14 +75,18 @@ export function SidebarShell({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider value={{ collapsed, toggle, mobileOpen, openMobile, closeMobile }}>
-      <div
-        data-sidebar={collapsed ? 'collapsed' : 'expanded'}
-        suppressHydrationWarning
-        className="group/shell min-h-screen bg-page md:grid md:grid-cols-[auto_minmax(0,1fr)]"
-      >
-        <script dangerouslySetInnerHTML={{ __html: PREPAINT }} />
-        {children}
-      </div>
+      <ShellDataProvider>
+        <div
+          data-sidebar={collapsed ? 'collapsed' : 'expanded'}
+          suppressHydrationWarning
+          className="group/shell min-h-screen bg-page md:grid md:grid-cols-[auto_minmax(0,1fr)]"
+        >
+          <script dangerouslySetInnerHTML={{ __html: PREPAINT }} />
+          {children}
+        </div>
+        {/* Command palette (⌘K): portal a body, montado una vez para todo el shell. */}
+        <CommandPalette />
+      </ShellDataProvider>
     </Ctx.Provider>
   );
 }

@@ -2,6 +2,7 @@ import type { BrandingOrg } from '../../lib/branding/theme';
 import { NAV_ITEMS, NAV_GROUPS } from '../../lib/shell/nav';
 import { BrandChip, BrandLockup, hasBrandLockup, splitBrandName } from './BrandMark';
 import { LogoutButton } from './LogoutButton';
+import { SearchTrigger, LiveBadge } from './ShellData';
 
 export interface SidebarProps {
   branding: BrandingOrg;
@@ -73,8 +74,16 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
         </div>
       )}
 
-      {/* Navegación agrupada */}
-      <nav aria-label="Navegación principal" className="flex-1 overflow-y-auto px-3 pb-2 group-data-[sidebar=collapsed]/shell:px-2">
+      {/* Buscador global (⌘K): isla client, abre el command palette. */}
+      <div className="px-3 pb-1.5 pt-0.5 group-data-[sidebar=collapsed]/shell:px-2">
+        <SearchTrigger />
+      </div>
+
+      {/* Navegación agrupada · scrollbar oculto (mantiene el scroll, sin la barra). */}
+      <nav
+        aria-label="Navegación principal"
+        className="flex-1 overflow-y-auto px-3 pb-2 group-data-[sidebar=collapsed]/shell:px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+      >
         {NAV_GROUPS.map((group) => (
           <div key={group}>
             <p className={`px-3 pb-1.5 pt-4 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint ${HIDE}`}>
@@ -109,7 +118,9 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
                     ) : null}
                     <ItemIcon size={20} strokeWidth={1.75} aria-hidden="true" />
                     <span className={HIDE}>{item.label}</span>
-                    {item.badge ? (
+                    {item.liveBadge ? (
+                      <LiveBadge source={item.liveBadge} />
+                    ) : item.badge ? (
                       <span
                         aria-hidden="true"
                         className={`ml-auto rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-[#b35400] ${HIDE}`}

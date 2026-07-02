@@ -156,6 +156,25 @@ export const DashboardMetricsResponseSchema = z.object({
 });
 export type DashboardMetricsResponse = z.infer<typeof DashboardMetricsResponseSchema>;
 
+// Resumen liviano para el shell (sidebar): rol del staff (para filtrar la nav en
+// el command palette) + badges numéricos vivos. Un solo fetch, tenant-scoped.
+export const ShellSummaryResponseSchema = z.object({
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']),
+  badges: z.object({
+    activeActivities: z.number().int(),
+    checkinsToday: z.number().int(),
+    protocolPending: z.number().int(),
+  }),
+});
+export type ShellSummaryResponse = z.infer<typeof ShellSummaryResponseSchema>;
+
+// Búsqueda global del command palette (⌘K): actividades + usuarios del tenant.
+export const SearchResponseSchema = z.object({
+  activities: z.array(z.object({ id: z.string(), name: z.string() })),
+  users: z.array(z.object({ id: z.string(), name: z.string(), code: z.string() })),
+});
+export type SearchResponse = z.infer<typeof SearchResponseSchema>;
+
 export const ActivityStatusSchema = z.enum(['activa', 'finalizada', 'cancelada']);
 
 // Tipo de público (migración 034). Gobierna cómo se clasifican los acompañantes
