@@ -26,7 +26,7 @@ import { ImportGuestsPanel } from './ImportGuestsPanel';
 import { AddFromPadronPanel } from './AddFromPadronPanel';
 import { InvitationsSection } from './InvitationsSection';
 import { ProtocolSection } from './ProtocolSection';
-import { Megaphone, Medal, Upload } from 'lucide-react';
+import { Megaphone, Medal, Upload, MoreVertical } from 'lucide-react';
 import { Button, IconButton, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 export interface ActivityDetailDrawerProps {
@@ -60,6 +60,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
   const [inviteProtoOpen, setInviteProtoOpen] = useState(false);
   const [importGuestsOpen, setImportGuestsOpen] = useState(false);
   const [addPadronOpen, setAddPadronOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [invKey, setInvKey] = useState(0);
   useEffect(() => {
     if (!realId) return;
@@ -263,7 +264,9 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
           // de cada fila de la tabla de actividades (acá serían duplicados).
           <footer className="flex flex-col gap-2 border-t border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-end">
             {canExportAttendees && shown.statusRaw === 'activa' ? (
-              <span className="mr-auto grid grid-cols-2 gap-2 sm:flex sm:flex-none">
+              // Invitación (CTAs visibles) + acciones de gestión (Importar / Editar)
+              // colapsadas en un menú ⋯ para que el footer no desborde en tablet.
+              <span className="flex w-full flex-col gap-2 sm:mr-auto sm:w-auto sm:flex-row sm:flex-none sm:items-center">
                 <Button type="button" className="w-full sm:w-auto" onClick={() => setInviteOpen(true)}
                   style={{ backgroundColor: 'var(--color-brand-accent)' }}>
                   <Megaphone size={16} strokeWidth={2} aria-hidden="true" /> Invitar audiencia
@@ -271,16 +274,38 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
                 <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setInviteProtoOpen(true)}>
                   <Medal size={16} strokeWidth={2} aria-hidden="true" /> Protocolo
                 </Button>
-                <Button type="button" variant="secondary" className="col-span-2 w-full sm:col-span-1 sm:w-auto" onClick={() => setImportGuestsOpen(true)}>
-                  <Upload size={16} strokeWidth={2} aria-hidden="true" /> Importar lista
-                </Button>
+                <div className="relative w-full sm:w-auto">
+                  <Button type="button" variant="secondary" aria-haspopup="menu" aria-expanded={actionsOpen}
+                    aria-label="Más acciones" className="w-full sm:w-auto sm:px-3" onClick={() => setActionsOpen((v) => !v)}>
+                    <MoreVertical size={16} strokeWidth={2} aria-hidden="true" />
+                    <span className="sm:hidden">Más acciones</span>
+                  </Button>
+                  {actionsOpen ? (
+                    <>
+                      <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setActionsOpen(false)} />
+                      <div role="menu" className="absolute bottom-full right-0 z-50 mb-2 w-56 overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-[0_16px_40px_-12px_rgba(22,24,29,0.35)]">
+                        <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setImportGuestsOpen(true); }}
+                          className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-medium text-ink hover:bg-surface-container">
+                          <Upload size={15} strokeWidth={2} aria-hidden="true" /> Importar lista
+                        </button>
+                        {onEdit ? (
+                          <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onEdit(shown); }}
+                            className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-medium text-ink hover:bg-surface-container">
+                            <Pencil size={15} strokeWidth={2} aria-hidden="true" /> Editar actividad
+                          </button>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
               </span>
-            ) : null}
-            {onEdit ? (
-              <Button type="button" variant="secondary" className="w-full sm:w-auto sm:flex-none" onClick={() => onEdit(shown)}>
-                <Pencil size={16} strokeWidth={2} aria-hidden="true" /> Editar actividad
-              </Button>
-            ) : null}
+            ) : (
+              onEdit ? (
+                <Button type="button" variant="secondary" className="w-full sm:w-auto sm:flex-none" onClick={() => onEdit(shown)}>
+                  <Pencil size={16} strokeWidth={2} aria-hidden="true" /> Editar actividad
+                </Button>
+              ) : null
+            )}
           </footer>
         ) : (
           <footer className="border-t border-line px-5 py-4">
