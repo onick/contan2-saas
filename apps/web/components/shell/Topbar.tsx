@@ -1,9 +1,9 @@
-import { Search } from 'lucide-react';
 import type { BrandingOrg } from '../../lib/branding/theme';
 import { BrandChip } from './BrandMark';
 import { SidebarToggle, MobileNavToggle } from './SidebarShell';
 import { TopbarNotifications } from './TopbarNotifications';
 import { TopbarUserMenu } from './TopbarUserMenu';
+import { TopbarSearch } from './ShellData';
 
 export interface TopbarProps {
   branding: BrandingOrg;
@@ -38,12 +38,9 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
         <span className="font-semibold text-ink" aria-current="page">{title}</span>
       </nav>
 
-      {/* Buscador · flex-1 + min-w-0 para encoger sin desbordar; el grupo
-          derecho queda pinneado porque solo el buscador crece. */}
-      <div className="ml-2 hidden min-w-0 max-w-[420px] flex-1 items-center gap-2.5 rounded-full bg-surface-container px-4 py-2.5 text-[13px] text-faint md:flex">
-        <Search size={18} strokeWidth={1.75} aria-hidden="true" />
-        <span className="truncate">Buscar actividad, persona o reporte…</span>
-      </div>
+      {/* Buscador · abre el command palette (⌘K). flex-1 + min-w-0 para encoger
+          sin desbordar; el grupo derecho queda pinneado porque solo crece este. */}
+      <TopbarSearch />
 
       {/* Grupo derecho · pinneado al borde con ml-auto */}
       <div className="ml-auto flex items-center gap-1.5 md:gap-2">

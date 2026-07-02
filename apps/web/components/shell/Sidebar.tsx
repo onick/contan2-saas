@@ -2,7 +2,7 @@ import type { BrandingOrg } from '../../lib/branding/theme';
 import { NAV_ITEMS, NAV_GROUPS } from '../../lib/shell/nav';
 import { BrandChip, BrandLockup, hasBrandLockup, splitBrandName } from './BrandMark';
 import { LogoutButton } from './LogoutButton';
-import { SearchTrigger, LiveBadge } from './ShellData';
+import { LiveBadge } from './ShellData';
 
 export interface SidebarProps {
   branding: BrandingOrg;
@@ -74,12 +74,8 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
         </div>
       )}
 
-      {/* Buscador global (⌘K): isla client, abre el command palette. */}
-      <div className="px-3 pb-1.5 pt-0.5 group-data-[sidebar=collapsed]/shell:px-2">
-        <SearchTrigger />
-      </div>
-
-      {/* Navegación agrupada · scrollbar oculto (mantiene el scroll, sin la barra). */}
+      {/* Navegación agrupada · scrollbar oculto (mantiene el scroll, sin la barra).
+          El buscador global (⌘K) vive en el topbar (TopbarSearch), no acá. */}
       <nav
         aria-label="Navegación principal"
         className="flex-1 overflow-y-auto px-3 pb-2 group-data-[sidebar=collapsed]/shell:px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
