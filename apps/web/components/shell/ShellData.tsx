@@ -100,25 +100,23 @@ export function LiveBadge({ source }: { source: LiveBadgeSource }) {
   );
 }
 
-// Disparador del command palette en el tope del sidebar. Muestra el atajo ⌘K
-// (hint real) y colapsa a botón-icono en el riel.
-export function SearchTrigger() {
+// Buscador del topbar (el que ya existía, ahora funcional): abre el command
+// palette. Reemplaza el placeholder estático. Muestra el atajo ⌘K real.
+export function TopbarSearch() {
   const { openPalette } = useShell();
   return (
     <button
       type="button"
       onClick={openPalette}
       aria-label="Buscar (⌘K)"
-      title="Buscar"
       className={cn(
-        'group/trigger flex w-full items-center gap-2.5 rounded-full border border-line bg-surface px-3.5 py-2 text-sm text-muted transition-colors hover:bg-surface-container hover:text-ink',
-        'group-data-[sidebar=collapsed]/shell:justify-center group-data-[sidebar=collapsed]/shell:px-0',
+        'ml-2 hidden min-w-0 max-w-[420px] flex-1 items-center gap-2.5 rounded-full bg-surface-container px-4 py-2.5 text-[13px] text-faint transition-colors hover:text-muted md:flex',
         focusRing,
       )}
     >
       <Search size={18} strokeWidth={1.75} aria-hidden="true" />
-      <span className="group-data-[sidebar=collapsed]/shell:hidden">Buscar…</span>
-      <kbd className="ml-auto hidden items-center gap-0.5 rounded-[5px] border border-line bg-surface-container px-1.5 py-0.5 font-sans text-[11px] font-medium text-faint sm:inline-flex group-data-[sidebar=collapsed]/shell:hidden">
+      <span className="truncate">Buscar actividad, persona o reporte…</span>
+      <kbd className="ml-auto hidden items-center gap-0.5 rounded-[5px] border border-line bg-surface px-1.5 py-0.5 font-sans text-[11px] font-medium text-faint sm:inline-flex">
         ⌘K
       </kbd>
     </button>
