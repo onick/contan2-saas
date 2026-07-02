@@ -318,4 +318,22 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     await db.deleteFrom('attendance').where('activity_id', '=', a2).execute();
     await db.deleteFrom('activities').where('id', '=', a2).execute();
   });
+
+  it('reporte FORMAL de protocolo (xlsx): hojas Resumen/Por actividad/Detalle; operator 403; rol protocolo OK', async () => {
+    expect((await call('GET', '/api/v2/reports/protocol.xlsx', undefined, TOK.operator)).statusCode).toBe(403);
+    // el rol 'protocolo' SÍ puede exportar su reporte
+    expect((await call('GET', '/api/v2/reports/protocol.xlsx', undefined, TOK.depto)).statusCode).toBe(200);
+
+    const res = await call('GET', '/api/v2/reports/protocol.xlsx', undefined, TOK.admin);
+    expect(res.statusCode).toBe(200);
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(res.rawPayload);
+    expect(wb.worksheets.map((w) => w.name).sort()).toEqual(['Detalle', 'Por actividad', 'Resumen']);
+    const textos: string[] = [];
+    wb.getWorksheet('Detalle')!.eachRow((row) => textos.push(JSON.stringify(row.values)));
+    const todo = textos.join(' ');
+    expect(todo).toContain('Sr. Embajador');
+    expect(todo).toContain('Diplomático');
+  });
 });

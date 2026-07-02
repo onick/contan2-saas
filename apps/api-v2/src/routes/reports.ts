@@ -9,7 +9,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { getDb } from '@contan2/db';
 import type { ReportAttendanceByActivityResponse } from '@contan2/contracts';
-import { requireTenantStaff } from '../guard.js';
+import { requireTenantStaff, requireRole } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { attendanceByActivity, parseRange, ReportError } from '../services/report-data.js';
 import { periodSummary } from '../services/reports/period-summary.js';
@@ -24,6 +24,7 @@ import { buildActivityPdfHtml, pdfHeaderFooter, pdfFilename } from '../services/
 import { buildPeriodExcelReport, periodFilename } from '../services/reports/period-excel-report.js';
 import { buildPeriodPdfHtml, periodPdfHeaderFooter, periodPdfFilename } from '../services/reports/period-pdf-template.js';
 import { renderHtmlToPdf } from '../services/reports/pdf-renderer.js';
+import { loadProtocolReportData, buildProtocolExcelReport, protocolReportFilename } from '../services/reports/protocol-report.js';
 
 const VALID_TYPES = new Set(['exposicion', 'concierto', 'cine', 'taller', 'teatro', 'conferencia', 'otro']);
 const ACT_FILE_RE = /^([0-9a-f-]{36})\.(xlsx|pdf)$/i;
@@ -71,6 +72,8 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const FORMATS = new Set(['json', 'csv', 'xlsx', 'pdf']);
 
 const CAN_GENERATE_REPORTS = new Set(['owner', 'admin']);
+// El reporte de protocolo también lo puede exportar el rol 'protocolo' (gestiona su módulo).
+const PROTOCOL_REPORT_ROLES = new Set(['owner', 'admin', 'protocolo']);
 const reportLimiter = createRateLimiter({ max: 20, windowMs: 60_000, prefix: endpointPrefix('reports') });
 
 const CSV_HEADER = [
@@ -312,4 +315,41 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       return reply.send(pdfBuf);
     });
   }
+
+  // GET /api/v2/reports/protocol.xlsx?from=&to= · reporte FORMAL de protocolo
+  // (resumen + por actividad + detalle). Sin from/to → todo el histórico.
+  // Accesible también al rol 'protocolo' (gestiona su módulo), no solo owner/admin.
+  app.get('/reports/protocol.xlsx', async (req, reply) => {
+    const db = getDb();
+    const guard = requireRole(await requireTenantStaff(db, req), PROTOCOL_REPORT_ROLES, 'No tenés permiso para exportar protocolo.');
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    if ((await reportLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes seguidos. Espera un momento.' }; }
+
+    // Rango: por defecto TODO (pasado y futuro, porque hay eventos próximos).
+    const q = req.query as Record<string, unknown>;
+    const hasRange = q.from != null && q.to != null;
+    const fromRaw = String(q.from ?? '2020-01-01').trim();
+    const toRaw = String(q.to ?? '2099-12-31').trim();
+    const parsed = parsePeriodQuery({ from: fromRaw, to: toRaw });
+    if (!parsed.ok) { reply.code(400); return { error: parsed.error }; }
+
+    const data = await loadProtocolReportData(db, guard.ctx.org.id, parsed.q.from, parsed.q.to);
+    data.range = hasRange ? { from: fromRaw, to: toRaw } : { from: 'todo el histórico', to: '' };
+    const organization = await loadReportOrg(db, guard.ctx.org.id);
+    await writeReportAudit(db, {
+      orgId: guard.ctx.org.id,
+      staff: guard.ctx.staff,
+      report: 'protocol',
+      format: 'xlsx',
+      meta: { from: fromRaw, to: toRaw },
+      ip: req.ip, ua: (req.headers['user-agent'] as string | undefined) ?? null,
+    });
+
+    const wb = await buildProtocolExcelReport(organization, data);
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+    reply.header('content-type', XLSX_MIME);
+    reply.header('content-disposition', `attachment; filename="${protocolReportFilename(fromRaw, toRaw)}"`);
+    reply.header('cache-control', 'no-store');
+    return reply.send(buf);
+  });
 };

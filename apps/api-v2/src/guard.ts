@@ -56,3 +56,21 @@ export async function requireTenantStaff(
 
   return { ok: true, ctx: { org: tenant.org, staff: resolved.staff, sessionId: resolved.sessionId } };
 }
+
+// Compone requireTenantStaff con un chequeo de rol. Centraliza el patrón
+// `guard + allowlist de rol` que antes se repetía (y se podía olvidar) en cada
+// handler. Devuelve el MISMO GuardResult: 403 si el rol no está permitido.
+//
+//   const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'msg');
+//   if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+export function requireRole(
+  guard: GuardResult,
+  roles: ReadonlySet<string>,
+  forbiddenMessage = 'No tenés permiso para esta acción.',
+): GuardResult {
+  if (!guard.ok) return guard;
+  if (!roles.has(guard.ctx.staff.role)) {
+    return { ok: false, status: 403, error: forbiddenMessage };
+  }
+  return guard;
+}

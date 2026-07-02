@@ -210,7 +210,7 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
           <p className="mt-1 text-[14px] text-muted">Invitados especiales del centro: autoridades, prensa, patrocinadores y aliados.</p>
         </div>
         <div className="flex flex-none flex-wrap gap-2.5 sm:ml-auto">
-          <a href="/app/usuarios" className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+          <a href="/app/reportes/api/protocol" className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <Download size={16} strokeWidth={1.9} /> Exportar invitados
           </a>
           <button type="button" onClick={() => setPickOpen(true)}
