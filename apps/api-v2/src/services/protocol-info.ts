@@ -33,6 +33,7 @@ export async function protocolBadgeFor(
       .where('organization_id', '=', orgId)
       .where('activity_id', '=', activityId)
       .where('user_id', '=', userId)
+      .where('kind', '=', 'protocol')
       .where('status', '!=', 'canceled')
       .executeTakeFirst();
     plusOnes = inv?.plus_ones ?? 0;

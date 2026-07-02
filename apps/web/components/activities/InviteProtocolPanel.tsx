@@ -126,13 +126,18 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ invites: [...picked.entries()].slice(0, 100).map(([userId, plusOnes]) => ({ userId, plusOnes })) }),
       });
-      const b = (await res.json().catch(() => null)) as { summary?: { created: number; reused: number; dryRun: boolean }; error?: string } | null;
+      const b = (await res.json().catch(() => null)) as { summary?: { created: number; reused: number; skipped: number; noCapacity: number; dryRun: boolean }; error?: string } | null;
       if (res.status === 201 && b?.summary) {
-        const n = b.summary.created;
-        const base = n === 1 ? '1 invitación de protocolo creada' : `${n} invitaciones de protocolo creadas`;
-        setOutcome(b.summary.dryRun
-          ? `${base} (modo simulación: sin clave de envío no salió ningún email; los enlaces RSVP ya funcionan y reservan al invitado con sus acompañantes).`
-          : `${base.replace('creada', 'enviada')}.`);
+        const { created, noCapacity, dryRun } = b.summary;
+        if (created === 0 && noCapacity > 0) {
+          setOutcome(`El aforo está lleno: ${noCapacity} ${noCapacity === 1 ? 'invitado no entró' : 'invitados no entraron'}. Subí la capacidad de la actividad y reinvitá.`);
+        } else {
+          const verb = dryRun ? 'reservadas' : 'enviadas';
+          const head = created === 1 ? `1 invitación de protocolo ${verb}` : `${created} invitaciones de protocolo ${verb}`;
+          const warn = noCapacity > 0 ? ` · ${noCapacity} sin cupo (aforo lleno)` : '';
+          const sim = dryRun ? ' Modo simulación: el asiento ya quedó reservado; sin clave de envío no salió email.' : '';
+          setOutcome(`${head} con asiento garantizado${warn}.${sim}`);
+        }
         onSent();
         void load();
       } else {

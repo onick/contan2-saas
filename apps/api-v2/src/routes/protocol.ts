@@ -27,6 +27,7 @@ import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { effectiveHost } from '../tenant.js';
 import { deliverInvitations, type DeliverableInvitation } from '../services/invitation-email.js';
 import { protocolDashboard } from '../services/protocol-dashboard.js';
+import { ensureHold } from '../services/protocol-holds.js';
 import type { ProtocolDashboardResponse, ActivityProtocolListResponse } from '@contan2/contracts';
 
 // owner/admin gestionan todo; la cuenta 'protocolo' usa SOLO este módulo.
@@ -283,24 +284,27 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     if (!parsed.success) { reply.code(400); return { error: 'Body inválido: { invites: [{userId, plusOnes}] } (máx 100).' }; }
 
     const act = await db.selectFrom('activities')
-      .select(['id', 'name', 'date', 'status', 'location', 'image_url'])
+      .select(['id', 'name', 'date', 'status', 'location', 'image_url', 'audience'])
       .where('organization_id', '=', orgId).where('id', '=', id).executeTakeFirst();
     if (!act) { reply.code(404); return { error: 'Actividad no encontrada.' }; }
     if (act.status !== 'activa') { reply.code(409); return { error: 'Sólo se invita a actividades activas.' }; }
     const expiresAt = new Date(new Date(act.date).getTime() + DAY_MS).toISOString();
+    const holdAct = { id: act.id, name: act.name, audience: act.audience };
 
     // Sólo designados ACTIVOS con email (la invitación viaja por correo).
     const wanted = parsed.data.invites;
     const profiles = await db.selectFrom('protocol_profiles as p')
       .innerJoin('users as u', 'u.id', 'p.user_id')
-      .select(['p.user_id', 'p.honorific', 'u.email', 'u.first_name', 'u.last_name'])
+      .select(['p.user_id', 'p.honorific', 'u.email', 'u.first_name', 'u.last_name', 'u.code'])
       .where('p.organization_id', '=', orgId).where('p.active', '=', true)
       .where('u.deleted_at', 'is', null)
       .where('p.user_id', 'in', wanted.map((w) => w.userId))
       .execute();
     const byId = new Map(profiles.map((p) => [p.user_id, p]));
 
-    let created = 0; let reused = 0; let skipped = 0;
+    // Modelo A (asiento garantizado): invitar RETIENE el aforo (1+plusOnes). Si
+    // no entra, el VIP no se invita y se reporta en `noCapacity`.
+    let created = 0; let reused = 0; let skipped = 0; let noCapacity = 0;
     const deliverables: DeliverableInvitation[] = [];
 
     await db.transaction().execute(async (tx) => {
@@ -311,43 +315,54 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
           .where('organization_id', '=', orgId)
           .where('activity_id', '=', id).where('user_id', '=', w.userId)
           .executeTakeFirst();
+        // Estados finales (confirmada/declinada/expirada): no se re-invita ni se
+        // toca su hold; el asiento (si lo hay) ya está resuelto.
+        if (existing && existing.status !== 'pending' && existing.status !== 'canceled') {
+          skipped += 1;
+          continue;
+        }
+
+        // Reserva/ajusta el asiento garantizado ANTES de crear/actualizar la
+        // invitación. Si no cabe, no se invita.
+        const hold = await ensureHold(tx, orgId, holdAct, w.userId, prof.code, w.plusOnes);
+        if (hold === 'no_capacity') { noCapacity += 1; continue; }
+        if (hold === 'seated') { skipped += 1; continue; } // ya registrado/asistió
+
         // Nombre con tratamiento para el email formal.
         const invitee = {
           email: prof.email,
           firstName: prof.honorific ? `${prof.honorific} ${prof.first_name}` : prof.first_name,
           lastName: prof.last_name,
         };
-        if (existing) {
-          if (existing.status === 'pending') {
-            reused += 1;
-            // Acompañantes pueden cambiar en el re-envío del lote.
-            await tx.updateTable('invitations').set({ plus_ones: w.plusOnes, kind: 'protocol' })
-              .where('id', '=', existing.id).execute();
-            if (!existing.sent_at) deliverables.push({ invitationId: existing.id, token: existing.token, user: invitee });
-          } else if (existing.status === 'canceled') {
-            // Cancelada → re-invitable como fresca (token nuevo + pending).
-            const token = randomBytes(24).toString('hex');
-            await tx.updateTable('invitations').set({
-              status: 'pending', token, sent_at: null, responded_at: null,
-              expires_at: expiresAt, kind: 'protocol', plus_ones: w.plusOnes,
-            }).where('id', '=', existing.id).execute();
-            deliverables.push({ invitationId: existing.id, token, user: invitee });
-            created += 1;
-          } else skipped += 1;
-          continue;
+        if (existing && existing.status === 'pending') {
+          reused += 1;
+          // Acompañantes pueden cambiar en el re-envío del lote (el hold ya se ajustó).
+          await tx.updateTable('invitations').set({ plus_ones: w.plusOnes, kind: 'protocol' })
+            .where('id', '=', existing.id).execute();
+          if (!existing.sent_at) deliverables.push({ invitationId: existing.id, token: existing.token, user: invitee });
+        } else if (existing && existing.status === 'canceled') {
+          // Cancelada → re-invitable como fresca (token nuevo + pending).
+          const token = randomBytes(24).toString('hex');
+          await tx.updateTable('invitations').set({
+            status: 'pending', token, sent_at: null, responded_at: null,
+            expires_at: expiresAt, kind: 'protocol', plus_ones: w.plusOnes,
+          }).where('id', '=', existing.id).execute();
+          deliverables.push({ invitationId: existing.id, token, user: invitee });
+          created += 1;
+        } else {
+          const token = randomBytes(24).toString('hex');
+          const inserted = await tx.insertInto('invitations').values({
+            organization_id: orgId,
+            activity_id: id,
+            user_id: w.userId,
+            token,
+            expires_at: expiresAt,
+            kind: 'protocol',
+            plus_ones: w.plusOnes,
+          }).returning('id').executeTakeFirstOrThrow();
+          deliverables.push({ invitationId: inserted.id, token, user: invitee });
+          created += 1;
         }
-        const token = randomBytes(24).toString('hex');
-        const inserted = await tx.insertInto('invitations').values({
-          organization_id: orgId,
-          activity_id: id,
-          user_id: w.userId,
-          token,
-          expires_at: expiresAt,
-          kind: 'protocol',
-          plus_ones: w.plusOnes,
-        }).returning('id').executeTakeFirstOrThrow();
-        deliverables.push({ invitationId: inserted.id, token, user: invitee });
-        created += 1;
       }
       await tx.insertInto('tenant_audit_log').values({
         organization_id: orgId,
@@ -358,7 +373,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
         target_type: 'activity',
         target_id: id,
         target_label: act.name,
-        metadata: JSON.stringify({ created, reused, skipped }),
+        metadata: JSON.stringify({ created, reused, skipped, noCapacity }),
       }).execute();
     });
 
@@ -370,9 +385,9 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
         .then((d) => req.log.info({ activity: id, ...d }, 'entrega de invitaciones de protocolo terminada'))
         .catch(() => {});
     }
-    req.log.info({ activity: id, created, reused, skipped, dryRun }, 'invitaciones de protocolo creadas');
+    req.log.info({ activity: id, created, reused, skipped, noCapacity, dryRun }, 'invitaciones de protocolo creadas');
     reply.code(201);
-    return { ok: true, summary: { created, reused, skipped, dryRun } };
+    return { ok: true, summary: { created, reused, skipped, noCapacity, dryRun } };
   });
 
   // ── Protocolo DE una actividad (lista de lectura + KPIs) ─────────────────

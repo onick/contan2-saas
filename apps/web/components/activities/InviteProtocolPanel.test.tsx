@@ -23,7 +23,7 @@ describe('InviteProtocolPanel', () => {
   it('lista designados con tratamiento; seleccionar muestra stepper y arma el payload con plusOnes', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(candidates))
-      .mockResolvedValueOnce(json({ ok: true, summary: { created: 1, reused: 0, skipped: 0, dryRun: true } }, 201))
+      .mockResolvedValueOnce(json({ ok: true, summary: { created: 1, reused: 0, skipped: 0, noCapacity: 0, dryRun: true } }, 201))
       .mockResolvedValue(json(candidates));
     vi.stubGlobal('fetch', fetchMock);
     render(<InviteProtocolPanel activityId="a1" activityName="Gala" open onClose={() => {}} onSent={() => {}} />);
@@ -40,7 +40,7 @@ describe('InviteProtocolPanel', () => {
     expect(screen.getByText(/1 invitado · 3 personas con acompañantes/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Enviar 1 invitación/ }));
-    await waitFor(() => expect(screen.getByText(/modo simulación/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/asiento garantizado/)).toBeInTheDocument());
 
     const post = fetchMock.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === 'POST')!;
     expect(JSON.parse((post[1] as RequestInit).body as string)).toEqual({ invites: [{ userId: 'u1', plusOnes: 2 }] });

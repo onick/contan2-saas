@@ -30,6 +30,7 @@ import { deliverInvitations, type DeliverableInvitation } from '../services/invi
 import { parseUsersFile, IMPORT_MAX_BYTES } from '../services/users-import.js';
 import { classifyGuests, commitGuests } from '../services/activity-guests-import.js';
 import { protocolMarksFor } from '../services/protocol-info.js';
+import { releaseHold } from '../services/protocol-holds.js';
 import type { GuestsImportPreviewResponse, GuestsImportCommitResponse } from '@contan2/contracts';
 
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
@@ -380,15 +381,26 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar invitaciones.' }; }
     const { id, invId } = req.params as { id: string; invId: string };
+    const orgId = guard.ctx.org.id;
 
-    const updated = await db.updateTable('invitations')
-      .set({ status: 'canceled', responded_at: sql<string>`now()` as unknown as string })
-      .where('organization_id', '=', guard.ctx.org.id)
+    // Necesitamos kind/user para liberar el asiento garantizado (Modelo A) si es
+    // una invitación de protocolo pendiente.
+    const inv = await db.selectFrom('invitations').select(['kind', 'user_id'])
+      .where('organization_id', '=', orgId)
       .where('activity_id', '=', id).where('id', '=', invId).where('status', '=', 'pending')
       .executeTakeFirst();
-    if (Number(updated.numUpdatedRows ?? 0) === 0) {
+    if (!inv) {
       reply.code(404); return { error: 'Invitación no encontrada o ya no está pendiente.' };
     }
+    await db.transaction().execute(async (tx) => {
+      await tx.updateTable('invitations')
+        .set({ status: 'canceled', responded_at: sql<string>`now()` as unknown as string })
+        .where('organization_id', '=', orgId)
+        .where('activity_id', '=', id).where('id', '=', invId).execute();
+      if (inv.kind === 'protocol') {
+        await releaseHold(tx, orgId, id, inv.user_id);
+      }
+    });
     reply.code(204);
     return null;
   });
