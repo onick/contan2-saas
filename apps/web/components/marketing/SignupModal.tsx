@@ -6,7 +6,10 @@
 
 import { useState, useEffect, useRef, useId, type FormEvent, type ReactNode, type KeyboardEvent as RKE } from 'react';
 import { createPortal } from 'react-dom';
-import { X, UserPlus, Loader2, Mail, RotateCcw, Eye, EyeOff } from 'lucide-react';
+import { Fraunces } from 'next/font/google';
+import { X, Loader2, Mail, RotateCcw, Eye, EyeOff, Check, ArrowRight } from 'lucide-react';
+
+const fraunces = Fraunces({ subsets: ['latin'], weight: ['500', '600'], style: ['normal', 'italic'] });
 
 interface Props {
   open: boolean;
@@ -266,39 +269,91 @@ export function SignupModal({ open, onClose }: Props) {
     }
   }
 
+  const stepNum = step === 'form' ? 1 : 2;
+
+  // Panel de marca (izquierda en desktop) — constante entre pasos, da contexto
+  // y confianza. Editorial: Fraunces + tinta + naranja, como el landing.
+  const brandPanel = (
+    <aside
+      className="relative hidden flex-col justify-between overflow-hidden bg-[#16181d] p-8 text-white md:flex"
+      aria-hidden="true"
+    >
+      <div
+        className="pointer-events-none absolute -right-20 -top-20 h-60 w-60 rounded-full"
+        style={{ background: 'radial-gradient(circle, rgba(230,81,0,0.30), transparent 70%)' }}
+      />
+      <div className="relative">
+        <span className={fraunces.className} style={{ fontWeight: 600, fontSize: 24, letterSpacing: '-0.02em' }}>
+          contan<b style={{ color: ACCENT, fontWeight: 600 }}>2</b>
+        </span>
+      </div>
+      <div className="relative">
+        <p className="text-[11.5px] font-semibold uppercase tracking-[0.14em]" style={{ color: '#f0a56b' }}>
+          Prueba gratuita · 14 días
+        </p>
+        <h3 className={`${fraunces.className} mt-3 text-[25px] font-medium leading-[1.12] tracking-[-0.01em]`}>
+          El sistema operativo de tu <em style={{ color: '#f0a56b' }}>centro cultural</em>.
+        </h3>
+      </div>
+      <ul className="relative space-y-2.5">
+        {['Sin tarjeta de crédito', 'Credencial QR permanente', 'Check-in y reportes con tu marca', 'Listo para usar hoy'].map((t) => (
+          <li key={t} className="flex items-center gap-2.5 text-[13.5px] text-white/85">
+            <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(230,81,0,0.92)' }}>
+              <Check size={11} strokeWidth={3} aria-hidden="true" />
+            </span>
+            {t}
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+
   // ── Render (portal a document.body: así `fixed` se ancla al viewport y no a un
   // ancestro con transform/filter —p.ej. el header sticky con backdrop-blur—, que
   // era lo que dejaba el modal "metido" arriba y tapado por el navegador). ──
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto px-4 py-8 sm:items-center">
-      <div className="fixed inset-0 bg-black/40" aria-hidden="true" onClick={onClose} />
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto px-4 py-8 md:items-center">
+      <div className="fixed inset-0 bg-black/45 backdrop-blur-[2px]" aria-hidden="true" onClick={onClose} />
+      <style>{`@keyframes signupModalIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}.signup-modal-card{animation:signupModalIn 260ms cubic-bezier(.22,1,.36,1)}@media (prefers-reduced-motion:reduce){.signup-modal-card{animation:none}}`}</style>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${fid}-title`}
-        className="relative my-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_24px_60px_-12px_rgba(22,24,29,0.4)]"
+        className="signup-modal-card relative my-auto grid w-full max-w-md grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-[0_30px_70px_-15px_rgba(22,24,29,0.5)] md:max-w-[840px] md:grid-cols-[288px_1fr]"
       >
+        {brandPanel}
+        <div className="relative">
+          {/* Barra de marca compacta (solo móvil) */}
+          <div className="flex items-center justify-between bg-[#16181d] py-3 pl-6 pr-14 text-white md:hidden">
+            <span className={fraunces.className} style={{ fontWeight: 600, fontSize: 19, letterSpacing: '-0.02em' }}>
+              contan<b style={{ color: ACCENT, fontWeight: 600 }}>2</b>
+            </span>
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90">14 días · sin tarjeta</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="absolute right-3 top-3 z-10 rounded-full p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white md:top-4 md:text-[#6b7077] md:hover:bg-[#f3f1ed]"
+          >
+            <X size={18} strokeWidth={2} aria-hidden="true" />
+          </button>
+
+          <div className="p-6 md:p-8">
         {step === 'form' ? (
           <>
             {/* ── PASO 1: Formulario de datos ── */}
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 id={`${fid}-title`} className="text-[18px] font-semibold" style={{ color: INK }}>
-                  Comenzar prueba gratuita
-                </h2>
-                <p className="mt-1 text-[13px]" style={{ color: MUTED }}>
-                  Registra tu organización. Te enviaremos un código al email.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Cerrar"
-                className="-mr-1 -mt-1 rounded-full p-1.5 transition-colors hover:bg-[#f3f1ed]"
-                style={{ color: MUTED }}
-              >
-                <X size={18} strokeWidth={2} aria-hidden="true" />
-              </button>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: ACCENT }}>
+                Paso {stepNum} de 2
+              </p>
+              <h2 id={`${fid}-title`} className={`${fraunces.className} mt-1.5 text-[22px] font-medium tracking-[-0.01em]`} style={{ color: INK }}>
+                Crea tu cuenta
+              </h2>
+              <p className="mt-1.5 text-[13px]" style={{ color: MUTED }}>
+                Registra tu organización. Te enviaremos un código al correo.
+              </p>
             </div>
 
             <form onSubmit={onSubmitForm} className="mt-5 space-y-3.5" noValidate>
@@ -399,7 +454,7 @@ export function SignupModal({ open, onClose }: Props) {
                 ) : (
                   <>
                     Continuar
-                    <UserPlus size={15} strokeWidth={2.25} aria-hidden="true" />
+                    <ArrowRight size={15} strokeWidth={2.25} aria-hidden="true" />
                   </>
                 )}
               </button>
@@ -413,24 +468,16 @@ export function SignupModal({ open, onClose }: Props) {
         ) : (
           <>
             {/* ── PASO 2: Verificación de código ── */}
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 id={`${fid}-title`} className="text-[18px] font-semibold" style={{ color: INK }}>
-                  Verifica tu email
-                </h2>
-                <p className="mt-1 text-[13px] leading-relaxed" style={{ color: MUTED }}>
-                  Enviamos un código de 6 dígitos a <b style={{ color: INK }}>{maskedEmail}</b>
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Cerrar"
-                className="-mr-1 -mt-1 rounded-full p-1.5 transition-colors hover:bg-[#f3f1ed]"
-                style={{ color: MUTED }}
-              >
-                <X size={18} strokeWidth={2} aria-hidden="true" />
-              </button>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: ACCENT }}>
+                Paso {stepNum} de 2
+              </p>
+              <h2 id={`${fid}-title`} className={`${fraunces.className} mt-1.5 text-[22px] font-medium tracking-[-0.01em]`} style={{ color: INK }}>
+                Verifica tu correo
+              </h2>
+              <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: MUTED }}>
+                Enviamos un código de 6 dígitos a <b style={{ color: INK }}>{maskedEmail}</b>
+              </p>
             </div>
 
             <div className="mt-6">
@@ -509,6 +556,8 @@ export function SignupModal({ open, onClose }: Props) {
             </div>
           </>
         )}
+          </div>
+        </div>
       </div>
     </div>,
     document.body,

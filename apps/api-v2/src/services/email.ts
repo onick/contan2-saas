@@ -80,18 +80,63 @@ function credentialHtml(user: EmailUser, branding: OrgBranding | null, credentia
 
 // Envío real vía Resend (lazy). Devuelve { id } o { error }. Exportado para
 // que otros correos (invitación RSVP) reusen el mismo transporte.
+//
+// Robustez: cada intento va acotado por un timeout (Resend/su fetch no lo trae)
+// y los fallos transitorios (timeout, 429, 5xx) se reintentan con backoff. Sin
+// esto, un hipo de red de Resend hacía fallar el signup con un 500 sin
+// segunda oportunidad. Los errores permanentes (validación, from inválido) NO
+// se reintentan: se devuelven de una.
+const SEND_TIMEOUT_MS = 6000;
+const SEND_MAX_ATTEMPTS = 3;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`timeout de envío tras ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
+// Un error de Resend es reintentable salvo que sea claramente permanente
+// (validación del payload, remitente/destinatario inválido, no encontrado).
+function isRetryableError(name: string | undefined): boolean {
+  const permanent = /validation|invalid|missing|not_found|forbidden|unauthorized|restricted/i;
+  return !permanent.test(name ?? '');
+}
+
 export async function resendSend(apiKey: string, msg: SendMessage): Promise<{ id?: string; error?: string }> {
   const resend = new Resend(apiKey);
-  const r = await resend.emails.send({
-    from: msg.from,
-    to: msg.to,
-    ...(msg.replyTo ? { replyTo: msg.replyTo } : {}),
-    subject: msg.subject,
-    html: msg.html,
-    attachments: msg.attachments,
-  });
-  if (r.error) return { error: r.error.message || String(r.error) };
-  return { id: r.data?.id };
+  let lastError = 'no se pudo enviar el correo';
+
+  for (let attempt = 1; attempt <= SEND_MAX_ATTEMPTS; attempt++) {
+    try {
+      const r = await withTimeout(
+        resend.emails.send({
+          from: msg.from,
+          to: msg.to,
+          ...(msg.replyTo ? { replyTo: msg.replyTo } : {}),
+          subject: msg.subject,
+          html: msg.html,
+          attachments: msg.attachments,
+        }),
+        SEND_TIMEOUT_MS,
+      );
+      if (!r.error) return { id: r.data?.id };
+      lastError = r.error.message || String(r.error);
+      // Error permanente (payload inválido): no tiene sentido reintentar.
+      if (!isRetryableError(r.error.name)) return { error: lastError };
+    } catch (e) {
+      // Timeout o error de red: transitorio, se reintenta.
+      lastError = e instanceof Error ? e.message : String(e);
+    }
+    if (attempt < SEND_MAX_ATTEMPTS) await delay(attempt * 400);
+  }
+  return { error: lastError };
 }
 
 export async function sendCredentialEmail(
