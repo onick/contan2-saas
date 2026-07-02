@@ -46,7 +46,14 @@ export async function buildPeriodPdfHtml({ organization, period }) {
   const primary100 = palette['100'] || '#d5d8f6';
   const primary900 = palette['900'] || '#0d144f';
   const accent = organization.secondaryColor || '#ff6f00';
-  const onPrimary = pickOn(primary);
+  // Color ESTRUCTURAL (títulos de sección, encabezados de tabla, barras de tipo).
+  // Para el CCB usamos el AZUL profundo de su identidad (el azul del arco del
+  // logo, #309cd8, en tono oscuro para contraste sobre blanco), que combina con
+  // el header naranja — ambos son de su línea de identidad. Otros tenants usan su
+  // primary derivado. TODO: un campo de branding para un tercer color estructural
+  // evitaría el gate por slug (ver reference_ccb_identity_palette).
+  const structural = organization.slug === 'ccb' ? '#1a6194' : primary;
+  const onPrimary = pickOn(structural);
   const onAccent = pickOn(accent);
   // Header de fondo de color: usa el color de marca CRUDO (naranja limpio) →
   // tono más oscuro del MISMO matiz para dar profundidad, sin virar a marrón
@@ -71,7 +78,7 @@ export async function buildPeriodPdfHtml({ organization, period }) {
   const byTypeRows = period.byType.map(t => `
     <div class="bar-row">
       <span class="bar-label">${esc(t.label)}</span>
-      <span class="bar-track"><span class="bar-fill" style="width:${Math.round((t.attendances / maxType) * 100)}%; background:${primary}"></span></span>
+      <span class="bar-track"><span class="bar-fill" style="width:${Math.round((t.attendances / maxType) * 100)}%; background:${structural}"></span></span>
       <span class="bar-value">${t.attendances}</span>
     </div>`).join('');
 
@@ -111,7 +118,7 @@ export async function buildPeriodPdfHtml({ organization, period }) {
   @page { size: A4; margin: 12mm; }
   * { box-sizing: border-box; }
   :root {
-    --primary: ${primary};
+    --primary: ${structural};
     --primary-light: ${primaryLight};
     --primary-100: ${primary100};
     --primary-900: ${primary900};
