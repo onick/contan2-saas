@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { getDb, sql, type DbClient } from '@contan2/db';
 import { resolveTenantCode } from '@contan2/codes';
+import { releaseHold, companionsFor } from '../services/protocol-holds.js';
 import {
   PublicCheckinRequestSchema,
   RsvpRespondRequestSchema,
@@ -355,7 +356,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     if (!parsed.success) { reply.code(400); return { error: 'action debe ser yes o no.' }; }
 
     const inv = await db.selectFrom('invitations')
-      .select(['id', 'status', 'expires_at', 'user_id', 'activity_id', 'plus_ones'])
+      .select(['id', 'status', 'expires_at', 'user_id', 'activity_id', 'plus_ones', 'kind'])
       .where('organization_id', '=', t.orgId).where('token', '=', token)
       .executeTakeFirst();
     if (!inv) { reply.code(404); return { error: 'Invitación no encontrada.' }; }
@@ -367,16 +368,23 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     }
 
     if (parsed.data.action === 'no') {
-      await db.updateTable('invitations')
-        .set({ status: 'declined', responded_at: sql<string>`now()` as unknown as string })
-        .where('id', '=', inv.id).execute();
+      // Modelo A: declinar una invitación de protocolo LIBERA el asiento
+      // garantizado (hold) para que vuelva al aforo.
+      await db.transaction().execute(async (tx) => {
+        await tx.updateTable('invitations')
+          .set({ status: 'declined', responded_at: sql<string>`now()` as unknown as string })
+          .where('id', '=', inv.id).execute();
+        if (inv.kind === 'protocol') {
+          await releaseHold(tx, t.orgId, inv.activity_id, inv.user_id);
+        }
+      });
       return { ok: true, status: 'declined' };
     }
 
     // yes → reservar cupo atómico + asistencia SIN check-in (paridad v1).
     const result = await db.transaction().execute(async (tx) => {
       const act = await tx.selectFrom('activities')
-        .select(['id', 'name', 'status'])
+        .select(['id', 'name', 'status', 'audience'])
         .where('organization_id', '=', t.orgId).where('id', '=', inv.activity_id)
         .executeTakeFirst();
       if (!act || act.status !== 'activa') return { error: 409 as const, msg: 'La actividad ya no está activa.' };
@@ -408,8 +416,9 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
           activity_id: inv.activity_id,
           activity_name: act.name,
           anonymous: false,
-          companions_children: 0,
-          companions_adults: 0,
+          // Guardar el party real (1+plus_ones repartido por público) hace que
+          // borrar esta asistencia devuelva el cupo correcto (fix del refund).
+          ...companionsFor(act.audience, inv.plus_ones ?? 0),
           checked_in_at: null, // reserva por RSVP; el check-in real es en puerta
         } as never).execute();
       }

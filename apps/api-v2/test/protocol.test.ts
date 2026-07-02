@@ -72,7 +72,7 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     act = randomUUID();
     await db.insertInto('activities').values({
       id: act, organization_id: orgId, name: 'Gala', type: 'otro', location: 'S',
-      date: future(3), capacity: 4, enrolled_count: 0, status: 'activa',
+      date: future(3), capacity: 50, enrolled_count: 0, status: 'activa',
       description: '', image_url: null, category: null,
     } as never).execute();
     app = buildApp();
@@ -127,35 +127,34 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     expect(body.excluded.noEmail).toBe(1);
   });
 
-  it('invitar lote con plus_ones → kind protocol; RSVP sí reserva 1+N; cupo insuficiente → 409', async () => {
+  it('invitar lote con plus_ones → kind protocol; Modelo A: INVITAR reserva 1+N; el RSVP sí no re-reserva', async () => {
     const r = await call('POST', `/api/v2/activities/${act}/protocol-invitations`,
       { invites: [{ userId: uEmb, plusOnes: 2 }, { userId: uDip, plusOnes: 2 }] }, TOK.admin);
     expect(r.statusCode).toBe(201);
-    expect(r.json().summary).toMatchObject({ created: 2, reused: 0, skipped: 0, dryRun: true });
+    expect(r.json().summary).toMatchObject({ created: 2, reused: 0, skipped: 0, noCapacity: 0, dryRun: true });
 
     const list = ActivityInvitationsResponseSchema.parse((await call('GET', `/api/v2/activities/${act}/invitations`, undefined, TOK.admin)).json());
     expect(list.invitations.every((i) => i.kind === 'protocol' && i.plusOnes === 2)).toBe(true);
 
+    // Modelo A: el asiento se reserva AL INVITAR (2 VIPs × (1+2) = 6), no al RSVP.
+    const a0 = await db.selectFrom('activities').select('enrolled_count').where('id', '=', act).executeTakeFirstOrThrow();
+    expect(a0.enrolled_count).toBe(6);
+
     const tokens = await db.selectFrom('invitations').select(['token', 'user_id'])
       .where('activity_id', '=', act).execute();
     const tEmb = tokens.find((t) => t.user_id === uEmb)!.token;
-    const tDip = tokens.find((t) => t.user_id === uDip)!.token;
 
     // preview lleva plusOnes
     const prev = RsvpPreviewResponseSchema.parse((await call('GET', `/api/v2/public/rsvp/${tEmb}`)).json());
     expect(prev.invitation.plusOnes).toBe(2);
 
-    // sí del embajador → 1+2 = 3 de 4
+    // sí del embajador → ya tenía el asiento reservado → confirma SIN re-reservar.
     const yes = await call('POST', `/api/v2/public/rsvp/${tEmb}`, { action: 'yes' });
     expect(yes.statusCode).toBe(200);
     const a1 = await db.selectFrom('activities').select('enrolled_count').where('id', '=', act).executeTakeFirstOrThrow();
-    expect(a1.enrolled_count).toBe(3);
-
-    // sí del diplomático necesita 3 y queda 1 → 409, invitación sigue pending
-    const full = await call('POST', `/api/v2/public/rsvp/${tDip}`, { action: 'yes' });
-    expect(full.statusCode).toBe(409);
-    const inv2 = await db.selectFrom('invitations').select('status').where('token', '=', tDip).executeTakeFirstOrThrow();
-    expect(inv2.status).toBe('pending');
+    expect(a1.enrolled_count).toBe(6); // sin doble-conteo
+    const invEmb = await db.selectFrom('invitations').select('status').where('token', '=', tEmb).executeTakeFirstOrThrow();
+    expect(invEmb.status).toBe('confirmed');
   });
 
   it('una invitación CANCELADA se puede re-invitar (token nuevo, pending)', async () => {
@@ -194,7 +193,7 @@ run('Protocolo · designar e invitar con acompañantes', () => {
       .where('activity_id', '=', act).where('user_id', '=', uEmb).executeTakeFirstOrThrow();
     expect(att.checked_in_at).not.toBeNull();
     const enr = await db.selectFrom('activities').select('enrolled_count').where('id', '=', act).executeTakeFirstOrThrow();
-    expect(enr.enrolled_count).toBe(3);
+    expect(enr.enrolled_count).toBe(4); // uEmb(1+2) + uDip re-invitado(1+0), reservados al invitar
     // Re-escanear al ya presente → ahora sí 409 (duplicado real).
     expect((await call('POST', '/api/v2/checkin', { activityId: act, visitor: { code: embCode }, companionsChildren: 0 }, TOK.admin)).statusCode).toBe(409);
 
@@ -283,5 +282,40 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     expect(body.kpis.invited).toBe(body.guests.filter((g) => g.status !== 'canceled').length);
     // totalPartySize = suma de party de confirmados/asistidos (≥ los 3 del embajador).
     expect(body.kpis.totalPartySize).toBeGreaterThanOrEqual(3);
+  });
+
+  it('Modelo A aislado: invitar RESERVA y llena; sin cupo → no invita; declinar libera', async () => {
+    const a2 = randomUUID();
+    await db.insertInto('activities').values({
+      id: a2, organization_id: orgId, name: 'Sala chica', type: 'otro', location: 'S',
+      date: future(3), capacity: 3, enrolled_count: 0, status: 'activa',
+      description: '', image_url: null, category: null,
+    } as never).execute();
+    const enr = async () => (await db.selectFrom('activities').select('enrolled_count').where('id', '=', a2).executeTakeFirstOrThrow()).enrolled_count;
+
+    // invitar uEmb +2 → reserva 1+2 = 3 → llena la sala AL INVITAR.
+    const r1 = await call('POST', `/api/v2/activities/${a2}/protocol-invitations`, { invites: [{ userId: uEmb, plusOnes: 2 }] }, TOK.admin);
+    expect(r1.json().summary).toMatchObject({ created: 1, noCapacity: 0 });
+    expect(await enr()).toBe(3);
+
+    // invitar uDip +0 → no queda cupo → noCapacity, no se crea invitación.
+    const r2 = await call('POST', `/api/v2/activities/${a2}/protocol-invitations`, { invites: [{ userId: uDip, plusOnes: 0 }] }, TOK.admin);
+    expect(r2.json().summary).toMatchObject({ created: 0, noCapacity: 1 });
+    expect(await db.selectFrom('invitations').select('id').where('activity_id', '=', a2).where('user_id', '=', uDip).executeTakeFirst()).toBeUndefined();
+    expect(await enr()).toBe(3);
+
+    // uEmb declina → libera los 3.
+    const tok = (await db.selectFrom('invitations').select('token').where('activity_id', '=', a2).where('user_id', '=', uEmb).executeTakeFirstOrThrow()).token;
+    expect((await call('POST', `/api/v2/public/rsvp/${tok}`, { action: 'no' })).statusCode).toBe(200);
+    expect(await enr()).toBe(0);
+
+    // ahora uDip sí entra (asiento liberado).
+    const r3 = await call('POST', `/api/v2/activities/${a2}/protocol-invitations`, { invites: [{ userId: uDip, plusOnes: 0 }] }, TOK.admin);
+    expect(r3.json().summary).toMatchObject({ created: 1, noCapacity: 0 });
+    expect(await enr()).toBe(1);
+
+    await db.deleteFrom('invitations').where('activity_id', '=', a2).execute();
+    await db.deleteFrom('attendance').where('activity_id', '=', a2).execute();
+    await db.deleteFrom('activities').where('id', '=', a2).execute();
   });
 });
