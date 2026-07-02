@@ -13,6 +13,7 @@
 
 import { generatePalette, pickOn } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
+import { REVERSE_LOGOS } from './reverse-logos.js';
 
 
 const esc = s => String(s ?? '')
@@ -48,7 +49,13 @@ export async function buildPeriodPdfHtml({ organization, period }) {
   const accent = organization.secondaryColor || '#ff6f00';
   const onPrimary = pickOn(primary);
   const onAccent = pickOn(accent);
-  const logo = await loadLogoDataUri(organization.logoUrl);
+  // Header de fondo de color: usa el color de marca CRUDO (naranja limpio) →
+  // tono más oscuro del MISMO matiz para dar profundidad, sin virar a marrón
+  // (el palette 700→900 muddyaba). Logo BLANCO (reverse) para que se lea sobre
+  // el color; si el tenant no tiene reverse, va solo el texto.
+  const headerA = organization.primaryColor || primary;
+  const headerB = palette['800'] || palette['900'] || organization.primaryColor || primary900;
+  const logo = REVERSE_LOGOS[organization.slug] || null;
 
   const maxAtt = Math.max(1, ...period.byMonth.map(m => m.attendances));
   const maxType = Math.max(1, ...period.byType.map(t => t.attendances));
@@ -109,6 +116,8 @@ export async function buildPeriodPdfHtml({ organization, period }) {
     --primary-100: ${primary100};
     --primary-900: ${primary900};
     --accent: ${accent};
+    --header-a: ${headerA};
+    --header-b: ${headerB};
     --on-primary: ${onPrimary};
     --on-accent: ${onAccent};
     --text: #1f2937;
@@ -121,51 +130,51 @@ export async function buildPeriodPdfHtml({ organization, period }) {
   h1, h2, h3 { margin: 0; font-weight: 700; color: var(--text); }
   .muted { color: var(--text-muted); font-size: 9px; margin-top: 2px; }
 
-  /* Cover */
+  /* Cover · banda de marca limpia (naranja), sin virar a marrón. */
   .cover {
     position: relative;
-    padding: 32px;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-900) 100%);
-    color: var(--on-primary);
-    border-radius: 14px;
+    padding: 30px 34px;
+    background: linear-gradient(115deg, var(--header-a) 0%, var(--header-a) 42%, var(--header-b) 100%);
+    color: #ffffff;
+    border-radius: 16px;
     overflow: hidden;
   }
+  /* Brillo sutil en una esquina para profundidad (mismo matiz, más claro). */
   .cover::after {
     content: '';
-    position: absolute; right: -80px; top: -80px;
-    width: 320px; height: 320px;
-    background: var(--accent); opacity: 0.18;
+    position: absolute; right: -120px; top: -140px;
+    width: 360px; height: 360px;
+    background: radial-gradient(circle, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 70%);
     border-radius: 50%;
   }
-  .cover-head { display: flex; align-items: center; gap: 18px; position: relative; z-index: 1; }
-  .cover-logo {
-    width: 72px; height: 72px;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }
-  .cover-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
-  .cover-org { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; opacity: 0.85; }
-  .cover-title { font-size: 26px; font-weight: 800; line-height: 1.15; margin-top: 4px; }
-  .cover-subtitle { margin-top: 18px; font-size: 12px; opacity: 0.9; position: relative; z-index: 1; }
-  .cover-range { margin-top: 6px; font-size: 14px; font-weight: 700; position: relative; z-index: 1; }
+  .cover-head { display: flex; align-items: center; gap: 20px; position: relative; z-index: 1; }
+  .cover-logo { height: 56px; display: flex; align-items: center; flex-shrink: 0; }
+  .cover-logo img { height: 56px; width: auto; object-fit: contain; }
+  .cover-div { width: 1px; height: 46px; background: rgba(255,255,255,0.28); flex-shrink: 0; }
+  .cover-org { font-size: 10.5px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: rgba(255,255,255,0.92); }
+  .cover-title { font-size: 27px; font-weight: 800; line-height: 1.12; margin-top: 3px; letter-spacing: -0.3px; color: #ffffff; }
+  .cover-meta { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 20px; position: relative; z-index: 1; gap: 16px; }
+  .cover-range { font-size: 15px; font-weight: 800; color: #ffffff; }
+  .cover-subtitle { font-size: 10.5px; color: rgba(255,255,255,0.82); }
+  .cover-pill { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #ffffff; background: rgba(255,255,255,0.16); padding: 5px 12px; border-radius: 999px; }
 
-  /* KPIs */
+  /* KPIs · tarjetas limpias (sin franja lateral), número de marca. */
   .kpis {
-    margin-top: 18px;
+    margin-top: 16px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    gap: 11px;
   }
   .kpi {
-    background: var(--primary-light);
-    border-radius: 10px;
-    padding: 14px 16px;
-    border-left: 4px solid var(--primary);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 15px 16px 14px;
   }
-  .kpi.accent { border-left-color: var(--accent); }
-  .kpi-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; }
-  .kpi-value { font-size: 26px; font-weight: 800; color: var(--primary); line-height: 1; margin-top: 4px; }
+  .kpi-label { font-size: 9.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+  .kpi-value { font-size: 27px; font-weight: 800; color: var(--text); line-height: 1; margin-top: 6px; letter-spacing: -0.5px; }
   .kpi.accent .kpi-value { color: var(--accent); }
-  .kpi-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .kpi-sub { font-size: 9.5px; color: var(--text-muted); margin-top: 3px; }
 
   /* Sections */
   .section { margin-top: 22px; }
@@ -184,8 +193,8 @@ export async function buildPeriodPdfHtml({ organization, period }) {
     display: grid; grid-template-columns: 110px 1fr 44px; gap: 10px;
     align-items: center; margin-bottom: 6px; font-size: 10px;
   }
-  .bar-track { height: 12px; background: #fff; border-radius: 6px; border: 1px solid var(--border); overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: 6px; }
+  .bar-track { height: 12px; background: var(--surface-alt); border-radius: 6px; border: 1px solid var(--border); overflow: hidden; }
+  .bar-fill { display: block; height: 100%; border-radius: 6px; min-width: 2px; }
   .bar-label { font-weight: 600; }
   .bar-value { text-align: right; font-weight: 700; }
 
@@ -224,14 +233,19 @@ export async function buildPeriodPdfHtml({ organization, period }) {
 
 <section class="cover">
   <div class="cover-head">
-    ${logo ? `<div class="cover-logo"><img src="${logo}" alt="" /></div>` : ''}
+    ${logo ? `<div class="cover-logo"><img src="${logo}" alt="" /></div><div class="cover-div"></div>` : ''}
     <div>
       <div class="cover-org">${esc(organization.name)}</div>
       <div class="cover-title">Informe de Período</div>
     </div>
   </div>
-  <div class="cover-range">${esc(rangeLabel(period.range.from, period.range.to))}</div>
-  <div class="cover-subtitle">Generado el ${esc(fmtDateTime(new Date()))}</div>
+  <div class="cover-meta">
+    <div>
+      <div class="cover-range">${esc(rangeLabel(period.range.from, period.range.to))}</div>
+      <div class="cover-subtitle">Generado el ${esc(fmtDateTime(new Date()))}</div>
+    </div>
+    <div class="cover-pill">Reporte oficial</div>
+  </div>
 </section>
 
 <section class="kpis">
