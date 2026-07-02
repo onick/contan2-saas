@@ -30,12 +30,12 @@ const VALID_TYPES = new Set(['exposicion', 'concierto', 'cine', 'taller', 'teatr
 const ACT_FILE_RE = /^([0-9a-f-]{36})\.(xlsx|pdf)$/i;
 
 // Branding del tenant para las plantillas (shape camelCase de v1).
-interface ReportOrg { name: string; slug: string; primaryColor: string | null; secondaryColor: string | null; logoUrl: string | null }
+interface ReportOrg { name: string; slug: string; primaryColor: string | null; secondaryColor: string | null; logoUrl: string | null; credentialLogoUrl: string | null }
 async function loadReportOrg(db: ReturnType<typeof getDb>, orgId: string): Promise<ReportOrg> {
   const o = await db.selectFrom('organizations')
-    .select(['name', 'slug', 'primary_color', 'secondary_color', 'logo_url'])
+    .select(['name', 'slug', 'primary_color', 'secondary_color', 'logo_url', 'credential_logo_url'])
     .where('id', '=', orgId).executeTakeFirstOrThrow();
-  return { name: o.name, slug: o.slug, primaryColor: o.primary_color, secondaryColor: o.secondary_color, logoUrl: o.logo_url };
+  return { name: o.name, slug: o.slug, primaryColor: o.primary_color, secondaryColor: o.secondary_color, logoUrl: o.logo_url, credentialLogoUrl: o.credential_logo_url };
 }
 
 // Query de período (paridad v1 parsePeriodQuery): from/to YYYY-MM-DD (to se

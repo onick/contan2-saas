@@ -13,7 +13,6 @@
 
 import { generatePalette, pickOn } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
-import { REVERSE_LOGOS } from './reverse-logos.js';
 
 
 const esc = s => String(s ?? '')
@@ -51,11 +50,12 @@ export async function buildPeriodPdfHtml({ organization, period }) {
   const onAccent = pickOn(accent);
   // Header de fondo de color: usa el color de marca CRUDO (naranja limpio) →
   // tono más oscuro del MISMO matiz para dar profundidad, sin virar a marrón
-  // (el palette 700→900 muddyaba). Logo BLANCO (reverse) para que se lea sobre
-  // el color; si el tenant no tiene reverse, va solo el texto.
+  // (el palette 700→900 muddyaba). El logo del tenant (el de kiosko/credencial,
+  // pensado para fondo claro; fallback al horizontal) va dentro de un CHIP
+  // BLANCO para que se lea sobre el color, sin necesitar una versión reverse.
   const headerA = organization.primaryColor || primary;
   const headerB = palette['800'] || palette['900'] || organization.primaryColor || primary900;
-  const logo = REVERSE_LOGOS[organization.slug] || null;
+  const logo = await loadLogoDataUri(organization.credentialLogoUrl || organization.logoUrl);
 
   const maxAtt = Math.max(1, ...period.byMonth.map(m => m.attendances));
   const maxType = Math.max(1, ...period.byType.map(t => t.attendances));
@@ -147,10 +147,10 @@ export async function buildPeriodPdfHtml({ organization, period }) {
     background: radial-gradient(circle, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 70%);
     border-radius: 50%;
   }
-  .cover-head { display: flex; align-items: center; gap: 20px; position: relative; z-index: 1; }
-  .cover-logo { height: 56px; display: flex; align-items: center; flex-shrink: 0; }
-  .cover-logo img { height: 56px; width: auto; object-fit: contain; }
-  .cover-div { width: 1px; height: 46px; background: rgba(255,255,255,0.28); flex-shrink: 0; }
+  .cover-head { display: flex; align-items: center; gap: 18px; position: relative; z-index: 1; }
+  /* Logo del tenant dentro de un chip BLANCO (lee sobre el header de color). */
+  .cover-logo { background: #ffffff; border-radius: 13px; padding: 9px 14px; display: flex; align-items: center; flex-shrink: 0; box-shadow: 0 3px 10px rgba(0,0,0,0.14); }
+  .cover-logo img { height: 46px; width: auto; max-width: 150px; object-fit: contain; display: block; }
   .cover-org { font-size: 10.5px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: rgba(255,255,255,0.92); }
   .cover-title { font-size: 27px; font-weight: 800; line-height: 1.12; margin-top: 3px; letter-spacing: -0.3px; color: #ffffff; }
   .cover-meta { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 20px; position: relative; z-index: 1; gap: 16px; }
@@ -233,7 +233,7 @@ export async function buildPeriodPdfHtml({ organization, period }) {
 
 <section class="cover">
   <div class="cover-head">
-    ${logo ? `<div class="cover-logo"><img src="${logo}" alt="" /></div><div class="cover-div"></div>` : ''}
+    ${logo ? `<div class="cover-logo"><img src="${logo}" alt="" /></div>` : ''}
     <div>
       <div class="cover-org">${esc(organization.name)}</div>
       <div class="cover-title">Informe de Período</div>
