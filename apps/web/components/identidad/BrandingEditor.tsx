@@ -23,6 +23,7 @@ export interface BrandingInitial {
   name: string;
   logoUrl: string | null;
   credentialLogoUrl: string | null;
+  logoScale: number;
   primaryColor: string;
   secondaryColor: string;
   sidebarTheme: SidebarTheme;
@@ -66,7 +67,7 @@ export function BrandingEditor({ initial, canEdit }: Props) {
     setPhase('idle');
     if (r.ok) {
       const o = r.data.organization;
-      const next: BrandingInitial = { name: o.name, logoUrl: o.logoUrl, credentialLogoUrl: o.credentialLogoUrl, primaryColor: o.primaryColor, secondaryColor: o.secondaryColor, sidebarTheme: o.sidebarTheme as SidebarTheme };
+      const next: BrandingInitial = { name: o.name, logoUrl: o.logoUrl, credentialLogoUrl: o.credentialLogoUrl, logoScale: o.logoScale, primaryColor: o.primaryColor, secondaryColor: o.secondaryColor, sidebarTheme: o.sidebarTheme as SidebarTheme };
       setSaved(next); setForm(next);
       setMsg({ kind: 'ok', text: 'Identidad guardada.' });
       // Re-ejecuta el layout (server) → re-inyecta los CSS vars de marca en TODO
@@ -104,6 +105,8 @@ export function BrandingEditor({ initial, canEdit }: Props) {
               previewLabel="Menú · encabezado"
               value={form.logoUrl}
               onChange={(url) => set('logoUrl', url)}
+              scale={form.logoScale}
+              onScaleChange={(pct) => set('logoScale', pct)}
               disabled={!canEdit}
             />
 

@@ -15,6 +15,7 @@ export const DEFAULT_BRANDING: BrandingOrg = {
   logoUrl: null,
   emailLogoUrl: null,
   credentialLogoUrl: null,
+  logoScale: 100,
   primaryColor: '#e65100',
   secondaryColor: '#ff6f00',
   sidebarTheme: 'brand',

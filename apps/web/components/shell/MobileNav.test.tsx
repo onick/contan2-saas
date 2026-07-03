@@ -8,7 +8,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const BR: BrandingOrg = {
   id: 'o', slug: 'acme', name: 'Acme Centro', logoUrl: null, emailLogoUrl: null, credentialLogoUrl: null,
-  primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand', status: 'active',
+  logoScale: 100, primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand', status: 'active',
   plan: 'free', trialEndsAt: null,
 };
 const setup = () => render(

@@ -41,8 +41,9 @@ export function MobileNav({ branding, activeKey }: { branding: BrandingOrg; acti
         {/* Marca + cerrar */}
         <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
           {branding.logoUrl ? (
+            // Altura base 36px escalada por logoScale% (mismo criterio que el sidebar).
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={branding.logoUrl} alt={branding.name} className="h-9 w-auto" />
+            <img src={branding.logoUrl} alt={branding.name} className="w-auto" style={{ height: `${(36 * (branding.logoScale ?? 100)) / 100}px` }} />
           ) : hasBrandLockup(branding.slug) ? (
             <BrandLockup slug={branding.slug} name={branding.name} className="w-[150px] max-w-full" />
           ) : (

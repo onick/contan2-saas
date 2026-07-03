@@ -62,6 +62,8 @@ export interface OrganizationsTable {
   email_logo_url: string | null;
   // Logo propio de la credencial / tarjeta de miembro (si null, cae a logo_url).
   credential_logo_url: string | null;
+  // Tamaño del logo horizontal en % (100 = base). Ajustable por el tenant.
+  logo_scale: DefaultedInt;
   custom_domain_verify_token: string | null;
   created_at: CreatedAt;
   updated_at: UpdatedAt;

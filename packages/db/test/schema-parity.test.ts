@@ -23,7 +23,7 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'logo_url', 'primary_color', 'secondary_color', 'code_prefix',
     'email_from_name', 'email_from_addr', 'email_reply_to', 'staff_pin_hash',
     'custom_domain', 'custom_domain_verified_at', 'status', 'trial_ends_at',
-    'plan', 'sidebar_style', 'email_logo_url', 'credential_logo_url', 'custom_domain_verify_token',
+    'plan', 'sidebar_style', 'email_logo_url', 'credential_logo_url', 'logo_scale', 'custom_domain_verify_token',
     'created_at', 'updated_at', 'deleted_at',
   ],
   staff_members: [

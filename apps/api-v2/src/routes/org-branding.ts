@@ -35,6 +35,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
         logoUrl: org.logoUrl,
         emailLogoUrl: org.emailLogoUrl,
         credentialLogoUrl: org.credentialLogoUrl,
+        logoScale: org.logoScale,
         primaryColor: org.primaryColor,
         secondaryColor: org.secondaryColor,
         sidebarTheme: org.sidebarStyle,
@@ -72,6 +73,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
     if (p.sidebarTheme !== undefined) set.sidebar_style = p.sidebarTheme;
     if (p.logoUrl !== undefined) set.logo_url = p.logoUrl;
     if (p.credentialLogoUrl !== undefined) set.credential_logo_url = p.credentialLogoUrl;
+    if (p.logoScale !== undefined) set.logo_scale = p.logoScale;
 
     const updated = await db.transaction().execute(async (tx) => {
       await tx.updateTable('organizations').set(set).where('id', '=', org.id).execute();
@@ -90,7 +92,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
       }).execute();
       return tx
         .selectFrom('organizations')
-        .select(['id', 'slug', 'name', 'logo_url', 'email_logo_url', 'credential_logo_url', 'primary_color', 'secondary_color', 'sidebar_style', 'status', 'plan', 'trial_ends_at'])
+        .select(['id', 'slug', 'name', 'logo_url', 'email_logo_url', 'credential_logo_url', 'logo_scale', 'primary_color', 'secondary_color', 'sidebar_style', 'status', 'plan', 'trial_ends_at'])
         .where('id', '=', org.id)
         .executeTakeFirstOrThrow();
     });
@@ -115,6 +117,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
         logoUrl: updated.logo_url,
         emailLogoUrl: updated.email_logo_url,
         credentialLogoUrl: updated.credential_logo_url,
+        logoScale: updated.logo_scale,
         primaryColor: updated.primary_color,
         secondaryColor: updated.secondary_color,
         sidebarTheme: updated.sidebar_style,

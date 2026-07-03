@@ -28,9 +28,16 @@ export interface LogoUploadFieldProps {
   previewLabel: string;
   /** Fondo del preview (hex), para verlo sobre su superficie real. Default claro. */
   previewBg?: string;
+  /** Tamaño del logo en % (100 = base). Si se pasa, muestra el slider de tamaño
+   *  y el preview se escala igual que en el sidebar. Solo para el logo horizontal. */
+  scale?: number;
+  onScaleChange?: (pct: number) => void;
 }
 
-export function LogoUploadField({ value, onChange, disabled, label, hint, previewLabel, previewBg = '#f1f1ef' }: LogoUploadFieldProps) {
+const SCALE_MIN = 50;
+const SCALE_MAX = 200;
+
+export function LogoUploadField({ value, onChange, disabled, label, hint, previewLabel, previewBg = '#f1f1ef', scale, onScaleChange }: LogoUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +106,14 @@ export function LogoUploadField({ value, onChange, disabled, label, hint, previe
           <div className="flex h-[120px] items-center justify-center px-3" style={{ backgroundColor: bg }}>
             {value ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={value} alt="" className="max-h-[72px] max-w-[170px] object-contain" />
+              <img
+                src={value}
+                alt=""
+                className="w-auto max-w-[180px] object-contain"
+                // Con slider: altura real del sidebar (36px base × scale%) → preview fiel.
+                // Sin slider (logo vertical): tope de 72px como antes.
+                style={scale !== undefined ? { height: `${Math.min(96, (36 * scale) / 100)}px` } : { maxHeight: '72px' }}
+              />
             ) : (
               <ImageOff size={22} aria-hidden="true" style={{ color: fg, opacity: 0.5 }} />
             )}
@@ -119,6 +133,31 @@ export function LogoUploadField({ value, onChange, disabled, label, hint, previe
       </div>
 
       {error ? <p className="mt-2 text-[12px] font-medium text-danger-fg">{error}</p> : null}
+
+      {/* Tamaño del logo (solo horizontal, con logo cargado) */}
+      {scale !== undefined && onScaleChange && value ? (
+        <div className="mt-3 rounded-xl border border-line bg-surface-container/40 px-3.5 py-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[12.5px] font-semibold text-ink">Tamaño del logo</span>
+            <span className="rounded-md bg-surface px-1.5 py-0.5 font-mono text-[11.5px] font-semibold text-muted tabular-nums">{scale}%</span>
+          </div>
+          <div className="mt-2 flex items-center gap-2.5">
+            <span className="text-[10.5px] font-medium uppercase tracking-wide text-faint">Chico</span>
+            <input
+              type="range"
+              min={SCALE_MIN}
+              max={SCALE_MAX}
+              step={5}
+              value={scale}
+              disabled={disabled}
+              aria-label="Tamaño del logo"
+              onChange={(e) => onScaleChange(Number(e.target.value))}
+              className={cn('h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-line accent-brand-accent disabled:cursor-not-allowed', focusRing)}
+            />
+            <span className="text-[10.5px] font-medium uppercase tracking-wide text-faint">Grande</span>
+          </div>
+        </div>
+      ) : null}
 
       {/* Opción avanzada: URL */}
       <div className="mt-2.5">

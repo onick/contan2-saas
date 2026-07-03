@@ -58,8 +58,9 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
       ) : (
         <div className="flex items-center gap-3 px-6 py-4 group-data-[sidebar=collapsed]/shell:flex-col group-data-[sidebar=collapsed]/shell:gap-2 group-data-[sidebar=collapsed]/shell:px-0">
           {branding.logoUrl ? (
+            // Altura base 36px (h-9) escalada por logoScale% (ajustable por el tenant).
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={branding.logoUrl} alt={branding.name} className={`h-9 w-auto ${HIDE}`} />
+            <img src={branding.logoUrl} alt={branding.name} className={`w-auto ${HIDE}`} style={{ height: `${(36 * (branding.logoScale ?? 100)) / 100}px` }} />
           ) : null}
           {/* Chip de marca (icono del tenant en blanco; si hay logo, sólo en colapsado). */}
           <span className={branding.logoUrl ? 'hidden group-data-[sidebar=collapsed]/shell:block' : 'block'}>

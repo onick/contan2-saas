@@ -14,6 +14,8 @@ export interface TenantOrg {
   emailLogoUrl: string | null;
   // Logo propio de la credencial / tarjeta de miembro (si null, cae a logoUrl).
   credentialLogoUrl: string | null;
+  // Tamaño del logo horizontal en % (100 = base).
+  logoScale: number;
   primaryColor: string;
   secondaryColor: string;
   sidebarStyle: SidebarStyle;
@@ -37,6 +39,7 @@ const SELECT_COLUMNS = [
   'primary_color',
   'secondary_color',
   'sidebar_style',
+  'logo_scale',
   'status',
   'custom_domain',
   'custom_domain_verified_at',
@@ -55,6 +58,7 @@ interface OrgRow {
   primary_color: string;
   secondary_color: string;
   sidebar_style: SidebarStyle;
+  logo_scale: number;
   status: OrgStatus;
   custom_domain: string | null;
   custom_domain_verified_at: Date | null;
@@ -80,6 +84,7 @@ function toTenantOrg(r: OrgRow): TenantOrg {
     logoUrl: r.logo_url,
     emailLogoUrl: r.email_logo_url,
     credentialLogoUrl: r.credential_logo_url,
+    logoScale: r.logo_scale,
     primaryColor: r.primary_color,
     secondaryColor: r.secondary_color,
     sidebarStyle: r.sidebar_style,
