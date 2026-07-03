@@ -6,7 +6,9 @@ import { AppShell } from '../../../../components/shell/AppShell';
 import { SectionHeader, Card, EmptyState, Chip, cn, focusRing } from '../../../../components/ui';
 import { Unavailable } from '../../../../components/shell/Unavailable';
 import { getTenantBranding } from '../../../../lib/branding/tenant';
+import { getAdminGate } from '../../../../lib/auth/session';
 import { getSegmentMembers } from '../../../../lib/api/segments';
+import { SegmentExportButton } from '../../../../components/segmentos/SegmentExportButton';
 
 // Miembros de un segmento (paridad v1 segments/:id): tabla con código, nombre,
 // contacto, asistencias totales, última visita y status de afinidad. Cada fila
@@ -31,9 +33,12 @@ const DATE_FMT = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short',
 export default async function SegmentMembersPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const branding = await getTenantBranding();
+  const gate = await getAdminGate();
   const result = await getSegmentMembers(id);
 
   if (!result.ok && result.reason === 'not-found') notFound();
+
+  const canExport = gate.status === 'ok' && (gate.staff.role === 'owner' || gate.staff.role === 'admin');
 
   return (
     <AppShell branding={branding} title="Segmentos" activeKey="segmentos">
@@ -46,12 +51,15 @@ export default async function SegmentMembersPage({ params }: { params: Promise<{
               <a href="/app/segmentos" className={cn('inline-flex items-center gap-1.5 rounded text-[13px] font-semibold text-muted hover:text-ink', focusRing)}>
                 <ArrowLeft size={15} strokeWidth={2} aria-hidden="true" /> Todos los segmentos
               </a>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
                 <SectionHeader
                   level={1}
                   title={result.data.segment.label}
                   subtitle={`${result.data.total.toLocaleString('en-US')} miembro${result.data.total === 1 ? '' : 's'} · ${result.data.segment.description.toLowerCase()}`}
                 />
+                {canExport && result.data.total > 0 ? (
+                  <SegmentExportButton segmentId={id} total={result.data.total} />
+                ) : null}
               </div>
             </div>
 

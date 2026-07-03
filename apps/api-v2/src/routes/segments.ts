@@ -26,7 +26,11 @@ import {
   type SegmentsResponse,
   type SegmentMembersResponse,
 } from '@contan2/contracts';
-import { requireTenantStaff } from '../guard.js';
+import { requireTenantStaff, requireRole } from '../guard.js';
+import { buildSegmentExcel, buildSegmentCsv, segmentExportFilename } from '../services/reports/segment-export.js';
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const SEGMENT_EXPORT_ROLES = new Set(['owner', 'admin']);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ACTIVE_DAYS = 30;
@@ -358,5 +362,75 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
       total: ids.length,
     };
     return body;
+  });
+
+  // GET /api/v2/segments/:id/export?format=xlsx|csv · descarga los miembros del
+  // segmento (Excel branded o CSV). owner/admin (extracción masiva de contactos).
+  // A diferencia de la vista (tope 500), el export incluye TODOS los miembros.
+  app.get('/segments/:id/export', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = requireRole(await requireTenantStaff(db, req), SEGMENT_EXPORT_ROLES, 'No tenés permiso para exportar segmentos.');
+    if (!guard.ok) {
+      reply.code(guard.status);
+      return { error: guard.error };
+    }
+    const org = guard.ctx.org;
+    const segId = (req.params as { id: string }).id;
+    const format = String((req.query as { format?: string }).format ?? 'xlsx').toLowerCase();
+    if (format !== 'xlsx' && format !== 'csv') {
+      reply.code(400);
+      return { error: 'Formato inválido: xlsx o csv.' };
+    }
+    const now = Date.now();
+
+    const affs = await affinityBase(db, org.id);
+    const affByUser = new Map(affs.map((a) => [a.user_id, a]));
+    const resolved = await resolveSegmentMembers(db, org.id, segId, affs, now);
+    if (!resolved) {
+      reply.code(404);
+      return { error: 'Segmento no encontrado.' };
+    }
+    const { def, ids } = resolved;
+
+    let members: SegmentMember[] = [];
+    if (ids.length > 0) {
+      const users = await db.selectFrom('users')
+        .select(['id', 'code', 'first_name', 'last_name', 'email', 'phone', 'visit_count'])
+        .where('organization_id', '=', org.id)
+        .where('deleted_at', 'is', null)
+        .where('id', 'in', ids)
+        .execute();
+      members = users.map((u) => {
+        const aff = affByUser.get(u.id);
+        const n = aff ? Number(aff.n) : 0;
+        const lastAt = aff?.last_at ?? null;
+        return {
+          id: u.id, code: u.code, firstName: u.first_name, lastName: u.last_name,
+          email: u.email, phone: u.phone, visitCount: u.visit_count,
+          totalAttendances: n,
+          lastAttendanceAt: lastAt ? new Date(lastAt).toISOString() : null,
+          daysSinceLastVisit: lastAt ? Math.floor((now - new Date(lastAt).getTime()) / DAY_MS) : null,
+          status: memberStatus(n, lastAt, now),
+        };
+      });
+      members.sort((a, b) => b.totalAttendances - a.totalAttendances);
+    }
+
+    const generatedAt = new Date().toISOString().slice(0, 10);
+    const filename = segmentExportFilename(def.label, generatedAt, format as 'xlsx' | 'csv');
+    reply.header('content-disposition', `attachment; filename="${filename}"`);
+    reply.header('cache-control', 'no-store');
+
+    if (format === 'csv') {
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      return reply.send(buildSegmentCsv(members));
+    }
+    const wb = await buildSegmentExcel(
+      { name: org.name, primaryColor: org.primaryColor },
+      { label: def.label, description: def.description, count: ids.length, generatedAt },
+      members,
+    );
+    reply.header('content-type', XLSX_MIME);
+    return reply.send(Buffer.from(await wb.xlsx.writeBuffer()));
   });
 };

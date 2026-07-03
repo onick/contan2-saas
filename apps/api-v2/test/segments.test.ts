@@ -54,14 +54,14 @@ run('GET /segments (+/:id) · afinidad', () => {
   const hostA = `${slugA}.contan2.com`;
   let orgAId: string;
   let orgBId: string;
-  const TOK = { admin: `seg-admin-${stamp}` };
+  const TOK = { admin: `seg-admin-${stamp}`, operator: `seg-oper-${stamp}` };
 
   const mkOrg = async (slug: string) => (await db.insertInto('organizations')
     .values({ slug, name: `Org ${slug}`, status: 'active' }).returning('id').executeTakeFirstOrThrow()).id;
-  const mkStaff = async (orgId: string, token: string) => {
+  const mkStaff = async (orgId: string, token: string, role = 'admin') => {
     const s = await db.insertInto('staff_members').values({
-      organization_id: orgId, email: `seg-${orgId.slice(0, 8)}-${stamp}@test.local`,
-      password_hash: 'x', full_name: 'Staff', status: 'active', role: 'admin',
+      organization_id: orgId, email: `seg-${role}-${orgId.slice(0, 8)}-${stamp}@test.local`,
+      password_hash: 'x', full_name: 'Staff', status: 'active', role,
     }).returning('id').executeTakeFirstOrThrow();
     await db.insertInto('staff_auth_sessions').values({
       staff_member_id: s.id, token_hash: hashToken(token),
@@ -107,6 +107,7 @@ run('GET /segments (+/:id) · afinidad', () => {
     orgAId = await mkOrg(slugA);
     orgBId = await mkOrg(`seg-b-${stamp}`);
     await mkStaff(orgAId, TOK.admin);
+    await mkStaff(orgAId, TOK.operator, 'operator');
 
     uVip = await mkUser(orgAId, { email: `vip-${stamp}@test.local` });
     for (let i = 0; i < 10; i++) {
@@ -194,5 +195,30 @@ run('GET /segments (+/:id) · afinidad', () => {
 
     expect((await get('/api/v2/segments/no-existe')).statusCode).toBe(404);
     expect((await app.inject({ method: 'GET', url: '/api/v2/segments', headers: { host: hostA } })).statusCode).toBe(401);
+  });
+
+  it('export xlsx/csv (owner/admin) · default xlsx · 400 formato · 404 inexistente · 403 operator', async () => {
+    // XLSX: magic bytes de ZIP (PK) + content-type + descarga adjunta.
+    const xlsx = await get('/api/v2/segments/fans-cine/export?format=xlsx');
+    expect(xlsx.statusCode).toBe(200);
+    expect(String(xlsx.headers['content-type'])).toContain('spreadsheetml');
+    expect(String(xlsx.headers['content-disposition'])).toContain('attachment');
+    expect(xlsx.rawPayload.subarray(0, 2).toString('latin1')).toBe('PK');
+
+    // CSV: encabezado + el VIP con su email (todos los miembros, sin tope).
+    const csv = await get('/api/v2/segments/fans-cine/export?format=csv');
+    expect(csv.statusCode).toBe(200);
+    expect(String(csv.headers['content-type'])).toContain('text/csv');
+    expect(csv.body).toContain('Asistencias');
+    expect(csv.body).toContain(`vip-${stamp}@test.local`);
+
+    // Default = xlsx; formato inválido → 400; segmento inexistente → 404.
+    expect((await get('/api/v2/segments/fans-cine/export')).statusCode).toBe(200);
+    expect((await get('/api/v2/segments/fans-cine/export?format=pdf')).statusCode).toBe(400);
+    expect((await get('/api/v2/segments/no-existe/export')).statusCode).toBe(404);
+
+    // operator NO puede exportar (403).
+    const asOper = await app.inject({ method: 'GET', url: '/api/v2/segments/fans-cine/export', headers: { host: hostA, cookie: `contan2_session=${TOK.operator}` } });
+    expect(asOper.statusCode).toBe(403);
   });
 });
