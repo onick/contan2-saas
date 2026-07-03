@@ -140,4 +140,16 @@ run('platform · kpis + tenants (auth)', () => {
     const tAudit = await db.selectFrom('tenant_audit_log').select(db.fn.countAll<number>().as('n')).where('organization_id', '=', tempOrgId).where('actor_role', '=', 'platform_admin').executeTakeFirstOrThrow();
     expect(Number(tAudit.n)).toBeGreaterThanOrEqual(5); // espejo en el Historial del tenant
   });
+
+  it('audit-log global: 401 sin cookie; 200 con entradas + filtro por tenant', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/v2/platform/audit-log', headers: { host: 'admin.contan2.com' } })).statusCode).toBe(401);
+    const res = await authed(`/api/v2/platform/audit-log?tenant=pa-tmp-${stamp}`);
+    expect(res.statusCode).toBe(200);
+    const { entries, nextCursor } = res.json();
+    expect(entries.length).toBeGreaterThanOrEqual(5); // las acciones del test anterior
+    expect(entries.every((e: { tenantSlug: string }) => e.tenantSlug === `pa-tmp-${stamp}`)).toBe(true);
+    expect(entries[0]).toHaveProperty('action');
+    expect('nextCursor' in res.json()).toBe(true);
+    void nextCursor;
+  });
 });

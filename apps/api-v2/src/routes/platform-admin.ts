@@ -18,6 +18,7 @@ import {
   type PlatformTenantDetailResponse,
   type PlatformActionResponse,
   type PlatformAuditEntry,
+  type PlatformAuditResponse,
   type TenantHealth,
 } from '@contan2/contracts';
 import { requirePlatformAdmin, type PlatformContext } from '../platform-guard.js';
@@ -260,6 +261,40 @@ export const platformAdminRoute: FastifyPluginAsync = async (app) => {
     });
 
     const body: PlatformTenantsResponse = { tenants, total: tenants.length };
+    return body;
+  });
+
+  // ── GET /platform/audit-log · bitácora global (keyset) ─────────────────────
+  app.get('/platform/audit-log', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requirePlatformAdmin(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+
+    const query = req.query as { tenant?: string; action?: string; since?: string; until?: string; cursor?: string; limit?: string };
+    const limit = Math.min(Math.max(parseInt(query.limit ?? '50', 10) || 50, 1), 200);
+
+    let q = db.selectFrom('platform_audit_log as al')
+      .leftJoin('organizations as o', 'o.id', 'al.target_id')
+      .select(['al.id as id', 'al.created_at as createdAt', 'o.slug as tenantSlug', 'o.name as tenantName',
+        'al.actor_email_masked as actorEmailMasked', 'al.action as action',
+        'al.target_type as targetType', 'al.target_label as targetLabel']);
+    if (query.tenant) q = q.where('o.slug', '=', query.tenant);
+    if (query.action) q = q.where('al.action', 'like', `${query.action}%`);
+    if (query.since) q = q.where('al.created_at', '>=', new Date(query.since));
+    if (query.until) q = q.where('al.created_at', '<', new Date(query.until));
+    if (query.cursor) q = q.where('al.id', '<', query.cursor); // keyset: id descendente
+
+    const rows = await q.orderBy('al.id', 'desc').limit(limit + 1).execute();
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+
+    const entries: PlatformAuditEntry[] = page.map((r) => ({
+      id: String(r.id), createdAt: new Date(r.createdAt as unknown as string).toISOString(),
+      tenantSlug: r.tenantSlug ?? null, tenantName: r.tenantName ?? null,
+      actorEmailMasked: r.actorEmailMasked ?? null, actorRole: 'platform_admin',
+      action: r.action, targetType: r.targetType ?? null, targetLabel: r.targetLabel ?? null,
+    }));
+    const body: PlatformAuditResponse = { entries, nextCursor: hasMore ? String(page[page.length - 1]!.id) : null };
     return body;
   });
 

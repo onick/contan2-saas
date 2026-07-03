@@ -6,12 +6,13 @@
 
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { LayoutDashboard, Building2, LogOut, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Building2, ScrollText, LogOut, ShieldCheck } from 'lucide-react';
 import type { PlatformAdminPublic } from '@contan2/contracts';
 
 const NAV = [
   { key: 'operacion', label: 'Operación', href: '/platform', icon: LayoutDashboard },
   { key: 'tenants', label: 'Tenants', href: '/platform/tenants', icon: Building2 },
+  { key: 'auditoria', label: 'Auditoría', href: '/platform/auditoria', icon: ScrollText },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {

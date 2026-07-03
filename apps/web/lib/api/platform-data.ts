@@ -7,6 +7,7 @@ import {
   PlatformKpisResponseSchema, type PlatformKpisResponse,
   PlatformTenantsResponseSchema, type PlatformTenantsResponse,
   PlatformTenantDetailResponseSchema, type PlatformTenantDetailResponse,
+  PlatformAuditResponseSchema, type PlatformAuditResponse,
 } from '@contan2/contracts';
 import { forwardingHeaders } from './forwarded';
 
@@ -43,6 +44,17 @@ export async function getPlatformTenants(params: TenantsQuery = {}): Promise<Pla
   const data = await platformGet(`/api/v2/platform/tenants${suffix}`);
   if (!data) return null;
   try { return PlatformTenantsResponseSchema.parse(data); } catch { return null; }
+}
+
+export interface AuditQuery { tenant?: string; action?: string; since?: string; until?: string; cursor?: string }
+
+export async function getPlatformAudit(params: AuditQuery = {}): Promise<PlatformAuditResponse | null> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, v); }
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const data = await platformGet(`/api/v2/platform/audit-log${suffix}`);
+  if (!data) return null;
+  try { return PlatformAuditResponseSchema.parse(data); } catch { return null; }
 }
 
 export async function getPlatformTenantDetail(id: string): Promise<PlatformTenantDetailResponse | null | 'not-found'> {
