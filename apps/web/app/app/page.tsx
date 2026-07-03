@@ -8,7 +8,7 @@ import { NewActivityButton } from '../../components/activities/NewActivityButton
 import { Card, Skeleton, cn, focusRing } from '../../components/ui';
 import { Unavailable } from '../../components/shell/Unavailable';
 import { DemoBanner } from '../../components/shell/DemoBanner';
-import { getLocalBranding } from '../../lib/branding/config';
+import { getTenantBranding } from '../../lib/branding/tenant';
 import { isDemoFallbackAllowed } from '../../lib/auth/demo';
 import { getDashboardOverview, getRecentVisitors } from '../../lib/api/dashboard';
 import { RECENT_VISITORS } from '../../lib/dashboard/demoData';
@@ -122,7 +122,7 @@ export default async function TenantAdminDashboard({ searchParams }: { searchPar
   const sp = await searchParams;
   const rawPeriod = typeof sp.period === 'string' ? sp.period : '30d';
   const period = rawPeriod in PERIOD_LABEL ? (rawPeriod as keyof typeof PERIOD_LABEL) : '30d';
-  const branding = getLocalBranding();
+  const branding = await getTenantBranding();
 
   return (
     <AppShell branding={branding} title="Dashboard" activeKey="dashboard" meta={PERIOD_LABEL[period]}>

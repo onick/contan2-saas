@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { HistorialDashboard } from '../../../components/historial/HistorialDashboard';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 import { getAuditOverview } from '../../../lib/api/audit';
 
 // Historial y auditoría · dashboard elevado. KPIs (overview) + donut por tipo +
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function HistorialPage() {
-  const branding = getLocalBranding();
+  const branding = await getTenantBranding();
   const overview = await getAuditOverview();
 
   const shell = (children: ReactNode) => (

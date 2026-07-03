@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { ReportesDashboard } from '../../../components/reportes/ReportesDashboard';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 import { getPeriodSummary } from '../../../lib/api/reports';
 
 // Reportes · dashboard ejecutivo. Resumen del período + comparación con el
@@ -26,7 +26,7 @@ function thisMonthRange(): { from: string; to: string } {
 }
 
 export default async function ReportesPage() {
-  const branding = getLocalBranding();
+  const branding = await getTenantBranding();
   const range = thisMonthRange();
   const data = await getPeriodSummary(range.from, range.to);
 

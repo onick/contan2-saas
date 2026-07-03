@@ -274,6 +274,10 @@ export const authSignupRoute: FastifyPluginAsync = async (app) => {
             plan: 'free',
             trial_ends_at: trialEndsAt,
             code_prefix: codePrefix,
+            // Primario slate neutro para el tenant white-label (el default de
+            // columna es legacy CCB navy). Explícito para no depender de que el
+            // runner de migraciones ya haya corrido en el entorno.
+            primary_color: '#334155',
           })
           .returning(['id', 'slug'])
           .executeTakeFirstOrThrow();

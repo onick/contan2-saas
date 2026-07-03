@@ -89,7 +89,7 @@ export function generatePalette(hex: string): Record<string, string> | null {
 // Resuelve los tokens que consume la credencial. Defaults seguros (CCB legacy)
 // si la org no trae colores. Paridad con v1 resolveBrandingTokens.
 export function resolveBrandingTokens(org: OrgBranding | null): BrandingTokens {
-  const primary = org?.primaryColor || '#1a237e';
+  const primary = org?.primaryColor || '#334155';
   const accent = org?.secondaryColor || '#ff6f00';
   const palette = generatePalette(primary) || {};
   const primaryMid = palette['500'] || '#3949ab';

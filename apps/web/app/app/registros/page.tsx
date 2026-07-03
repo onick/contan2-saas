@@ -5,7 +5,7 @@ import { Download, CalendarX } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { AttendanceTable } from '../../../components/registros/AttendanceTable';
 import { SectionHeader, Button, Card, EmptyState } from '../../../components/ui';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { DemoBanner } from '../../../components/shell/DemoBanner';
@@ -38,7 +38,7 @@ export default async function RegistrosPage({
   searchParams: Promise<Record<string, Raw>>;
 }) {
   const sp = await searchParams;
-  const branding = getLocalBranding();
+  const branding = await getTenantBranding();
   const page = parsePage(sp.page);
   const pageSize = parsePageSize(sp.pageSize);
   const q = parseQ(sp.q);

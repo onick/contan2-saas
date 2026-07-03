@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { AppShell } from '../../../components/shell/AppShell';
 import { SectionHeader } from '../../../components/ui';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 import { PublicAppsHub } from '../../../components/modo-publico/PublicAppsHub';
 
 // Modo público (paridad v1 public-apps-admin, mejorado): hub de las apps de
@@ -15,8 +15,8 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default function ModoPublicoPage() {
-  const branding = getLocalBranding();
+export default async function ModoPublicoPage() {
+  const branding = await getTenantBranding();
   return (
     <AppShell branding={branding} title="Modo público" activeKey="modo-publico">
       <div className="mx-auto w-full max-w-[1600px]">

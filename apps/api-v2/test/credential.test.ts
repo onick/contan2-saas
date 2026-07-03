@@ -27,7 +27,7 @@ describe('credential · branding tokens', () => {
   it('resolveBrandingTokens cae a defaults seguros sin org', () => {
     const t = resolveBrandingTokens(null);
     expect(t.orgName).toBe('contan2-saas');
-    expect(t.primary).toBe('#1a237e');
+    expect(t.primary).toBe('#334155');
     expect(t.accent).toBe('#ff6f00');
   });
 });

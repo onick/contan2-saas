@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { AppShell } from '../../../components/shell/AppShell';
 import { CheckinConsole } from '../../../components/checkin/CheckinConsole';
 import { SectionHeader, Chip } from '../../../components/ui';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 
 // Consola de check-in REAL del tenant-admin (Check-in C). Server Component shell +
 // island client (CheckinConsole) que cablea métricas/búsqueda/actividades/registro a
@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   description: 'Estación de check-in · registro de asistencias en puerta',
 };
 
-export default function CheckinPage() {
-  const branding = getLocalBranding();
+export default async function CheckinPage() {
+  const branding = await getTenantBranding();
   return (
     <AppShell branding={branding} title="Check-in" activeKey="checkin">
       <div className="mx-auto w-full max-w-[1600px]">

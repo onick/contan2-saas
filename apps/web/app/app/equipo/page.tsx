@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { TeamDashboard } from '../../../components/equipo/TeamDashboard';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 import { getAdminGate } from '../../../lib/auth/session';
 import { getTeamOverview } from '../../../lib/api/team';
 
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function EquipoPage() {
-  const branding = getLocalBranding();
+  const branding = await getTenantBranding();
   const gate = await getAdminGate();
   const me = gate.status === 'ok' ? gate.staff : null;
   const overview = await getTeamOverview();

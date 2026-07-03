@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { ProtocolDashboard } from '../../../components/protocolo/ProtocolDashboard';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 import { getProtocolDashboard } from '../../../lib/api/protocol';
 
 // Protocolo · dashboard institucional. Invitados ESPECIALES del centro
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function ProtocoloPage() {
-  const branding = getLocalBranding();
+  const branding = await getTenantBranding();
   const data = await getProtocolDashboard();
 
   const shell = (children: ReactNode) => (

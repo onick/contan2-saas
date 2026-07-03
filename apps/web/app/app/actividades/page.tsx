@@ -8,7 +8,7 @@ import { NewActivityButton } from '../../../components/activities/NewActivityBut
 import { SectionHeader, Card, Skeleton } from '../../../components/ui';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { DemoBanner } from '../../../components/shell/DemoBanner';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
 import { getActivitiesView } from '../../../lib/api/activities';
 import { getAdminGate } from '../../../lib/auth/session';
@@ -119,8 +119,8 @@ function ActivitiesSkeleton() {
   );
 }
 
-export default function ActividadesPage() {
-  const branding = getLocalBranding();
+export default async function ActividadesPage() {
+  const branding = await getTenantBranding();
 
   return (
     <AppShell branding={branding} title="Actividades" activeKey="actividades">

@@ -16,7 +16,7 @@ import { Pagination } from '../../../components/admin/Pagination';
 import { CohortPills } from '../../../components/usuarios/CohortPills';
 import { UserStatusFilter } from '../../../components/usuarios/UserStatusFilter';
 import { ProfileProvider } from '../../../components/usuarios/ProfileProvider';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 import { getAdminGate } from '../../../lib/auth/session';
 import { isDemoFallbackAllowed } from '../../../lib/auth/demo';
 import { getUsersPage, getUsersFacets } from '../../../lib/api/users';
@@ -42,7 +42,7 @@ export default async function UsuariosPage({
   searchParams: Promise<Record<string, Raw>>;
 }) {
   const sp = await searchParams;
-  const branding = getLocalBranding();
+  const branding = await getTenantBranding();
   // Rol del staff → editar sólo owner/admin (la API igual arbitra el rol con 403).
   const gate = await getAdminGate();
   const canWrite = gate.status === 'ok' && (gate.staff.role === 'owner' || gate.staff.role === 'admin');

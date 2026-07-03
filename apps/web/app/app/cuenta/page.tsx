@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { AppShell } from '../../../components/shell/AppShell';
 import { SectionHeader } from '../../../components/ui';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 import { ChangePasswordCard, SessionsCard } from '../../../components/cuenta/AccountClient';
 
 // Mi cuenta (S1): cambio de contraseña + sesiones activas del staff logueado.
@@ -12,8 +12,8 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default function CuentaPage() {
-  const branding = getLocalBranding();
+export default async function CuentaPage() {
+  const branding = await getTenantBranding();
   return (
     <AppShell branding={branding} title="Mi cuenta" activeKey="cuenta">
       <div className="mx-auto w-full max-w-[1000px]">

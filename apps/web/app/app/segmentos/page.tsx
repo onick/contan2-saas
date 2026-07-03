@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { AppShell } from '../../../components/shell/AppShell';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { SegmentsDashboard } from '../../../components/segmentos/SegmentsDashboard';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { getTenantBranding } from '../../../lib/branding/tenant';
 import { getSegments } from '../../../lib/api/segments';
 
 // Segmentos · dashboard de audiencia por AFINIDAD (paridad v1 insights/segments).
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function SegmentosPage() {
-  const branding = getLocalBranding();
+  const branding = await getTenantBranding();
   const data = await getSegments();
 
   const shell = (children: ReactNode) => (

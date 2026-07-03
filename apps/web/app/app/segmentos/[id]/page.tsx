@@ -5,7 +5,7 @@ import type { SegmentMember } from '@contan2/contracts';
 import { AppShell } from '../../../../components/shell/AppShell';
 import { SectionHeader, Card, EmptyState, Chip, cn, focusRing } from '../../../../components/ui';
 import { Unavailable } from '../../../../components/shell/Unavailable';
-import { getLocalBranding } from '../../../../lib/branding/config';
+import { getTenantBranding } from '../../../../lib/branding/tenant';
 import { getSegmentMembers } from '../../../../lib/api/segments';
 
 // Miembros de un segmento (paridad v1 segments/:id): tabla con código, nombre,
@@ -30,7 +30,7 @@ const DATE_FMT = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short',
 
 export default async function SegmentMembersPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const branding = getLocalBranding();
+  const branding = await getTenantBranding();
   const result = await getSegmentMembers(id);
 
   if (!result.ok && result.reason === 'not-found') notFound();
