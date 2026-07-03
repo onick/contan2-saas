@@ -47,7 +47,10 @@ export default async function SegmentMembersPage({ params }: { params: Promise<{
           <Unavailable inline title="Segmento no disponible" description="No pudimos cargar los miembros. Reintentá en unos segundos." />
         ) : (
           <>
-            <div className="app-reveal">
+            {/* relative z-20: el menú "Exportar" (dropdown absolute) debe pintar por
+                encima de la tabla; app-reveal deja un transform → stacking context, y
+                sin esto el contenedor de la tabla (posterior en el DOM) lo tapa. */}
+            <div className="app-reveal relative z-20">
               <a href="/app/segmentos" className={cn('inline-flex items-center gap-1.5 rounded text-[13px] font-semibold text-muted hover:text-ink', focusRing)}>
                 <ArrowLeft size={15} strokeWidth={2} aria-hidden="true" /> Todos los segmentos
               </a>
