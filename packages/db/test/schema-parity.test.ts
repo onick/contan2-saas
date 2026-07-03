@@ -23,7 +23,7 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'logo_url', 'primary_color', 'secondary_color', 'code_prefix',
     'email_from_name', 'email_from_addr', 'email_reply_to', 'staff_pin_hash',
     'custom_domain', 'custom_domain_verified_at', 'status', 'trial_ends_at',
-    'plan', 'sidebar_style', 'email_logo_url', 'credential_logo_url', 'logo_scale', 'custom_domain_verify_token',
+    'plan', 'sidebar_style', 'email_logo_url', 'credential_logo_url', 'logo_scale', 'internal_notes', 'custom_domain_verify_token',
     'created_at', 'updated_at', 'deleted_at',
   ],
   staff_members: [
@@ -45,6 +45,10 @@ const EXPECTED: Record<keyof Database, string[]> = {
   platform_sessions: [
     'id', 'platform_admin_id', 'token_hash', 'expires_at', 'remember_me',
     'ip_hash', 'user_agent', 'created_at', 'revoked_at',
+  ],
+  platform_audit_log: [
+    'id', 'platform_admin_id', 'actor_email_masked', 'action', 'target_type',
+    'target_id', 'target_label', 'metadata', 'ip_hash', 'ua', 'created_at',
   ],
   staff_invitations: [
     'id', 'organization_id', 'email', 'role', 'full_name', 'token_hash',

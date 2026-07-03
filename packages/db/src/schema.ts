@@ -64,6 +64,8 @@ export interface OrganizationsTable {
   credential_logo_url: string | null;
   // Tamaño del logo horizontal en % (100 = base). Ajustable por el tenant.
   logo_scale: DefaultedInt;
+  // Notas internas del super-admin (panel de plataforma; no visibles al tenant).
+  internal_notes: string | null;
   custom_domain_verify_token: string | null;
   created_at: CreatedAt;
   updated_at: UpdatedAt;
@@ -134,6 +136,21 @@ export interface PlatformSessionsTable {
   user_agent: string | null;
   created_at: CreatedAt;
   revoked_at: NullableTs;
+}
+
+// platform_audit_log (migración 040): bitácora global del super-admin.
+export interface PlatformAuditLogTable {
+  id: Generated<string>;
+  platform_admin_id: string | null;
+  actor_email_masked: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  target_label: string | null;
+  metadata: unknown | null;
+  ip_hash: string | null;
+  ua: string | null;
+  created_at: CreatedAt;
 }
 
 // staff_invitations (migración v1 021): invitaciones de equipo con token one-shot.
@@ -337,6 +354,7 @@ export interface Database {
   staff_auth_sessions: StaffAuthSessionsTable;
   platform_admins: PlatformAdminsTable;
   platform_sessions: PlatformSessionsTable;
+  platform_audit_log: PlatformAuditLogTable;
   staff_invitations: StaffInvitationsTable;
   staff_password_resets: StaffPasswordResetsTable;
   tenant_audit_log: TenantAuditLogTable;
