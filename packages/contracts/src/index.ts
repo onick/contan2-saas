@@ -1399,3 +1399,151 @@ export type ContactRequest = z.infer<typeof ContactRequestSchema>;
 
 export const ContactResponseSchema = z.object({ ok: z.literal(true) });
 export type ContactResponse = z.infer<typeof ContactResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
+// PLATFORM ADMIN (super-admin cross-tenant · /api/v2/platform/*). Cookie y
+// sesión propias, separadas del tenant. Ver apps/api-v2/src/routes/platform-*.
+// ─────────────────────────────────────────────────────────────────────────
+
+export const PlatformAdminPublicSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  fullName: z.string(),
+  status: z.enum(['active', 'suspended', 'deleted']),
+  mustChangePassword: z.boolean(),
+  lastLoginAt: z.string().nullable(),
+});
+export type PlatformAdminPublic = z.infer<typeof PlatformAdminPublicSchema>;
+
+export const PlatformLoginRequestSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(255),
+  password: z.string().min(1).max(200),
+  rememberMe: z.boolean().optional().default(false),
+}).strict();
+export type PlatformLoginRequest = z.infer<typeof PlatformLoginRequestSchema>;
+
+export const PlatformLoginResponseSchema = z.object({
+  ok: z.literal(true),
+  admin: PlatformAdminPublicSchema,
+  mustChangePassword: z.boolean(),
+});
+export type PlatformLoginResponse = z.infer<typeof PlatformLoginResponseSchema>;
+
+export const PlatformMeResponseSchema = z.object({ admin: PlatformAdminPublicSchema });
+export type PlatformMeResponse = z.infer<typeof PlatformMeResponseSchema>;
+
+export const PlatformLogoutResponseSchema = z.object({ ok: z.literal(true) });
+export type PlatformLogoutResponse = z.infer<typeof PlatformLogoutResponseSchema>;
+
+// Health operativo derivado (no persistido).
+export const TenantHealthSchema = z.enum([
+  'operando', 'sin_uso', 'inactivo', 'trial_vencido', 'dns_pendiente', 'suspendido',
+]);
+export type TenantHealth = z.infer<typeof TenantHealthSchema>;
+
+export const OrgStatusEnum = z.enum(['active', 'suspended', 'trial_ended', 'deleted']);
+export const OrgPlanEnum = z.enum(['free', 'pro', 'enterprise']);
+
+export const PlatformAuditEntrySchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  tenantSlug: z.string().nullable(),
+  tenantName: z.string().nullable(),
+  actorEmailMasked: z.string().nullable(),
+  actorRole: z.string().nullable(),
+  action: z.string(),
+  targetType: z.string().nullable(),
+  targetLabel: z.string().nullable(),
+});
+export type PlatformAuditEntry = z.infer<typeof PlatformAuditEntrySchema>;
+
+export const PlatformKpisResponseSchema = z.object({
+  tenants: z.object({
+    total: z.number().int(),
+    active: z.number().int(),
+    suspended: z.number().int(),
+    trialEnded: z.number().int(),
+    atRisk: z.number().int(),
+  }),
+  usersTotal: z.number().int(),
+  staffTotal: z.number().int(),
+  activitiesActive: z.number().int(),
+  attendances30d: z.number().int(),
+  recentAudit: z.array(PlatformAuditEntrySchema),
+});
+export type PlatformKpisResponse = z.infer<typeof PlatformKpisResponseSchema>;
+
+export const PlatformTenantSummarySchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  name: z.string(),
+  customDomain: z.string().nullable(),
+  customDomainVerified: z.boolean(),
+  status: OrgStatusEnum,
+  plan: OrgPlanEnum,
+  createdAt: z.string(),
+  trialEndsAt: z.string().nullable(),
+  usersCount: z.number().int(),
+  staffCount: z.number().int(),
+  attendances7d: z.number().int(),
+  attendances30d: z.number().int(),
+  activitiesActive: z.number().int(),
+  lastActivityAt: z.string().nullable(),
+  health: TenantHealthSchema,
+});
+export type PlatformTenantSummary = z.infer<typeof PlatformTenantSummarySchema>;
+
+export const PlatformTenantsResponseSchema = z.object({
+  tenants: z.array(PlatformTenantSummarySchema),
+  total: z.number().int(),
+});
+export type PlatformTenantsResponse = z.infer<typeof PlatformTenantsResponseSchema>;
+
+export const PlatformTenantStaffSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  fullName: z.string(),
+  role: z.string(),
+  status: z.string(),
+  lastLoginAt: z.string().nullable(),
+});
+export type PlatformTenantStaff = z.infer<typeof PlatformTenantStaffSchema>;
+
+export const PlatformTenantDetailResponseSchema = z.object({
+  tenant: PlatformTenantSummarySchema.extend({
+    primaryColor: z.string(),
+    secondaryColor: z.string(),
+    logoUrl: z.string().nullable(),
+    internalNotes: z.string().nullable(),
+  }),
+  staff: z.array(PlatformTenantStaffSchema),
+  recentAudit: z.array(PlatformAuditEntrySchema),
+  risks: z.array(z.string()),
+});
+export type PlatformTenantDetailResponse = z.infer<typeof PlatformTenantDetailResponseSchema>;
+
+export const PlatformPlanUpdateRequestSchema = z.object({ plan: OrgPlanEnum }).strict();
+export type PlatformPlanUpdateRequest = z.infer<typeof PlatformPlanUpdateRequestSchema>;
+
+// trialEndsAt: ISO datetime o null (quitar el trial). El backend valida rango.
+export const PlatformTrialUpdateRequestSchema = z.object({
+  trialEndsAt: z.string().datetime().nullable(),
+}).strict();
+export type PlatformTrialUpdateRequest = z.infer<typeof PlatformTrialUpdateRequestSchema>;
+
+export const PlatformNotesUpdateRequestSchema = z.object({
+  internalNotes: z.string().max(5000),
+}).strict();
+export type PlatformNotesUpdateRequest = z.infer<typeof PlatformNotesUpdateRequestSchema>;
+
+export const PlatformActionResponseSchema = z.object({
+  ok: z.literal(true),
+  tenant: PlatformTenantSummarySchema,
+});
+export type PlatformActionResponse = z.infer<typeof PlatformActionResponseSchema>;
+
+export const PlatformAuditResponseSchema = z.object({
+  entries: z.array(PlatformAuditEntrySchema),
+  nextCursor: z.string().nullable(),
+});
+export type PlatformAuditResponse = z.infer<typeof PlatformAuditResponseSchema>;

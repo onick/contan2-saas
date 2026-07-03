@@ -10,6 +10,11 @@
 //   · NUNCA se decide por headers del cliente (x-forwarded-proto, etc.):
 //     spoofeables. La decisión es server-side por entorno/override.
 
+// Cookie del PLATFORM ADMIN (super-admin cross-tenant). SEPARADA de la del
+// tenant (contan2_session) y de la del scanner: distinto scope de host
+// (admin.*), distinta tabla de sesión (platform_sessions). Nunca se mezclan.
+export const ADMIN_SESSION_COOKIE = 'contan2_admin_session';
+
 type CookieEnv = { COOKIE_SECURE?: string; NODE_ENV?: string };
 
 export function isCookieSecure(env: CookieEnv = process.env): boolean {
