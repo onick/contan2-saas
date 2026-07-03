@@ -16,6 +16,23 @@ const ADMIN_COOKIE = 'contan2_admin_session';
 export function middleware(req: NextRequest): NextResponse {
   const { pathname, search } = req.nextUrl;
 
+  // ── Host del super-admin (admin.*) · la raíz ES el panel ───────────────────
+  // Tras el cutover, admin.contan2.com sirve el v2 web. La raíz redirige al
+  // panel (/platform → gate → /platform/login). Otros hosts (landing, tenants)
+  // no se tocan. Solo la raíz: los assets y /platform/* siguen su curso.
+  const host = (req.headers.get('host') ?? req.nextUrl.hostname).toLowerCase();
+  if (pathname === '/') {
+    if (host.startsWith('admin.')) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/platform';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+    // Raíz de landing/tenants: pasa sin gate (el matcher incluye '/' solo por
+    // el redirect de admin.*; acá NO se aplica el gate de /app).
+    return NextResponse.next();
+  }
+
   // ── Área del PLATFORM ADMIN ────────────────────────────────────────────────
   if (pathname.startsWith('/platform')) {
     // Login y BFF son públicos (el login inicia la sesión).
@@ -48,5 +65,6 @@ export function middleware(req: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/platform/:path*'],
+  // '/' incluido para el redirect de la raíz en el host admin.* (no-op en otros hosts).
+  matcher: ['/', '/app/:path*', '/platform/:path*'],
 };

@@ -22,7 +22,19 @@ describe('middleware /app/*', () => {
     expect(res.headers.get('x-middleware-request-x-pathname')).toBe('/app/actividades');
   });
 
-  it('el matcher cubre /app/* y /platform/* (kiosko/scanner/uploads/landing/api quedan fuera)', () => {
-    expect(config.matcher).toEqual(['/app/:path*', '/platform/:path*']);
+  it('el matcher cubre /, /app/* y /platform/* (kiosko/scanner/uploads/api quedan fuera)', () => {
+    expect(config.matcher).toEqual(['/', '/app/:path*', '/platform/:path*']);
+  });
+
+  it('host admin.* en la raíz → redirect a /platform', () => {
+    const res = middleware(new NextRequest('https://admin.contan2.com/'));
+    expect(res.status).toBe(307);
+    expect(new URL(res.headers.get('location') as string).pathname).toBe('/platform');
+  });
+
+  it('host NO-admin en la raíz → pasa (no redirige a /platform)', () => {
+    const res = middleware(new NextRequest('https://contan2.com/'));
+    const loc = res.headers.get('location');
+    expect(loc === null || !new URL(loc).pathname.startsWith('/platform')).toBe(true);
   });
 });
