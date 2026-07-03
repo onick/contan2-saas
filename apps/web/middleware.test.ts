@@ -22,7 +22,7 @@ describe('middleware /app/*', () => {
     expect(res.headers.get('x-middleware-request-x-pathname')).toBe('/app/actividades');
   });
 
-  it('el matcher SOLO cubre /app/* (kiosko/scanner/uploads/landing/api quedan fuera)', () => {
-    expect(config.matcher).toEqual(['/app/:path*']);
+  it('el matcher cubre /app/* y /platform/* (kiosko/scanner/uploads/landing/api quedan fuera)', () => {
+    expect(config.matcher).toEqual(['/app/:path*', '/platform/:path*']);
   });
 });

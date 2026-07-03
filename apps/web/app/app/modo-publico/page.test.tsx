@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
+vi.mock('../../../lib/branding/tenant', () => ({
+  getTenantBranding: async () => ({
+    id: 'local-ccb', slug: 'ccb', name: 'Centro Cultural Banreservas',
+    logoUrl: null, emailLogoUrl: null, credentialLogoUrl: null, logoScale: 100,
+    primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand',
+    status: 'active', plan: 'free', trialEndsAt: null,
+  }),
+}));
 import ModoPublicoPage from './page';
 
 // Hub de apps de lobby: ambas cards con URL real del tenant, copiar/abrir/QR
@@ -17,7 +25,7 @@ describe('/app/modo-publico', () => {
       JSON.stringify({ metrics: { checkinsToday: 7, checkinsLast10Min: 1, uniqueVisitorsToday: 5, activeActivities: 2 } }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     )));
-    render(<ModoPublicoPage />);
+    render(await ModoPublicoPage());
 
     await waitFor(() => expect(screen.getByText('Kiosko de auto-registro')).toBeInTheDocument());
     expect(screen.getByText('Scanner de check-in')).toBeInTheDocument();

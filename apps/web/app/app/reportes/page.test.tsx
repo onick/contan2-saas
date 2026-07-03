@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import type { PeriodSummaryResponse } from '@contan2/contracts';
+vi.mock('../../../lib/branding/tenant', () => ({
+  getTenantBranding: async () => ({
+    id: 'local-ccb', slug: 'ccb', name: 'Centro Cultural Banreservas',
+    logoUrl: null, emailLogoUrl: null, credentialLogoUrl: null, logoScale: 100,
+    primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand',
+    status: 'active', plan: 'free', trialEndsAt: null,
+  }),
+}));
 import ReportesPage from './page';
 
 // Reportes · dashboard ejecutivo. La página fetchea el period-summary inicial

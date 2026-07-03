@@ -4,6 +4,14 @@ import { render, screen, cleanup } from '@testing-library/react';
 // El overview lo trae el server (apiGet → next/headers); lo mockeamos.
 vi.mock('../../../lib/api/audit', () => ({ getAuditOverview: vi.fn() }));
 import { getAuditOverview } from '../../../lib/api/audit';
+vi.mock('../../../lib/branding/tenant', () => ({
+  getTenantBranding: async () => ({
+    id: 'local-ccb', slug: 'ccb', name: 'Centro Cultural Banreservas',
+    logoUrl: null, emailLogoUrl: null, credentialLogoUrl: null, logoScale: 100,
+    primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand',
+    status: 'active', plan: 'free', trialEndsAt: null,
+  }),
+}));
 import HistorialPage from './page';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });

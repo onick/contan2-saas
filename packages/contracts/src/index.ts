@@ -104,7 +104,7 @@ export const OrgBrandingResponseSchema = z.object({
     logoUrl: z.string().nullable(),
     emailLogoUrl: z.string().nullable(),
     credentialLogoUrl: z.string().nullable(),
-    logoScale: z.number().int(), // tamaño del logo horizontal en % (100 = base)
+    logoScale: z.number().int().default(100), // % del logo horizontal (100 = base). default = backward-compat.
     primaryColor: z.string(),
     secondaryColor: z.string(),
     sidebarTheme: z.enum(['brand', 'dark', 'light']),
