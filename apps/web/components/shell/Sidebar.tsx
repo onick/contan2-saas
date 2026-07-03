@@ -65,12 +65,16 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
           <span className={branding.logoUrl ? 'hidden group-data-[sidebar=collapsed]/shell:block' : 'block'}>
             <BrandChip slug={branding.slug} name={branding.name} />
           </span>
-          <span className={`min-w-0 flex-1 ${HIDE}`}>
-            <span className="block truncate text-[15px] font-semibold leading-tight tracking-tight text-ink">{nameTop}</span>
-            {nameSub ? (
-              <span className="block truncate text-[12.5px] font-light leading-tight tracking-wide text-muted">{nameSub}</span>
-            ) : null}
-          </span>
+          {/* Nombre en texto: SOLO si no hay logo subido (el logo ya trae el
+              nombre; mostrarlo al lado sería redundante). */}
+          {!branding.logoUrl ? (
+            <span className={`min-w-0 flex-1 ${HIDE}`}>
+              <span className="block truncate text-[15px] font-semibold leading-tight tracking-tight text-ink">{nameTop}</span>
+              {nameSub ? (
+                <span className="block truncate text-[12.5px] font-light leading-tight tracking-wide text-muted">{nameSub}</span>
+              ) : null}
+            </span>
+          ) : null}
         </div>
       )}
 
