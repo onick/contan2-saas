@@ -13,6 +13,7 @@ import { dbCheckRoute } from './routes/db-check.js';
 import { authMeRoute } from './routes/auth-me.js';
 import { authLoginRoute } from './routes/auth-login.js';
 import { platformAuthRoute } from './routes/platform-auth.js';
+import { platformAdminRoute } from './routes/platform-admin.js';
 import { authSignupRoute } from './routes/auth-signup.js';
 import { orgBrandingRoute } from './routes/org-branding.js';
 import { dashboardMetricsRoute } from './routes/dashboard-metrics.js';
@@ -91,6 +92,7 @@ export function buildApp(): FastifyInstance {
   // Platform admin (super-admin cross-tenant): auth propia (cookie/tabla
   // separadas) + panel. Sin tenant scope.
   app.register(platformAuthRoute, { prefix: '/api/v2' });
+  app.register(platformAdminRoute, { prefix: '/api/v2' });
   app.register(authSignupRoute, { prefix: '/api/v2' });
   app.register(authPasswordRoute, { prefix: '/api/v2' });
   app.register(staffInvitationsRoute, { prefix: '/api/v2' });
