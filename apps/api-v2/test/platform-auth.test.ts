@@ -85,4 +85,33 @@ run('platform auth · login/logout/me', () => {
     const me = await app.inject({ method: 'GET', url: '/api/v2/platform/auth/me', headers: { host: 'admin.contan2.com', cookie: 'contan2_session=whatever' } });
     expect(me.statusCode).toBe(401);
   });
+
+  it('mi cuenta: cambiar contraseña + sesiones', async () => {
+    // login fresco
+    const login = await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password } });
+    const tok = cookieFrom(login.headers['set-cookie'])!;
+    const H = { host: 'admin.contan2.com', cookie: `contan2_admin_session=${tok}`, 'content-type': 'application/json' };
+
+    // actual incorrecta → 401
+    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/change-password', headers: H, payload: { currentPassword: 'nope', newPassword: 'BrandNewPass!9' } })).statusCode).toBe(401);
+    // nueva muy corta → 400
+    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/change-password', headers: H, payload: { currentPassword: password, newPassword: 'short' } })).statusCode).toBe(400);
+    // ok
+    const newPw = 'BrandNewPass!9';
+    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/change-password', headers: H, payload: { currentPassword: password, newPassword: newPw } })).statusCode).toBe(200);
+    // la vieja ya no loguea; la nueva sí
+    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password } })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password: newPw } })).statusCode).toBe(200);
+
+    // sesiones: la actual aparece marcada; sin cookie → 401
+    expect((await app.inject({ method: 'GET', url: '/api/v2/platform/auth/sessions', headers: { host: 'admin.contan2.com' } })).statusCode).toBe(401);
+    const sess = await app.inject({ method: 'GET', url: '/api/v2/platform/auth/sessions', headers: { host: 'admin.contan2.com', cookie: `contan2_admin_session=${tok}` } });
+    expect(sess.statusCode).toBe(200);
+    const list = sess.json().sessions;
+    const current = list.find((s: { current: boolean }) => s.current);
+    expect(current).toBeTruthy();
+    // revocar una sesión ajena inexistente → 404; revocar la propia → 200
+    expect((await app.inject({ method: 'DELETE', url: '/api/v2/platform/auth/sessions/00000000-0000-0000-0000-000000000000', headers: { host: 'admin.contan2.com', cookie: `contan2_admin_session=${tok}` } })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'DELETE', url: `/api/v2/platform/auth/sessions/${current.id}`, headers: { host: 'admin.contan2.com', cookie: `contan2_admin_session=${tok}` } })).statusCode).toBe(200);
+  });
 });

@@ -10,11 +10,13 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { getDb } from '@contan2/db';
 import {
   PlatformLoginRequestSchema,
+  PlatformChangePasswordRequestSchema,
   type PlatformLoginResponse,
   type PlatformMeResponse,
   type PlatformLogoutResponse,
+  type PlatformSessionsResponse,
 } from '@contan2/contracts';
-import { verifyStaffPassword } from '../services/password.js';
+import { verifyStaffPassword, hashStaffPassword } from '../services/password.js';
 import { isLocked, lockedMessage, registerFailedAttempt, type LockoutState } from '../services/lockout.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { baseCookieOptions, ADMIN_SESSION_COOKIE } from '../cookies.js';
@@ -134,5 +136,67 @@ export const platformAuthRoute: FastifyPluginAsync = async (app) => {
     }
     const body: PlatformMeResponse = { admin: guard.ctx.admin };
     return body;
+  });
+
+  // POST /platform/auth/change-password · verifica la actual, setea la nueva.
+  // La sesión actual sigue viva; el resto se puede revocar desde "sesiones".
+  app.post('/platform/auth/change-password', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requirePlatformAdmin(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    if ((await loginLimiter.hit(req.ip)).limited) { reply.code(429); return { error: 'Demasiados intentos. Esperá un momento.' }; }
+
+    const parsed = PlatformChangePasswordRequestSchema.safeParse(req.body);
+    if (!parsed.success) { reply.code(400); return { error: parsed.error.errors[0]?.message ?? 'Datos inválidos.' }; }
+    const { currentPassword, newPassword } = parsed.data;
+
+    const admin = await loadPlatformAdminByEmail(db, guard.ctx.admin.email);
+    if (!admin || !(await verifyStaffPassword(admin.password_hash, currentPassword))) {
+      reply.code(401); return { error: 'La contraseña actual es incorrecta.' };
+    }
+    if (newPassword === currentPassword) { reply.code(400); return { error: 'La nueva contraseña debe ser distinta.' }; }
+
+    await db.updateTable('platform_admins')
+      .set({ password_hash: await hashStaffPassword(newPassword), must_change_password: false, updated_at: new Date().toISOString() })
+      .where('id', '=', admin.id).execute();
+    reply.code(200); return { ok: true as const };
+  });
+
+  // GET /platform/auth/sessions · sesiones activas del admin (la actual marcada).
+  app.get('/platform/auth/sessions', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requirePlatformAdmin(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const rows = await db.selectFrom('platform_sessions')
+      .select(['id', 'created_at', 'user_agent'])
+      .where('platform_admin_id', '=', guard.ctx.admin.id)
+      .where('revoked_at', 'is', null)
+      .where('expires_at', '>', new Date())
+      .orderBy('created_at', 'desc').limit(50).execute();
+    const body: PlatformSessionsResponse = {
+      sessions: rows.map((r) => ({
+        id: r.id,
+        createdAt: new Date(r.created_at as unknown as string).toISOString(),
+        userAgent: r.user_agent ?? null,
+        current: r.id === guard.ctx.sessionId,
+      })),
+    };
+    return body;
+  });
+
+  // DELETE /platform/auth/sessions/:id · revoca una sesión propia (incl. la actual).
+  app.delete('/platform/auth/sessions/:id', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requirePlatformAdmin(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const id = (req.params as { id: string }).id;
+    const res = await db.updateTable('platform_sessions')
+      .set({ revoked_at: new Date().toISOString() })
+      .where('id', '=', id)
+      .where('platform_admin_id', '=', guard.ctx.admin.id) // solo sesiones propias
+      .where('revoked_at', 'is', null)
+      .executeTakeFirst();
+    if (Number(res.numUpdatedRows ?? 0n) === 0) { reply.code(404); return { error: 'Sesión no encontrada.' }; }
+    reply.code(200); return { ok: true as const };
   });
 };

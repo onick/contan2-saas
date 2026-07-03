@@ -1547,3 +1547,21 @@ export const PlatformAuditResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export type PlatformAuditResponse = z.infer<typeof PlatformAuditResponseSchema>;
+
+// Mi cuenta del platform admin: cambiar contraseña + gestión de sesiones.
+export const PlatformChangePasswordRequestSchema = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: z.string().min(8, 'Mínimo 8 caracteres').max(200),
+}).strict();
+export type PlatformChangePasswordRequest = z.infer<typeof PlatformChangePasswordRequestSchema>;
+
+export const PlatformSessionItemSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  userAgent: z.string().nullable(),
+  current: z.boolean(),
+});
+export type PlatformSessionItem = z.infer<typeof PlatformSessionItemSchema>;
+
+export const PlatformSessionsResponseSchema = z.object({ sessions: z.array(PlatformSessionItemSchema) });
+export type PlatformSessionsResponse = z.infer<typeof PlatformSessionsResponseSchema>;
