@@ -105,6 +105,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       .select(['id', 'name', 'type', 'category', 'location', 'date', 'capacity', 'enrolled_count', 'image_url', 'image_pos_y', 'audience'])
       .where('organization_id', '=', t.orgId)
       .where('status', '=', 'activa')
+      .where('is_permanent', '=', false) // las salas permanentes van en su propia superficie (Puerta)
       .orderBy('date', 'asc')
       .execute();
 

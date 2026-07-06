@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
   CalendarDays,
+  DoorOpen,
   QrCode,
   Users,
   ClipboardList,
@@ -44,6 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Principal', href: '/app' },
   { key: 'actividades', label: 'Actividades', icon: CalendarDays, group: 'Principal', href: '/app/actividades', liveBadge: 'activeActivities' },
   { key: 'checkin', label: 'Check-in', icon: QrCode, group: 'Principal', href: '/app/check-in', liveBadge: 'checkinsToday' },
+  { key: 'puerta', label: 'Puerta', icon: DoorOpen, group: 'Principal', href: '/app/puerta' },
   // Audiencia
   { key: 'usuarios', label: 'Usuarios', icon: Users, group: 'Audiencia', href: '/app/usuarios' },
   { key: 'registros', label: 'Registros', icon: ClipboardList, group: 'Audiencia', href: '/app/registros' },

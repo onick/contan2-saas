@@ -16,6 +16,7 @@ export async function finalizePastActivities(db: DbClient): Promise<number> {
     .updateTable('activities')
     .set({ status: 'finalizada', updated_at: new Date().toISOString() })
     .where('status', '=', 'activa')
+    .where('is_permanent', '=', false) // las salas permanentes nunca se auto-cierran
     .where(sql<boolean>`coalesce(end_date, date) < now()`)
     .executeTakeFirst();
   return Number(r.numUpdatedRows ?? 0);

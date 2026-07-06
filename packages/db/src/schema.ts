@@ -251,6 +251,10 @@ export interface ActivitiesTable {
   // SMALLINT NULL (migración 027): encuadre vertical de la portada (0–100;
   // NULL = centro). v1 la ignora.
   image_pos_y: number | null;
+  // Espacio PERMANENTE (migración 041): exento de auto-cierre y filtro de cupo.
+  is_permanent: DefaultedBool;
+  open_schedule: unknown | null; // JSONB {semana:[9,22],finde:[10,18]}
+  occupancy: DefaultedInt; // contador vivo (ej. VR N/8), informativo
   created_at: CreatedAt;
   updated_at: UpdatedAt;
 }
@@ -274,6 +278,33 @@ export interface AttendanceTable {
   companions_adults: DefaultedInt;
   // TIMESTAMPTZ NOT NULL DEFAULT NOW(): default, se setea al registrar.
   registered_at: CreatedAt;
+  // Grupo escolar (migración 041): colegio / nivel / profesor responsable. El
+  // profesor es el visitante; los alumnos van como companions.
+  group_label: string | null;
+  group_level: string | null;
+  group_contact: string | null;
+}
+
+// space_bookings (migración 041): agenda de reservas de un espacio permanente (VR).
+export interface SpaceBookingsTable {
+  id: Generated<string>;
+  organization_id: string;
+  activity_id: string;
+  scheduled_at: RequiredTs;
+  colegio: string;
+  level: string | null;
+  contact_name: string;
+  contact_email: string | null;
+  contact_phone: string | null;
+  student_count: DefaultedInt;
+  status: DefaultedText;
+  notes: string | null;
+  attendance_id: string | null;
+  confirmed_at: NullableTs;
+  notified_at: NullableTs;
+  created_by_staff_id: string | null;
+  created_at: CreatedAt;
+  updated_at: UpdatedAt;
 }
 
 export type InvitationKind = 'audience' | 'protocol';
@@ -361,6 +392,7 @@ export interface Database {
   users: UsersTable;
   activities: ActivitiesTable;
   attendance: AttendanceTable;
+  space_bookings: SpaceBookingsTable;
   invitations: InvitationsTable;
   checkin_idempotency: CheckinIdempotencyTable;
   signup_verifications: SignupVerificationsTable;

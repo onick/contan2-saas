@@ -72,10 +72,18 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'id', 'name', 'type', 'location', 'date', 'end_date', 'capacity', 'description',
     'image_url', 'enrolled_count', 'status', 'organization_id', 'category',
     'image_pos_y', 'audience', 'created_at', 'updated_at',
+    'is_permanent', 'open_schedule', 'occupancy',
   ],
   attendance: [
     'id', 'user_id', 'user_code', 'activity_id', 'activity_name',
     'organization_id', 'checked_in_at', 'anonymous', 'companions_children', 'companions_adults', 'registered_at',
+    'group_label', 'group_level', 'group_contact',
+  ],
+  space_bookings: [
+    'id', 'organization_id', 'activity_id', 'scheduled_at', 'colegio', 'level',
+    'contact_name', 'contact_email', 'contact_phone', 'student_count', 'status',
+    'notes', 'attendance_id', 'confirmed_at', 'notified_at', 'created_by_staff_id',
+    'created_at', 'updated_at',
   ],
   invitations: [
     'id', 'organization_id', 'activity_id', 'user_id', 'token', 'status',

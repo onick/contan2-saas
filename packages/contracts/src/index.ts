@@ -1565,3 +1565,64 @@ export type PlatformSessionItem = z.infer<typeof PlatformSessionItemSchema>;
 
 export const PlatformSessionsResponseSchema = z.object({ sessions: z.array(PlatformSessionItemSchema) });
 export type PlatformSessionsResponse = z.infer<typeof PlatformSessionsResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
+// PUERTA · salas permanentes (registro de entrada + ocupación). Ver
+// apps/api-v2/src/routes/puerta.ts.
+// ─────────────────────────────────────────────────────────────────────────
+
+export const PuertaBookingSchema = z.object({
+  id: z.string(),
+  time: z.string(),        // HH:MM
+  colegio: z.string(),
+  level: z.string().nullable(),
+  studentCount: z.number().int(),
+  status: z.enum(['scheduled', 'confirmed', 'attended', 'no_show', 'cancelled']),
+});
+export type PuertaBooking = z.infer<typeof PuertaBookingSchema>;
+
+export const PuertaSalaSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  audience: z.enum(['adultos', 'infantil']),
+  aforo: z.number().int().nullable(),   // null = ilimitada (no muestra ocupación)
+  occupancy: z.number().int(),
+  visitorsToday: z.number().int(),
+  todayBookings: z.array(PuertaBookingSchema),
+});
+export type PuertaSala = z.infer<typeof PuertaSalaSchema>;
+
+export const PuertaSalasResponseSchema = z.object({ salas: z.array(PuertaSalaSchema) });
+export type PuertaSalasResponse = z.infer<typeof PuertaSalasResponseSchema>;
+
+export const PuertaGroupSchema = z.object({
+  colegio: z.string().trim().min(1).max(160),
+  level: z.string().trim().max(80).optional().nullable(),
+  contactName: z.string().trim().min(1).max(120),
+  contactEmail: z.string().trim().email().max(200).optional().or(z.literal('')).nullable(),
+  contactPhone: z.string().trim().max(40).optional().nullable(),
+  studentCount: z.number().int().min(0).max(2000),
+});
+export type PuertaGroup = z.infer<typeof PuertaGroupSchema>;
+
+export const PuertaRegisterRequestSchema = z.object({
+  salaIds: z.array(z.string()).min(1).max(4),
+  mode: z.enum(['identified', 'anonymous', 'group']),
+  code: z.string().trim().max(64).optional(),   // credencial (identified)
+  group: PuertaGroupSchema.optional(),
+}).strict();
+export type PuertaRegisterRequest = z.infer<typeof PuertaRegisterRequestSchema>;
+
+export const PuertaRegisterResponseSchema = z.object({
+  ok: z.literal(true),
+  registered: z.array(z.object({ salaId: z.string(), salaName: z.string(), partySize: z.number().int() })),
+  visitor: z.string().nullable(),  // nombre si identificado, o etiqueta
+});
+export type PuertaRegisterResponse = z.infer<typeof PuertaRegisterResponseSchema>;
+
+export const PuertaOccupancyRequestSchema = z.object({ delta: z.number().int().min(-50).max(50) }).strict();
+export type PuertaOccupancyRequest = z.infer<typeof PuertaOccupancyRequestSchema>;
+
+export const PuertaOccupancyResponseSchema = z.object({ occupancy: z.number().int(), aforo: z.number().int().nullable() });
+export type PuertaOccupancyResponse = z.infer<typeof PuertaOccupancyResponseSchema>;
