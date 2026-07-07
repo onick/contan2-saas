@@ -1,0 +1,10 @@
+/* design-sync · entry de compilación Tailwind v4 para el bundle del kit UI.
+   Importa los tokens reales de la app (globals.css, @theme) y define la var
+   de fuente que en la app inyecta next/font (aquí la sirve fonts/roboto-flex.css).
+   La detección de sources corre desde la raíz del repo (cwd del buildCmd):
+   cubre apps/web/** y .design-sync/previews/** respetando .gitignore. */
+@import "../../apps/web/app/globals.css";
+
+:root {
+  --font-roboto-flex: "Roboto Flex";
+}

@@ -40,3 +40,11 @@ outputs/
 # Descarga vendored de GSAP (referencia; en runtime se usa el paquete npm gsap)
 gsap-public/
 gsap-public.zip
+
+# design-sync (scripts stageados + output regenerable + estado de máquina)
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+apps/web/.ds-css/

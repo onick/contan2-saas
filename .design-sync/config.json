@@ -1,0 +1,24 @@
+{
+  "projectId": "3534650d-2dd6-467a-8be0-f09d6b73b9da",
+  "shape": "package",
+  "readmeHeader": ".design-sync/conventions.md",
+  "pkg": "@contan2/web",
+  "globalName": "Contan2UI",
+  "entry": "apps/web/components/ui/index.ts",
+  "srcDir": "components/ui",
+  "tsconfig": "tsconfig.json",
+  "buildCmd": "node .ds-sync/node_modules/@tailwindcss/cli/dist/index.mjs -i .design-sync/css/entry.css -o apps/web/.ds-css/compiled.css",
+  "cssEntry": ".ds-css/compiled.css",
+  "extraFonts": ["../../.design-sync/fonts/roboto-flex.css"],
+  "componentSrcMap": {
+    "Button": "components/ui/Button.tsx",
+    "IconButton": "components/ui/IconButton.tsx",
+    "Field": "components/ui/Field.tsx",
+    "Chip": "components/ui/Chip.tsx",
+    "Card": "components/ui/Card.tsx",
+    "SectionHeader": "components/ui/SectionHeader.tsx",
+    "EmptyState": "components/ui/EmptyState.tsx",
+    "Skeleton": "components/ui/Skeleton.tsx",
+    "BorderBeam": "components/ui/BorderBeam.tsx"
+  }
+}
