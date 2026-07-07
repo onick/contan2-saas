@@ -64,6 +64,8 @@ run('GET /checkin/* · lectura', () => {
     act2 = await mkActivity(orgAId, 'Activa llena', 'activa', 30, 30, future(3));
     actFin = await mkActivity(orgAId, 'Finalizada', 'finalizada', 50, 10, daysAgo(2));
     await mkActivity(orgAId, 'Cancelada', 'cancelada', 50, 0, future(1));
+    // Sala PERMANENTE (Puerta): activa pero NO debe aparecer en el check-in normal.
+    await db.insertInto('activities').values({ id: randomUUID(), organization_id: orgAId, name: 'Sala VR permanente', type: 'otro', location: 'VR', date: future(1), capacity: 8, enrolled_count: 0, status: 'activa', is_permanent: true }).execute();
 
     u1 = await mkUser(orgAId, `CKI-AAA1-${stamp}`, 'Sofía', 'Méndez', 'sofia@ckitest.do', '809-111-2222', 5);
     u2 = await mkUser(orgAId, `CKI-BBB2-${stamp}`, 'Carlos', 'Beltrán', 'carlos@ckitest.do', '809-333-4444', 2);
@@ -136,6 +138,8 @@ run('GET /checkin/* · lectura', () => {
     expect(a2.recentMovement).toBe(0);
     // ninguna finalizada/cancelada
     expect(body.items.some((a) => a.name.includes('Finalizada') || a.name.includes('Cancelada'))).toBe(false);
+    // ni salas permanentes (van en la Puerta, no en el check-in normal)
+    expect(body.items.some((a) => a.name.includes('permanente'))).toBe(false);
   });
 
   it('guestList: total/llegaron por actividad; cancelada y sin-lista → null', async () => {

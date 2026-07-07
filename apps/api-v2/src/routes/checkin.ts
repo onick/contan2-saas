@@ -117,7 +117,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
          + (SELECT count(*) FROM attendance
             WHERE organization_id = ${orgId} AND anonymous = true AND checked_in_at >= ${todayStart})) AS uniq,
         (SELECT count(*) FROM activities
-           WHERE organization_id = ${orgId} AND status = 'activa') AS active
+           WHERE organization_id = ${orgId} AND status = 'activa' AND is_permanent = false) AS active
     `.execute(db);
     const m = res.rows[0]!;
 
@@ -159,6 +159,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
         GROUP BY activity_id
       ) r ON r.activity_id = a.id
       WHERE a.organization_id = ${orgId} AND a.status = 'activa'
+            AND a.is_permanent = false
       ORDER BY a.date ASC, a.id ASC
     `.execute(db);
 
