@@ -114,6 +114,30 @@ run('GET /reports/attendance-by-activity', () => {
     expect(body.period).toEqual({ from: FROM, to: TO });
   });
 
+  it('categories → lista categorías del tenant con conteo (sin PII, tenant-scoped)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v2/reports/categories', headers: { host: hostA, cookie: `contan2_session=${TOK.admin}` } });
+    expect(res.statusCode).toBe(200);
+    const b = res.json();
+    // Sólo 'Música' (las otras actividades del tenant A tienen category null).
+    expect(b.categories).toEqual([{ category: 'Música', activities: 1 }]);
+    // sin sesión → 401; cross-tenant admin B en host A → 403.
+    expect((await app.inject({ method: 'GET', url: '/api/v2/reports/categories', headers: { host: hostA } })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/api/v2/reports/categories', headers: { host: hostA, cookie: `contan2_session=${TOK.b}` } })).statusCode).toBe(403);
+  });
+
+  it('filtro category → acota a la categoría/ciclo y el nombre de archivo lo refleja', async () => {
+    const res = await get(`?from=${FROM}&to=${TO}&category=${encodeURIComponent('Música')}`, TOK.admin);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.rows.map((r: { name: string }) => r.name)).toEqual(['Concierto Jazz']); // el malicioso (sin categoría) queda fuera
+    expect(body.totals).toMatchObject({ activities: 1, attendances: 3, people: 5 });
+    // categoría inexistente → 0 filas.
+    expect((await get(`?from=${FROM}&to=${TO}&category=Inexistente`, TOK.admin)).json().rows).toEqual([]);
+    // el nombre de archivo del csv refleja el ciclo.
+    const csv = await get(`?from=${FROM}&to=${TO}&category=${encodeURIComponent('Música')}&format=csv`, TOK.admin);
+    expect(String(csv.headers['content-disposition'])).toContain('filename="ciclo_M');
+  });
+
   it('period-summary → KPIs + deltas + byType + daily + nuevos/recurrentes', async () => {
     const res = await app.inject({ method: 'GET', url: `/api/v2/reports/period-summary?from=${FROM}&to=${TO}`, headers: { host: hostA, cookie: `contan2_session=${TOK.admin}` } });
     expect(res.statusCode).toBe(200);

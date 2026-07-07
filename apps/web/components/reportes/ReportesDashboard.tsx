@@ -9,7 +9,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Calendar, Users, User, TrendingUp, Download, FileText, ChevronDown, Filter, ArrowUp, ArrowDown,
-  Film, Music, Wrench, Image as ImageIcon, Drama, Presentation, Clock, type LucideIcon,
+  Film, Music, Wrench, Image as ImageIcon, Drama, Presentation, Clock, Layers, type LucideIcon,
 } from 'lucide-react';
 import type { PeriodSummaryResponse } from '@contan2/contracts';
 import { Card, cn, focusRing } from '../ui';
@@ -234,6 +234,9 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
         </div>
       </div>
 
+      {/* reporte por ciclo / categoría — usa el período seleccionado arriba */}
+      <CategoryReport range={range} />
+
       <div className={cn('transition-opacity', loading && 'opacity-50')}>
         {/* KPIs (ícono izquierda, info derecha) */}
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -351,6 +354,70 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
         </div>
       </div>
     </div>
+  );
+}
+
+// Reporte descargable acotado a un ciclo/categoría dentro del período elegido
+// arriba. Trae las categorías del tenant (una vez) y arma los links de descarga
+// (xlsx/csv/pdf) contra el mismo endpoint de asistencia-por-actividad, con el
+// filtro `category`. Sin categoría = todo el período (equivale al export general).
+interface CatItem { category: string; activities: number }
+function CategoryReport({ range }: { range: { from: string; to: string } }) {
+  const [cats, setCats] = useState<CatItem[] | null>(null);
+  const [cat, setCat] = useState('');
+  useEffect(() => {
+    let cancel = false;
+    fetch('/app/reportes/api/categories', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancel) setCats(j && Array.isArray(j.categories) ? (j.categories as CatItem[]) : []); })
+      .catch(() => { if (!cancel) setCats([]); });
+    return () => { cancel = true; };
+  }, []);
+
+  const href = (format: string) => {
+    const p = new URLSearchParams({ from: range.from, to: range.to, format });
+    if (cat) p.set('category', cat);
+    return `/app/reportes/api/attendance?${p.toString()}`;
+  };
+
+  return (
+    <Card padding="lg" className="mt-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+        <div className="min-w-0 flex-1">
+          <h2 className="flex items-center gap-2 text-[15.5px] font-bold tracking-tight text-ink">
+            <Layers size={16} strokeWidth={2} className="text-brand" /> Reporte por ciclo o categoría
+          </h2>
+          <p className="mt-1 text-[13px] text-muted">
+            Descargá el detalle de un ciclo (ej.{' '}
+            <span className="font-semibold text-ink">5to ciclo de cine dominicano</span>) o categoría, dentro del período elegido arriba
+            <span className="whitespace-nowrap font-semibold text-ink"> ({range.from} – {range.to})</span>.
+          </p>
+        </div>
+        <label className="flex flex-none flex-col gap-1 lg:w-72">
+          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Ciclo / categoría</span>
+          <select value={cat} onChange={(e) => setCat(e.target.value)} disabled={cats === null}
+            className={cn('w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink disabled:opacity-60', focusRing)}>
+            <option value="">Todas las categorías</option>
+            {(cats ?? []).map((c) => (<option key={c.category} value={c.category}>{c.category} ({c.activities})</option>))}
+          </select>
+        </label>
+      </div>
+      {cats !== null && cats.length === 0 ? (
+        <p className="mt-3.5 text-[12px] text-muted">Todavía no hay actividades con categoría para agrupar.</p>
+      ) : (
+        <div className="mt-4 flex flex-wrap gap-2.5">
+          <a href={href('xlsx')} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+            <Download size={16} strokeWidth={1.9} /> Excel
+          </a>
+          <a href={href('csv')} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+            <Download size={16} strokeWidth={1.9} /> CSV
+          </a>
+          <a href={href('pdf')} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
+            <FileText size={16} strokeWidth={1.9} /> PDF
+          </a>
+        </div>
+      )}
+    </Card>
   );
 }
 

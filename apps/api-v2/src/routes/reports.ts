@@ -102,6 +102,24 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     }
   });
 
+  // Categorías/ciclos existentes del tenant (para el filtro de "reporte por ciclo").
+  // Cualquier staff; solo el texto de categoría (sin PII).
+  app.get('/reports/categories', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const rows = await db.selectFrom('activities')
+      .select(['category'])
+      .select(db.fn.countAll<string>().as('n'))
+      .where('organization_id', '=', guard.ctx.org.id)
+      .where('category', 'is not', null)
+      .where('is_permanent', '=', false)
+      .groupBy('category')
+      .orderBy('category', 'asc')
+      .execute();
+    return { categories: rows.map((r) => ({ category: r.category as string, activities: Number(r.n) })) };
+  });
+
   app.get('/reports/attendance-by-activity', async (req, reply) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
@@ -123,10 +141,11 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       return { error: 'Formato inválido: usá json, csv, xlsx o pdf.' };
     }
 
+    const category = typeof q.category === 'string' && q.category.trim() ? q.category.trim() : undefined;
     let report;
     try {
       const range = parseRange(q.from, q.to);
-      report = await attendanceByActivity(db, org.id, range);
+      report = await attendanceByActivity(db, org.id, range, category);
     } catch (e) {
       if (e instanceof ReportError) { reply.code(e.status); return { error: e.message }; }
       throw e;
@@ -143,6 +162,11 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       ua: req.headers['user-agent'] ?? null,
     });
 
+    // Nombre de archivo: si hay filtro de ciclo, lo refleja (safeFilename limpia).
+    const base = category
+      ? `ciclo_${category}_${report.period.from}_${report.period.to}`
+      : `asistencia-por-actividad_${report.period.from}_${report.period.to}`;
+
     if (format === 'csv') {
       const lines = [csvRow(CSV_HEADER)];
       for (const r of report.rows) {
@@ -155,7 +179,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
         'TOTAL', '', '', '', '',
         report.totals.capacity, '', report.totals.attendances, report.totals.people, report.totals.anonymous, report.totals.occupancyPct,
       ]));
-      const filename = safeFilename(`asistencia-por-actividad_${report.period.from}_${report.period.to}.csv`);
+      const filename = safeFilename(`${base}.csv`);
       reply.header('content-type', 'text/csv; charset=utf-8');
       reply.header('content-disposition', `attachment; filename="${filename}"`);
       return CSV_BOM + lines.join('\r\n') + '\r\n';
@@ -163,7 +187,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
 
     if (format === 'xlsx') {
       const buf = await buildAttendanceWorkbook(report, { name: org.name, primaryColor: org.primaryColor });
-      const filename = safeFilename(`asistencia-por-actividad_${report.period.from}_${report.period.to}.xlsx`);
+      const filename = safeFilename(`${base}.xlsx`);
       reply.header('content-type', XLSX_MIME);
       reply.header('content-disposition', `attachment; filename="${filename}"`);
       return buf;
@@ -171,7 +195,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
 
     if (format === 'pdf') {
       const buf = await buildAttendancePdf(report, { name: org.name, primaryColor: org.primaryColor });
-      const filename = safeFilename(`asistencia-por-actividad_${report.period.from}_${report.period.to}.pdf`);
+      const filename = safeFilename(`${base}.pdf`);
       reply.header('content-type', 'application/pdf');
       reply.header('content-disposition', `attachment; filename="${filename}"`);
       return buf;

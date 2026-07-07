@@ -78,27 +78,31 @@ export async function attendanceByActivity(
   db: DbClient,
   orgId: string,
   range: ReportRange,
+  category?: string, // filtro opcional por categoría/ciclo (ej. "5to ciclo de cine dominicano")
 ): Promise<AttendanceByActivityReport> {
   // Cota dura: contamos primero (barato) para no materializar un dataset enorme.
-  const countRow = await db
+  let countQ = db
     .selectFrom('activities')
     .select(db.fn.countAll<string>().as('n'))
     .where('organization_id', '=', orgId)
     .where('date', '>=', range.fromDate)
-    .where('date', '<', range.toExclusive)
-    .executeTakeFirstOrThrow();
+    .where('date', '<', range.toExclusive);
+  if (category) countQ = countQ.where('category', '=', category);
+  const countRow = await countQ.executeTakeFirstOrThrow();
   if (Number(countRow.n) > MAX_REPORT_ROWS) {
     throw new ReportError(400, `El período tiene ${countRow.n} actividades (máx ${MAX_REPORT_ROWS}). Acotá el rango.`);
   }
 
-  const rows = await db
+  let rowsQ = db
     .selectFrom('activities as a')
     .leftJoin('attendance as att', (j) =>
       j.onRef('att.activity_id', '=', 'a.id').onRef('att.organization_id', '=', 'a.organization_id'),
     )
     .where('a.organization_id', '=', orgId)
     .where('a.date', '>=', range.fromDate)
-    .where('a.date', '<', range.toExclusive)
+    .where('a.date', '<', range.toExclusive);
+  if (category) rowsQ = rowsQ.where('a.category', '=', category);
+  const rows = await rowsQ
     .groupBy(['a.id', 'a.name', 'a.date', 'a.location', 'a.category', 'a.status', 'a.capacity', 'a.enrolled_count'])
     .select([
       'a.id as activityId',
