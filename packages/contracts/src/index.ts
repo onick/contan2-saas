@@ -1659,3 +1659,49 @@ export type PuertaOccupancyRequest = z.infer<typeof PuertaOccupancyRequestSchema
 
 export const PuertaOccupancyResponseSchema = z.object({ occupancy: z.number().int(), aforo: z.number().int().nullable() });
 export type PuertaOccupancyResponse = z.infer<typeof PuertaOccupancyResponseSchema>;
+
+// ── Agenda de reservas (Sala VR): agendar visitas de colegios ────────────────
+export const BOOKING_STATUSES = ['scheduled', 'confirmed', 'attended', 'no_show', 'cancelled'] as const;
+export const BookingStatusSchema = z.enum(BOOKING_STATUSES);
+
+export const PuertaBookingCreateRequestSchema = z.object({
+  salaId: z.string(),
+  scheduledAt: z.string(),                                     // ISO
+  colegio: z.string().trim().min(1).max(160),
+  level: z.string().trim().max(80).optional().nullable(),
+  contactName: z.string().trim().min(1).max(120),
+  contactEmail: z.string().trim().email().max(200).optional().or(z.literal('')).nullable(),
+  contactPhone: z.string().trim().max(40).optional().nullable(),
+  studentCount: z.number().int().min(0).max(2000),
+  notes: z.string().trim().max(1000).optional().nullable(),
+}).strict();
+export type PuertaBookingCreateRequest = z.infer<typeof PuertaBookingCreateRequestSchema>;
+
+// PATCH: transiciones de estado + reprogramar (cambiar fecha/hora).
+export const PuertaBookingUpdateRequestSchema = z.object({
+  action: z.enum(['confirm', 'cancel', 'no_show', 'reschedule']),
+  scheduledAt: z.string().optional(),                          // sólo para reschedule
+}).strict();
+export type PuertaBookingUpdateRequest = z.infer<typeof PuertaBookingUpdateRequestSchema>;
+
+export const PuertaBookingFullSchema = z.object({
+  id: z.string(),
+  salaId: z.string(),
+  salaName: z.string(),
+  scheduledAt: z.string(),
+  colegio: z.string(),
+  level: z.string().nullable(),
+  contactName: z.string(),
+  contactEmail: z.string().nullable(),
+  contactPhone: z.string().nullable(),
+  studentCount: z.number().int(),
+  status: BookingStatusSchema,
+  notes: z.string().nullable(),
+  confirmedAt: z.string().nullable(),
+  notifiedAt: z.string().nullable(),
+  attendanceId: z.string().nullable(),
+});
+export type PuertaBookingFull = z.infer<typeof PuertaBookingFullSchema>;
+
+export const PuertaBookingsResponseSchema = z.object({ bookings: z.array(PuertaBookingFullSchema) });
+export type PuertaBookingsResponse = z.infer<typeof PuertaBookingsResponseSchema>;

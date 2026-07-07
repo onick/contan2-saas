@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Check, AlertTriangle, Plus, Minus, QrCode, UserRound, Users, X, ArrowRight } from 'lucide-react';
 import type { PuertaSala } from '@contan2/contracts';
 import { PuertaIdentify } from './PuertaIdentify';
+import { VrAgenda } from './VrAgenda';
 
 type Mode = 'identified' | 'anonymous' | 'group';
 const money = (n: number) => n.toLocaleString('en-US');
@@ -136,6 +137,11 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
           Va a las dos salas → registrar en ambas
         </button>
       ) : null}
+
+      {/* Agenda de la Sala VR (aforo != null): agendar visitas de colegios. */}
+      {salas.filter((s) => s.aforo !== null).map((s) => (
+        <VrAgenda key={`agenda-${s.id}`} salaId={s.id} salaName={s.name} />
+      ))}
 
       {reg ? (
         <RegisterSheet reg={reg} salas={salas} byId={byId} busy={busy} onClose={() => setReg(null)} onSubmit={submit} setReg={setReg} />

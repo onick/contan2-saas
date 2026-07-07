@@ -23,6 +23,7 @@ import { usersRoute } from './routes/users.js';
 import { attendanceRoute } from './routes/attendance.js';
 import { checkinRoute } from './routes/checkin.js';
 import { puertaRoute } from './routes/puerta.js';
+import { puertaBookingsRoute } from './routes/puerta-bookings.js';
 import { reportsRoute } from './routes/reports.js';
 import { auditRoute } from './routes/audit.js';
 import { teamRoute } from './routes/team.js';
@@ -112,6 +113,7 @@ export function buildApp(): FastifyInstance {
   app.register(attendanceRoute, { prefix: '/api/v2' });
   app.register(checkinRoute, { prefix: '/api/v2' });
   app.register(puertaRoute, { prefix: '/api/v2' });
+  app.register(puertaBookingsRoute, { prefix: '/api/v2' });
   app.register(reportsRoute, { prefix: '/api/v2' });
   app.register(auditRoute, { prefix: '/api/v2' });
   app.register(teamRoute, { prefix: '/api/v2' });
