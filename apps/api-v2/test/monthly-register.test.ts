@@ -26,7 +26,10 @@ run('GET /reports/month.xlsx', () => {
   const hostA = `${slugA}.contan2.com`;
   let orgAId: string;
   let orgBId: string;
-  const TOK = { admin: `mreg-adm-${stamp}`, operator: `mreg-ope-${stamp}`, b: `mreg-b-${stamp}` };
+  let orgCId: string;
+  const slugC = `mreg-c-${stamp}`;
+  const hostC = `${slugC}.contan2.com`;
+  const TOK = { admin: `mreg-adm-${stamp}`, operator: `mreg-ope-${stamp}`, b: `mreg-b-${stamp}`, c: `mreg-c-${stamp}` };
 
   const mkOrg = async (slug: string) =>
     (await db.insertInto('organizations').values({ slug, name: `Org ${slug}`, status: 'active', code_prefix: 'TST' }).returning('id').executeTakeFirstOrThrow()).id;
@@ -78,13 +81,21 @@ run('GET /reports/month.xlsx', () => {
     await mkAtt(orgAId, actTeatro, { userId: u3.id, userCode: u3.code, adults: 1 });
     // Charla: sin asistencias = headcount 0.
 
+    // Tenant C · casos de BORDE de zona horaria (America/Santo_Domingo = UTC-4):
+    orgCId = await mkOrg(slugC);
+    await mkStaff(orgCId, TOK.c, 'admin');
+    // 30/jun 23:00 local = 01/jul 03:00 UTC → DEBE contar en JUNIO.
+    await mkAct(orgCId, 'Borde fin de junio', '2026-07-01T03:00:00.000Z', 'cine', 'Ciclo de Cine Clásico');
+    // 31/may 22:00 local = 01/jun 02:00 UTC → NO debe contar en junio (es mayo).
+    await mkAct(orgCId, 'Borde fin de mayo', '2026-06-01T02:00:00.000Z', 'cine', 'Ciclo de Cine Clásico');
+
     app = buildApp();
     await app.ready();
   });
 
   afterAll(async () => {
     if (app) await app.close();
-    for (const id of [orgAId, orgBId]) {
+    for (const id of [orgAId, orgBId, orgCId]) {
       if (!id) continue;
       await db.deleteFrom('attendance').where('organization_id', '=', id).execute();
       await db.deleteFrom('activities').where('organization_id', '=', id).execute();
@@ -154,6 +165,28 @@ run('GET /reports/month.xlsx', () => {
     expect((await get('?year=2026&month=13', TOK.admin)).statusCode).toBe(400);
     expect((await get('?year=1999&month=6', TOK.admin)).statusCode).toBe(400);
     expect((await get('?year=abc&month=6', TOK.admin)).statusCode).toBe(400);
+  });
+
+  it('borde de zona horaria: el evento de las 22h del último día del mes cuenta en el mes correcto (TZ del tenant, no UTC)', async () => {
+    const res = await get('?year=2026&month=6', TOK.c, hostC);
+    expect(res.statusCode).toBe(200);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(res.rawPayload);
+    const ws = wb.worksheets[0];
+    // Junio de C debe tener EXACTAMENTE la actividad del 30/jun local (no la del 31/may).
+    const names: string[] = [];
+    ws.eachRow((row, n) => { if (n >= 3 && typeof row.getCell(1).value === 'number') names.push(String(row.getCell(7).value)); });
+    expect(names).toEqual(['Borde fin de junio']);
+    // La fecha mostrada es 30/06/2026 (día local), no 01/07.
+    const fecha = ws.getCell(3, 2).value as Date;
+    expect(fecha instanceof Date ? fecha.toISOString().slice(0, 10) : String(fecha)).toBe('2026-06-30');
+    // Y la del 31/may aparece en mayo, no en junio.
+    const may = await get('?year=2026&month=5', TOK.c, hostC);
+    const wb2 = new ExcelJS.Workbook();
+    await wb2.xlsx.load(may.rawPayload);
+    const names2: string[] = [];
+    wb2.worksheets[0].eachRow((row, n) => { if (n >= 3 && typeof row.getCell(1).value === 'number') names2.push(String(row.getCell(7).value)); });
+    expect(names2).toEqual(['Borde fin de mayo']);
   });
 
   it('roles: operator → 403; sin sesión → 401; cross-tenant → 403', async () => {
