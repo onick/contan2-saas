@@ -17,6 +17,8 @@ import { ACTIVITY_TYPES, type PeriodSummaryResponse } from '@contan2/contracts';
 import { CSV_BOM, csvRow, safeFilename } from '../services/csv.js';
 import { buildAttendanceWorkbook } from '../services/report-excel.js';
 import { buildAttendancePdf } from '../services/report-pdf.js';
+import { monthlyRegister, monthNameEs } from '../services/reports/monthly-register.js';
+import { buildMonthlyRegisterWorkbook } from '../services/reports/monthly-register-excel.js';
 import { writeReportAudit } from '../services/report-audit.js';
 import { buildPeriodSummary, previousRange, loadActivityReportData, type PeriodQuery } from '../services/reports/report-data.js';
 import { buildActivityExcelReport, reportFilename } from '../services/reports/activity-excel-report.js';
@@ -203,6 +205,44 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
 
     const body: ReportAttendanceByActivityResponse = report;
     return body;
+  });
+
+  // Registro mensual en el FORMATO DEL DEPARTAMENTO (Cine/Teatro): un mes
+  // tabulado (8 columnas) + Total + Resumen. owner/admin, branded, auditado.
+  app.get('/reports/month.xlsx', async (req, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const { org, staff } = guard.ctx;
+    if (!CAN_GENERATE_REPORTS.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para generar reportes.' }; }
+    if ((await reportLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes en poco tiempo. Esperá un momento.' }; }
+
+    const q = req.query as Record<string, unknown>;
+    const year = Number(q.year);
+    const month = Number(q.month);
+    let report;
+    try {
+      report = await monthlyRegister(db, org.id, year, month);
+    } catch (e) {
+      if (e instanceof ReportError) { reply.code(e.status); return { error: e.message }; }
+      throw e;
+    }
+
+    await writeReportAudit(db, {
+      orgId: org.id,
+      staff: { id: staff.id, email: staff.email, role: staff.role },
+      report: 'monthly-register',
+      format: 'xlsx',
+      meta: { year: report.year, month: report.month, rows: report.rows.length },
+      ip: req.ip,
+      ua: req.headers['user-agent'] ?? null,
+    });
+
+    const buf = await buildMonthlyRegisterWorkbook(report, { name: org.name, primaryColor: org.primaryColor });
+    const filename = safeFilename(`registro_${monthNameEs(report.month).toLowerCase()}_${report.year}.xlsx`);
+    reply.header('content-type', XLSX_MIME);
+    reply.header('content-disposition', `attachment; filename="${filename}"`);
+    return buf;
   });
 
   // ── Reportería BRANDED (S2 · paridad v1 /reports/*) ───────────────────────

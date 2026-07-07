@@ -237,6 +237,9 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
       {/* reporte por ciclo / categoría — usa el período seleccionado arriba */}
       <CategoryReport range={range} />
 
+      {/* registro mensual tabulado en el formato del departamento */}
+      <MonthlyRegisterCard />
+
       <div className={cn('transition-opacity', loading && 'opacity-50')}>
         {/* KPIs (ícono izquierda, info derecha) */}
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -417,6 +420,52 @@ function CategoryReport({ range }: { range: { from: string; to: string } }) {
           </a>
         </div>
       )}
+    </Card>
+  );
+}
+
+// Descarga del "registro mensual" en el formato del departamento (8 columnas +
+// Total + Resumen), idéntico en estructura a su Excel pero con datos reales de
+// v2. El staff elige mes + año y baja el .xlsx branded.
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+function MonthlyRegisterCard() {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1); // 1-12
+  const [year, setYear] = useState(now.getFullYear());
+  const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - i);
+  const href = `/app/reportes/api/month?year=${year}&month=${month}`;
+
+  return (
+    <Card padding="lg" className="mt-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+        <div className="min-w-0 flex-1">
+          <h2 className="flex items-center gap-2 text-[15.5px] font-bold tracking-tight text-ink">
+            <Calendar size={16} strokeWidth={2} className="text-brand" /> Reporte mensual (formato registro)
+          </h2>
+          <p className="mt-1 text-[13px] text-muted">
+            Descargá el mes tabulado con las mismas columnas del registro del departamento (No., Fecha, Mes, Semana, Tipo, Programa, Nombre y Asistencia), con Total y resumen. Fechas y asistencia reales del sistema.
+          </p>
+        </div>
+        <div className="flex flex-none flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Mes</span>
+            <select value={month} onChange={(e) => setMonth(Number(e.target.value))}
+              className={cn('rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink', focusRing)}>
+              {MESES.map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Año</span>
+            <select value={year} onChange={(e) => setYear(Number(e.target.value))}
+              className={cn('rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink', focusRing)}>
+              {years.map((y) => (<option key={y} value={y}>{y}</option>))}
+            </select>
+          </label>
+          <a href={href} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
+            <Download size={16} strokeWidth={1.9} /> Descargar Excel
+          </a>
+        </div>
+      </div>
     </Card>
   );
 }
