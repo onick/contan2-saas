@@ -18,6 +18,7 @@ import { authSignupRoute } from './routes/auth-signup.js';
 import { orgBrandingRoute } from './routes/org-branding.js';
 import { dashboardMetricsRoute } from './routes/dashboard-metrics.js';
 import { activitiesRoute } from './routes/activities.js';
+import { programsRoute } from './routes/programs.js';
 import { usersRoute } from './routes/users.js';
 import { attendanceRoute } from './routes/attendance.js';
 import { checkinRoute } from './routes/checkin.js';
@@ -105,6 +106,7 @@ export function buildApp(): FastifyInstance {
   app.register(dashboardMetricsRoute, { prefix: '/api/v2' });
   app.register(shellRoute, { prefix: '/api/v2' });
   app.register(activitiesRoute, { prefix: '/api/v2' });
+  app.register(programsRoute, { prefix: '/api/v2' });
   app.register(segmentsRoute, { prefix: '/api/v2' });
   app.register(usersRoute, { prefix: '/api/v2' });
   app.register(attendanceRoute, { prefix: '/api/v2' });

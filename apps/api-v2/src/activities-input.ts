@@ -99,7 +99,10 @@ export function normalizeActivityUpdate(data: ActivityUpdateRequest): ActivityUp
   if (data.description !== undefined) set.description = data.description.trim();
   if (data.category !== undefined) {
     const c = data.category?.trim();
-    set.category = c ? c.toLowerCase().replace(/\s+/g, ' ') : null;
+    // Preserva el caso: el dropdown escribe el nombre canónico del programa
+    // ("Cine Dominicano"). Segmentos/reportes dedupan por slug (insensible a
+    // acento/caso), así que no hace falta lowercasear.
+    set.category = c ? c.replace(/\s+/g, ' ') : null;
   }
   if (data.imagePosY !== undefined) set.image_pos_y = data.imagePosY; // null = centro
   if (data.audience !== undefined) set.audience = data.audience;
@@ -108,7 +111,8 @@ export function normalizeActivityUpdate(data: ActivityUpdateRequest): ActivityUp
 
 export function normalizeActivityInput(data: ActivityCreateRequest): NormalizedActivityInput {
   const rawCategory = data.category?.trim();
-  const category = rawCategory ? rawCategory.toLowerCase().replace(/\s+/g, ' ') : null;
+  // Preserva el caso (nombre canónico del programa); dedup por slug lo maneja.
+  const category = rawCategory ? rawCategory.replace(/\s+/g, ' ') : null;
   return {
     name: data.name.trim(),
     type: data.type,

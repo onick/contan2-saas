@@ -228,6 +228,37 @@ export const ACTIVITY_TYPES = [
 export const ActivityTypeSchema = z.enum(ACTIVITY_TYPES);
 export type ActivityType = z.infer<typeof ActivityTypeSchema>;
 
+// ── Programas / Ciclos (vocabulario controlado de activities.category) ────────
+// La "Programa" a la que pertenece una actividad (Cine Dominicano, Cine Clásico,
+// Temporada de Teatro…). Los cíclicos derivan su edición del año (2026 = 5ta).
+export const ProgramSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  isCyclical: z.boolean(),
+  editionAnchorYear: z.number().int().nullable(),
+  editionAnchorNumber: z.number().int().nullable(),
+  editionNoun: z.string(),
+  active: z.boolean(),
+  sortOrder: z.number().int(),
+  // Edición derivada para el año consultado (null si no cíclico / año previo al ancla).
+  edition: z.number().int().nullable().optional(),
+  editionLabel: z.string().nullable().optional(),
+});
+export type Program = z.infer<typeof ProgramSchema>;
+
+export const ProgramsResponseSchema = z.object({ programs: z.array(ProgramSchema) });
+export type ProgramsResponse = z.infer<typeof ProgramsResponseSchema>;
+
+export const ProgramCreateRequestSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  isCyclical: z.boolean().optional().default(false),
+  editionAnchorYear: z.number().int().min(2000).max(2100).nullable().optional(),
+  editionAnchorNumber: z.number().int().min(1).max(999).nullable().optional(),
+  editionNoun: z.string().trim().max(20).optional(),
+});
+export type ProgramCreateRequest = z.infer<typeof ProgramCreateRequestSchema>;
+
 // Gracia de 60s para "fecha no en el pasado" (paridad exacta con v1).
 const ACTIVITY_DATE_PAST_GRACE_MS = 60_000;
 

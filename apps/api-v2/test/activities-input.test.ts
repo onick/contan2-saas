@@ -82,8 +82,8 @@ describe('normalizeActivityInput · normalización', () => {
     expect(out.description).toBe('');
   });
 
-  it('category: lowercase + colapsa espacios; null si vacía/ausente', () => {
-    expect(normalizeActivityInput({ ...base, category: '  Cine   Dominicano ' }).category).toBe('cine dominicano');
+  it('category: preserva caso + colapsa espacios; null si vacía/ausente', () => {
+    expect(normalizeActivityInput({ ...base, category: '  Cine   Dominicano ' }).category).toBe('Cine Dominicano');
     expect(normalizeActivityInput({ ...base, category: '   ' }).category).toBe(null);
     expect(normalizeActivityInput({ ...base }).category).toBe(null);
   });

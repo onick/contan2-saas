@@ -12,6 +12,7 @@
 
 import { sql, type DbClient } from '@contan2/db';
 import { ReportError, MAX_REPORT_ROWS } from '../report-data.js';
+import { programSlug, editionLabel } from '../programs/edition.js';
 
 const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
 
@@ -113,6 +114,20 @@ export async function monthlyRegister(
     throw new ReportError(400, `El mes tiene ${rows.length} actividades (máx ${MAX_REPORT_ROWS}).`);
   }
 
+  // Programas del tenant → mapa slug→programa para enriquecer "Programa" con la
+  // edición derivada del año (ej. "Cine Dominicano · 5to ciclo").
+  const programs = await db.selectFrom('programs')
+    .select(['slug', 'name', 'is_cyclical', 'edition_anchor_year', 'edition_anchor_number', 'edition_noun'])
+    .where('organization_id', '=', orgId).where('active', '=', true).execute();
+  const progBySlug = new Map(programs.map((p) => [p.slug, p]));
+  const displayPrograma = (cat: string): string => {
+    if (!cat) return '';
+    const p = progBySlug.get(programSlug(cat));
+    if (!p) return cat;
+    const ed = editionLabel(p, year);
+    return ed ? `${p.name} · ${ed}` : p.name;
+  };
+
   const mapped: MonthlyRegisterRow[] = rows.map((r, i) => {
     const parts = String(r.localDate).split('-');
     const Y = Number(parts[0]); const M = Number(parts[1]); const D = Number(parts[2]);
@@ -123,7 +138,7 @@ export async function monthlyRegister(
       date: new Date(Date.UTC(Y, M - 1, D, 12, 0, 0)).toISOString(),
       semana: weekOfMonth(Y, M, D),
       tipo: tipoLabel(String(r.type)),
-      programa: r.category ?? '',
+      programa: displayPrograma(r.category ?? ''),
       nombre: r.name,
       asistencia: Number(r.asistencia),
     };

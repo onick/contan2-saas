@@ -378,8 +378,27 @@ export interface SignupVerificationsTable {
   created_at: CreatedAt;
 }
 
+// programs (migración 042): vocabulario de Programas/Ciclos por tenant + config
+// de edición anual. Autoridad del texto que va en activities.category; la edición
+// (5to ciclo) se deriva del año + el ancla, no se almacena por actividad.
+export interface ProgramsTable {
+  id: Generated<string>;
+  organization_id: string;
+  name: string;                    // nombre canónico ("Cine Dominicano")
+  slug: string;                    // slugify(name), 1:1 con el slug de category
+  is_cyclical: DefaultedBool;
+  edition_anchor_year: number | null;
+  edition_anchor_number: number | null;
+  edition_noun: DefaultedText;     // "ciclo" | "temporada" | "edición"
+  active: DefaultedBool;
+  sort_order: DefaultedInt;
+  created_at: CreatedAt;
+  updated_at: UpdatedAt;
+}
+
 export interface Database {
   protocol_profiles: ProtocolProfilesTable;
+  programs: ProgramsTable;
   organizations: OrganizationsTable;
   staff_members: StaffMembersTable;
   staff_auth_sessions: StaffAuthSessionsTable;

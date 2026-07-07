@@ -121,7 +121,7 @@ run('POST /activities/with-cover · creación atómica con portada', () => {
     expect(activity.enrolledCount).toBe(0);
     expect(activity.imageUrl).toMatch(/^\/uploads\//); // poblado desde el inicio
     expect(activity.description).toBe('Hola');
-    expect(activity.category).toBe('música viva');
+    expect(activity.category).toBe('Música Viva');
 
     // DB: image_url presente; archivo WebP real en disco.
     const row = await db.selectFrom('activities').select(['image_url', 'status']).where('id', '=', activity.id).executeTakeFirstOrThrow();

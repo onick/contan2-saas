@@ -99,8 +99,10 @@ describe('NewActivityDrawer · portada obligatoria', () => {
     fireEvent.click(createBtn());
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
 
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchFn.mock.calls[0]!;
+    // El ProgramPicker hace GET /programs al montar; contamos solo el submit.
+    const submitCalls = fetchFn.mock.calls.filter((c) => c[0] === '/app/actividades/api/with-cover');
+    expect(submitCalls).toHaveLength(1);
+    const [url, init] = submitCalls[0]!;
     expect(url).toBe('/app/actividades/api/with-cover');
     expect(init.method).toBe('POST');
     expect(init.body).toBeInstanceOf(FormData);
@@ -149,9 +151,11 @@ describe('NewActivityDrawer · portada obligatoria', () => {
     await selectCover(); fillFields();
     fireEvent.click(createBtn());
     fireEvent.click(createBtn());
-    expect(fetchFn).toHaveBeenCalledTimes(1);
+    // El ProgramPicker puede fetchear /programs al montar; contamos solo el submit.
+    const submitCalls = () => fetchFn.mock.calls.filter((c) => c[0] === '/app/actividades/api/with-cover');
+    expect(submitCalls()).toHaveLength(1);
     resolve(new Response('{}', { status: 201 }));
-    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(submitCalls()).toHaveLength(1));
   });
 
   it('éxito (201) cierra/resetea/refresca (onCreated)', async () => {

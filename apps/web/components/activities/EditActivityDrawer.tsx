@@ -34,6 +34,7 @@ import { fetchActivityDetail } from '../../lib/api/activity-detail';
 import { TYPE_LABELS } from '../../lib/activities/typeLabels';
 import { optimizeCover, OptimizeError, formatBytes, type OptimizeResult } from '../../lib/images/optimizeCover';
 import { CoverReframe } from './CoverReframe';
+import { ProgramPicker } from './ProgramPicker';
 import { IconButton, Button, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
@@ -477,12 +478,18 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
                   </label>
                 </div>
 
-                <label className="block">
-                  <span className={labelCls}>Categoría <span className="normal-case text-faint">(opcional)</span></span>
-                  <input type="text" value={form.category} onChange={(e) => set('category', e.target.value)}
-                    aria-invalid={!!errors.category} aria-describedby={errors.category ? errId('category') : undefined} className={inputCls(!!errors.category)} />
+                <div className="block">
+                  <span className={labelCls}>Programa / ciclo <span className="normal-case text-faint">(opcional)</span></span>
+                  <div className="mt-1">
+                    <ProgramPicker
+                      value={form.category}
+                      onChange={(v) => set('category', v)}
+                      year={(() => { const y = new Date(form.date).getFullYear(); return Number.isFinite(y) ? y : undefined; })()}
+                      selectClassName={inputCls(!!errors.category)}
+                    />
+                  </div>
                   <FieldError k="category" />
-                </label>
+                </div>
 
                 <label className="block">
                   <span className={labelCls}>Tipo de público</span>

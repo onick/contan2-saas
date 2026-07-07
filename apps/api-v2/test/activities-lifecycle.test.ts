@@ -151,7 +151,7 @@ run('PATCH /activities/:id (+/status) · ciclo de vida', () => {
     expect(activity.location).toBe('Sala 7');
     expect(activity.capacity).toBe(250);
     expect(activity.description).toBe('nueva desc'); // trim
-    expect(activity.category).toBe('música viva'); // normalizado
+    expect(activity.category).toBe('Música Viva'); // preserva caso, colapsa espacios
     expect(activity.date).toBe(new Date(newDate).toISOString());
     expect(activity.endDate).toBe(new Date(newEnd).toISOString());
 

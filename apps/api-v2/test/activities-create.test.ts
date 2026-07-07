@@ -105,7 +105,7 @@ run('POST /activities · escritura', () => {
     expect(activity.status).toBe('activa');
     expect(activity.enrolledCount).toBe(0);
     expect(activity.imageUrl).toBe(null);
-    expect(activity.category).toBe('música clásica'); // normalizado
+    expect(activity.category).toBe('Música Clásica'); // preserva caso, colapsa espacios
     expect(activity.description).toBe('Hola'); // trim
 
     // Persistencia real en DB, scoped al tenant correcto.
