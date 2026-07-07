@@ -14,7 +14,9 @@ import { Button, Card, cn, focusRing } from '../ui';
 
 const TYPES = [
   ['concierto', 'Concierto'], ['cine', 'Cine'], ['taller', 'Taller'],
-  ['exposicion', 'Exposición'], ['teatro', 'Teatro'], ['conferencia', 'Conferencia'], ['otro', 'Otro'],
+  ['exposicion', 'Exposición'], ['teatro', 'Teatro'], ['conferencia', 'Conferencia'],
+  ['tertulia', 'Tertulia'], ['visita_guiada', 'Visita guiada'], ['cuentacuentos', 'Cuenta cuentos'],
+  ['otro', 'Otro'],
 ] as const;
 
 interface Preview {

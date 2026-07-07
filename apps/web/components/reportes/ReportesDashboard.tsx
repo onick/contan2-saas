@@ -9,7 +9,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Calendar, Users, User, TrendingUp, Download, FileText, ChevronDown, Filter, ArrowUp, ArrowDown,
-  Film, Music, Wrench, Image as ImageIcon, Drama, Presentation, Clock, Layers, type LucideIcon,
+  Film, Music, Wrench, Image as ImageIcon, Drama, Presentation, MessagesSquare, Footprints, BookOpen,
+  Clock, Layers, type LucideIcon,
 } from 'lucide-react';
 import type { PeriodSummaryResponse } from '@contan2/contracts';
 import { Card, cn, focusRing } from '../ui';
@@ -29,13 +30,17 @@ const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.ge
 
 const TYPE_OPTIONS: Array<{ v: string; l: string }> = [
   { v: 'concierto', l: 'Concierto' }, { v: 'cine', l: 'Cine' }, { v: 'taller', l: 'Taller' },
-  { v: 'exposicion', l: 'Exposición' }, { v: 'teatro', l: 'Teatro' }, { v: 'conferencia', l: 'Conferencia' }, { v: 'otro', l: 'Otro' },
+  { v: 'exposicion', l: 'Exposición' }, { v: 'teatro', l: 'Teatro' }, { v: 'conferencia', l: 'Conferencia' },
+  { v: 'tertulia', l: 'Tertulia' }, { v: 'visita_guiada', l: 'Visita guiada' }, { v: 'cuentacuentos', l: 'Cuenta cuentos' },
+  { v: 'otro', l: 'Otro' },
 ];
 const TYPE_COLOR: Record<string, string> = {
-  cine: '#e65100', concierto: '#14b8a6', taller: '#8b5cf6', exposicion: '#10b981', teatro: '#ec4899', conferencia: '#3b6fe0', otro: '#94a3b8',
+  cine: '#e65100', concierto: '#14b8a6', taller: '#8b5cf6', exposicion: '#10b981', teatro: '#ec4899', conferencia: '#3b6fe0',
+  tertulia: '#0ea5e9', visita_guiada: '#eab308', cuentacuentos: '#f43f5e', otro: '#94a3b8',
 };
 const TYPE_ICON: Record<string, LucideIcon> = {
   cine: Film, concierto: Music, taller: Wrench, exposicion: ImageIcon, teatro: Drama, conferencia: Presentation,
+  tertulia: MessagesSquare, visita_guiada: Footprints, cuentacuentos: BookOpen,
 };
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 

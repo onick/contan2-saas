@@ -37,7 +37,9 @@ export interface PeriodSummary {
 
 const TYPE_LABELS: Record<string, string> = {
   exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
-  teatro: 'Teatro', conferencia: 'Conferencia', otro: 'Otro',
+  teatro: 'Teatro', conferencia: 'Conferencia',
+  tertulia: 'Tertulia', visita_guiada: 'Visita guiada', cuentacuentos: 'Cuenta cuentos',
+  otro: 'Otro',
 };
 
 // Filtra activities por tipo si se pidió (acotado al enum por el contrato).

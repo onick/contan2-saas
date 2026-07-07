@@ -29,7 +29,10 @@ run('GET /reports/month.xlsx', () => {
   let orgCId: string;
   const slugC = `mreg-c-${stamp}`;
   const hostC = `${slugC}.contan2.com`;
-  const TOK = { admin: `mreg-adm-${stamp}`, operator: `mreg-ope-${stamp}`, b: `mreg-b-${stamp}`, c: `mreg-c-${stamp}` };
+  let orgDId: string;
+  const slugD = `mreg-d-${stamp}`;
+  const hostD = `${slugD}.contan2.com`;
+  const TOK = { admin: `mreg-adm-${stamp}`, operator: `mreg-ope-${stamp}`, b: `mreg-b-${stamp}`, c: `mreg-c-${stamp}`, d: `mreg-d-${stamp}` };
 
   const mkOrg = async (slug: string) =>
     (await db.insertInto('organizations').values({ slug, name: `Org ${slug}`, status: 'active', code_prefix: 'TST' }).returning('id').executeTakeFirstOrThrow()).id;
@@ -89,13 +92,20 @@ run('GET /reports/month.xlsx', () => {
     // 31/may 22:00 local = 01/jun 02:00 UTC → NO debe contar en junio (es mayo).
     await mkAct(orgCId, 'Borde fin de mayo', '2026-06-01T02:00:00.000Z', 'cine', 'Ciclo de Cine Clásico');
 
+    // Tenant D · tipos NUEVOS mapeados al vocabulario del depto (junio 2026).
+    orgDId = await mkOrg(slugD);
+    await mkStaff(orgDId, TOK.d, 'admin');
+    await mkAct(orgDId, 'Tertulia literaria', '2026-06-10T19:00:00.000Z', 'tertulia', null);
+    await mkAct(orgDId, 'Recorrido museo', '2026-06-12T15:00:00.000Z', 'visita_guiada', null);
+    await mkAct(orgDId, 'Cuentos para niños', '2026-06-14T15:00:00.000Z', 'cuentacuentos', null);
+
     app = buildApp();
     await app.ready();
   });
 
   afterAll(async () => {
     if (app) await app.close();
-    for (const id of [orgAId, orgBId, orgCId]) {
+    for (const id of [orgAId, orgBId, orgCId, orgDId]) {
       if (!id) continue;
       await db.deleteFrom('attendance').where('organization_id', '=', id).execute();
       await db.deleteFrom('activities').where('organization_id', '=', id).execute();
@@ -187,6 +197,18 @@ run('GET /reports/month.xlsx', () => {
     const names2: string[] = [];
     wb2.worksheets[0].eachRow((row, n) => { if (n >= 3 && typeof row.getCell(1).value === 'number') names2.push(String(row.getCell(7).value)); });
     expect(names2).toEqual(['Borde fin de mayo']);
+  });
+
+  it('tipos nuevos se mapean al vocabulario del depto: tertulia→Charlas, visita_guiada/cuentacuentos→Otras Actividades', async () => {
+    const res = await get('?year=2026&month=6', TOK.d, hostD);
+    expect(res.statusCode).toBe(200);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(res.rawPayload);
+    const ws = wb.worksheets[0];
+    // 3 filas por fecha: 10 tertulia, 12 visita guiada, 14 cuenta cuentos.
+    expect(String(ws.getCell(3, 5).value)).toBe('Charlas');
+    expect(String(ws.getCell(4, 5).value)).toBe('Otras Actividades');
+    expect(String(ws.getCell(5, 5).value)).toBe('Otras Actividades');
   });
 
   it('roles: operator → 403; sin sesión → 401; cross-tenant → 403', async () => {

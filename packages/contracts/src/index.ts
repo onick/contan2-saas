@@ -219,9 +219,11 @@ export type ActivitiesListResponse = z.infer<typeof ActivitiesListResponseSchema
 //   · organizationId jamás del body: se deriva de la sesión staff (tenant-scope).
 // ─────────────────────────────────────────────────────────────────────────
 
-// type es un enum cerrado en v1 (no free-text). Mismo conjunto exacto.
+// type es un enum cerrado (no free-text). Base de v1 + tipos propios del CCB
+// (tertulia, visita guiada, cuenta cuentos) que antes caían en "otro".
 export const ACTIVITY_TYPES = [
-  'exposicion', 'concierto', 'cine', 'taller', 'teatro', 'conferencia', 'otro',
+  'exposicion', 'concierto', 'cine', 'taller', 'teatro', 'conferencia',
+  'tertulia', 'visita_guiada', 'cuentacuentos', 'otro',
 ] as const;
 export const ActivityTypeSchema = z.enum(ACTIVITY_TYPES);
 export type ActivityType = z.infer<typeof ActivityTypeSchema>;

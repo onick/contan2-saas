@@ -24,6 +24,9 @@ const TYPE_LABELS = {
   taller: 'Taller',
   teatro: 'Teatro',
   conferencia: 'Conferencia',
+  tertulia: 'Tertulia',
+  visita_guiada: 'Visita guiada',
+  cuentacuentos: 'Cuenta cuentos',
   otro: 'Otro',
 };
 const TYPE_LABEL = t => TYPE_LABELS[t] || t || '—';

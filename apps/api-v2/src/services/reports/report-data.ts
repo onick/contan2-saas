@@ -8,7 +8,9 @@ import { sql, type DbClient } from '@contan2/db';
 
 const TYPE_LABELS: Record<string, string> = {
   exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
-  teatro: 'Teatro', conferencia: 'Conferencia', otro: 'Otro',
+  teatro: 'Teatro', conferencia: 'Conferencia',
+  tertulia: 'Tertulia', visita_guiada: 'Visita guiada', cuentacuentos: 'Cuenta cuentos',
+  otro: 'Otro',
 };
 
 const dayKey = (d: Date): string =>

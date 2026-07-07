@@ -28,7 +28,7 @@ import { buildPeriodPdfHtml, periodPdfHeaderFooter, periodPdfFilename } from '..
 import { renderHtmlToPdf } from '../services/reports/pdf-renderer.js';
 import { loadProtocolReportData, buildProtocolExcelReport, protocolReportFilename } from '../services/reports/protocol-report.js';
 
-const VALID_TYPES = new Set(['exposicion', 'concierto', 'cine', 'taller', 'teatro', 'conferencia', 'otro']);
+const VALID_TYPES = new Set<string>(ACTIVITY_TYPES); // deriva del enum, no duplicar
 const ACT_FILE_RE = /^([0-9a-f-]{36})\.(xlsx|pdf)$/i;
 
 // Branding del tenant para las plantillas (shape camelCase de v1).

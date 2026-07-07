@@ -6,7 +6,9 @@ import type { ActivityType } from '@contan2/contracts';
 
 export const TYPE_LABELS: Record<ActivityType, string> = {
   exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
-  teatro: 'Teatro', conferencia: 'Conferencia', otro: 'Otro',
+  teatro: 'Teatro', conferencia: 'Conferencia',
+  tertulia: 'Tertulia', visita_guiada: 'Visita guiada', cuentacuentos: 'Cuenta cuentos',
+  otro: 'Otro',
 };
 
 // Tolerante a tipos fuera del enum (datos legacy): capitaliza como fallback.

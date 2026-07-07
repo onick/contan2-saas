@@ -10,7 +10,8 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Crown, Activity, Sparkles, Moon, ChevronRight, Heart, BarChart3, Send, Download, Users,
-  Film, Music, Wrench, Image as ImageIcon, Drama, Presentation, ArrowUp, ArrowDown, type LucideIcon,
+  Film, Music, Wrench, Image as ImageIcon, Drama, Presentation, MessagesSquare, Footprints, BookOpen,
+  ArrowUp, ArrowDown, type LucideIcon,
 } from 'lucide-react';
 import type { Segment } from '@contan2/contracts';
 import { Card, cn, focusRing } from '../ui';
@@ -27,6 +28,9 @@ const TYPE_META: Record<string, { label: string; color: string; Icon: LucideIcon
   exposicion: { label: 'Exposiciones', color: '#f59e0b', Icon: ImageIcon },
   teatro: { label: 'Teatro', color: '#ec4899', Icon: Drama },
   conferencia: { label: 'Conferencias', color: '#10b981', Icon: Presentation },
+  tertulia: { label: 'Tertulias', color: '#0ea5e9', Icon: MessagesSquare },
+  visita_guiada: { label: 'Visitas guiadas', color: '#eab308', Icon: Footprints },
+  cuentacuentos: { label: 'Cuenta cuentos', color: '#f43f5e', Icon: BookOpen },
 };
 
 // Paleta categórica ordenada (del ejemplo). Se asigna por índice → colores

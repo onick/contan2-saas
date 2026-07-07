@@ -18,7 +18,9 @@ import { loadLogoDataUri } from '../credential.js';
 
 const TYPE_LABELS = {
   exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
-  teatro: 'Teatro', conferencia: 'Conferencia', otro: 'Otro',
+  teatro: 'Teatro', conferencia: 'Conferencia',
+  tertulia: 'Tertulia', visita_guiada: 'Visita guiada', cuentacuentos: 'Cuenta cuentos',
+  otro: 'Otro',
 };
 const STATUS_LABELS = {
   activa: 'Activa', finalizada: 'Finalizada', cancelada: 'Cancelada', borrador: 'Borrador',

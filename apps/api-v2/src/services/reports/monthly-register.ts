@@ -21,8 +21,11 @@ const TIPO_LABEL: Record<string, string> = {
   teatro: 'Teatro',
   taller: 'Talleres',
   conferencia: 'Charlas',
+  tertulia: 'Charlas', // tertulia = conversación/charla en el vocabulario del depto
   concierto: 'Otras Actividades',
   exposicion: 'Otras Actividades',
+  visita_guiada: 'Otras Actividades',
+  cuentacuentos: 'Otras Actividades',
   otro: 'Otras Actividades',
 };
 // Orden estable para el resumen "por tipo".

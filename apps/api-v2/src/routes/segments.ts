@@ -42,7 +42,9 @@ const fanThreshold = (type: string): number => (type === 'cine' || type === 'tal
 
 const TYPE_LABELS: Record<string, string> = {
   exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
-  teatro: 'Teatro', conferencia: 'Conferencia', otro: 'Otro',
+  teatro: 'Teatro', conferencia: 'Conferencia',
+  tertulia: 'Tertulia', visita_guiada: 'Visita guiada', cuentacuentos: 'Cuenta cuentos',
+  otro: 'Otro',
 };
 
 // kebab-case URL-safe (paridad v1 slugifyCategory).

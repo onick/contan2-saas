@@ -9,6 +9,8 @@ const CATEGORY_STYLE: Record<string, string> = {
   Tertulia: 'bg-[#e3f4f1] text-[#0f7a6b]',
   Exposición: 'bg-[#efe9fb] text-[#6b3fb8]',
   Taller: 'bg-[#fdeaf0] text-[#b03060]',
+  'Visita guiada': 'bg-[#fef6e0] text-[#8a6d0f]',
+  'Cuenta cuentos': 'bg-[#fde8ec] text-[#a3324b]',
   Otro: 'bg-surface-container text-muted',
 };
 
