@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Check, AlertTriangle, Plus, Minus, QrCode, UserRound, Users, X, ArrowRight } from 'lucide-react';
 import type { PuertaSala } from '@contan2/contracts';
+import { PuertaIdentify } from './PuertaIdentify';
 
 type Mode = 'identified' | 'anonymous' | 'group';
 const money = (n: number) => n.toLocaleString('en-US');
@@ -149,8 +150,7 @@ function RegisterSheet({ reg, salas, byId, busy, onClose, onSubmit, setReg }: {
   onClose: () => void; setReg: (r: { salaIds: string[]; mode: Mode | null; also: boolean }) => void;
   onSubmit: (body: unknown, okMsg: (r: { visitor: string | null; registered: { salaName: string }[] }) => string) => void;
 }) {
-  const [code, setCode] = useState('');
-  const [g, setG] = useState({ colegio: '', level: '', contactName: '', contactEmail: '', contactPhone: '', studentCount: 30 });
+  const [g, setG] = useState({ colegio: '', level: '', contactName: '', studentCount: 30 });
   const title = reg.salaIds.map((id) => byId[id]?.name).filter(Boolean).join(' + ');
   const okMsg = (r: { visitor: string | null; registered: { salaName: string }[] }) =>
     `Registrado${r.visitor ? ` · ${r.visitor}` : ''} en ${r.registered.map((x) => x.salaName).join(' y ')}.`;
@@ -171,12 +171,10 @@ function RegisterSheet({ reg, salas, byId, busy, onClose, onSubmit, setReg }: {
             <Opt icon={<Users size={20} />} tone="orange" t="Grupo / colegio" s="Profesor responsable + cantidad de alumnos" onClick={() => setReg({ ...reg, mode: 'group' })} />
           </div>
         ) : reg.mode === 'identified' ? (
-          <form onSubmit={(e) => { e.preventDefault(); onSubmit({ salaIds: reg.salaIds, mode: 'identified', code }, okMsg); }}>
-            <Field label="Código de la credencial">
-              <input autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="CCB-AB12CD" className={inp} />
-            </Field>
-            <Actions busy={busy} label="Registrar" back={() => setReg({ ...reg, mode: null })} disabled={!code.trim()} />
-          </form>
+          <div>
+            <PuertaIdentify busy={busy} onRegister={(code) => onSubmit({ salaIds: reg.salaIds, mode: 'identified', code }, okMsg)} />
+            <button type="button" onClick={() => setReg({ ...reg, mode: null })} className="mt-3 text-[13px] font-semibold text-muted hover:text-ink">← Atrás</button>
+          </div>
         ) : reg.mode === 'anonymous' ? (
           <div>
             <p className="rounded-xl bg-surface-container px-4 py-3 text-[13.5px] text-muted">Se registra 1 visita anónima en {title}.</p>
@@ -184,7 +182,7 @@ function RegisterSheet({ reg, salas, byId, busy, onClose, onSubmit, setReg }: {
               onGo={() => onSubmit({ salaIds: reg.salaIds, mode: 'anonymous' }, okMsg)} />
           </div>
         ) : (
-          <form onSubmit={(e) => { e.preventDefault(); onSubmit({ salaIds: reg.salaIds, mode: 'group', group: { ...g, level: g.level || null, contactEmail: g.contactEmail || null, contactPhone: g.contactPhone || null } }, okMsg); }}>
+          <form onSubmit={(e) => { e.preventDefault(); onSubmit({ salaIds: reg.salaIds, mode: 'group', group: { ...g, level: g.level || null } }, okMsg); }}>
             <Field label="Colegio"><input autoFocus value={g.colegio} onChange={(e) => setG({ ...g, colegio: e.target.value })} className={inp} required /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Nivel / grado"><input value={g.level} onChange={(e) => setG({ ...g, level: e.target.value })} placeholder="5.º primaria" className={inp} /></Field>
@@ -197,10 +195,6 @@ function RegisterSheet({ reg, salas, byId, busy, onClose, onSubmit, setReg }: {
               </Field>
             </div>
             <Field label="Profesor responsable"><input value={g.contactName} onChange={(e) => setG({ ...g, contactName: e.target.value })} className={inp} required /></Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Email (opcional)"><input type="email" value={g.contactEmail} onChange={(e) => setG({ ...g, contactEmail: e.target.value })} className={inp} /></Field>
-              <Field label="Teléfono (opcional)"><input value={g.contactPhone} onChange={(e) => setG({ ...g, contactPhone: e.target.value })} className={inp} /></Field>
-            </div>
             <p className="mb-3 mt-1 rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-700">Se registran 1 profesor + {g.studentCount} alumnos = {1 + g.studentCount} visitas.</p>
             <Actions busy={busy} label="Registrar grupo" back={() => setReg({ ...reg, mode: null })} disabled={!g.colegio.trim() || !g.contactName.trim()} />
           </form>
