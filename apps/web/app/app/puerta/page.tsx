@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { AppShell } from '../../../components/shell/AppShell';
 import { SectionHeader } from '../../../components/ui';
 import { getTenantBranding } from '../../../lib/branding/tenant';
 import { PuertaBoard } from '../../../components/puerta/PuertaBoard';
+import { PUERTA_ENABLED } from '../../../lib/shell/nav';
 
 export const metadata: Metadata = {
   title: 'Contan2 v2 · Puerta',
@@ -11,6 +13,8 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function PuertaPage() {
+  // Feature oculta salvo donde el flag esté encendido (staging). En prod → 404.
+  if (!PUERTA_ENABLED) notFound();
   const branding = await getTenantBranding();
   return (
     <AppShell branding={branding} title="Puerta" activeKey="puerta">

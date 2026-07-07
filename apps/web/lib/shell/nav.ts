@@ -40,7 +40,14 @@ export interface NavItem {
   liveBadge?: LiveBadgeSource;
 }
 
-export const NAV_ITEMS: NavItem[] = [
+// Flag de build: la "Puerta" (salas permanentes) sólo se muestra donde
+// NEXT_PUBLIC_PUERTA_ENABLED=1 (staging). En prod la var no está seteada → la
+// feature queda oculta hasta que se rediseñe. NEXT_PUBLIC_* se inlinea en el
+// bundle (server y cliente) en build, así que filtra parejo en Sidebar,
+// CommandPalette y MobileNav. Ver también el guard en app/app/puerta/page.tsx.
+export const PUERTA_ENABLED = process.env.NEXT_PUBLIC_PUERTA_ENABLED === '1';
+
+const ALL_NAV_ITEMS: NavItem[] = [
   // Principal
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Principal', href: '/app' },
   { key: 'actividades', label: 'Actividades', icon: CalendarDays, group: 'Principal', href: '/app/actividades', liveBadge: 'activeActivities' },
@@ -60,6 +67,9 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'historial', label: 'Historial', icon: History, group: 'Equipo', href: '/app/historial' },
   { key: 'cuenta', label: 'Mi cuenta', icon: UserRound, group: 'Equipo', href: '/app/cuenta' },
 ];
+
+// Nav efectivo: sin la Puerta salvo que el flag esté encendido.
+export const NAV_ITEMS: NavItem[] = ALL_NAV_ITEMS.filter((i) => i.key !== 'puerta' || PUERTA_ENABLED);
 
 export const NAV_GROUPS: NavGroup[] = ['Principal', 'Audiencia', 'Operación', 'Equipo'];
 
