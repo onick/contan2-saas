@@ -283,6 +283,10 @@ export interface AttendanceTable {
   group_label: string | null;
   group_level: string | null;
   group_contact: string | null;
+  // Denormaliza activities.is_permanent (migración 044): las entradas a salas
+  // permanentes quedan FUERA del índice único (org,user,activity) → cada
+  // re-entrada del mismo visitante cuenta. Regulares = false (default).
+  is_permanent: DefaultedBool;
 }
 
 // space_bookings (migración 041): agenda de reservas de un espacio permanente (VR).

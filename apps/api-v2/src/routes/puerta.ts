@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { getDb, sql, type DbClient } from '@contan2/db';
+import { generateUserCode } from '@contan2/codes';
 import {
   PuertaRegisterRequestSchema,
   PuertaOccupancyRequestSchema,
@@ -94,7 +95,8 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
 
     const parsed = PuertaRegisterRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Datos de registro inválidos.' }; }
-    const { salaIds, mode, code, group } = parsed.data;
+    const { salaIds, mode, code, group, visitor } = parsed.data;
+    const extra = Math.max(0, Math.min(10, parsed.data.companions ?? 0)); // acompañantes (+N)
 
     // Validar que todas las salas sean permanentes del tenant.
     const salas: NonNullable<Awaited<ReturnType<typeof loadPermanentSala>>>[] = [];
@@ -104,45 +106,76 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
       salas.push(s);
     }
 
-    // Resolver visitante identificado (si aplica).
+    // Resolver/crear al visitante identificado (identified) o nuevo (new).
     let user: { id: string; code: string; first_name: string; last_name: string } | null = null;
+    let bumpExisting = false; // sumar visita a un usuario que ya existía
     if (mode === 'identified') {
       if (!code) { reply.code(400); return { error: 'Falta el código de la credencial.' }; }
       user = (await db.selectFrom('users').select(['id', 'code', 'first_name', 'last_name'])
         .where('organization_id', '=', orgId).where('code', '=', resolveCode(code, guard.ctx.org.codePrefix))
         .where('deleted_at', 'is', null).executeTakeFirst()) ?? null;
-      if (!user) { reply.code(404); return { error: 'No encontramos a nadie con ese código. Registrá como anónimo.' }; }
+      if (!user) { reply.code(404); return { error: 'No encontramos a nadie con ese código. Registrá como nuevo o sin datos.' }; }
+      bumpExisting = true;
+    } else if (mode === 'new') {
+      if (!visitor) { reply.code(400); return { error: 'Faltan los datos del visitante.' }; }
+      const email = visitor.email?.trim() ? visitor.email.trim().toLowerCase() : null;
+      // find-or-create por email: no duplicamos el CRM si ya existe.
+      if (email) {
+        const existing = await db.selectFrom('users').select(['id', 'code', 'first_name', 'last_name'])
+          .where('organization_id', '=', orgId).where('email', '=', email).where('deleted_at', 'is', null)
+          .executeTakeFirst();
+        if (existing) { user = existing; bumpExisting = true; }
+      }
+      if (!user) {
+        // Crea el visitante (silencioso, sin email de credencial). Loop por
+        // colisión de code (mismo patrón que el check-in).
+        for (let attempt = 0; attempt < 5 && !user; attempt += 1) {
+          const created = await db.insertInto('users').values({
+            id: randomUUID(), organization_id: orgId,
+            code: generateUserCode(guard.ctx.org.codePrefix),
+            first_name: visitor.firstName.trim(), last_name: visitor.lastName.trim(),
+            email, phone: visitor.phone?.trim() || null, visit_count: 1,
+          }).onConflict((oc) => oc.columns(['organization_id', 'code']).doNothing())
+            .returning(['id', 'code', 'first_name', 'last_name']).executeTakeFirst();
+          if (created) user = created;
+        }
+        if (!user) { reply.code(500); return { error: 'No se pudo generar la credencial. Reintentá.' }; }
+      }
     }
     if (mode === 'group' && !group) { reply.code(400); return { error: 'Faltan los datos del grupo.' }; }
 
     const students = mode === 'group' ? (group!.studentCount) : 0;
-    const partySize = 1 + students; // profesor/persona (1) + alumnos
     const registered: PuertaRegisterResponse['registered'] = [];
 
     await db.transaction().execute(async (tx) => {
       for (const s of salas) {
+        // Bucket de acompañantes por audiencia de la sala (infantil→niños).
+        const infantil = s.audience === 'infantil';
+        const children = mode === 'group' ? students : (infantil ? extra : 0);
+        const adults = mode === 'group' ? 0 : (infantil ? 0 : extra);
         await tx.insertInto('attendance').values({
           id: randomUUID(),
-          user_id: mode === 'identified' ? user!.id : null,
-          user_code: mode === 'identified' ? user!.code : null,
+          user_id: user?.id ?? null,
+          user_code: user?.code ?? null,
           activity_id: s.id,
           activity_name: s.name,
           organization_id: orgId,
           checked_in_at: new Date().toISOString(),
-          anonymous: mode !== 'identified',
-          companions_children: mode === 'group' ? students : 0,
-          companions_adults: 0,
+          anonymous: !user,
+          companions_children: children,
+          companions_adults: adults,
           group_label: mode === 'group' ? group!.colegio : null,
           group_level: mode === 'group' ? (group!.level ?? null) : null,
           group_contact: mode === 'group' ? group!.contactName : null,
+          is_permanent: true, // fuera del índice único → cada re-entrada cuenta
         }).execute();
         // NO tocamos enrolled_count: la tabla tiene CHECK (enrolled_count <=
         // capacity) y una sala permanente supera el aforo. Los visitantes se
         // cuentan desde `attendance` (visitorsToday).
-        registered.push({ salaId: s.id, salaName: s.name, partySize });
+        registered.push({ salaId: s.id, salaName: s.name, partySize: 1 + children + adults });
       }
-      if (mode === 'identified') {
-        await tx.updateTable('users').set({ visit_count: sql`visit_count + 1` }).where('id', '=', user!.id).execute();
+      if (bumpExisting && user) {
+        await tx.updateTable('users').set({ visit_count: sql`visit_count + 1` }).where('id', '=', user.id).execute();
       }
     });
 
@@ -150,8 +183,9 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     const body: PuertaRegisterResponse = {
       ok: true,
       registered,
-      visitor: mode === 'identified' ? `${user!.first_name} ${user!.last_name}`.trim()
+      visitor: user ? `${user.first_name} ${user.last_name}`.trim()
         : mode === 'group' ? `${group!.colegio} (${students} alumnos)` : null,
+      code: user?.code ?? null,
     };
     return body;
   });

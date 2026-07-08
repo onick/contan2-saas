@@ -12,7 +12,10 @@ import type { CheckinVisitorItem } from '@contan2/contracts';
 import { searchCheckinVisitors } from '../../lib/api/checkin-client';
 import { CheckinScanModal } from '../checkin/CheckinScanModal';
 
-export function PuertaIdentify({ onRegister, busy }: { onRegister: (code: string) => void; busy: boolean }) {
+export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
+  onRegister: (code: string) => void; busy: boolean;
+  companions: number; onCompanions: (v: number) => void;
+}) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<CheckinVisitorItem[]>([]);
   const [searching, setSearching] = useState(false);
@@ -66,9 +69,17 @@ export function PuertaIdentify({ onRegister, busy }: { onRegister: (code: string
           </div>
           <button type="button" onClick={() => { setSelected(null); setQ(''); }} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-container"><X size={17} /></button>
         </div>
+        <div className="mt-3 flex items-center justify-between rounded-lg border border-line px-3 py-2">
+          <span className="text-[13.5px] font-semibold text-ink">Acompañantes <span className="font-normal text-muted">(+1 c/u)</span></span>
+          <div className="flex items-center gap-2.5">
+            <button type="button" onClick={() => onCompanions(Math.max(0, companions - 1))} className="grid h-8 w-8 place-items-center rounded-lg bg-surface-container text-[18px] font-bold text-ink">−</button>
+            <b className="min-w-[24px] text-center text-[17px] font-bold tabular-nums">{companions}</b>
+            <button type="button" onClick={() => onCompanions(Math.min(10, companions + 1))} className="grid h-8 w-8 place-items-center rounded-lg bg-surface-container text-[18px] font-bold text-ink">+</button>
+          </div>
+        </div>
         <button type="button" onClick={() => onRegister(selected.code)} disabled={busy}
-          className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 text-[15px] font-bold text-white transition hover:opacity-95 disabled:opacity-50">
-          {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={18} strokeWidth={2.4} />} Registrar entrada
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 text-[15px] font-bold text-white transition hover:opacity-95 disabled:opacity-50">
+          {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={18} strokeWidth={2.4} />} Registrar entrada{companions > 0 ? ` · ${1 + companions} personas` : ''}
         </button>
       </div>
     );

@@ -197,7 +197,10 @@ export async function checkinIdentified(
       checked_in_at: new Date().toISOString(),
       anonymous: false,
     })
-    .onConflict((oc) => oc.columns(['organization_id', 'user_id', 'activity_id']).doNothing())
+    // El índice único es PARCIAL (mig 044: WHERE is_permanent = false); el
+    // predicado hace que Postgres lo use como árbitro. Las actividades con fecha
+    // insertan is_permanent = false (default) → idempotencia intacta.
+    .onConflict((oc) => oc.columns(['organization_id', 'user_id', 'activity_id']).where('is_permanent', '=', false).doNothing())
     .returning('id')
     .executeTakeFirst();
   if (!att) throw new CheckinError(409, 'El visitante ya está registrado en esta actividad.');

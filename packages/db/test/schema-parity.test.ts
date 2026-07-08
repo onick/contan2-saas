@@ -77,7 +77,7 @@ const EXPECTED: Record<keyof Database, string[]> = {
   attendance: [
     'id', 'user_id', 'user_code', 'activity_id', 'activity_name',
     'organization_id', 'checked_in_at', 'anonymous', 'companions_children', 'companions_adults', 'registered_at',
-    'group_label', 'group_level', 'group_contact',
+    'group_label', 'group_level', 'group_contact', 'is_permanent',
   ],
   space_bookings: [
     'id', 'organization_id', 'activity_id', 'scheduled_at', 'colegio', 'level',

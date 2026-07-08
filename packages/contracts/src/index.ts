@@ -1639,10 +1639,21 @@ export const PuertaGroupSchema = z.object({
 });
 export type PuertaGroup = z.infer<typeof PuertaGroupSchema>;
 
+// Visitante nuevo capturado en la Puerta (se crea como usuario + credencial).
+export const PuertaVisitorSchema = z.object({
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().min(1).max(80),
+  email: z.string().trim().email().max(200).optional().or(z.literal('')).nullable(),
+  phone: z.string().trim().max(40).optional().nullable(),
+});
+export type PuertaVisitor = z.infer<typeof PuertaVisitorSchema>;
+
 export const PuertaRegisterRequestSchema = z.object({
   salaIds: z.array(z.string()).min(1).max(4),
-  mode: z.enum(['identified', 'anonymous', 'group']),
-  code: z.string().trim().max(64).optional(),   // credencial (identified)
+  mode: z.enum(['identified', 'anonymous', 'group', 'new']),
+  code: z.string().trim().max(64).optional(),          // credencial (identified)
+  companions: z.number().int().min(0).max(10).optional(), // +N acompañantes (identified/new/anonymous)
+  visitor: PuertaVisitorSchema.optional(),             // datos del visitante (new)
   group: PuertaGroupSchema.optional(),
 }).strict();
 export type PuertaRegisterRequest = z.infer<typeof PuertaRegisterRequestSchema>;
@@ -1650,7 +1661,8 @@ export type PuertaRegisterRequest = z.infer<typeof PuertaRegisterRequestSchema>;
 export const PuertaRegisterResponseSchema = z.object({
   ok: z.literal(true),
   registered: z.array(z.object({ salaId: z.string(), salaName: z.string(), partySize: z.number().int() })),
-  visitor: z.string().nullable(),  // nombre si identificado, o etiqueta
+  visitor: z.string().nullable(),  // nombre si identificado/nuevo, o etiqueta
+  code: z.string().nullable(),     // credencial del visitante (identified/new)
 });
 export type PuertaRegisterResponse = z.infer<typeof PuertaRegisterResponseSchema>;
 

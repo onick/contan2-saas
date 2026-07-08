@@ -89,4 +89,36 @@ run('puerta · salas permanentes', () => {
     expect((await post(`/api/v2/puerta/salas/${salaId}/occupancy`, { delta: -50 })).json().occupancy).toBe(0);
     expect((await post(`/api/v2/puerta/salas/00000000-0000-0000-0000-000000000000/occupancy`, { delta: 1 })).statusCode).toBe(404);
   });
+
+  it('mode new: crea el visitante (code) + acompañantes por audiencia; cada entrada cuenta; find-or-create por email', async () => {
+    // Nuevo visitante con 2 acompañantes → party 3; sala infantil → children.
+    const r = await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'new', companions: 2, visitor: { firstName: 'Juan', lastName: 'Pérez', email: 'juan@x.do', phone: '809-1' } });
+    expect(r.statusCode).toBe(201);
+    expect(r.json().visitor).toContain('Juan');
+    expect(r.json().code).toMatch(/^PTA-/); // credencial minteada
+    expect(r.json().registered[0].partySize).toBe(3);
+    const created = await db.selectFrom('users').select(['id', 'code', 'visit_count']).where('organization_id', '=', orgId).where('email', '=', 'juan@x.do').executeTakeFirstOrThrow();
+    expect(created.code).toBe(r.json().code);
+    // El acompañante fue a children (audiencia infantil).
+    const att = await db.selectFrom('attendance').select(['companions_children', 'companions_adults', 'anonymous']).where('user_code', '=', created.code).executeTakeFirstOrThrow();
+    expect(att.companions_children).toBe(2);
+    expect(att.companions_adults).toBe(0);
+    expect(att.anonymous).toBe(false);
+
+    // find-or-create: re-registrar con el MISMO email → mismo user (no duplica), +visita.
+    const r2 = await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'new', visitor: { firstName: 'Juan', lastName: 'Pérez', email: 'juan@x.do' } });
+    expect(r2.json().code).toBe(created.code);
+    expect((await db.selectFrom('users').select((eb) => eb.fn.countAll<string>().as('n')).where('organization_id', '=', orgId).where('email', '=', 'juan@x.do').executeTakeFirstOrThrow()).n).toBe('1');
+    const after = await db.selectFrom('users').select('visit_count').where('id', '=', created.id).executeTakeFirstOrThrow();
+    expect(Number(after.visit_count)).toBe(2); // creado en 1, +1 al reusar
+    // 2 entradas del mismo Juan (cada entrada cuenta, sin dedup).
+    expect((await db.selectFrom('attendance').select((eb) => eb.fn.countAll<string>().as('n')).where('user_code', '=', created.code).executeTakeFirstOrThrow()).n).toBe('2');
+
+    // identified con acompañantes: Ana + 1 → party 2.
+    const ri = await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'identified', code: userCode, companions: 1 });
+    expect(ri.json().registered[0].partySize).toBe(2);
+
+    // new sin visitor → 400.
+    expect((await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'new' })).statusCode).toBe(400);
+  });
 });

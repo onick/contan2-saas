@@ -196,6 +196,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
         checked_in_at: new Date().toISOString(), anonymous: true,
         companions_children: students, companions_adults: 0,
         group_label: b.colegio, group_level: b.level, group_contact: b.contact_name,
+        is_permanent: true,
       }).execute();
       await tx.updateTable('space_bookings')
         .set({ status: 'attended', attendance_id: attendanceId, updated_at: new Date().toISOString() })
