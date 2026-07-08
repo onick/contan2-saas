@@ -12,6 +12,7 @@ import type { CheckinVisitorItem } from '@contan2/contracts';
 import { searchCheckinVisitors } from '../../lib/api/checkin-client';
 import { CheckinScanModal } from '../checkin/CheckinScanModal';
 import { Button, IconButton, cn, focusRing } from '../ui';
+import { DoorButton } from './DoorButton';
 
 export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
   onRegister: (code: string) => void; busy: boolean;
@@ -79,9 +80,9 @@ export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
             <button type="button" aria-label="Más acompañantes" onClick={() => onCompanions(Math.min(10, companions + 1))} className={stepBtn}>+</button>
           </div>
         </div>
-        <Button variant="primary" size="lg" className="mt-3 w-full" onClick={() => onRegister(selected.code)} disabled={busy}>
+        <DoorButton size="lg" className="mt-3 w-full" onClick={() => onRegister(selected.code)} disabled={busy}>
           {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={18} strokeWidth={2.4} />} Registrar entrada{companions > 0 ? ` · ${1 + companions} personas` : ''}
-        </Button>
+        </DoorButton>
       </div>
     );
   }

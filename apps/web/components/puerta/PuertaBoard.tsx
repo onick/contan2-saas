@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, Check, AlertTriangle, Plus, QrCode, Users, X, UserPlus, Search, DoorOpen } from 'lucide-react';
 import type { PuertaSala } from '@contan2/contracts';
 import { Card, Button, IconButton, Field, Chip, EmptyState, cn, focusRing, useDrawerLifecycle } from '../ui';
+import { DoorButton } from './DoorButton';
 import { PuertaIdentify } from './PuertaIdentify';
 import { VrAgenda } from './VrAgenda';
 
@@ -121,9 +122,9 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
               ) : null}
 
               <div className="mt-auto p-5 pt-4">
-                <Button variant="primary" size="lg" className="w-full" onClick={() => setReg({ salaIds: [s.id] })}>
+                <DoorButton size="lg" className="w-full" onClick={() => setReg({ salaIds: [s.id] })}>
                   <Plus size={20} strokeWidth={2.4} /> Registrar entrada
-                </Button>
+                </DoorButton>
               </div>
             </Card>
           );
@@ -271,8 +272,8 @@ export function Companions({ value, onChange }: { value: number; onChange: (v: n
 }
 function SubmitBtn({ busy, label, disabled }: { busy: boolean; label: string; disabled?: boolean }) {
   return (
-    <Button type="submit" variant="primary" size="lg" className="mt-1 w-full" disabled={busy || disabled}>
+    <DoorButton type="submit" size="lg" className="mt-1 w-full" disabled={busy || disabled}>
       {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={18} strokeWidth={2.2} />} {label}
-    </Button>
+    </DoorButton>
   );
 }
