@@ -112,8 +112,8 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
                       <span className="font-mono font-bold tabular-nums text-muted">{b.time}</span>
                       <span className="min-w-0 flex-1 truncate">{b.colegio}{b.level ? ` · ${b.level}` : ''}</span>
                       <span className="text-muted tabular-nums">{b.studentCount}</span>
-                      <Chip tone={b.status === 'confirmed' ? 'success' : b.status === 'attended' ? 'brand' : 'neutral'} dot>
-                        {b.status === 'confirmed' ? 'Confirmada' : b.status === 'attended' ? 'Asistió' : 'Agendada'}
+                      <Chip tone={b.status === 'confirmed' ? 'success' : b.status === 'attended' ? 'brand' : b.status === 'no_show' ? 'warning' : 'neutral'} dot>
+                        {b.status === 'confirmed' ? 'Confirmada' : b.status === 'attended' ? 'Asistió' : b.status === 'no_show' ? 'No vino' : 'Agendada'}
                       </Chip>
                     </div>
                   ))}
@@ -222,10 +222,11 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
               <Field label="Colegio" autoFocus value={g.colegio} onChange={(e) => setG({ ...g, colegio: e.target.value })} required />
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <Field label="Nivel / grado" value={g.level} onChange={(e) => setG({ ...g, level: e.target.value })} placeholder="5.º primaria" />
-                <label className="block">
+                {/* div, no label: un label activaría su primer control (el botón −) al tocar el texto */}
+                <div className="block">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Alumnos</span>
                   <Stepper value={g.studentCount} onChange={(v) => setG({ ...g, studentCount: v })} />
-                </label>
+                </div>
               </div>
               <div className="mt-3">
                 <Field label="Profesor responsable" value={g.contactName} onChange={(e) => setG({ ...g, contactName: e.target.value })} required />
