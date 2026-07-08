@@ -18,7 +18,7 @@ export default async function PuertaPage() {
   const branding = await getTenantBranding();
   return (
     <AppShell branding={branding} title="Puerta" activeKey="puerta">
-      <div className="mx-auto w-full max-w-[1100px]">
+      <div className="mx-auto w-full max-w-[1600px]">
         <div className="app-reveal">
           <SectionHeader level={1} title="Puerta · Salas permanentes" subtitle="Elegí la sala (o ambas) y registrá al visitante. Cada entrada suma a la estadística de esa sala." />
         </div>

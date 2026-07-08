@@ -11,6 +11,7 @@ import { Search, QrCode, Loader2, UserRound, Check, X } from 'lucide-react';
 import type { CheckinVisitorItem } from '@contan2/contracts';
 import { searchCheckinVisitors } from '../../lib/api/checkin-client';
 import { CheckinScanModal } from '../checkin/CheckinScanModal';
+import { Button, IconButton, cn, focusRing } from '../ui';
 
 export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
   onRegister: (code: string) => void; busy: boolean;
@@ -58,29 +59,29 @@ export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
     } catch { setNotFound(true); }
   }
 
+  const stepBtn = cn('grid h-10 w-10 place-items-center rounded-lg bg-surface-container text-[18px] font-bold text-ink hover:bg-line', focusRing);
   if (selected) {
     return (
       <div>
         <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-container/50 p-3.5">
-          <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-emerald-50 text-emerald-600"><UserRound size={22} /></span>
+          <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-success-bg text-success-fg"><UserRound size={22} /></span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15.5px] font-bold text-ink">{selected.firstName} {selected.lastName}</div>
             <div className="text-[12.5px] text-muted">{selected.code} · {selected.visitCount} visita{selected.visitCount === 1 ? '' : 's'}</div>
           </div>
-          <button type="button" onClick={() => { setSelected(null); setQ(''); }} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-container"><X size={17} /></button>
+          <IconButton label="Cambiar visitante" variant="ghost" size="sm" onClick={() => { setSelected(null); setQ(''); }}><X size={17} /></IconButton>
         </div>
         <div className="mt-3 flex items-center justify-between rounded-lg border border-line px-3 py-2">
           <span className="text-[13.5px] font-semibold text-ink">Acompañantes <span className="font-normal text-muted">(+1 c/u)</span></span>
           <div className="flex items-center gap-2.5">
-            <button type="button" onClick={() => onCompanions(Math.max(0, companions - 1))} className="grid h-8 w-8 place-items-center rounded-lg bg-surface-container text-[18px] font-bold text-ink">−</button>
+            <button type="button" aria-label="Menos acompañantes" onClick={() => onCompanions(Math.max(0, companions - 1))} className={stepBtn}>−</button>
             <b className="min-w-[24px] text-center text-[17px] font-bold tabular-nums">{companions}</b>
-            <button type="button" onClick={() => onCompanions(Math.min(10, companions + 1))} className="grid h-8 w-8 place-items-center rounded-lg bg-surface-container text-[18px] font-bold text-ink">+</button>
+            <button type="button" aria-label="Más acompañantes" onClick={() => onCompanions(Math.min(10, companions + 1))} className={stepBtn}>+</button>
           </div>
         </div>
-        <button type="button" onClick={() => onRegister(selected.code)} disabled={busy}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 text-[15px] font-bold text-white transition hover:opacity-95 disabled:opacity-50">
+        <Button variant="primary" size="lg" className="mt-3 w-full" onClick={() => onRegister(selected.code)} disabled={busy}>
           {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={18} strokeWidth={2.4} />} Registrar entrada{companions > 0 ? ` · ${1 + companions} personas` : ''}
-        </button>
+        </Button>
       </div>
     );
   }
@@ -92,12 +93,9 @@ export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
           <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
           <input ref={inputRef} value={q} onChange={(e) => { setQ(e.target.value); setNotFound(false); }}
             placeholder="Buscar por nombre o apellido…"
-            className="w-full rounded-lg border border-line bg-surface py-2.5 pl-9 pr-3 text-[14.5px] text-ink outline-none focus:border-brand" />
+            className={cn('min-h-11 w-full rounded-lg border border-line bg-surface py-2.5 pl-9 pr-3 text-[14px] text-ink', focusRing)} />
         </div>
-        <button type="button" onClick={() => setScanOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-surface-container">
-          <QrCode size={18} /> Escanear
-        </button>
+        <Button variant="secondary" onClick={() => setScanOpen(true)}><QrCode size={18} /> Escanear</Button>
       </div>
 
       {searching ? (
@@ -125,10 +123,10 @@ export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
       <form onSubmit={(e) => { e.preventDefault(); void resolveCode(manualCode); }} className="mt-3 flex gap-2">
         <input value={manualCode} onChange={(e) => { setManualCode(e.target.value); setNotFound(false); }}
           placeholder="…o tipear el código (CCB-AB12CD)"
-          className="flex-1 rounded-lg border border-line bg-surface px-3 py-2.5 text-[14px] text-ink outline-none focus:border-brand" />
-        <button type="submit" disabled={!manualCode.trim()} className="rounded-lg border border-line bg-surface px-4 text-[13px] font-semibold text-ink hover:bg-surface-container disabled:opacity-50">Buscar</button>
+          className={cn('min-h-11 flex-1 rounded-lg border border-line bg-surface px-3 py-2.5 text-[14px] text-ink', focusRing)} />
+        <Button type="submit" variant="secondary" disabled={!manualCode.trim()}>Buscar</Button>
       </form>
-      {notFound ? <p className="mt-2 px-1 text-[13px] font-medium text-red-500">No encontramos a nadie con ese código.</p> : null}
+      {notFound ? <p role="alert" className="mt-2 px-1 text-[13px] font-medium text-danger-fg">No encontramos a nadie con ese código.</p> : null}
 
       <CheckinScanModal open={scanOpen} onClose={() => setScanOpen(false)} onDetect={(code) => { setScanOpen(false); void resolveCode(code); }} />
     </div>
