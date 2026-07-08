@@ -27,10 +27,16 @@ const STATUS: Record<string, { label: string; tone: ChipTone }> = {
 
 const EMPTY = { scheduledAt: '', colegio: '', level: '', contactName: '', contactEmail: '', contactPhone: '', studentCount: 8, notes: '' };
 
+// Tipos de grupo (mismos presets que la puerta): colegio = kind null (histórico).
+const GROUP_KINDS = ['Colegio', 'Grupo comunitario', 'Empresa / institución', 'Otro'] as const;
+type GroupKindSel = (typeof GROUP_KINDS)[number];
+
 export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: string }) {
   const [bookings, setBookings] = useState<PuertaBookingFull[] | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
+  const [kindSel, setKindSel] = useState<GroupKindSel>('Colegio');
+  const [kindCustom, setKindCustom] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
@@ -51,7 +57,9 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
     try {
       const body = {
         salaId, scheduledAt: new Date(form.scheduledAt).toISOString(),
-        colegio: form.colegio.trim(), level: form.level.trim() || null,
+        colegio: form.colegio.trim(),
+        kind: kindSel === 'Colegio' ? null : kindSel === 'Otro' ? kindCustom.trim() : kindSel,
+        level: form.level.trim() || null,
         contactName: form.contactName.trim(), contactEmail: form.contactEmail.trim() || null,
         contactPhone: form.contactPhone.trim() || null, studentCount: form.studentCount,
         notes: form.notes.trim() || null,
@@ -59,7 +67,7 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
       const r = await fetch('/app/puerta/api/bookings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setErr(j.error ?? 'No se pudo crear la reserva.'); setBusy(false); return; }
-      setForm(EMPTY); setOpen(false); await refresh();
+      setForm(EMPTY); setKindSel('Colegio'); setKindCustom(''); setOpen(false); await refresh();
     } catch { setErr('Problema de red.'); } finally { setBusy(false); }
   }
 
@@ -81,27 +89,40 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-[17px] font-bold tracking-tight text-ink"><CalendarClock size={18} className="text-[#1a6194]" /> Agenda · {salaName}</h2>
-          <p className="mt-0.5 text-[13px] text-muted">Reservas de colegios. Confirmá para avisar al profesor por email; el día de la visita, hacé el check-in.</p>
+          <p className="mt-0.5 text-[13px] text-muted">Reservas de grupos (colegios, comunidades, empresas). Confirmá para avisar al responsable por email; el día de la visita, hacé el check-in.</p>
         </div>
         <DoorButton tone="vr" onClick={() => setOpen((v) => !v)}><CalendarPlus size={16} /> Nueva reserva</DoorButton>
       </div>
 
       {open && (
         <form onSubmit={create} className="mt-4 rounded-xl border border-line bg-surface-container/40 p-4">
+          <div className="mb-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Tipo de grupo</span>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {GROUP_KINDS.map((k) => (
+                <Button key={k} variant="pill" size="sm" selected={kindSel === k} onClick={() => setKindSel(k)} type="button">{k}</Button>
+              ))}
+            </div>
+          </div>
+          {kindSel === 'Otro' ? (
+            <div className="mb-3 sm:max-w-[50%]">
+              <Field label="¿Qué tipo de grupo?" required value={kindCustom} onChange={(e) => setKindCustom(e.target.value)} placeholder="Grupo juvenil, iglesia, fundación…" />
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Fecha y hora" type="datetime-local" required value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} />
-            <Field label="Colegio" required value={form.colegio} onChange={(e) => setForm({ ...form, colegio: e.target.value })} />
-            <Field label="Nivel / grado" value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} placeholder="5.º primaria" />
-            <Field label="Cantidad de alumnos" type="number" min={0} value={form.studentCount} onChange={(e) => setForm({ ...form, studentCount: Number(e.target.value) })} />
-            <Field label="Profesor responsable" required value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
-            <Field label="Email del profesor" type="email" value={form.contactEmail} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} placeholder="para la confirmación" />
+            <Field label={kindSel === 'Colegio' ? 'Colegio' : 'Nombre del grupo'} required value={form.colegio} onChange={(e) => setForm({ ...form, colegio: e.target.value })} />
+            <Field label={kindSel === 'Colegio' ? 'Nivel / grado' : 'Detalle (opcional)'} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} placeholder={kindSel === 'Colegio' ? '5.º primaria' : 'Sector, edades, comunidad…'} />
+            <Field label={kindSel === 'Colegio' ? 'Cantidad de alumnos' : 'Cantidad de integrantes'} type="number" min={0} value={form.studentCount} onChange={(e) => setForm({ ...form, studentCount: Number(e.target.value) })} />
+            <Field label={kindSel === 'Colegio' ? 'Profesor responsable' : 'Responsable'} required value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
+            <Field label={kindSel === 'Colegio' ? 'Email del profesor' : 'Email del responsable'} type="email" value={form.contactEmail} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} placeholder="para la confirmación" />
             <Field label="Teléfono (opcional)" value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} />
             <Field label="Notas (opcional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
           {err && <p role="alert" className="mt-2 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-medium text-danger-fg">{err}</p>}
           <div className="mt-3 flex gap-2">
             <Button variant="secondary" onClick={() => { setOpen(false); setErr(null); }}>Cancelar</Button>
-            <DoorButton tone="vr" type="submit" disabled={busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <CalendarPlus size={15} />} Agendar</DoorButton>
+            <DoorButton tone="vr" type="submit" disabled={busy || (kindSel === 'Otro' && !kindCustom.trim())}>{busy ? <Loader2 size={15} className="animate-spin" /> : <CalendarPlus size={15} />} Agendar</DoorButton>
           </div>
         </form>
       )}
@@ -124,7 +145,7 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
                     <span className="font-mono text-[13px] font-bold tabular-nums text-[#1a6194]">{TIME_FMT.format(new Date(b.scheduledAt))}</span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[14px] font-semibold text-ink">{b.colegio}{b.level ? ` · ${b.level}` : ''}</div>
-                      <div className="text-[12px] text-muted">{b.contactName} · {b.studentCount} alumno{b.studentCount === 1 ? '' : 's'}{b.notifiedAt ? ' · ✉ avisado' : ''}</div>
+                      <div className="text-[12px] text-muted">{b.kind ? `${b.kind} · ` : ''}{b.contactName} · {b.studentCount} {b.kind ? `integrante${b.studentCount === 1 ? '' : 's'}` : `alumno${b.studentCount === 1 ? '' : 's'}`}{b.notifiedAt ? ' · ✉ avisado' : ''}</div>
                     </div>
                     <Chip tone={st.tone} dot>{st.label}</Chip>
                     {!terminal && (

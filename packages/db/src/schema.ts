@@ -283,6 +283,9 @@ export interface AttendanceTable {
   group_label: string | null;
   group_level: string | null;
   group_contact: string | null;
+  // Tipo de grupo (migración 045): NULL = colegio (histórico); texto libre para
+  // grupos comunitarios, empresas, etc.
+  group_kind: string | null;
   // Denormaliza activities.is_permanent (migración 044): las entradas a salas
   // permanentes quedan FUERA del índice único (org,user,activity) → cada
   // re-entrada del mismo visitante cuenta. Regulares = false (default).
@@ -297,6 +300,8 @@ export interface SpaceBookingsTable {
   scheduled_at: RequiredTs;
   colegio: string;
   level: string | null;
+  // Tipo de grupo (migración 045): NULL = colegio (histórico).
+  group_kind: string | null;
   contact_name: string;
   contact_email: string | null;
   contact_phone: string | null;

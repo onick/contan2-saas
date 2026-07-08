@@ -1,6 +1,8 @@
 // apps/api-v2/test/puerta.test.ts · registro de puerta de salas permanentes.
 // PG efímero (skip sin DATABASE_URL). Cada entrada cuenta; grupos = profesor + alumnos.
 
+process.env.ROOT_DOMAIN = 'contan2.com';
+
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
@@ -72,11 +74,22 @@ run('puerta · salas permanentes', () => {
     // visitantes hoy = 1 (ana) + 1 (anon) + 36 (grupo) = 38 · cada entrada cuenta
     const salas = await get('/api/v2/puerta/salas');
     expect(salas.json().salas.find((s: { id: string }) => s.id === salaId).visitorsToday).toBe(38);
-    // la asistencia del grupo guarda colegio/nivel/profesor
-    const grp = await db.selectFrom('attendance').select(['group_label', 'group_level', 'group_contact', 'companions_children']).where('activity_id', '=', salaId).where('group_label', 'is not', null).executeTakeFirstOrThrow();
+    // la asistencia del grupo guarda colegio/nivel/profesor (kind null = colegio)
+    const grp = await db.selectFrom('attendance').select(['group_label', 'group_kind', 'group_level', 'group_contact', 'companions_children']).where('activity_id', '=', salaId).where('group_label', 'is not', null).executeTakeFirstOrThrow();
     expect(grp.group_label).toBe('Colegio San José');
+    expect(grp.group_kind).toBeNull();
     expect(grp.group_contact).toBe('María Objío');
     expect(grp.companions_children).toBe(35);
+  });
+
+  it('grupo con kind customizado: guarda group_kind y etiqueta "integrantes"', async () => {
+    const rg = await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'group', group: { colegio: 'Jóvenes de Villa Consuelo', kind: 'Grupo comunitario', level: '14-17 años', contactName: 'Pedro Núñez', studentCount: 12 } });
+    expect(rg.statusCode).toBe(201);
+    expect(rg.json().registered[0].partySize).toBe(13);
+    expect(rg.json().visitor).toBe('Jóvenes de Villa Consuelo (12 integrantes)');
+    const grp = await db.selectFrom('attendance').select(['group_kind', 'group_contact']).where('activity_id', '=', salaId).where('group_label', '=', 'Jóvenes de Villa Consuelo').executeTakeFirstOrThrow();
+    expect(grp.group_kind).toBe('Grupo comunitario');
+    expect(grp.group_contact).toBe('Pedro Núñez');
   });
 
   it('ocupación: +1 sube, se clampa al aforo; 404 sala inexistente', async () => {

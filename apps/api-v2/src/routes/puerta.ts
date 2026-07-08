@@ -63,7 +63,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
         .where(sql<boolean>`registered_at >= ${todaySql}`)
         .executeTakeFirst();
       const bks = await db.selectFrom('space_bookings')
-        .select(['id', 'scheduled_at', 'colegio', 'level', 'student_count', 'status'])
+        .select(['id', 'scheduled_at', 'colegio', 'group_kind', 'level', 'student_count', 'status'])
         .where('activity_id', '=', s.id)
         .where(sql<boolean>`scheduled_at >= ${todaySql} AND scheduled_at < ${todaySql} + interval '1 day'`)
         .where('status', '!=', 'cancelled')
@@ -76,7 +76,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
         visitorsToday: Number(vt?.n ?? 0),
         todayBookings: bks.map((b) => ({
           id: b.id, time: hhmm(b.scheduled_at as unknown as string), colegio: b.colegio,
-          level: b.level ?? null, studentCount: b.student_count,
+          kind: b.group_kind ?? null, level: b.level ?? null, studentCount: b.student_count,
           status: b.status as PuertaSala['todayBookings'][number]['status'],
         })),
       });
@@ -165,6 +165,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
           companions_children: children,
           companions_adults: adults,
           group_label: mode === 'group' ? group!.colegio : null,
+          group_kind: mode === 'group' ? (group!.kind?.trim() || null) : null, // null = colegio
           group_level: mode === 'group' ? (group!.level ?? null) : null,
           group_contact: mode === 'group' ? group!.contactName : null,
           is_permanent: true, // fuera del índice único → cada re-entrada cuenta
@@ -184,7 +185,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
       ok: true,
       registered,
       visitor: user ? `${user.first_name} ${user.last_name}`.trim()
-        : mode === 'group' ? `${group!.colegio} (${students} alumnos)` : null,
+        : mode === 'group' ? `${group!.colegio} (${students} ${group!.kind?.trim() ? 'integrantes' : 'alumnos'})` : null,
       code: user?.code ?? null,
     };
     return body;

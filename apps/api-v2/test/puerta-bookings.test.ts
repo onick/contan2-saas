@@ -71,9 +71,18 @@ run('Puerta · agenda de reservas (Sala VR)', () => {
   it('crear reserva (admin) → 201 scheduled; GET la lista', async () => {
     const res = await mkBooking();
     expect(res.statusCode).toBe(201);
-    expect(res.json().booking).toMatchObject({ colegio: 'Colegio San Juan', studentCount: 28, status: 'scheduled', salaName: 'Sala VR' });
+    expect(res.json().booking).toMatchObject({ colegio: 'Colegio San Juan', kind: null, studentCount: 28, status: 'scheduled', salaName: 'Sala VR' });
     const list = await get('/api/v2/puerta/bookings', TOK.admin);
     expect(list.json().bookings.some((b: { colegio: string }) => b.colegio === 'Colegio San Juan')).toBe(true);
+  });
+
+  it('reserva con kind customizado: persiste y vuelve en el GET', async () => {
+    const res = await mkBooking({ colegio: 'Jóvenes de Gualey', kind: 'Grupo comunitario', level: null });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().booking).toMatchObject({ colegio: 'Jóvenes de Gualey', kind: 'Grupo comunitario' });
+    const list = await get('/api/v2/puerta/bookings', TOK.admin);
+    const found = list.json().bookings.find((b: { colegio: string }) => b.colegio === 'Jóvenes de Gualey');
+    expect(found?.kind).toBe('Grupo comunitario');
   });
 
   it('confirmar → status confirmed + confirmedAt; sin RESEND (dry-run) notifiedAt queda null', async () => {

@@ -149,6 +149,11 @@ const TABS: { k: Tab; label: string; Icon: typeof UserPlus }[] = [
   { k: 'group', label: 'Grupo', Icon: Users },
 ];
 
+// Tipos de grupo en la puerta: colegio (histórico, kind=null) + presets +
+// "Otro" con texto libre. Las etiquetas del formulario se adaptan al tipo.
+const GROUP_KINDS = ['Colegio', 'Grupo comunitario', 'Empresa / institución', 'Otro'] as const;
+type GroupKindSel = (typeof GROUP_KINDS)[number];
+
 function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
   reg: Reg; byId: Record<string, PuertaSala | undefined>; busy: boolean;
   onClose: () => void; onSubmit: (body: unknown, okMsg: (r: OkData) => string) => void;
@@ -158,6 +163,8 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
   const [nv, setNv] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [comp, setComp] = useState(0);
   const [g, setG] = useState({ colegio: '', level: '', contactName: '', studentCount: 30 });
+  const [gKind, setGKind] = useState<GroupKindSel>('Colegio');
+  const [gKindCustom, setGKindCustom] = useState('');
 
   // Retiene los datos durante la animación de salida (reg pasa a null al cerrar).
   const dataRef = useRef<Reg>(reg);
@@ -168,7 +175,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
   const busyRef = useRef(busy); busyRef.current = busy;
   const requestClose = useRef(() => {});
   requestClose.current = () => { if (busyRef.current) return; onClose(); };
-  const reset = () => { setTab('new'); setNv({ firstName: '', lastName: '', email: '', phone: '' }); setComp(0); setG({ colegio: '', level: '', contactName: '', studentCount: 30 }); };
+  const reset = () => { setTab('new'); setNv({ firstName: '', lastName: '', email: '', phone: '' }); setComp(0); setG({ colegio: '', level: '', contactName: '', studentCount: 30 }); setGKind('Colegio'); setGKindCustom(''); };
 
   const { mounted, closing, panelRef } = useDrawerLifecycle({ open: reg !== null, onEscape: () => requestClose.current(), onClosed: reset });
   if (!mounted || typeof document === 'undefined') return null;
@@ -218,24 +225,45 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
           ) : tab === 'search' ? (
             <PuertaIdentify busy={busy} companions={comp} onCompanions={setComp}
               onRegister={(code) => onSubmit({ salaIds, mode: 'identified', code, companions: comp }, okMsg)} />
-          ) : (
-            <form onSubmit={(e) => { e.preventDefault(); onSubmit({ salaIds, mode: 'group', group: { colegio: g.colegio.trim(), level: g.level.trim() || null, contactName: g.contactName.trim(), studentCount: g.studentCount } }, okMsg); }}>
-              <Field label="Colegio" autoFocus value={g.colegio} onChange={(e) => setG({ ...g, colegio: e.target.value })} required />
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <Field label="Nivel / grado" value={g.level} onChange={(e) => setG({ ...g, level: e.target.value })} placeholder="5.º primaria" />
-                {/* div, no label: un label activaría su primer control (el botón −) al tocar el texto */}
-                <div className="block">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Alumnos</span>
-                  <Stepper value={g.studentCount} onChange={(v) => setG({ ...g, studentCount: v })} />
+          ) : (() => {
+            const isCol = gKind === 'Colegio';
+            // kind efectivo que viaja al API: null = colegio (semántica histórica).
+            const kind = isCol ? null : gKind === 'Otro' ? gKindCustom.trim() : gKind;
+            const kindMissing = gKind === 'Otro' && !gKindCustom.trim();
+            return (
+              <form onSubmit={(e) => { e.preventDefault(); onSubmit({ salaIds, mode: 'group', group: { colegio: g.colegio.trim(), kind, level: g.level.trim() || null, contactName: g.contactName.trim(), studentCount: g.studentCount } }, okMsg); }}>
+                <div className="mb-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Tipo de grupo</span>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {GROUP_KINDS.map((k) => (
+                      <Button key={k} variant="pill" size="sm" selected={gKind === k} onClick={() => setGKind(k)} type="button">{k}</Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="mt-3">
-                <Field label="Profesor responsable" value={g.contactName} onChange={(e) => setG({ ...g, contactName: e.target.value })} required />
-              </div>
-              <p className="mb-1 mt-3 rounded-lg bg-success-bg px-3 py-2 text-[12.5px] font-semibold text-success-fg">Se registran 1 profesor + {g.studentCount} alumnos = {1 + g.studentCount} visitas.</p>
-              <SubmitBtn busy={busy} label="Registrar grupo" disabled={!g.colegio.trim() || !g.contactName.trim()} />
-            </form>
-          )}
+                {gKind === 'Otro' ? (
+                  <div className="mb-3">
+                    <Field label="¿Qué tipo de grupo?" autoFocus value={gKindCustom} onChange={(e) => setGKindCustom(e.target.value)} placeholder="Grupo juvenil, iglesia, fundación…" required />
+                  </div>
+                ) : null}
+                <Field label={isCol ? 'Colegio' : 'Nombre del grupo'} autoFocus={gKind !== 'Otro'} value={g.colegio} onChange={(e) => setG({ ...g, colegio: e.target.value })} required />
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <Field label={isCol ? 'Nivel / grado' : 'Detalle (opcional)'} value={g.level} onChange={(e) => setG({ ...g, level: e.target.value })} placeholder={isCol ? '5.º primaria' : 'Sector, edades, comunidad…'} />
+                  {/* div, no label: un label activaría su primer control (el botón −) al tocar el texto */}
+                  <div className="block">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{isCol ? 'Alumnos' : 'Integrantes'}</span>
+                    <Stepper value={g.studentCount} onChange={(v) => setG({ ...g, studentCount: v })} />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <Field label={isCol ? 'Profesor responsable' : 'Responsable'} value={g.contactName} onChange={(e) => setG({ ...g, contactName: e.target.value })} required />
+                </div>
+                <p className="mb-1 mt-3 rounded-lg bg-success-bg px-3 py-2 text-[12.5px] font-semibold text-success-fg">
+                  Se registran 1 {isCol ? 'profesor' : 'responsable'} + {g.studentCount} {isCol ? 'alumnos' : 'integrantes'} = {1 + g.studentCount} visitas.
+                </p>
+                <SubmitBtn busy={busy} label="Registrar grupo" disabled={!g.colegio.trim() || !g.contactName.trim() || kindMissing} />
+              </form>
+            );
+          })()}
 
           <Button variant="ghost" size="sm" className="mx-auto mt-3" onClick={() => onSubmit({ salaIds, mode: 'anonymous', companions: comp }, okMsg)} disabled={busy}>
             Registrar sin datos (anónimo)

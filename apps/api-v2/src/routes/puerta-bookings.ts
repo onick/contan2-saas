@@ -35,7 +35,7 @@ async function loadPermanentSala(db: DbClient, orgId: string, id: string): Promi
 
 type BookingRow = {
   id: string; activity_id: string; sala_name: string | null; scheduled_at: Date | string;
-  colegio: string; level: string | null; contact_name: string; contact_email: string | null;
+  colegio: string; group_kind: string | null; level: string | null; contact_name: string; contact_email: string | null;
   contact_phone: string | null; student_count: number; status: string; notes: string | null;
   confirmed_at: Date | string | null; notified_at: Date | string | null; attendance_id: string | null;
 };
@@ -44,7 +44,7 @@ function toBooking(r: BookingRow): PuertaBookingFull {
   return {
     id: r.id, salaId: r.activity_id, salaName: r.sala_name ?? '',
     scheduledAt: new Date(r.scheduled_at).toISOString(),
-    colegio: r.colegio, level: r.level, contactName: r.contact_name,
+    colegio: r.colegio, kind: r.group_kind, level: r.level, contactName: r.contact_name,
     contactEmail: r.contact_email, contactPhone: r.contact_phone,
     studentCount: Number(r.student_count), status: r.status as PuertaBookingFull['status'],
     notes: r.notes, confirmedAt: iso(r.confirmed_at), notifiedAt: iso(r.notified_at),
@@ -56,7 +56,7 @@ const todayStartSql = sql`(date_trunc('day', now() AT TIME ZONE ${sql.lit(TZ)}) 
 async function loadBooking(db: DbClient, orgId: string, id: string) {
   return db.selectFrom('space_bookings as b')
     .leftJoin('activities as a', 'a.id', 'b.activity_id')
-    .select(['b.id', 'b.activity_id', 'a.name as sala_name', 'b.scheduled_at', 'b.colegio', 'b.level',
+    .select(['b.id', 'b.activity_id', 'a.name as sala_name', 'b.scheduled_at', 'b.colegio', 'b.group_kind', 'b.level',
       'b.contact_name', 'b.contact_email', 'b.contact_phone', 'b.student_count', 'b.status', 'b.notes',
       'b.confirmed_at', 'b.notified_at', 'b.attendance_id'])
     .where('b.id', '=', id).where('b.organization_id', '=', orgId).executeTakeFirst() as Promise<BookingRow | undefined>;
@@ -73,7 +73,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
 
     let query = db.selectFrom('space_bookings as b')
       .leftJoin('activities as a', 'a.id', 'b.activity_id')
-      .select(['b.id', 'b.activity_id', 'a.name as sala_name', 'b.scheduled_at', 'b.colegio', 'b.level',
+      .select(['b.id', 'b.activity_id', 'a.name as sala_name', 'b.scheduled_at', 'b.colegio', 'b.group_kind', 'b.level',
         'b.contact_name', 'b.contact_email', 'b.contact_phone', 'b.student_count', 'b.status', 'b.notes',
         'b.confirmed_at', 'b.notified_at', 'b.attendance_id'])
       .where('b.organization_id', '=', orgId);
@@ -111,6 +111,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
       activity_id: sala.id,
       scheduled_at: scheduledAt.toISOString(),
       colegio: d.colegio.trim(),
+      group_kind: d.kind?.trim() || null, // null = colegio
       level: d.level?.trim() || null,
       contact_name: d.contactName.trim(),
       contact_email: d.contactEmail?.trim() || null,
@@ -124,7 +125,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     await db.insertInto('tenant_audit_log').values({
       organization_id: orgId, actor_staff_id: guard.ctx.staff.id, actor_email_masked: null,
       actor_role: guard.ctx.staff.role, action: 'booking.created', target_type: 'space_booking',
-      target_id: inserted.id, metadata: JSON.stringify({ colegio: d.colegio, studentCount: d.studentCount }),
+      target_id: inserted.id, metadata: JSON.stringify({ colegio: d.colegio, kind: d.kind?.trim() || null, studentCount: d.studentCount }),
     }).execute();
 
     reply.code(201);
@@ -159,7 +160,8 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
       if (existing.contact_email) {
         const r = await confirmBookingEmail(db, orgId, existing.contact_email, {
           salaName: existing.sala_name ?? 'Sala', scheduledAt: existing.scheduled_at,
-          colegio: existing.colegio, level: existing.level, contactName: existing.contact_name,
+          colegio: existing.colegio, kind: existing.group_kind, level: existing.level,
+          contactName: existing.contact_name,
           studentCount: Number(existing.student_count),
         });
         if ('sent' in r && r.sent === true) {
@@ -195,7 +197,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
         activity_id: sala.id, activity_name: sala.name, organization_id: orgId,
         checked_in_at: new Date().toISOString(), anonymous: true,
         companions_children: students, companions_adults: 0,
-        group_label: b.colegio, group_level: b.level, group_contact: b.contact_name,
+        group_label: b.colegio, group_kind: b.group_kind, group_level: b.level, group_contact: b.contact_name,
         is_permanent: true,
       }).execute();
       await tx.updateTable('space_bookings')

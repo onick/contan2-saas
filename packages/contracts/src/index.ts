@@ -1607,7 +1607,8 @@ export type PlatformSessionsResponse = z.infer<typeof PlatformSessionsResponseSc
 export const PuertaBookingSchema = z.object({
   id: z.string(),
   time: z.string(),        // HH:MM
-  colegio: z.string(),
+  colegio: z.string(),     // nombre del grupo (colegio u otro)
+  kind: z.string().nullable(), // tipo de grupo · null = colegio (histórico)
   level: z.string().nullable(),
   studentCount: z.number().int(),
   status: z.enum(['scheduled', 'confirmed', 'attended', 'no_show', 'cancelled']),
@@ -1630,7 +1631,10 @@ export const PuertaSalasResponseSchema = z.object({ salas: z.array(PuertaSalaSch
 export type PuertaSalasResponse = z.infer<typeof PuertaSalasResponseSchema>;
 
 export const PuertaGroupSchema = z.object({
-  colegio: z.string().trim().min(1).max(160),
+  colegio: z.string().trim().min(1).max(160),  // nombre del grupo (colegio u otro)
+  // Tipo de grupo customizable ("Grupo comunitario", "Empresa", texto libre…).
+  // Ausente/null = colegio (semántica histórica de group_kind NULL).
+  kind: z.string().trim().max(60).optional().nullable(),
   level: z.string().trim().max(80).optional().nullable(),
   contactName: z.string().trim().min(1).max(120),
   contactEmail: z.string().trim().email().max(200).optional().or(z.literal('')).nullable(),
@@ -1679,7 +1683,8 @@ export const BookingStatusSchema = z.enum(BOOKING_STATUSES);
 export const PuertaBookingCreateRequestSchema = z.object({
   salaId: z.string(),
   scheduledAt: z.string(),                                     // ISO
-  colegio: z.string().trim().min(1).max(160),
+  colegio: z.string().trim().min(1).max(160),                  // nombre del grupo
+  kind: z.string().trim().max(60).optional().nullable(),       // tipo · null = colegio
   level: z.string().trim().max(80).optional().nullable(),
   contactName: z.string().trim().min(1).max(120),
   contactEmail: z.string().trim().email().max(200).optional().or(z.literal('')).nullable(),
@@ -1701,7 +1706,8 @@ export const PuertaBookingFullSchema = z.object({
   salaId: z.string(),
   salaName: z.string(),
   scheduledAt: z.string(),
-  colegio: z.string(),
+  colegio: z.string(),         // nombre del grupo
+  kind: z.string().nullable(), // tipo · null = colegio
   level: z.string().nullable(),
   contactName: z.string(),
   contactEmail: z.string().nullable(),

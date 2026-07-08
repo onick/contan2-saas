@@ -23,7 +23,8 @@ function fmtWhen(date: Date | string): string {
 export interface BookingInfo {
   salaName: string;
   scheduledAt: Date | string;
-  colegio: string;
+  colegio: string;            // nombre del grupo (colegio u otro)
+  kind?: string | null;       // tipo de grupo · null/ausente = colegio
   level: string | null;
   contactName: string;
   studentCount: number;
@@ -58,7 +59,7 @@ export function buildBookingHtml(to: string, b: BookingInfo, branding: OrgBrandi
         <p style="margin:0 0 4px;color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px;">Visita confirmada</p>
         <h1 style="margin:0 0 10px;font-size:23px;line-height:1.25;">${sala}</h1>
         <p style="margin:0 0 2px;font-size:15px;line-height:1.6;"><strong>${when}</strong></p>
-        <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">${colegio}${level} · ${b.studentCount} alumno${b.studentCount === 1 ? '' : 's'}</p>
+        <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">${colegio}${level} · ${b.studentCount} ${b.kind?.trim() ? `integrante${b.studentCount === 1 ? '' : 's'}` : `alumno${b.studentCount === 1 ? '' : 's'}`}</p>
       </td></tr>
       <tr><td style="padding:18px 32px 28px;">
         <p style="margin:0;color:#374151;font-size:15px;line-height:1.6;">${name}, quedó confirmada la visita de tu grupo. Te esperamos el día y la hora indicados. Si necesitás reprogramar o cancelar, respondé este correo.</p>
