@@ -122,7 +122,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
               ) : null}
 
               <div className="mt-auto p-5 pt-4">
-                <DoorButton size="lg" className="w-full" onClick={() => setReg({ salaIds: [s.id] })}>
+                <DoorButton size="lg" tone={isVR ? 'vr' : 'brand'} className="w-full" onClick={() => setReg({ salaIds: [s.id] })}>
                   <Plus size={20} strokeWidth={2.4} /> Registrar entrada
                 </DoorButton>
               </div>

@@ -14,17 +14,27 @@ const SIZES: Record<Size, string> = {
   lg: 'min-h-12 gap-2 px-5 text-[15px]',
 };
 
+// Identidad por sala (pedido del usuario): Ada = naranja de marca (kiosko);
+// Sala VR y su agenda = el azul de la franja de la tarjeta VR (#2f9fd6).
+export type DoorTone = 'brand' | 'vr';
+const TONES: Record<DoorTone, string> = {
+  brand: 'bg-brand',
+  vr: 'bg-[#2f9fd6]',
+};
+
 export interface DoorButtonProps extends ComponentProps<'button'> {
   size?: Size;
+  tone?: DoorTone;
 }
 
-export function DoorButton({ size = 'md', className, type = 'button', ...rest }: DoorButtonProps) {
+export function DoorButton({ size = 'md', tone = 'brand', className, type = 'button', ...rest }: DoorButtonProps) {
   return (
     <button
       type={type}
       className={cn(
-        'inline-flex flex-none items-center justify-center rounded-xl bg-brand font-bold text-white shadow-sm transition',
+        'inline-flex flex-none items-center justify-center rounded-xl font-bold text-white shadow-sm transition',
         'hover:brightness-[1.07] active:brightness-95 disabled:pointer-events-none disabled:opacity-50',
+        TONES[tone],
         focusRing,
         SIZES[size],
         className,

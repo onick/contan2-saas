@@ -83,7 +83,7 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
           <h2 className="flex items-center gap-2 text-[17px] font-bold tracking-tight text-ink"><CalendarClock size={18} className="text-[#1a6194]" /> Agenda · {salaName}</h2>
           <p className="mt-0.5 text-[13px] text-muted">Reservas de colegios. Confirmá para avisar al profesor por email; el día de la visita, hacé el check-in.</p>
         </div>
-        <DoorButton onClick={() => setOpen((v) => !v)}><CalendarPlus size={16} /> Nueva reserva</DoorButton>
+        <DoorButton tone="vr" onClick={() => setOpen((v) => !v)}><CalendarPlus size={16} /> Nueva reserva</DoorButton>
       </div>
 
       {open && (
@@ -101,7 +101,7 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
           {err && <p role="alert" className="mt-2 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-medium text-danger-fg">{err}</p>}
           <div className="mt-3 flex gap-2">
             <Button variant="secondary" onClick={() => { setOpen(false); setErr(null); }}>Cancelar</Button>
-            <DoorButton type="submit" disabled={busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <CalendarPlus size={15} />} Agendar</DoorButton>
+            <DoorButton tone="vr" type="submit" disabled={busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <CalendarPlus size={15} />} Agendar</DoorButton>
           </div>
         </form>
       )}
@@ -110,7 +110,7 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
         {bookings === null ? (
           <p className="py-6 text-center text-[13px] text-muted">Cargando…</p>
         ) : days.length === 0 ? (
-          <EmptyState icon={CalendarClock} title="Sin reservas próximas" description="Agendá la primera visita de un colegio." action={<DoorButton onClick={() => setOpen(true)}><CalendarPlus size={16} /> Nueva reserva</DoorButton>} />
+          <EmptyState icon={CalendarClock} title="Sin reservas próximas" description="Agendá la primera visita de un colegio." action={<DoorButton tone="vr" onClick={() => setOpen(true)}><CalendarPlus size={16} /> Nueva reserva</DoorButton>} />
         ) : days.map((d) => (
           <div key={d} className="mb-4 last:mb-0">
             <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.07em] text-faint">{cap(DAY_FMT.format(new Date(groups[d]![0]!.scheduledAt)))}</div>
@@ -132,7 +132,7 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
                         {b.status === 'scheduled' && (
                           <Button variant="secondary" size="sm" disabled={acting} onClick={() => act(b.id, 'confirm')} title="Confirmar (email al profesor)"><MailCheck size={14} /> Confirmar</Button>
                         )}
-                        <DoorButton size="sm" disabled={acting} onClick={() => act(b.id, 'confirm', true)} title="Check-in de la visita"><UserCheck size={14} /> Check-in</DoorButton>
+                        <DoorButton size="sm" tone="vr" disabled={acting} onClick={() => act(b.id, 'confirm', true)} title="Check-in de la visita"><UserCheck size={14} /> Check-in</DoorButton>
                         <IconButton label="Cancelar" variant="ghost" size="sm" disabled={acting} onClick={() => act(b.id, 'cancel')}>{acting ? <Loader2 size={14} className="animate-spin" /> : <X size={15} />}</IconButton>
                       </div>
                     )}
