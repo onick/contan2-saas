@@ -3,7 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import { loadConfig } from '@contan2/config';
-import { closeDb, getPlatformDb } from '@contan2/db';
+import { closeDb, getDb, getPlatformDb, sql } from '@contan2/db';
 import { closeRedis } from './redis-client.js';
 import { startAutoFinalize } from './services/auto-finalize.js';
 import { MAX_COVER_BYTES } from './services/cover-upload.js';
@@ -136,15 +136,34 @@ export function buildApp(): FastifyInstance {
   return app;
 }
 
+// Fail-fast: si el pool TENANT está sujeto a RLS (rol sin BYPASSRLS ni superuser
+// = enforcement activo, DATABASE_URL vira a app_v2) pero NO hay PLATFORM_DATABASE_URL,
+// getPlatformDb() cae por fallback al MISMO pool app_v2 → platform-admin vería todo
+// vacío y auto-finalize dejaría de finalizar, en silencio. Mejor no arrancar.
+async function assertPlatformPoolConfig(): Promise<void> {
+  if (process.env.PLATFORM_DATABASE_URL) return; // split configurado → OK
+  const { rows } = await sql<{ bypass: boolean; superuser: boolean }>`
+    select rolbypassrls as bypass, rolsuper as superuser
+      from pg_roles where rolname = current_user
+  `.execute(getDb());
+  const r = rows[0];
+  if (r && !r.bypass && !r.superuser) {
+    throw new Error(
+      'El pool tenant está sujeto a RLS (rol sin BYPASSRLS) pero PLATFORM_DATABASE_URL ' +
+        'no está seteada: platform-admin y auto-finalize operarían cross-org bajo RLS y ' +
+        'fallarían en silencio. Seteá PLATFORM_DATABASE_URL al rol owner/bypass.',
+    );
+  }
+}
+
 const isMain = process.argv[1] === fileURLToPath(import.meta.url);
 if (isMain) {
   const config = loadConfig();
   const app = buildApp();
   app
     .listen({ port: config.PORT, host: '0.0.0.0' })
-    .then(() => {
-      // Auto-finaliza actividades por su HORA DE CIERRE (end_date). Solo en el
-      // proceso real (no en buildApp de los tests).
+    .then(async () => {
+      await assertPlatformPoolConfig();
       // Job global cross-org (finaliza actividades de TODOS los tenants por su
       // hora de cierre): usa el pool elevado, NO app_v2 — con RLS activo un
       // UPDATE sin GUC matchearía 0 filas y el job dejaría de finalizar.

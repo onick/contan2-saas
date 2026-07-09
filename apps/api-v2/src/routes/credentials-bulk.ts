@@ -31,7 +31,6 @@ export const credentialsBulkRoute: FastifyPluginAsync = async (app) => {
       reply.code(403); return { error: 'No tenés permiso para envíos masivos.' };
     }
     const orgId = guard.ctx.org.id;
-    return withTenant(db, orgId, async (db) => {
     if ((await bulkLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Ya hay un lote reciente en curso. Espera un minuto.' };
     }
@@ -42,16 +41,16 @@ export const credentialsBulkRoute: FastifyPluginAsync = async (app) => {
     }
     const throttleMs = parsed.data.throttleMs ?? 150;
 
-    // Resolver la lista de códigos objetivo.
+    // Resolver la lista de códigos objetivo (lectura RLS → withTenant corto).
     let codes: string[];
     if ('cohort' in parsed.data) {
-      const rows = await db.selectFrom('users').select('code')
+      const rows = await withTenant(db, orgId, (trx) => trx.selectFrom('users').select('code')
         .where('organization_id', '=', orgId)
         .where('deleted_at', 'is', null)
         .where(sql<boolean>`users.email is not null and users.credential_sent_at is null`)
         .orderBy('created_at', 'asc')
         .limit(1000)
-        .execute();
+        .execute());
       codes = rows.map((r) => r.code);
     } else {
       codes = parsed.data.codes.map((c) => c.toUpperCase());
@@ -60,34 +59,36 @@ export const credentialsBulkRoute: FastifyPluginAsync = async (app) => {
     const dryRun = !process.env.RESEND_API_KEY;
     const results: ResultRow[] = [];
 
+    // CLAVE: una transacción CORTA POR CÓDIGO (lookup + entrega), NO una única que
+    // abarque todo el lote — enviar hasta 1000 emails con throttle dentro de una
+    // sola transacción retendría una conexión del pool por minutos (y un
+    // idle_in_transaction_session_timeout la mataría a mitad de lote). El sleep va
+    // FUERA de la transacción: la conexión se libera entre códigos.
     for (const code of codes) {
       if (!CODE_RE.test(code)) {
         results.push({ code, status: 'invalid-format' });
         continue;
       }
-      const user = await db.selectFrom('users')
-        .select(['id', 'code', 'email', 'first_name', 'last_name'])
-        .where('organization_id', '=', orgId)
-        .where('code', '=', code)
-        .where('deleted_at', 'is', null)
-        .executeTakeFirst();
-      if (!user) {
-        results.push({ code, status: 'not-found' });
-        continue;
-      }
-      if (!user.email) {
-        results.push({ code, status: 'skipped', reason: 'sin email' });
-        continue;
-      }
       try {
-        const r = await deliverCredential(db, orgId, {
-          id: user.id, code: user.code, email: user.email,
-          firstName: user.first_name, lastName: user.last_name,
+        const outcome = await withTenant(db, orgId, async (trx): Promise<ResultRow> => {
+          const user = await trx.selectFrom('users')
+            .select(['id', 'code', 'email', 'first_name', 'last_name'])
+            .where('organization_id', '=', orgId)
+            .where('code', '=', code)
+            .where('deleted_at', 'is', null)
+            .executeTakeFirst();
+          if (!user) return { code, status: 'not-found' };
+          if (!user.email) return { code, status: 'skipped', reason: 'sin email' };
+          const r = await deliverCredential(trx, orgId, {
+            id: user.id, code: user.code, email: user.email,
+            firstName: user.first_name, lastName: user.last_name,
+          });
+          if ('sent' in r && r.sent === true) return { code, status: 'sent' };
+          if ('skipped' in r && r.skipped && /RESEND/i.test(r.reason ?? '')) return { code, status: 'dry-run' };
+          if ('skipped' in r && r.skipped) return { code, status: 'skipped', reason: r.reason };
+          return { code, status: 'error', reason: 'error' in r ? r.error : 'desconocido' };
         });
-        if ('sent' in r && r.sent === true) results.push({ code, status: 'sent' });
-        else if ('skipped' in r && r.skipped && /RESEND/i.test(r.reason ?? '')) results.push({ code, status: 'dry-run' });
-        else if ('skipped' in r && r.skipped) results.push({ code, status: 'skipped', reason: r.reason });
-        else results.push({ code, status: 'error', reason: 'error' in r ? r.error : 'desconocido' });
+        results.push(outcome);
       } catch (e) {
         results.push({ code, status: 'error', reason: e instanceof Error ? e.message : 'desconocido' });
       }
@@ -105,6 +106,5 @@ export const credentialsBulkRoute: FastifyPluginAsync = async (app) => {
       results,
     };
     return body;
-    });
   });
 };
