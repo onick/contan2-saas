@@ -73,13 +73,16 @@ export const NAV_ITEMS: NavItem[] = ALL_NAV_ITEMS.filter((i) => i.key !== 'puert
 
 export const NAV_GROUPS: NavGroup[] = ['Principal', 'Audiencia', 'Operación', 'Equipo'];
 
-// Nav visible según el rol. Hoy solo 'protocolo' está confinado (a su módulo +
-// su cuenta), en línea con el gate del layout admin. El resto ve todo (la
-// escritura la arbitra la API con 403). Usado por el command palette.
+// Nav visible según el rol. Roles confinados a un subconjunto de módulos, en
+// línea con el gate del layout admin. El resto ve todo (la escritura la arbitra
+// la API con 403). Usado por el command palette.
+//   'protocolo' → su módulo + su cuenta.
+//   'puerta'    → Puerta (su módulo) + Registros + Protocolo + Reportes + cuenta.
+const ROLE_NAV_ALLOWLIST: Record<string, Set<string>> = {
+  protocolo: new Set(['protocolo', 'cuenta']),
+  puerta: new Set(['puerta', 'registros', 'protocolo', 'reportes', 'cuenta']),
+};
 export function filterNavByRole(items: NavItem[], role: string | null | undefined): NavItem[] {
-  if (role === 'protocolo') {
-    const allowed = new Set(['protocolo', 'cuenta']);
-    return items.filter((i) => allowed.has(i.key));
-  }
-  return items;
+  const allowed = role ? ROLE_NAV_ALLOWLIST[role] : undefined;
+  return allowed ? items.filter((i) => allowed.has(i.key)) : items;
 }

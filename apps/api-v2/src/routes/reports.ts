@@ -73,7 +73,10 @@ function parsePeriodQuery(query: Record<string, unknown>):
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const FORMATS = new Set(['json', 'csv', 'xlsx', 'pdf']);
 
-const CAN_GENERATE_REPORTS = new Set(['owner', 'admin']);
+// owner/admin generan reportes; 'puerta' (salas permanentes) también los
+// DESCARGA (informes de su operación). El export scoped a sus salas vive aparte
+// en /puerta/export.xlsx (cualquier staff).
+const CAN_GENERATE_REPORTS = new Set(['owner', 'admin', 'puerta']);
 // El reporte de protocolo también lo puede exportar el rol 'protocolo' (gestiona su módulo).
 const PROTOCOL_REPORT_ROLES = new Set(['owner', 'admin', 'protocolo']);
 const reportLimiter = createRateLimiter({ max: 20, windowMs: 60_000, prefix: endpointPrefix('reports') });

@@ -19,6 +19,7 @@ run('puerta · salas permanentes', () => {
   const stamp = Date.now();
   const slug = `pta-${stamp}`; const host = `${slug}.contan2.com`;
   const tok = `pta-tok-${stamp}`;
+  const tokPuerta = `pta-pta-${stamp}`; // sesión de un staff con rol 'puerta'
   let orgId: string; let salaId: string; let userCode: string;
 
   const get = (url: string) => app.inject({ method: 'GET', url, headers: { host, cookie: `contan2_session=${tok}` } });
@@ -29,6 +30,9 @@ run('puerta · salas permanentes', () => {
     orgId = (await db.insertInto('organizations').values({ slug, name: `Org ${slug}`, status: 'active', code_prefix: 'PTA' }).returning('id').executeTakeFirstOrThrow()).id;
     const staff = await db.insertInto('staff_members').values({ organization_id: orgId, email: `s-${stamp}@t.local`, password_hash: 'x', full_name: 'S', status: 'active', role: 'admin' }).returning('id').executeTakeFirstOrThrow();
     await db.insertInto('staff_auth_sessions').values({ staff_member_id: staff.id, token_hash: hashToken(tok), expires_at: new Date(Date.now() + 3_600_000).toISOString(), remember_me: false }).execute();
+    // Staff con rol 'puerta' (departamento de salas permanentes) para probar el RBAC.
+    const pta = await db.insertInto('staff_members').values({ organization_id: orgId, email: `pta-role-${stamp}@t.local`, password_hash: 'x', full_name: 'Puerta', status: 'active', role: 'puerta' }).returning('id').executeTakeFirstOrThrow();
+    await db.insertInto('staff_auth_sessions').values({ staff_member_id: pta.id, token_hash: hashToken(tokPuerta), expires_at: new Date(Date.now() + 3_600_000).toISOString(), remember_me: false }).execute();
     // sala permanente tipo VR (aforo 8)
     salaId = randomUUID();
     await db.insertInto('activities').values({ id: salaId, organization_id: orgId, name: 'Sala VR', type: 'otro', location: 'Lobby', date: new Date().toISOString(), capacity: 8, enrolled_count: 0, status: 'activa', description: '', image_url: null, is_permanent: true, audience: 'infantil' } as never).execute();
@@ -133,5 +137,32 @@ run('puerta · salas permanentes', () => {
 
     // new sin visitor → 400.
     expect((await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'new' })).statusCode).toBe(400);
+  });
+
+  it('export.xlsx: descarga la data de las salas (ambas y filtrada a una) → 200 xlsx', async () => {
+    const res = await get('/api/v2/puerta/export.xlsx');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('spreadsheetml');
+    expect(String(res.headers['content-disposition'])).toContain('.xlsx');
+    // filtrada a la sala VR
+    expect((await get(`/api/v2/puerta/export.xlsx?sala=${salaId}`)).statusCode).toBe(200);
+    // rango válido
+    expect((await get('/api/v2/puerta/export.xlsx?from=2020-01-01&to=2099-12-31')).statusCode).toBe(200);
+  });
+
+  it('rol puerta: escribe en su módulo + lee registros/protocolo + exporta; 403 en equipo y en protocolo-write', async () => {
+    const h = (url: string) => app.inject({ method: 'GET', url, headers: { host, cookie: `contan2_session=${tokPuerta}` } });
+    const p = (url: string, body?: unknown) => app.inject({ method: 'POST', url, headers: { host, cookie: `contan2_session=${tokPuerta}`, 'content-type': 'application/json' }, payload: body ?? {} });
+    // Su módulo (Puerta): registra y exporta.
+    expect((await p('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'anonymous' })).statusCode).toBe(201);
+    expect((await h('/api/v2/puerta/export.xlsx')).statusCode).toBe(200);
+    // Registros (historial) → lee.
+    expect((await h('/api/v2/org/audit')).statusCode).toBe(200);
+    // Protocolo → lee (directorio).
+    expect((await h('/api/v2/protocol')).statusCode).toBe(200);
+    // Equipo → 403 (fuera de su alcance).
+    expect((await h('/api/v2/org/team/overview')).statusCode).toBe(403);
+    // Protocolo ESCRITURA → 403 (solo lectura).
+    expect((await p('/api/v2/protocol', {})).statusCode).toBe(403);
   });
 });

@@ -20,6 +20,12 @@ import {
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
+import { buildPuertaExportWorkbook, type PuertaExportRow } from '../services/puerta-export.js';
+import { safeFilename } from '../services/csv.js';
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const EXPORT_ROW_CAP = 50_000; // cota dura de filas del export (memoria acotada)
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
 const AFORO_MAX = 200; // capacity > esto ⇒ sala "ilimitada" (no muestra ocupación)
@@ -208,5 +214,91 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     await db.updateTable('activities').set({ occupancy: next }).where('id', '=', id).execute();
     const body: PuertaOccupancyResponse = { occupancy: next, aforo };
     return body;
+  });
+
+  // ── GET /puerta/export.xlsx · descarga la data de las salas permanentes ─────
+  // El departamento de Puerta descarga la actividad de SUS salas: ambas juntas
+  // (por defecto) o filtrada a una (?sala=<id>), con rango opcional (?from=&to=
+  // YYYY-MM-DD). Cualquier staff del tenant (el rol 'puerta' pasa por
+  // requireTenantStaff). Scoped a las salas permanentes → nunca expone el padrón.
+  app.get('/puerta/export.xlsx', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = await requireTenantStaff(db, req);
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const { org, staff } = guard.ctx;
+    if ((await puertaLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas descargas seguidas. Esperá un momento.' }; }
+
+    const q = req.query as Record<string, unknown>;
+    const salaId = typeof q.sala === 'string' && q.sala.trim() ? q.sala.trim() : null;
+
+    // Salas permanentes del tenant (todas, o la elegida si es permanente).
+    let salasQ = db.selectFrom('activities').select(['id', 'name'])
+      .where('organization_id', '=', org.id).where('is_permanent', '=', true);
+    if (salaId) salasQ = salasQ.where('id', '=', salaId);
+    const salas = await salasQ.orderBy('name', 'asc').execute();
+    if (salas.length === 0) { reply.code(404); return { error: 'No hay salas permanentes para exportar.' }; }
+    const salaIds = salas.map((s) => s.id);
+    const salaLabel = salaId ? salas[0]!.name : 'Todas las salas';
+
+    // Rango opcional (YYYY-MM-DD), inclusivo, en la TZ de la puerta.
+    const fromRaw = typeof q.from === 'string' && YMD_RE.test(q.from) ? q.from : null;
+    const toRaw = typeof q.to === 'string' && YMD_RE.test(q.to) ? q.to : null;
+
+    let rowsQ = db.selectFrom('attendance as a')
+      .leftJoin('users as u', 'u.id', 'a.user_id')
+      .select([
+        'a.activity_name', 'a.registered_at', 'a.anonymous', 'a.user_code',
+        'a.companions_children', 'a.companions_adults',
+        'a.group_label', 'a.group_kind', 'a.group_level', 'a.group_contact',
+        'u.first_name', 'u.last_name',
+      ])
+      .where('a.organization_id', '=', org.id)
+      .where('a.activity_id', 'in', salaIds)
+      .where('a.is_permanent', '=', true);
+    if (fromRaw) rowsQ = rowsQ.where(sql<boolean>`a.registered_at >= (${fromRaw}::date AT TIME ZONE ${sql.lit(TZ)})`);
+    if (toRaw) rowsQ = rowsQ.where(sql<boolean>`a.registered_at < ((${toRaw}::date + 1) AT TIME ZONE ${sql.lit(TZ)})`);
+    const raw = await rowsQ.orderBy('a.registered_at', 'asc').limit(EXPORT_ROW_CAP).execute();
+
+    const rows: PuertaExportRow[] = raw.map((r) => {
+      const companions = Number(r.companions_children) + Number(r.companions_adults);
+      const name = `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim();
+      return {
+        salaName: r.activity_name,
+        registeredAt: new Date(r.registered_at as unknown as string).toISOString(),
+        anonymous: r.anonymous,
+        visitorName: name || null,
+        code: r.user_code,
+        groupLabel: r.group_label,
+        groupKind: r.group_kind,
+        groupLevel: r.group_level,
+        groupContact: r.group_contact,
+        companions,
+        partySize: 1 + companions,
+      };
+    });
+
+    const rangeLabel = fromRaw || toRaw ? `${fromRaw ?? '…'} a ${toRaw ?? '…'}` : 'Todo el histórico';
+
+    // Auditoría de la descarga (PII → registrar quién/qué; sin volcar datos).
+    await db.insertInto('tenant_audit_log').values({
+      organization_id: org.id,
+      actor_staff_id: staff.id,
+      actor_email_masked: null,
+      actor_role: staff.role,
+      action: 'puerta.exported',
+      target_type: 'activity',
+      target_id: salaId ?? 'all',
+      target_label: salaLabel,
+      metadata: JSON.stringify({ sala: salaLabel, from: fromRaw, to: toRaw, rows: rows.length }),
+    }).execute();
+
+    const buf = await buildPuertaExportWorkbook(rows, {
+      orgName: org.name, primaryColor: org.primaryColor, salaLabel, rangeLabel, tz: TZ,
+    });
+    const base = `puerta_${salaId ? salaLabel : 'salas'}_${fromRaw ?? 'inicio'}_${toRaw ?? 'hoy'}`;
+    reply.header('content-type', XLSX_MIME);
+    reply.header('content-disposition', `attachment; filename="${safeFilename(`${base}.xlsx`)}"`);
+    reply.header('cache-control', 'no-store');
+    return reply.send(buf);
   });
 };

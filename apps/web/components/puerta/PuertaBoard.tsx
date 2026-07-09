@@ -16,6 +16,7 @@ import { Card, Button, IconButton, Field, Chip, EmptyState, cn, focusRing, useDr
 import { DoorButton } from './DoorButton';
 import { PuertaIdentify } from './PuertaIdentify';
 import { VrAgenda } from './VrAgenda';
+import { PuertaExport } from './PuertaExport';
 
 const money = (n: number) => n.toLocaleString('en-US');
 
@@ -130,6 +131,9 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
           );
         })}
       </div>
+
+      {/* Descargar la data de las salas (ambas o una sola, con rango opcional). */}
+      {salas.length > 0 ? <PuertaExport salas={salas} /> : null}
 
       {/* Agenda de la Sala VR (aforo != null): agendar visitas de colegios. */}
       {salas.filter((s) => s.aforo !== null).map((s) => (

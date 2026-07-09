@@ -11,7 +11,9 @@ import { requireTenantStaff } from '../guard.js';
 import { readAuditLog, AUDIT_PAGE_MAX } from '../services/audit-read.js';
 import { auditOverview } from '../services/audit-overview.js';
 
-const CAN_READ_AUDIT = new Set(['owner', 'admin']);
+// owner/admin supervisan; 'puerta' (departamento de salas permanentes) también
+// LEE el historial para auditar/descargar la actividad de sus salas.
+const CAN_READ_AUDIT = new Set(['owner', 'admin', 'puerta']);
 
 export const auditRoute: FastifyPluginAsync = async (app) => {
   // Overview del dashboard: KPIs + donut + top actores + sospechosa. Read-only,

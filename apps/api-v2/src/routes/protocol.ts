@@ -31,7 +31,11 @@ import { ensureHold } from '../services/protocol-holds.js';
 import type { ProtocolDashboardResponse, ActivityProtocolListResponse } from '@contan2/contracts';
 
 // owner/admin gestionan todo; la cuenta 'protocolo' usa SOLO este módulo.
+// MANAGER_ROLES arbitra la ESCRITURA (designar/editar/desactivar/invitar).
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'protocolo']);
+// PROTOCOL_READ_ROLES arbitra la LECTURA (dashboard, directorio, protocolo de una
+// actividad): además de los gestores, el rol 'puerta' lo VE (no gestiona).
+const PROTOCOL_READ_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'protocolo', 'puerta']);
 const writeLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('protocol-write') });
 const inviteLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('protocol-invite') });
 const DAY_MS = 86_400_000;
@@ -66,7 +70,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
   //    próximos eventos). Read-only · roles de gestión de protocolo.
   app.get('/protocol/dashboard', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para gestionar protocolo.');
+    const guard = requireRole(await requireTenantStaff(db, req), PROTOCOL_READ_ROLES, 'No tenés permiso para ver protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const body: ProtocolDashboardResponse = await protocolDashboard(db, guard.ctx.org.id);
     return body;
@@ -75,7 +79,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
   // ── Directorio ─────────────────────────────────────────────────────────
   app.get('/protocol', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para gestionar protocolo.');
+    const guard = requireRole(await requireTenantStaff(db, req), PROTOCOL_READ_ROLES, 'No tenés permiso para ver protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     const q = req.query as Record<string, unknown>;
@@ -389,7 +393,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
   // registró entrada) y acompañantes. Roles de gestión de protocolo.
   app.get('/activities/:id/protocol-invitations', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para gestionar protocolo.');
+    const guard = requireRole(await requireTenantStaff(db, req), PROTOCOL_READ_ROLES, 'No tenés permiso para ver protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     const id = (req.params as { id: string }).id;

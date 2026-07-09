@@ -17,7 +17,7 @@ export const PublicStaffSchema = z.object({
   email: z.string(),
   fullName: z.string(),
   status: z.enum(['active', 'suspended', 'deleted']),
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']),
   mustChangePassword: z.boolean(),
   mfaEnabled: z.boolean(),
   lastLoginAt: z.string().nullable(),
@@ -161,7 +161,7 @@ export type DashboardMetricsResponse = z.infer<typeof DashboardMetricsResponseSc
 // Resumen liviano para el shell (sidebar): rol del staff (para filtrar la nav en
 // el command palette) + badges numéricos vivos. Un solo fetch, tenant-scoped.
 export const ShellSummaryResponseSchema = z.object({
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']),
   badges: z.object({
     activeActivities: z.number().int(),
     checkinsToday: z.number().int(),
@@ -406,7 +406,7 @@ export const StaffInvitationSchema = z.object({
   id: z.string(),
   email: z.string(),
   fullName: z.string().nullable(),
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']),
   status: z.enum(['pending', 'accepted', 'revoked', 'expired']),
   expiresAt: z.string(),
   createdAt: z.string(),
@@ -418,7 +418,7 @@ export type StaffInvitationsListResponse = z.infer<typeof StaffInvitationsListRe
 export const StaffInviteCreateRequestSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   fullName: z.string().trim().max(120).optional(),
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']),
 }).strict();
 export type StaffInviteCreateRequest = z.infer<typeof StaffInviteCreateRequestSchema>;
 
@@ -426,7 +426,7 @@ export const InvitationPreviewResponseSchema = z.object({
   invitation: z.object({
     email: z.string(),
     fullName: z.string().nullable(),
-    role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']),
+    role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']),
     expiresAt: z.string(),
     organization: z.object({ slug: z.string(), name: z.string() }).nullable(),
   }),
@@ -1303,7 +1303,7 @@ export const TeamListResponseSchema = z.object({
 });
 export type TeamListResponse = z.infer<typeof TeamListResponseSchema>;
 
-export const TeamRoleUpdateRequestSchema = z.object({ role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta']) }).strict();
+export const TeamRoleUpdateRequestSchema = z.object({ role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']) }).strict();
 export type TeamRoleUpdateRequest = z.infer<typeof TeamRoleUpdateRequestSchema>;
 // Overview del equipo (dashboard "Mi equipo"): KPIs + resumen por rol. Todo
 // desde datos reales (staff_members + staff_invitations + tenant_audit_log).

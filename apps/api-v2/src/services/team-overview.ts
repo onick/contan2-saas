@@ -6,7 +6,7 @@
 import { sql, type DbClient } from '@contan2/db';
 import type { TeamOverviewResponse } from '@contan2/contracts';
 
-const ROLE_ORDER = ['owner', 'admin', 'operator', 'protocolo', 'consulta'];
+const ROLE_ORDER = ['owner', 'admin', 'operator', 'puerta', 'protocolo', 'consulta'];
 const DAY_MS = 86_400_000;
 const pct = (part: number, whole: number) => (whole <= 0 ? 0 : Math.round((part / whole) * 100));
 
