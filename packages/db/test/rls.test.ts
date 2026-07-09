@@ -148,6 +148,41 @@ run('RLS tenant isolation · Postgres', () => {
     });
   });
 
+  it('withTenant anidado: un throw atrapado hace ROLLBACK de su escritura (savepoint), no la commitea', async () => {
+    const stamp = randomUUID().replace(/-/g, '').slice(0, 12);
+    const org = await insertOrg(`rls-nest-${stamp}`, `Nest ${stamp}`);
+    const code = `NEST-${stamp.slice(0, 7)}`;
+
+    // Transacción externa real (db = pool). Adentro, un withTenant ANIDADO que
+    // escribe y lanza; el caller atrapa el error. Sin savepoint, la tx externa
+    // committearía esa escritura parcial (bug B1: oversell de cupo en checkin,
+    // pérdida de aislamiento por-fila en imports). Con savepoint, se revierte y
+    // la tx externa sigue usable.
+    await withTenant(db, org, async (outer) => {
+      await expect(
+        withTenant(outer, org, async (inner) => {
+          await inner.insertInto('users').values({
+            id: randomUUID(), organization_id: org, code,
+            first_name: 'Roll', last_name: 'Back', email: null, phone: null, visit_count: 0,
+          }).execute();
+          throw new Error('boom'); // atrapado por el caller
+        }),
+      ).rejects.toThrow('boom');
+
+      // savepoint revirtió: la fila NO existe
+      const found = await outer.selectFrom('users').select('id').where('code', '=', code).executeTakeFirst();
+      expect(found).toBeUndefined();
+
+      // la tx externa NO quedó abortada: sigue ejecutando
+      const ok = await sql<{ v: number }>`select 1 as v`.execute(outer);
+      expect(ok.rows[0]?.v).toBe(1);
+    });
+
+    // fuera de la tx: sigue sin existir
+    const after = await db.selectFrom('users').select('id').where('code', '=', code).executeTakeFirst();
+    expect(after).toBeUndefined();
+  });
+
   async function policiesMissingForScope(): Promise<string[]> {
     const result = await sql<{ tablename: string }>`
       select tablename

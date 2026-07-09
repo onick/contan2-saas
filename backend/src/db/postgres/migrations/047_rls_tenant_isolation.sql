@@ -38,7 +38,12 @@ BEGIN
 END
 $$;
 
-ALTER ROLE app_v2 NOLOGIN NOBYPASSRLS;
+-- NO re-assertar NOLOGIN acá: el LOGIN de app_v2 se provisiona en el viraje de
+-- rol (Fase 3/4, ALTER ROLE app_v2 LOGIN PASSWORD '<secreto>' por infra, fuera de
+-- git). Si esta migración forzara NOLOGIN, una re-corrida (DB nueva, refresh de
+-- staging, pérdida de _migrations) dejaría a v2 sin poder conectar. Solo fijamos
+-- NOBYPASSRLS (invariante de seguridad: app_v2 nunca debe saltear las policies).
+ALTER ROLE app_v2 NOBYPASSRLS;
 
 GRANT USAGE ON SCHEMA public TO app_v2;
 

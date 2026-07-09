@@ -37,19 +37,54 @@ export async function withTenant<T>(
   }
   const run = async (trx: Transaction<Database>): Promise<T> => {
     // set_config(name, value, is_local=true) ≡ SET LOCAL, pero parametrizable
-    // (evita interpolar el UUID en el texto del SET).
-    await sql`select set_config('app.organization_id', ${organizationId}, true)`.execute(trx);
+    // (evita interpolar el UUID en el texto del SET). En el MISMO round-trip leemos
+    // el valor previo: si la transacción YA estaba scopeada a OTRA org (withTenant
+    // anidado con org distinta — footgun), fallamos en vez de pisar el scope del
+    // caller. Cero costo extra (una sola query en vez de un SET + un SELECT aparte).
+    const res = await sql<{ prev: string | null }>`
+      select current_setting('app.organization_id', true) as prev,
+             set_config('app.organization_id', ${organizationId}, true) as cur
+    `.execute(trx);
+    const prev = res.rows[0]?.prev;
+    if (prev && prev !== organizationId) {
+      throw new Error(
+        `withTenant: la transacción ya está scopeada a la organización ${prev}; ` +
+          `no se puede re-scopear a ${organizationId} (anidamiento con org distinta).`,
+      );
+    }
     return fn(trx);
   };
 
   // Nest-aware: Kysely 0.27 NO soporta transacciones anidadas (llamar
   // .transaction() sobre una Transaction lanza). Si `db` YA es una transacción
   // (un withTenant externo, o un db.transaction() convertido a withTenant),
-  // reusamos esa transacción y solo re-fijamos el GUC — SET LOCAL es idempotente
-  // y el orgId es el mismo. Solo abrimos una transacción nueva cuando `db` es el
-  // pool. Esto permite componer withTenant sin romper por anidamiento.
+  // la reusamos — pero envolviendo `fn` en un SAVEPOINT para PRESERVAR la
+  // semántica de sub-transacción del código original: si `fn` lanza (incluido un
+  // error de aplicación como CheckinError, con la tx NO abortada, o un error SQL
+  // que sí la aborta), se hace ROLLBACK TO SAVEPOINT y se re-lanza, dejando la tx
+  // externa intacta y utilizable. Sin esto, un throw atrapado por el caller haría
+  // que la tx externa COMMITEE escrituras parciales (oversell de cupo, pérdida de
+  // aislamiento por-fila en imports). Solo abrimos una transacción nueva cuando
+  // `db` es el pool.
   if (db.isTransaction) {
-    return run(db as Transaction<Database>);
+    const trx = db as Transaction<Database>;
+    const sp = `wt_sp_${(_savepointSeq = (_savepointSeq + 1) & 0x7fffffff)}`;
+    await sql`savepoint ${sql.raw(sp)}`.execute(trx);
+    try {
+      const result = await run(trx);
+      await sql`release savepoint ${sql.raw(sp)}`.execute(trx);
+      return result;
+    } catch (err) {
+      // ROLLBACK TO recupera la tx incluso si un error SQL la dejó abortada;
+      // luego RELEASE limpia el savepoint (evita acumularlos en loops de N filas).
+      await sql`rollback to savepoint ${sql.raw(sp)}`.execute(trx);
+      await sql`release savepoint ${sql.raw(sp)}`.execute(trx);
+      throw err;
+    }
   }
   return db.transaction().execute(run);
 }
+
+// Contador de savepoints para nombres únicos por nivel de anidamiento (no puede
+// usar Math.random en este entorno; un secuencial acotado alcanza y es estable).
+let _savepointSeq = 0;

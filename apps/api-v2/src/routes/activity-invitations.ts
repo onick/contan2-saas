@@ -233,8 +233,11 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     // (no pasa con Traefik: x-forwarded-host siempre llega).
     const host = effectiveHost(req);
     if (host && deliverables.length > 0) {
-      void deliverInvitations(db, orgId, host,
-        { name: act.name, date: act.date, location: act.location, imageUrl: act.image_url }, deliverables)
+      // Fire-and-forget POST-commit: pool fresco + GUC propio (NO la trx del wrap,
+      // ya committeada/liberada). Con app_v2 sin withTenant el UPDATE sent_at
+      // matchearía 0 filas → re-envíos duplicados.
+      void withTenant(getDb(), orgId, (trx) => deliverInvitations(trx, orgId, host,
+        { name: act.name, date: act.date, location: act.location, imageUrl: act.image_url }, deliverables))
         .then((d) => req.log.info({ activity: id, ...d }, 'entrega de invitaciones terminada'))
         .catch(() => {});
     }

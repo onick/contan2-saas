@@ -289,7 +289,11 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       // credential_sent_at sólo si el envío fue real (dry-run sin RESEND_API_KEY
       // no marca). Sólo para visitante nuevo con email.
       if (deliver) {
-        void deliverCredential(db, orgId, deliver).catch((err: unknown) => {
+        // Fire-and-forget POST-commit: pool fresco + GUC propio (NO la trx del
+        // wrap, ya committeada/liberada). Con app_v2 sin withTenant el UPDATE
+        // credential_sent_at matchearía 0 filas → re-envíos de credencial.
+        const d = deliver; // fija el narrowing dentro del closure
+        void withTenant(getDb(), orgId, (trx) => deliverCredential(trx, orgId, d)).catch((err: unknown) => {
           req.log.error({ err }, 'entrega de credencial falló');
         });
       }

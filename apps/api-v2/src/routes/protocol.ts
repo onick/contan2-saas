@@ -72,7 +72,9 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = requireRole(await requireTenantStaff(db, req), PROTOCOL_READ_ROLES, 'No tenés permiso para ver protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    const body: ProtocolDashboardResponse = await protocolDashboard(db, guard.ctx.org.id);
+    // protocol_profiles/users/invitations tienen RLS: la lectura DEBE ir dentro
+    // de withTenant o app_v2 hace default-deny (dashboard en cero, silencioso).
+    const body: ProtocolDashboardResponse = await withTenant(db, guard.ctx.org.id, (trx) => protocolDashboard(trx, guard.ctx.org.id));
     return body;
   });
 
@@ -388,8 +390,11 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     const dryRun = !process.env.RESEND_API_KEY;
     const host = effectiveHost(req);
     if (host && deliverables.length > 0) {
-      void deliverInvitations(db, orgId, host,
-        { name: act.name, date: act.date, location: act.location, imageUrl: act.image_url }, deliverables)
+      // Fire-and-forget POST-commit: pool fresco + GUC propio (NO la trx del wrap,
+      // ya committeada/liberada). Con app_v2 sin withTenant el UPDATE sent_at
+      // matchearía 0 filas → re-envíos duplicados.
+      void withTenant(getDb(), orgId, (trx) => deliverInvitations(trx, orgId, host,
+        { name: act.name, date: act.date, location: act.location, imageUrl: act.image_url }, deliverables))
         .then((d) => req.log.info({ activity: id, ...d }, 'entrega de invitaciones de protocolo terminada'))
         .catch(() => {});
     }
