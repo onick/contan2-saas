@@ -13,7 +13,7 @@
 
 import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql } from '@contan2/db';
+import { getDb, sql, withTenant } from '@contan2/db';
 import { hashToken } from '@contan2/auth';
 import {
   StaffInviteCreateRequestSchema,
@@ -107,6 +107,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
     if (role === 'owner' && guard.ctx.staff.role !== 'owner') {
       reply.code(403); return { error: 'Solo el propietario puede invitar a otros owners.' };
     }
+    return withTenant(db, orgId, async (db) => {
 
     const existing = await db.selectFrom('staff_members').select(['id', 'status'])
       .where('organization_id', '=', orgId).where('email', '=', email).executeTakeFirst();
@@ -115,7 +116,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
     }
 
     const plain = randomBytes(32).toString('hex');
-    const inv = await db.transaction().execute(async (tx) => {
+    const inv = await withTenant(db, orgId, async (tx) => {
       // Pendiente previa para el mismo email → revocada y reemplazada.
       await tx.updateTable('staff_invitations')
         .set({ status: 'revoked', revoked_at: sql<string>`now()`, updated_at: sql<string>`now()` as unknown as string })
@@ -147,6 +148,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
 
     reply.code(201);
     return { ok: true, invitation: toPublic(inv as InvRow), delivery };
+    });
   });
 
   app.post('/staff/invitations/:id/resend', async (req: FastifyRequest, reply) => {
@@ -183,6 +185,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar invitaciones.' }; }
     const id = (req.params as { id: string }).id;
+    return withTenant(db, guard.ctx.org.id, async (db) => {
 
     const updated = await db.updateTable('staff_invitations')
       .set({ status: 'revoked', revoked_at: sql<string>`now()`, updated_at: sql<string>`now()` as unknown as string })
@@ -193,6 +196,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
 
     await writeAudit(db, guard.ctx.org.id, guard.ctx.staff, 'staff.invitation_revoked', id, updated.email, {});
     return { ok: true, invitation: toPublic(updated as InvRow) };
+    });
   });
 
   // ── Lado público (aceptación) ──────────────────────────────────────────────
@@ -252,7 +256,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
     const finalName = parsed.data.fullName?.trim() || inv.full_name || inv.email.split('@')[0]!;
     const passwordHash = await hashStaffPassword(parsed.data.password);
 
-    const staff = await db.transaction().execute(async (tx) => {
+    const staff = await withTenant(db, inv.organization_id, async (tx) => {
       const created = await tx.insertInto('staff_members').values({
         organization_id: inv.organization_id,
         email: inv.email,

@@ -5,7 +5,7 @@
 // programa (ver services/programs/edition.ts). Tenant-scoped, auditado.
 
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, type DbClient } from '@contan2/db';
+import { getDb, withTenant, type DbClient } from '@contan2/db';
 import {
   ProgramCreateRequestSchema,
   type Program,
@@ -68,6 +68,7 @@ export const programsRoute: FastifyPluginAsync = async (app) => {
     const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para crear programas.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     if ((await programsLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas altas seguidas. Esperá un momento.' }; }
 
     const parsed = ProgramCreateRequestSchema.safeParse(req.body);
@@ -119,5 +120,6 @@ export const programsRoute: FastifyPluginAsync = async (app) => {
 
     reply.code(201);
     return { program: toProgram(inserted as ProgramRow, editionAnchorYear ?? new Date().getFullYear()) };
+    });
   });
 };

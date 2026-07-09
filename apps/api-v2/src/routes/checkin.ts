@@ -1,6 +1,6 @@
 import { randomUUID, randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
-import { getDb, sql, type DbClient } from '@contan2/db';
+import { getDb, sql, withTenant, type DbClient } from '@contan2/db';
 import {
   AdminCheckinRequestSchema,
   AdminAnonymousCheckinRequestSchema,
@@ -102,6 +102,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
 
     // Inicio del día en la tz de app (timestamptz de la medianoche local de hoy).
     const todayStart = sql`(date_trunc('day', now() AT TIME ZONE ${sql.lit(CHECKIN_TZ)}) AT TIME ZONE ${sql.lit(CHECKIN_TZ)})`;
@@ -132,6 +133,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       timezone: CHECKIN_TZ,
     };
     return body;
+    });
   });
 
   // GET /api/v2/checkin/activities · sólo status='activa', con movimiento reciente
@@ -141,6 +143,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
 
     const res = await sql<{
       id: string; name: string; location: string; date: Date;
@@ -190,6 +193,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     });
     const body: CheckinActivitiesResponse = { items, serverNow: new Date().toISOString() };
     return body;
+    });
   });
 
   // GET /api/v2/checkin/visitors?q=&limit= · búsqueda server-side tenant-scoped por
@@ -202,6 +206,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
 
     const query = (req.query ?? {}) as Record<string, unknown>;
     // Comando "*protocolo" (UI): lista completa de protocolo, sin texto.
@@ -269,6 +274,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       invitedTo: invites.get(r.id) ?? [],
     }));
     return { items } satisfies CheckinVisitorsResponse;
+    });
   });
 
   // POST /api/v2/checkin · ESCRITURA. Check-in manual de visitante (existente por
@@ -280,6 +286,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     if ((await manualLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429);
       return { error: 'Demasiados intentos. Esperá un momento e intentá de nuevo.' };
@@ -290,7 +297,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     const staff = guard.ctx.staff;
 
     try {
-      const result = await db.transaction().execute(async (tx) => {
+      const result = await withTenant(db, orgId, async (tx) => {
         const r = await checkinIdentified(tx, { orgId, codePrefix: guard.ctx.org.codePrefix, activityId, visitor, companionsChildren, companionsAdults });
         // Admitir desde la lista de invitados: asegura la fila de invitación para
         // que la persona figure en la lista (la asistencia recién creada la marca
@@ -315,6 +322,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       if (e instanceof CheckinError) { reply.code(e.status); return { error: e.message }; }
       throw e;
     }
+    });
   });
 
   // POST /api/v2/checkin/anonymous · "+1 sin credencial". Registra EXACTAMENTE una
@@ -330,6 +338,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     if ((await anonLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429);
       return { error: 'Demasiados intentos. Esperá un momento e intentá de nuevo.' };
@@ -345,7 +354,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     const staff = guard.ctx.staff;
 
     try {
-      const out = await db.transaction().execute(async (tx) => {
+      const out = await withTenant(db, orgId, async (tx) => {
         const attendanceId = randomUUID();
         // Claim de la Idempotency-Key (transaccional) con TTL 24h. Si la key existe
         // y NO expiró → no actualiza → RETURNING vacío → replay. Si EXPIRÓ → se
@@ -401,5 +410,6 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       if (e instanceof CheckinError) { reply.code(e.status); return { error: e.message }; }
       throw e;
     }
+    });
   });
 };

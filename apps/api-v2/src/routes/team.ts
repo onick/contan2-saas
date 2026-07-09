@@ -5,7 +5,7 @@
 //   Read-only: no audita.
 
 import type { FastifyPluginAsync } from 'fastify';
-import { getDb } from '@contan2/db';
+import { getDb, withTenant } from '@contan2/db';
 import type { TeamListResponse, TeamOverviewResponse } from '@contan2/contracts';
 import { TeamRoleUpdateRequestSchema, TeamStatusUpdateRequestSchema } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
@@ -53,7 +53,10 @@ export const teamRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
     if (!CAN_VIEW_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para ver el equipo.' }; }
-    const body: TeamOverviewResponse = await teamOverview(db, org.id);
+    // teamOverview lee tenant_audit_log (tabla RLS) para la "actividad de la
+    // semana": sin el GUC de org (withTenant), app_v2 hace default-deny y esos
+    // KPIs quedarían en 0. Envolvemos para que las policies filtren por la org.
+    const body: TeamOverviewResponse = await withTenant(db, org.id, (trx) => teamOverview(trx, org.id));
     return body;
   });
 

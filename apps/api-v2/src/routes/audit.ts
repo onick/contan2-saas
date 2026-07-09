@@ -5,7 +5,7 @@
 //   Respuesta SANITIZADA: sin ip_hash ni ua. Endpoint de SOLO lectura: no audita.
 
 import type { FastifyPluginAsync } from 'fastify';
-import { getDb } from '@contan2/db';
+import { getDb, withTenant } from '@contan2/db';
 import type { AuditLogResponse, AuditOverviewResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { readAuditLog, AUDIT_PAGE_MAX } from '../services/audit-read.js';
@@ -24,7 +24,10 @@ export const auditRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
     if (!CAN_READ_AUDIT.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para ver el historial.' }; }
-    const body: AuditOverviewResponse = await auditOverview(db, org.id);
+    // tenant_audit_log tiene RLS: sin el GUC de org (withTenant), app_v2 hace
+    // default-deny → 0 filas. Envolvemos la lectura para que las policies filtren
+    // por la org de la sesión (mismo patrón que el resto de rutas tenant).
+    const body: AuditOverviewResponse = await withTenant(db, org.id, (trx) => auditOverview(trx, org.id));
     return body;
   });
 
@@ -40,7 +43,9 @@ export const auditRoute: FastifyPluginAsync = async (app) => {
 
     const q = req.query as Record<string, unknown>;
     const limitRaw = Number(q.limit);
-    const page = await readAuditLog(db, org.id, {
+    // tenant_audit_log tiene RLS: la lectura DEBE ir dentro de withTenant para que
+    // app_v2 vea las filas de la org (sin el GUC → default-deny → 0 filas).
+    const page = await withTenant(db, org.id, (trx) => readAuditLog(trx, org.id, {
       action: q.action ? String(q.action) : undefined,
       actor: q.actor ? String(q.actor).slice(0, 120) : undefined,
       targetType: q.targetType ? String(q.targetType) : undefined,
@@ -49,7 +54,7 @@ export const auditRoute: FastifyPluginAsync = async (app) => {
       to: q.to ? String(q.to) : undefined,
       cursor: q.cursor ? String(q.cursor) : undefined,
       limit: Number.isFinite(limitRaw) ? Math.min(limitRaw, AUDIT_PAGE_MAX) : undefined,
-    });
+    }));
 
     const body: AuditLogResponse = page;
     return body;

@@ -14,7 +14,7 @@
 //     (rol/status no son PII).
 
 import { createHash } from 'node:crypto';
-import type { DbClient } from '@contan2/db';
+import { withTenant, type DbClient } from '@contan2/db';
 
 export type StaffRole = 'owner' | 'admin' | 'operator' | 'protocolo' | 'consulta' | 'puerta';
 export type StaffStatus = 'active' | 'suspended';
@@ -79,7 +79,7 @@ export async function changeRole(ctx: Ctx, targetId: string, newRole: StaffRole)
   if (targetId === ctx.actor.id) throw new TeamWriteError(400, 'No podés cambiar tu propio rol.');
   if (newRole === 'owner' && ctx.actor.role !== 'owner') throw new TeamWriteError(403, 'Solo el propietario puede asignar el rol de propietario.');
 
-  return ctx.db.transaction().execute(async (tx) => {
+  return withTenant(ctx.db, ctx.orgId, async (tx) => {
     const target = await loadTarget(tx, ctx.orgId, targetId);
     if (target.role === 'owner' && ctx.actor.role !== 'owner') throw new TeamWriteError(403, 'Solo el propietario puede modificar a otro propietario.');
     if (target.role === newRole) return { id: target.id, role: target.role as string };
@@ -96,7 +96,7 @@ export async function changeRole(ctx: Ctx, targetId: string, newRole: StaffRole)
 export async function changeStatus(ctx: Ctx, targetId: string, newStatus: StaffStatus): Promise<{ id: string; status: string }> {
   if (targetId === ctx.actor.id) throw new TeamWriteError(400, 'No podés cambiar tu propio estado.');
 
-  return ctx.db.transaction().execute(async (tx) => {
+  return withTenant(ctx.db, ctx.orgId, async (tx) => {
     const target = await loadTarget(tx, ctx.orgId, targetId);
     if (target.role === 'owner' && ctx.actor.role !== 'owner') throw new TeamWriteError(403, 'Solo el propietario puede modificar a otro propietario.');
     if (target.status === newStatus) return { id: target.id, status: target.status as string };

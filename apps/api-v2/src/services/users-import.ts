@@ -13,7 +13,7 @@
 
 import { randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
-import type { DbClient } from '@contan2/db';
+import { withTenant, type DbClient } from '@contan2/db';
 import { generateUserCode } from '@contan2/codes';
 
 export const IMPORT_ROW_CAP = 1000; // tope por archivo (alineado con bulk-credentials)
@@ -279,7 +279,7 @@ export async function commitNewRows(
 
   for (const r of newRows) {
     try {
-      const inserted = await db.transaction().execute(async (tx) => {
+      const inserted = await withTenant(db, orgId, async (tx) => {
         // Cerrojo 2: re-verificar el email; si ya existe, NO insertar (ni pisar).
         if (r.email) {
           const exists = await tx.selectFrom('users').select('id')

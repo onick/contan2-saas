@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql, type DbClient } from '@contan2/db';
+import { getPlatformDb, sql, type DbClient } from '@contan2/db';
 import {
   PlatformPlanUpdateRequestSchema,
   PlatformTrialUpdateRequestSchema,
@@ -137,7 +137,7 @@ async function recentAudit(db: DbClient, limit: number): Promise<PlatformAuditEn
 export const platformAdminRoute: FastifyPluginAsync = async (app) => {
   // ── GET /platform/kpis ─────────────────────────────────────────────────────
   app.get('/platform/kpis', async (req: FastifyRequest, reply) => {
-    const db = getDb();
+    const db = getPlatformDb();
     const guard = await requirePlatformAdmin(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
 
@@ -181,7 +181,7 @@ export const platformAdminRoute: FastifyPluginAsync = async (app) => {
 
   // ── GET /platform/tenants ──────────────────────────────────────────────────
   app.get('/platform/tenants', async (req: FastifyRequest, reply) => {
-    const db = getDb();
+    const db = getPlatformDb();
     const guard = await requirePlatformAdmin(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
 
@@ -266,7 +266,7 @@ export const platformAdminRoute: FastifyPluginAsync = async (app) => {
 
   // ── GET /platform/audit-log · bitácora global (keyset) ─────────────────────
   app.get('/platform/audit-log', async (req: FastifyRequest, reply) => {
-    const db = getDb();
+    const db = getPlatformDb();
     const guard = await requirePlatformAdmin(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
 
@@ -300,7 +300,7 @@ export const platformAdminRoute: FastifyPluginAsync = async (app) => {
 
   // ── GET /platform/tenants/:id · detalle ────────────────────────────────────
   app.get('/platform/tenants/:id', async (req: FastifyRequest, reply) => {
-    const db = getDb();
+    const db = getPlatformDb();
     const guard = await requirePlatformAdmin(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const id = (req.params as { id: string }).id;
@@ -339,7 +339,7 @@ export const platformAdminRoute: FastifyPluginAsync = async (app) => {
 
   // ── Acciones (owner de plataforma) · validadas + auditadas + rate-limited ───
   const guardAction = async (req: FastifyRequest, reply: import('fastify').FastifyReply) => {
-    const db = getDb();
+    const db = getPlatformDb();
     const guard = await requirePlatformAdmin(db, req);
     if (!guard.ok) { reply.code(guard.status); return { db, guard: null as PlatformContext | null }; }
     if ((await actionLimiter.hit(`${guard.ctx.admin.id}:${req.ip}`)).limited) {

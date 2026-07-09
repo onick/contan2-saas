@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb } from '@contan2/db';
+import { getDb, withTenant } from '@contan2/db';
 import type { OrgBrandingResponse, BrandingLogoUploadResponse } from '@contan2/contracts';
 import { AdminBrandingUpdateRequestSchema } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
@@ -56,6 +56,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
+    return withTenant(db, org.id, async (db) => {
     if (!CAN_EDIT_BRANDING.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para editar la identidad.' }; }
     if ((await writeLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' }; }
 
@@ -75,7 +76,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
     if (p.credentialLogoUrl !== undefined) set.credential_logo_url = p.credentialLogoUrl;
     if (p.logoScale !== undefined) set.logo_scale = p.logoScale;
 
-    const updated = await db.transaction().execute(async (tx) => {
+    const updated = await withTenant(db, org.id, async (tx) => {
       await tx.updateTable('organizations').set(set).where('id', '=', org.id).execute();
       await tx.insertInto('tenant_audit_log').values({
         organization_id: org.id,
@@ -127,6 +128,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
       },
     };
     return body;
+    });
   });
 
   // POST /api/v2/org/branding/logo · sube el logo del tenant. owner/admin,

@@ -15,7 +15,7 @@
 
 import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql, type DbClient } from '@contan2/db';
+import { getDb, sql, withTenant, type DbClient } from '@contan2/db';
 import {
   ActivityInvitesCreateRequestSchema,
   type InviteCandidatesResponse,
@@ -68,6 +68,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para invitar audiencia.' }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     const act = await loadActivity(db, orgId, id);
@@ -137,6 +138,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
       excluded: { alreadyRegistered, alreadyInvited, noEmail },
     };
     return body;
+    });
   });
 
   app.post('/activities/:id/invitations', async (req: FastifyRequest, reply) => {
@@ -145,6 +147,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para invitar audiencia.' }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
     if ((await inviteLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiados envíos seguidos. Espera un momento.' };
@@ -174,7 +177,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     // enviaron de verdad (sent_at null). Las ya enviadas no se re-mandan.
     const deliverables: DeliverableInvitation[] = [];
 
-    await db.transaction().execute(async (tx) => {
+    await withTenant(db, orgId, async (tx) => {
       for (const u of valid) {
         const existing = await tx.selectFrom('invitations').select(['id', 'status', 'token', 'sent_at'])
           .where('organization_id', '=', orgId)
@@ -239,6 +242,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
 
     reply.code(201);
     return { ok: true, summary: { created, reused, skipped, dryRun } };
+    });
   });
 
   // POST /activities/:id/invite-existing {userIds} · owner/admin. Agrega a la
@@ -251,6 +255,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para agregar invitados.' }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
     if ((await inviteLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' };
@@ -275,7 +280,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     let alreadyInvited = 0;
     const skipped = new Set(parsed.data.userIds).size - validIds.length; // ids inexistentes/archivados
 
-    await db.transaction().execute(async (tx) => {
+    await withTenant(db, orgId, async (tx) => {
       for (const uid of validIds) {
         const existing = await tx.selectFrom('invitations').select(['id', 'status'])
           .where('organization_id', '=', orgId).where('activity_id', '=', id).where('user_id', '=', uid)
@@ -308,6 +313,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     req.log.info({ activity: id, invited, alreadyInvited, skipped }, 'invitados agregados desde el padrón');
     reply.code(201);
     return { ok: true, summary: { invited, alreadyInvited, skipped } } satisfies ActivityInviteExistingResponse;
+    });
   });
 
   app.get('/activities/:id/invitations', async (req: FastifyRequest, reply) => {
@@ -315,6 +321,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     const act = await loadActivity(db, orgId, id);
@@ -373,6 +380,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
 
     const body: ActivityInvitationsResponse = { summary, invitations };
     return body;
+    });
   });
 
   app.post('/activities/:id/invitations/:invId/cancel', async (req: FastifyRequest, reply) => {
@@ -382,6 +390,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar invitaciones.' }; }
     const { id, invId } = req.params as { id: string; invId: string };
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
 
     // Necesitamos kind/user para liberar el asiento garantizado (Modelo A) si es
     // una invitación de protocolo pendiente.
@@ -392,7 +401,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     if (!inv) {
       reply.code(404); return { error: 'Invitación no encontrada o ya no está pendiente.' };
     }
-    await db.transaction().execute(async (tx) => {
+    await withTenant(db, orgId, async (tx) => {
       await tx.updateTable('invitations')
         .set({ status: 'canceled', responded_at: sql<string>`now()` as unknown as string })
         .where('organization_id', '=', orgId)
@@ -403,6 +412,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     });
     reply.code(204);
     return null;
+    });
   });
 
   // POST /activities/:id/import-guests?commit=false|true · IMPORTAR LISTA DE
@@ -416,6 +426,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar invitaciones.' }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
     if ((await guestsImportLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiadas importaciones seguidas. Esperá un momento.' };
@@ -470,5 +481,6 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     reply.code(201);
     const body: GuestsImportCommitResponse = { mode: 'commit', result, summary };
     return body;
+    });
   });
 };

@@ -8,7 +8,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql, type DbClient } from '@contan2/db';
+import { getDb, sql, withTenant, type DbClient } from '@contan2/db';
 import { generateUserCode } from '@contan2/codes';
 import {
   PuertaRegisterRequestSchema,
@@ -55,6 +55,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
 
     const salas = await db.selectFrom('activities')
       .select(['id', 'name', 'type', 'audience', 'capacity', 'occupancy'])
@@ -89,6 +90,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     }
     const body: PuertaSalasResponse = { salas: out };
     return body;
+    });
   });
 
   // ── POST /puerta/registrar ─────────────────────────────────────────────────
@@ -97,6 +99,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     if ((await puertaLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados registros seguidos. Esperá un momento.' }; }
 
     const parsed = PuertaRegisterRequestSchema.safeParse(req.body);
@@ -153,7 +156,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     const students = mode === 'group' ? (group!.studentCount) : 0;
     const registered: PuertaRegisterResponse['registered'] = [];
 
-    await db.transaction().execute(async (tx) => {
+    await withTenant(db, orgId, async (tx) => {
       for (const s of salas) {
         // Bucket de acompañantes por audiencia de la sala (infantil→niños).
         const infantil = s.audience === 'infantil';
@@ -195,6 +198,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
       code: user?.code ?? null,
     };
     return body;
+    });
   });
 
   // ── POST /puerta/salas/:id/occupancy · ajusta el contador (VR) ──────────────
@@ -203,6 +207,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const parsed = PuertaOccupancyRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Delta inválido.' }; }
     const id = (req.params as { id: string }).id;
@@ -214,6 +219,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     await db.updateTable('activities').set({ occupancy: next }).where('id', '=', id).execute();
     const body: PuertaOccupancyResponse = { occupancy: next, aforo };
     return body;
+    });
   });
 
   // ── GET /puerta/export.xlsx · descarga la data de las salas permanentes ─────
@@ -226,6 +232,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
+    return withTenant(db, org.id, async (db) => {
     if ((await puertaLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas descargas seguidas. Esperá un momento.' }; }
 
     const q = req.query as Record<string, unknown>;
@@ -300,5 +307,6 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     reply.header('content-disposition', `attachment; filename="${safeFilename(`${base}.xlsx`)}"`);
     reply.header('cache-control', 'no-store');
     return reply.send(buf);
+    });
   });
 };

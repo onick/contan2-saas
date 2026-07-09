@@ -7,7 +7,7 @@
 //   (anti-injection). Cota dura de filas en report-data (sin truncado silencioso).
 
 import type { FastifyPluginAsync } from 'fastify';
-import { getDb } from '@contan2/db';
+import { getDb, withTenant } from '@contan2/db';
 import type { ReportAttendanceByActivityResponse } from '@contan2/contracts';
 import { requireTenantStaff, requireRole } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
@@ -93,6 +93,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    return withTenant(db, guard.ctx.org.id, async (db) => {
     const q = req.query as Record<string, unknown>;
     // types: CSV de tipos válidos (enum). Vacío/ausente = todos.
     const allowed = new Set<string>(ACTIVITY_TYPES);
@@ -105,6 +106,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       if (e instanceof ReportError) { reply.code(e.status); return { error: e.message }; }
       throw e;
     }
+    });
   });
 
   // Categorías/ciclos existentes del tenant (para el filtro de "reporte por ciclo").
@@ -113,6 +115,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    return withTenant(db, guard.ctx.org.id, async (db) => {
     const rows = await db.selectFrom('activities')
       .select(['category'])
       .select(db.fn.countAll<string>().as('n'))
@@ -123,12 +126,14 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       .orderBy('category', 'asc')
       .execute();
     return { categories: rows.map((r) => ({ category: r.category as string, activities: Number(r.n) })) };
+    });
   });
 
   app.get('/reports/attendance-by-activity', async (req, reply) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    return withTenant(db, guard.ctx.org.id, async (db) => {
     const { org, staff } = guard.ctx;
     if (!CAN_GENERATE_REPORTS.has(staff.role)) {
       reply.code(403);
@@ -208,6 +213,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
 
     const body: ReportAttendanceByActivityResponse = report;
     return body;
+    });
   });
 
   // Registro mensual en el FORMATO DEL DEPARTAMENTO (Cine/Teatro): un mes
@@ -216,6 +222,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    return withTenant(db, guard.ctx.org.id, async (db) => {
     const { org, staff } = guard.ctx;
     if (!CAN_GENERATE_REPORTS.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para generar reportes.' }; }
     if ((await reportLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes en poco tiempo. Esperá un momento.' }; }
@@ -246,6 +253,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     reply.header('content-type', XLSX_MIME);
     reply.header('content-disposition', `attachment; filename="${filename}"`);
     return buf;
+    });
   });
 
   // ── Reportería BRANDED (S2 · paridad v1 /reports/*) ───────────────────────
@@ -256,6 +264,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    return withTenant(db, guard.ctx.org.id, async (db) => {
     if (!CAN_GENERATE_REPORTS.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para generar reportes.' }; }
     if ((await reportLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes seguidos. Espera un momento.' }; }
 
@@ -290,6 +299,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     reply.header('content-disposition', `attachment; filename="${pdfFilename(data.activity)}"`);
     reply.header('cache-control', 'no-store');
     return reply.send(pdfBuf);
+    });
   });
 
   // GET /api/v2/reports/period/preview · JSON con summary + deltas vs período anterior.
@@ -297,6 +307,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    return withTenant(db, guard.ctx.org.id, async (db) => {
     if (!CAN_GENERATE_REPORTS.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para generar reportes.' }; }
     if ((await reportLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes seguidos. Espera un momento.' }; }
 
@@ -340,6 +351,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       byDay: period.byDay,
       comparison,
     };
+    });
   });
 
   // GET /api/v2/reports/period.(xlsx|pdf) · informe de período branded.
@@ -348,6 +360,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       const db = getDb();
       const guard = await requireTenantStaff(db, req);
       if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    return withTenant(db, guard.ctx.org.id, async (db) => {
       if (!CAN_GENERATE_REPORTS.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para generar reportes.' }; }
       if ((await reportLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes seguidos. Espera un momento.' }; }
 
@@ -381,6 +394,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       reply.header('cache-control', 'no-store');
       return reply.send(pdfBuf);
     });
+    });
   }
 
   // GET /api/v2/reports/protocol.xlsx?from=&to= · reporte FORMAL de protocolo
@@ -391,6 +405,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const guard = requireRole(await requireTenantStaff(db, req), PROTOCOL_REPORT_ROLES, 'No tenés permiso para exportar protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if ((await reportLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes seguidos. Espera un momento.' }; }
+    return withTenant(db, guard.ctx.org.id, async (db) => {
 
     // Rango: por defecto TODO (pasado y futuro, porque hay eventos próximos).
     const q = req.query as Record<string, unknown>;
@@ -418,5 +433,6 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     reply.header('content-disposition', `attachment; filename="${protocolReportFilename(fromRaw, toRaw)}"`);
     reply.header('cache-control', 'no-store');
     return reply.send(buf);
+    });
   });
 };
