@@ -13,7 +13,7 @@
 //   - Tenant por host (resolveTenantFromHost), igual que /public/*.
 
 import type { FastifyPluginAsync } from 'fastify';
-import { getDb } from '@contan2/db';
+import { getDb, withTenant } from '@contan2/db';
 import { resolveTenantFromHost, effectiveHost } from '../tenant.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { generateCredentialPng, loadLogoDataUri } from '../services/credential.js';
@@ -41,6 +41,7 @@ export const credentialsRoute: FastifyPluginAsync = async (app) => {
       return { error: 'Formato de código inválido' };
     }
     const code = m[1]!.toUpperCase();
+    return withTenant(db, tenant.org.id, async (db) => {
 
     const user = await db
       .selectFrom('users')
@@ -72,5 +73,6 @@ export const credentialsRoute: FastifyPluginAsync = async (app) => {
     reply.header('content-disposition', `inline; filename="credencial-${code}.png"`);
     reply.header('x-content-type-options', 'nosniff');
     return reply.send(png);
+    });
   });
 };

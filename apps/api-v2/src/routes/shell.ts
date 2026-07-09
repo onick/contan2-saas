@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { getDb, sql } from '@contan2/db';
+import { getDb, sql, withTenant } from '@contan2/db';
 import type { ShellSummaryResponse, SearchResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { parseSearch, likeContains } from '../query.js';
@@ -21,6 +21,7 @@ export const shellRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
 
     // Inicio del día local del tenant (misma TZ ancla que check-in), para acotar
     // "check-ins de hoy" sin arrastrar las 7 subqueries del overview.
@@ -46,6 +47,7 @@ export const shellRoute: FastifyPluginAsync = async (app) => {
       },
     };
     return body;
+    });
   });
 
   app.get('/search', async (req, reply) => {
@@ -56,6 +58,7 @@ export const shellRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const role = guard.ctx.staff.role;
 
     const parsed = parseSearch((req.query as Record<string, unknown>).q);
@@ -96,5 +99,6 @@ export const shellRoute: FastifyPluginAsync = async (app) => {
       })),
     };
     return body;
+    });
   });
 };

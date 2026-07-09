@@ -9,7 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql, type DbClient } from '@contan2/db';
+import { getDb, sql, withTenant, type DbClient } from '@contan2/db';
 import { resolveTenantCode } from '@contan2/codes';
 import { releaseHold, companionsFor } from '../services/protocol-holds.js';
 import {
@@ -99,6 +99,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       reply.code(t.status);
       return { error: t.error };
     }
+    return withTenant(db, t.orgId, async (db) => {
 
     const rows = await db
       .selectFrom('activities')
@@ -128,6 +129,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
 
     const body: PublicActivitiesResponse = { activities, total: activities.length };
     return body;
+    });
   });
 
   // GET /api/v2/public/users/lookup?q= · busca un visitante del tenant por
@@ -140,6 +142,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       reply.code(t.status);
       return { error: t.error };
     }
+    return withTenant(db, t.orgId, async (db) => {
 
     if ((await lookupLimiter.hit(`${t.orgId}:${req.ip}`)).limited) {
       reply.code(429);
@@ -233,6 +236,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
 
     const body: PublicVisitorLookupResponse = { visitor: toVisitor(row) };
     return body;
+    });
   });
 
   // POST /api/v2/public/checkin · ESCRITURA. Una sola transacción: resolver/crear
@@ -247,6 +251,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       reply.code(t.status);
       return { error: t.error };
     }
+    return withTenant(db, t.orgId, async (db) => {
 
     if ((await checkinLimiter.hit(`${t.orgId}:${req.ip}`)).limited) {
       reply.code(429);
@@ -265,7 +270,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     let deliver: DeliverUser | null = null;
 
     try {
-      const result = await db.transaction().execute(async (tx) => {
+      const result = await withTenant(db, orgId, async (tx) => {
         // Núcleo COMPARTIDO: resuelve/crea visitante + reserva cupo atómica +
         // asistencia idempotente + visitas (mismo comportamiento que antes).
         const r = await checkinIdentified(tx, { orgId, codePrefix: t.codePrefix, activityId, visitor, companionsChildren, companionsAdults });
@@ -302,6 +307,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       }
       throw e;
     }
+    });
   });
 
   // ── RSVP público (S3, paridad v1 /rsvp/:token) ────────────────────────────
@@ -311,6 +317,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const t = await tenantOnly(db, req);
     if (!t.ok) { reply.code(t.status); return { error: t.error }; }
+    return withTenant(db, t.orgId, async (db) => {
     if ((await rsvpLimiter.hit(`${t.orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiados intentos. Espera un momento.' };
     }
@@ -343,12 +350,14 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       },
     };
     return body;
+    });
   });
 
   app.post('/public/rsvp/:token', async (req, reply) => {
     const db = getDb();
     const t = await tenantOnly(db, req);
     if (!t.ok) { reply.code(t.status); return { error: t.error }; }
+    return withTenant(db, t.orgId, async (db) => {
     if ((await rsvpLimiter.hit(`${t.orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiados intentos. Espera un momento.' };
     }
@@ -371,7 +380,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     if (parsed.data.action === 'no') {
       // Modelo A: declinar una invitación de protocolo LIBERA el asiento
       // garantizado (hold) para que vuelva al aforo.
-      await db.transaction().execute(async (tx) => {
+      await withTenant(db, t.orgId, async (tx) => {
         await tx.updateTable('invitations')
           .set({ status: 'declined', responded_at: sql<string>`now()` as unknown as string })
           .where('id', '=', inv.id).execute();
@@ -383,7 +392,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     }
 
     // yes → reservar cupo atómico + asistencia SIN check-in (paridad v1).
-    const result = await db.transaction().execute(async (tx) => {
+    const result = await withTenant(db, t.orgId, async (tx) => {
       const act = await tx.selectFrom('activities')
         .select(['id', 'name', 'status', 'audience'])
         .where('organization_id', '=', t.orgId).where('id', '=', inv.activity_id)
@@ -431,6 +440,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
 
     if ('error' in result) { reply.code(result.error ?? 409); return { error: result.msg }; }
     return { ok: true, status: 'confirmed', alreadyEnrolled: result.alreadyEnrolled };
+    });
   });
 
   // ── Login email-first (marketing → tu tenant) ────────────────────────────

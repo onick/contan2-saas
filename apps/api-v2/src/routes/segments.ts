@@ -17,7 +17,7 @@
 // nuevo sin asistencias. Sólo usuarios identificados NO archivados.
 
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql, type DbClient } from '@contan2/db';
+import { getDb, sql, withTenant, type DbClient } from '@contan2/db';
 import {
   ACTIVITY_TYPES,
   type Segment,
@@ -232,6 +232,7 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const now = Date.now();
 
     // Estado "hace 30 días" (cutoff) en paralelo → delta REAL "vs último mes"
@@ -303,6 +304,7 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
 
     const body: SegmentsResponse = { segments, totalVisitors: Number(emailFacets.all) };
     return body;
+    });
   });
 
   // GET /api/v2/segments/:id · miembros con afinidad resumida. Orden: más
@@ -315,6 +317,7 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const segId = (req.params as { id: string }).id;
     const now = Date.now();
 
@@ -364,6 +367,7 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
       total: ids.length,
     };
     return body;
+    });
   });
 
   // GET /api/v2/segments/:id/export?format=xlsx|csv · descarga los miembros del
@@ -377,6 +381,7 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const org = guard.ctx.org;
+    return withTenant(db, org.id, async (db) => {
     const segId = (req.params as { id: string }).id;
     const format = String((req.query as { format?: string }).format ?? 'xlsx').toLowerCase();
     if (format !== 'xlsx' && format !== 'csv') {
@@ -434,5 +439,6 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
     );
     reply.header('content-type', XLSX_MIME);
     return reply.send(Buffer.from(await wb.xlsx.writeBuffer()));
+    });
   });
 };

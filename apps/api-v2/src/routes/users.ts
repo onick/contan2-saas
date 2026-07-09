@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
-import { getDb, sql } from '@contan2/db';
+import { getDb, sql, withTenant } from '@contan2/db';
 import { normalizeCodeForLookup, isValidCode, generateUserCode } from '@contan2/codes';
 import type {
   User, UserListItem, UserActivityStatus,
@@ -101,6 +101,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const query = (req.query ?? {}) as Record<string, unknown>;
     const { limit, offset } = parsePage(query);
     const search = parseSearch(query.q);
@@ -176,6 +177,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       offset,
     };
     return body;
+    });
   });
 
   // GET /api/v2/users/facets · conteos EXACTOS por cohorte, tenant-scoped, dentro
@@ -189,6 +191,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const query = (req.query ?? {}) as Record<string, unknown>;
     const search = parseSearch(query.q);
     if (search.error) {
@@ -242,6 +245,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       },
     };
     return body;
+    });
   });
 
   // GET /api/v2/users/export?format=csv|xlsx&cohort=&status=&q=&scope=view|all
@@ -254,6 +258,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
+    return withTenant(db, org.id, async (db) => {
     if (!CAN_WRITE_USER_ROLES.has(staff.role)) {
       reply.code(403);
       return { error: 'No tenés permiso para exportar el padrón.' };
@@ -306,6 +311,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     reply.header('cache-control', 'no-store');
     if (truncated) reply.header('x-export-truncated', String(total));
     return reply.send(buf);
+    });
   });
 
   // GET /api/v2/users/import/template?format=csv|xlsx · plantilla descargable.
@@ -333,6 +339,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
+    return withTenant(db, org.id, async (db) => {
     if (!CAN_WRITE_USER_ROLES.has(staff.role)) {
       reply.code(403); return { error: 'No tenés permiso para importar visitantes.' };
     }
@@ -385,6 +392,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     reply.code(201);
     const body: UsersImportCommitResponse = { mode: 'commit', result, summary };
     return body;
+    });
   });
 
   // GET /api/v2/users/:code · detalle ENRIQUECIDO (UserListItem: + última visita,
@@ -397,6 +405,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const code = normalizeCodeForLookup((req.params as { code: string }).code);
     if (!isValidCode(code)) {
       reply.code(404);
@@ -424,6 +433,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     }
     const body: UserDetailResponse = { user: toListItem(row as ListRow) };
     return body;
+    });
   });
 
   // GET /api/v2/users/:code/activities · historial paginado del visitante (RSVP +
@@ -436,6 +446,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const code = normalizeCodeForLookup((req.params as { code: string }).code);
     if (!isValidCode(code)) {
       reply.code(404);
@@ -490,6 +501,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       offset,
     };
     return body;
+    });
   });
 
   // GET /api/v2/users/:code/affinity · intereses/ubicaciones DERIVADOS on-demand de
@@ -503,6 +515,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const code = normalizeCodeForLookup((req.params as { code: string }).code);
     if (!isValidCode(code)) {
       reply.code(404);
@@ -547,6 +560,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       status: deriveStatus(lastVisit),
     };
     return body;
+    });
   });
 
   // POST /api/v2/users · alta de visitante desde el padrón (S1 · paridad v1).
@@ -565,6 +579,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const { org, staff } = guard.ctx;
+    return withTenant(db, org.id, async (db) => {
     if ((await createLimiter.hit(`${org.id}:${req.ip}`)).limited) {
       reply.code(429);
       return { error: 'Demasiadas altas en poco tiempo. Esperá un momento.' };
@@ -579,7 +594,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
 
     let created: { id: string; code: string } | undefined;
     try {
-      created = await db.transaction().execute(async (tx) => {
+      created = await withTenant(db, org.id, async (tx) => {
         if (email) {
           const exists = await tx
             .selectFrom('users').select('id')
@@ -641,6 +656,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       credential,
     };
     return body;
+    });
   });
 
   // PATCH /api/v2/users/:code · editar visitante (UI-2 · F2B). Sólo owner/admin
@@ -659,6 +675,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: 'No tenés permiso para editar visitantes.' };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const code = normalizeCodeForLookup((req.params as { code: string }).code);
     if (!isValidCode(code)) {
       reply.code(404);
@@ -703,7 +720,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
 
     const ip = req.ip ?? null;
     const ua = (req.headers['user-agent'] as string | undefined) ?? null;
-    await db.transaction().execute(async (tx) => {
+    await withTenant(db, orgId, async (tx) => {
       await tx.updateTable('users').set(set).where('id', '=', target.id).where('organization_id', '=', orgId).execute();
       await writeUserAudit(tx, { orgId, staff: guard.ctx.staff, action: 'user.updated', targetUserId: target.id, metadata: { fields: Object.keys(patch) }, ip, ua });
     });
@@ -724,6 +741,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       .executeTakeFirstOrThrow();
     const body: UserDetailResponse = { user: toListItem(row as ListRow) };
     return body;
+    });
   });
 
   // POST /api/v2/users/:code/credential · reenviar credencial (UI-2 · F2C). Sólo
@@ -744,6 +762,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       return { error: 'No tenés permiso para reenviar credenciales.' };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const staff = guard.ctx.staff;
 
     if ((await credLimiter.hit(`${orgId}:${staff.id}:${req.ip}`)).limited) {
@@ -773,7 +792,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     }
 
     // Claim idempotente (TTL 24h). Si la key existe y no expiró → replay (no reenvía).
-    const claim = await db.transaction().execute(async (tx) => {
+    const claim = await withTenant(db, orgId, async (tx) => {
       const ttl = sql<string>`now() + interval '24 hours'`;
       const claimed = await tx.insertInto('checkin_idempotency')
         .values({ organization_id: orgId, endpoint: CRED_ENDPOINT, idempotency_key: key, attendance_id: user.id, expires_at: ttl })
@@ -809,6 +828,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
 
     const body: AdminCredentialResendResponse = { result: outcome, credentialSentAt: await currentCredAt(), message };
     return body;
+    });
   });
 
   // POST /api/v2/users/:code/archive · soft-archive (UI-2 · F2D). Sólo owner/admin.
@@ -820,18 +840,20 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para archivar visitantes.' }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const code = normalizeCodeForLookup((req.params as { code: string }).code);
     if (!isValidCode(code)) { reply.code(404); return { error: 'Usuario no encontrado' }; }
     const user = await db.selectFrom('users').select(['id'])
       .where('organization_id', '=', orgId).where('code', '=', code).where('deleted_at', 'is', null).executeTakeFirst();
     if (!user) { reply.code(404); return { error: 'Usuario no encontrado' }; }
     const deletedAt = new Date().toISOString();
-    await db.transaction().execute(async (tx) => {
+    await withTenant(db, orgId, async (tx) => {
       await tx.updateTable('users').set({ deleted_at: deletedAt, updated_at: deletedAt }).where('id', '=', user.id).where('organization_id', '=', orgId).execute();
       await writeUserAudit(tx, { orgId, staff: guard.ctx.staff, action: 'user.archived', targetUserId: user.id, ip: req.ip, ua: req.headers['user-agent'] ?? null });
     });
     const body: AdminUserArchiveResponse = { archived: true, deletedAt };
     return body;
+    });
   });
 
   // POST /api/v2/users/:code/reactivate · reactivar un archivado (UI-2 · F2D). Sólo
@@ -842,6 +864,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para reactivar visitantes.' }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const code = normalizeCodeForLookup((req.params as { code: string }).code);
     if (!isValidCode(code)) { reply.code(404); return { error: 'Usuario no encontrado' }; }
     const user = await db.selectFrom('users').select(['id', 'email'])
@@ -854,11 +877,12 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       if (dup) { reply.code(409); return { error: 'Otro visitante activo ya usa ese email; no se puede reactivar.' }; }
     }
     const now = new Date().toISOString();
-    await db.transaction().execute(async (tx) => {
+    await withTenant(db, orgId, async (tx) => {
       await tx.updateTable('users').set({ deleted_at: null, updated_at: now }).where('id', '=', user.id).where('organization_id', '=', orgId).execute();
       await writeUserAudit(tx, { orgId, staff: guard.ctx.staff, action: 'user.reactivated', targetUserId: user.id, ip: req.ip, ua: req.headers['user-agent'] ?? null });
     });
     const body: AdminUserArchiveResponse = { archived: false, deletedAt: null };
     return body;
+    });
   });
 };

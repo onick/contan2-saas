@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { getDb, sql } from '@contan2/db';
+import { getDb, sql, withTenant } from '@contan2/db';
 import type { AttendanceListResponse, AttendanceListItem } from '@contan2/contracts';
 import { AttendanceCompanionsUpdateRequestSchema } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
@@ -23,6 +23,7 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const query = (req.query ?? {}) as Record<string, unknown>;
     const { limit, offset } = parsePage(query);
 
@@ -128,6 +129,7 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
 
     const body: AttendanceListResponse = { items, total: Number(count.n), limit, offset };
     return body;
+    });
   });
 
   // DELETE /api/v2/attendance/:id · quita una asistencia (paridad v1, mejorada):
@@ -144,9 +146,11 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
     if ((await deleteLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' };
     }
+    const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
-    const removed = await db.transaction().execute(async (tx) => {
+    const removed = await withTenant(db, orgId, async (tx) => {
       const att = await tx.deleteFrom('attendance')
         .where('organization_id', '=', guard.ctx.org.id)
         .where('id', '=', id)
@@ -175,6 +179,7 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
     if (!removed) { reply.code(404); return { error: 'Registro no encontrado.' }; }
     reply.code(204);
     return null;
+    });
   });
 
   // PATCH /api/v2/attendance/:id · corregir acompañantes de una asistencia ya
@@ -194,9 +199,10 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
     const parsed = AttendanceCompanionsUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Body inválido: companionsChildren/companionsAdults (0..20).' }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
-    const outcome = await db.transaction().execute(async (tx) => {
+    const outcome = await withTenant(db, orgId, async (tx) => {
       const att = await tx.selectFrom('attendance')
         .select(['activity_id', 'companions_children', 'companions_adults', 'user_code'])
         .where('organization_id', '=', orgId).where('id', '=', id)
@@ -242,5 +248,6 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
     if (outcome.code === 409) { reply.code(409); return { error: 'No hay cupo suficiente para agregar acompañantes.' }; }
     reply.code(200);
     return { ok: true };
+    });
   });
 };

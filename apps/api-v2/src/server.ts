@@ -3,7 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import { loadConfig } from '@contan2/config';
-import { closeDb, getDb } from '@contan2/db';
+import { closeDb, getPlatformDb } from '@contan2/db';
 import { closeRedis } from './redis-client.js';
 import { startAutoFinalize } from './services/auto-finalize.js';
 import { MAX_COVER_BYTES } from './services/cover-upload.js';
@@ -145,7 +145,10 @@ if (isMain) {
     .then(() => {
       // Auto-finaliza actividades por su HORA DE CIERRE (end_date). Solo en el
       // proceso real (no en buildApp de los tests).
-      startAutoFinalize(getDb());
+      // Job global cross-org (finaliza actividades de TODOS los tenants por su
+      // hora de cierre): usa el pool elevado, NO app_v2 — con RLS activo un
+      // UPDATE sin GUC matchearía 0 filas y el job dejaría de finalizar.
+      startAutoFinalize(getPlatformDb());
     })
     .catch((err: unknown) => {
       app.log.error(err);

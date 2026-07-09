@@ -25,7 +25,7 @@ export type {
   InvitationStatus,
 } from './enums.js';
 
-export { createDb, getDb, closeDb, pingDb, type DbClient } from './pool.js';
+export { createDb, getDb, getPlatformDb, closeDb, pingDb, type DbClient } from './pool.js';
 export { withTenant } from './rls.js';
 export { findOrgBySlug, findOrgByCustomDomain, type TenantOrg } from './orgs.js';
 

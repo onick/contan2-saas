@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql } from '@contan2/db';
+import { getDb, sql, withTenant } from '@contan2/db';
 import {
   ActivityCreateRequestSchema,
   ActivityUpdateRequestSchema,
@@ -66,6 +66,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const query = (req.query ?? {}) as Record<string, unknown>;
     const { limit, offset } = parsePage(query);
     const status =
@@ -108,6 +109,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
 
     const body: ActivitiesListResponse = { items, total: Number(count.n), limit, offset };
     return body;
+    });
   });
 
   // GET /api/v2/activities/:id · LECTURA. Detalle COMPLETO de una actividad del
@@ -124,6 +126,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     const row = await db
@@ -139,6 +142,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
 
     reply.code(200);
     return mapActivityDetailRow(row);
+    });
   });
 
   // POST /api/v2/activities · ESCRITURA. Crea una actividad del tenant de la
@@ -168,6 +172,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     }
     const input = normalizeActivityInput(parsed.data);
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
 
     const row = await db
       .insertInto('activities')
@@ -194,6 +199,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     reply.code(201);
     const body: ActivityCreateResponse = { activity: mapActivityDetailRow(row) };
     return body;
+    });
   });
 
   // POST /api/v2/activities/with-cover · ESCRITURA ATÓMICA. Crea una actividad
@@ -220,6 +226,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: LIMIT_MSG };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
 
     // Multipart: campos de actividad + EXACTAMENTE un archivo (tope duro 5MB del
     // plugin). Bufferizamos el archivo en memoria pero NO lo escribimos a disco
@@ -346,6 +353,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       reply.code(500);
       return { error: 'No se pudo crear la actividad con portada. Intentá de nuevo.' };
     }
+    });
   });
 
   // POST /api/v2/activities/:id/cover · ESCRITURA. Sube y asocia la portada de
@@ -370,6 +378,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: LIMIT_MSG };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     // La actividad debe existir DENTRO del tenant (cross-tenant → 404).
@@ -470,6 +479,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       reply.code(500);
       return { error: 'No se pudo guardar la portada.' };
     }
+    });
   });
 
   // PATCH /api/v2/activities/:id · ESCRITURA. Edición PARCIAL de una actividad del
@@ -495,6 +505,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: LIMIT_MSG };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     const parsed = ActivityUpdateRequestSchema.safeParse(req.body);
@@ -564,6 +575,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     reply.code(200);
     const body: ActivityCreateResponse = { activity: mapActivityDetailRow(row) };
     return body;
+    });
   });
 
   // PATCH /api/v2/activities/:id/status · ESCRITURA. Cambia el estado según la
@@ -586,6 +598,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: LIMIT_MSG };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     const parsed = ActivityStatusUpdateSchema.safeParse(req.body);
@@ -630,6 +643,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     reply.code(200);
     const body: ActivityCreateResponse = { activity: mapActivityDetailRow(row) };
     return body;
+    });
   });
 
   // GET /api/v2/activities/:id/summary · resumen post-evento/en vivo (paridad
@@ -647,6 +661,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     const activity = await db
@@ -720,6 +735,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       },
     };
     return body;
+    });
   });
 
   // DELETE /api/v2/activities/:id · ESCRITURA destructiva, GUARDADA (paridad v1):
@@ -745,6 +761,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: LIMIT_MSG };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     const existing = await db
@@ -771,7 +788,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: 'La actividad tiene asistencias registradas. Cancelala primero y luego podrás eliminarla.' };
     }
 
-    await db.transaction().execute(async (tx) => {
+    await withTenant(db, orgId, async (tx) => {
       if (attendanceCount > 0) {
         await tx.deleteFrom('attendance').where('organization_id', '=', orgId).where('activity_id', '=', id).execute();
       }
@@ -804,5 +821,6 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
 
     reply.code(204);
     return null;
+    });
   });
 };

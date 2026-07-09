@@ -10,7 +10,7 @@
 // existente — a los que ya están en el padrón sólo se les crea la invitación.
 
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { DbClient } from '@contan2/db';
+import { withTenant, type DbClient } from '@contan2/db';
 import { generateUserCode } from '@contan2/codes';
 import { normalizeRow, fullNameKey, IMPORT_ROW_CAP, type RawRow } from './users-import.js';
 
@@ -151,7 +151,7 @@ export async function commitGuests(
     if (dedupKey && seen.has(dedupKey)) continue;
     if (dedupKey) seen.add(dedupKey);
     try {
-      const r = await db.transaction().execute(async (tx) => {
+      const r = await withTenant(db, orgId, async (tx) => {
         // 1 · Resolver/crear usuario (NUNCA sobreescribe: a los existentes sólo
         // se les leerá el id). Código gana sobre email (usuario existente exacto).
         let userId: string | undefined;

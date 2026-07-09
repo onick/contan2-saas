@@ -15,7 +15,7 @@
 
 import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql, type DbClient } from '@contan2/db';
+import { getDb, sql, withTenant, type DbClient } from '@contan2/db';
 import {
   ProtocolDesignateRequestSchema,
   ProtocolCategorySchema,
@@ -78,6 +78,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para gestionar protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const q = req.query as Record<string, unknown>;
     const includeInactive = q.all === '1';
     const cat = ProtocolCategorySchema.safeParse(q.category);
@@ -109,6 +110,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
       counts: Object.fromEntries(countRows.map((c) => [c.category, Number(c.n)])),
     };
     return body;
+    });
   });
 
   // ── Designar (upsert; re-designar reactiva) ────────────────────────────
@@ -117,6 +119,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para gestionar protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     if ((await writeLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiados cambios seguidos. Espera un momento.' };
     }
@@ -154,6 +157,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     });
     reply.code(201);
     return { ok: true };
+    });
   });
 
   // ── Editar designación ─────────────────────────────────────────────────
@@ -162,6 +166,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para gestionar protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     if ((await writeLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiados cambios seguidos. Espera un momento.' };
     }
@@ -189,6 +194,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
       metadata: { fields: Object.keys(p) },
     });
     return { ok: true };
+    });
   });
 
   // ── Desactivar (soft) ──────────────────────────────────────────────────
@@ -197,6 +203,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para gestionar protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     if ((await writeLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiados cambios seguidos. Espera un momento.' };
     }
@@ -214,6 +221,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     });
     reply.code(204);
     return null;
+    });
   });
 
   // ── Candidatos de protocolo para una actividad ─────────────────────────
@@ -222,6 +230,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para invitar protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     const act = await db.selectFrom('activities').select(['id'])
@@ -261,6 +270,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
       });
     }
     return { candidates, excluded: { alreadyRegistered, alreadyInvited, noEmail } };
+    });
   });
 
   // ── Invitar lote de protocolo (con acompañantes por invitación) ────────
@@ -269,6 +279,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para invitar protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
     if ((await inviteLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiados envíos seguidos. Espera un momento.' };
@@ -300,7 +311,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     let created = 0; let reused = 0; let skipped = 0; let noCapacity = 0;
     const deliverables: DeliverableInvitation[] = [];
 
-    await db.transaction().execute(async (tx) => {
+    await withTenant(db, orgId, async (tx) => {
       for (const w of wanted) {
         const prof = byId.get(w.userId);
         if (!prof || !prof.email) { skipped += 1; continue; }
@@ -381,6 +392,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     req.log.info({ activity: id, created, reused, skipped, noCapacity, dryRun }, 'invitaciones de protocolo creadas');
     reply.code(201);
     return { ok: true, summary: { created, reused, skipped, noCapacity, dryRun } };
+    });
   });
 
   // ── Protocolo DE una actividad (lista de lectura + KPIs) ─────────────────
@@ -392,6 +404,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
     const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para gestionar protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     const act = await db.selectFrom('activities')
@@ -447,5 +460,6 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
       guests,
     };
     return body;
+    });
   });
 };

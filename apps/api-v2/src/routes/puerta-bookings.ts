@@ -10,7 +10,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql, type DbClient } from '@contan2/db';
+import { getDb, sql, withTenant, type DbClient } from '@contan2/db';
 import {
   PuertaBookingCreateRequestSchema,
   PuertaBookingUpdateRequestSchema,
@@ -69,6 +69,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const q = req.query as Record<string, unknown>;
 
     let query = db.selectFrom('space_bookings as b')
@@ -88,6 +89,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     const rows = await query.orderBy('b.scheduled_at', 'asc').limit(500).execute() as BookingRow[];
     const body: PuertaBookingsResponse = { bookings: rows.map(toBooking) };
     return body;
+    });
   });
 
   // ── POST /puerta/bookings ───────────────────────────────────────────────────
@@ -96,6 +98,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     if ((await bookingsLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas reservas seguidas. Esperá un momento.' }; }
 
     const parsed = PuertaBookingCreateRequestSchema.safeParse(req.body);
@@ -130,6 +133,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
 
     reply.code(201);
     return { booking: toBooking((await loadBooking(db, orgId, inserted.id))!) };
+    });
   });
 
   // ── PATCH /puerta/bookings/:id · confirmar/cancelar/no-vino/reprogramar ──────
@@ -138,6 +142,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
     const parsed = PuertaBookingUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Datos inválidos.' }; }
@@ -171,6 +176,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     }
 
     return { booking: toBooking((await loadBooking(db, orgId, id))!) };
+    });
   });
 
   // ── POST /puerta/bookings/:id/checkin · check-in desde la reserva ────────────
@@ -179,6 +185,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
 
     const b = await loadBooking(db, orgId, id);
@@ -190,7 +197,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
 
     const students = Number(b.student_count);
     const attendanceId = randomUUID();
-    await db.transaction().execute(async (tx) => {
+    await withTenant(db, orgId, async (tx) => {
       // Grupo: profesor (1) + alumnos como companions_children. Sin cupo/dedup.
       await tx.insertInto('attendance').values({
         id: attendanceId, user_id: null, user_code: null,
@@ -207,5 +214,6 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
 
     reply.code(201);
     return { booking: toBooking((await loadBooking(db, orgId, id))!), partySize: 1 + students };
+    });
   });
 };

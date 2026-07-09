@@ -7,7 +7,7 @@
 // dryRun:true y NO marca credential_sent_at (igual que el envío individual).
 
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql } from '@contan2/db';
+import { getDb, sql, withTenant } from '@contan2/db';
 import { CODE_RE } from '@contan2/codes';
 import { BulkCredentialsRequestSchema, type BulkCredentialsResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
@@ -31,6 +31,7 @@ export const credentialsBulkRoute: FastifyPluginAsync = async (app) => {
       reply.code(403); return { error: 'No tenés permiso para envíos masivos.' };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
     if ((await bulkLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Ya hay un lote reciente en curso. Espera un minuto.' };
     }
@@ -104,5 +105,6 @@ export const credentialsBulkRoute: FastifyPluginAsync = async (app) => {
       results,
     };
     return body;
+    });
   });
 };

@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { getDb } from '@contan2/db';
+import { getDb, withTenant } from '@contan2/db';
 import type { DashboardMetricsResponse, DashboardOverviewResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { dashboardOverview, parsePeriod } from '../services/dashboard-overview.js';
@@ -19,8 +19,10 @@ export const dashboardMetricsRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const period = parsePeriod((req.query as Record<string, unknown>).period);
+    return withTenant(db, guard.ctx.org.id, async (db) => {
     const body: DashboardOverviewResponse = await dashboardOverview(db, guard.ctx.org.id, period, TZ);
     return body;
+    });
   });
 
   app.get('/dashboard/metrics', async (req, reply) => {
@@ -31,6 +33,7 @@ export const dashboardMetricsRoute: FastifyPluginAsync = async (app) => {
       return { error: guard.error };
     }
     const orgId = guard.ctx.org.id;
+    return withTenant(db, orgId, async (db) => {
 
     const [users, activities, activeActivities, attendance, checkedIn] = await Promise.all([
       db.selectFrom('users').select(db.fn.countAll<string>().as('n'))
@@ -55,5 +58,6 @@ export const dashboardMetricsRoute: FastifyPluginAsync = async (app) => {
       },
     };
     return body;
+    });
   });
 };
