@@ -46,6 +46,18 @@ const SUGGEST_MIN = 3;
 const SUGGEST_MAX = 8;
 const NAME_ACC = 'áéíóúüÁÉÍÓÚÜ';
 const NAME_PLAIN = 'aeiouuAEIOUU';
+// TELÉFONO: entrada "tipo teléfono" = dígitos con separadores usuales (y + de
+// país). Se compara NORMALIZADO (solo dígitos, sin el 1 de país NANP): así
+// "809-555-0001", "(809) 555 0001" y "18095550001" coinciden entre sí.
+const PHONE_RE = /^\+?[0-9()./\s-]{4,}$/;
+const PHONE_MIN_DIGITS = 4; // typeahead: mínimo de dígitos (anti-enumeración)
+function normPhone(s: string): string {
+  let d = s.replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
+  return d;
+}
+// Expresión SQL: phone de la fila normalizado a solo dígitos.
+const PHONE_DIGITS_SQL = sql<string>`regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g')`;
 const checkinLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('public-checkin') });
 const rsvpLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('public-rsvp') });
 // Login email-first desde el marketing: estricto (enumeración de correos).
@@ -185,6 +197,22 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
           .where('organization_id', '=', t.orgId)
           .where('code', '=', code)
           .executeTakeFirst();
+      } else if (PHONE_RE.test(q)) {
+        // TELÉFONO (exacto, normalizado a dígitos; tolera el 1 de país en la
+        // fila). El match por PREFIJO vive en /suggest; acá Buscar = exacto.
+        const qd = normPhone(q);
+        if (qd.length < 7) {
+          reply.code(400);
+          return { error: 'Escribe tu teléfono completo, o usa tu código (CCB-XXXXXX) o correo.' };
+        }
+        row = await db
+          .selectFrom('users')
+          .select(['code', 'first_name', 'last_name', 'visit_count'])
+          .where('organization_id', '=', t.orgId)
+          .where('deleted_at', 'is', null)
+          .where(sql<boolean>`(${PHONE_DIGITS_SQL} = ${qd} or ${PHONE_DIGITS_SQL} = ${'1' + qd})`)
+          .orderBy('visit_count', 'desc')
+          .executeTakeFirst();
       } else {
         // NOMBRE Y APELLIDO (kiosko). Anti-enumeración en endpoint público:
         //   · exige ≥2 palabras — nada de substrings de "maria" a secas;
@@ -278,6 +306,15 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
           .select(['code', 'first_name', 'last_name', 'visit_count'])
           .where('organization_id', '=', t.orgId).where('deleted_at', 'is', null)
           .where(sql<boolean>`lower(email) like ${like} escape '\\'`)
+          .orderBy('visit_count', 'desc').limit(SUGGEST_MAX).execute();
+      } else if (PHONE_RE.test(q)) {
+        // Teléfono por PREFIJO de dígitos normalizados (tolera el 1 de país).
+        const qd = normPhone(q);
+        if (qd.length < PHONE_MIN_DIGITS) return empty;
+        rows = await db.selectFrom('users')
+          .select(['code', 'first_name', 'last_name', 'visit_count'])
+          .where('organization_id', '=', t.orgId).where('deleted_at', 'is', null)
+          .where(sql<boolean>`(${PHONE_DIGITS_SQL} like ${qd + '%'} or ${PHONE_DIGITS_SQL} like ${'1' + qd + '%'})`)
           .orderBy('visit_count', 'desc').limit(SUGGEST_MAX).execute();
       } else {
         // Nombre por PREFIJO de cada palabra escrita (1+ palabras), acento-insensible.

@@ -239,6 +239,30 @@ run('slice público read-only (kiosko)', () => {
     expect(PublicVisitorSuggestResponseSchema.parse(none.json()).suggestions).toHaveLength(0);
   });
 
+  it('suggest por TELÉFONO: prefijo de dígitos normalizados (con o sin separadores); <4 dígitos → vacía', async () => {
+    // '809-555-0001' de Carmen: prefijo con separadores y sin ellos.
+    for (const q of ['8095550', '809-555', '(809) 555']) {
+      const out = PublicVisitorSuggestResponseSchema.parse((await get(`/api/v2/public/users/suggest?q=${encodeURIComponent(q)}`, hostA)).json());
+      expect(out.suggestions.some((s) => s.code === codeU1)).toBe(true);
+      // anti-leak: el body jamás incluye el teléfono
+    }
+    const short = PublicVisitorSuggestResponseSchema.parse((await get('/api/v2/public/users/suggest?q=809', hostA)).json());
+    expect(short.suggestions).toHaveLength(0);
+  });
+
+  it('lookup por TELÉFONO exacto (normalizado, tolera 1 de país) → { visitor }; no-match → 404; incompleto → 400', async () => {
+    for (const q of ['809-555-0001', '8095550001', '1-809-555-0001', '(809) 555.0001']) {
+      const res = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent(q)}`, hostA);
+      expect(res.statusCode).toBe(200);
+      const out = PublicVisitorLookupResponseSchema.parse(res.json());
+      expect('visitor' in out ? out.visitor.code : null).toBe(codeU1);
+      expect(res.body).not.toContain('809-555'); // shape mínimo sin PII
+    }
+    expect((await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('809-555-9999')}`, hostA)).statusCode).toBe(404);
+    // Teléfono a medias (7 chars con separador, <7 dígitos) → 400 con guía.
+    expect((await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('809-555')}`, hostA)).statusCode).toBe(400);
+  });
+
   it('nombre con HOMÓNIMOS → 200 { matches } ordenados por visitas', async () => {
     const res = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('ana perez')}`, hostA);
     expect(res.statusCode).toBe(200);

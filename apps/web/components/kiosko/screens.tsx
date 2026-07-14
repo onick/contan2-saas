@@ -446,13 +446,13 @@ export function CodeScreen({
           </h1>
         </div>
         <form onSubmit={search} className="mt-8 flex w-full max-w-2xl flex-col gap-3">
-          <label htmlFor="k-code" className="text-sm font-medium text-[#a2a5b4]">Escribe tu nombre o correo y elige de la lista — o usa tu código (CCB-XXXXXX)</label>
+          <label htmlFor="k-code" className="text-sm font-medium text-[#a2a5b4]">Escribe tu nombre, correo o teléfono y elige de la lista — o usa tu código (CCB-XXXXXX)</label>
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               id="k-code"
               value={query}
               onChange={(e) => { setQuery(e.target.value); setNotFound(false); setResult(null); setMatches(null); setError(false); }}
-              placeholder="CCB-7F3K2P · ana@mail.com · Ana Pérez"
+              placeholder="Ana Pérez · ana@mail.com · 809-555-0000 · CCB-7F3K2P"
               autoComplete="off"
               className={inputCls}
             />
