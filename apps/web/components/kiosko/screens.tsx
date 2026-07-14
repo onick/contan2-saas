@@ -511,9 +511,9 @@ export function CodeScreen({
         ) : null}
 
         {suggests && !matches && !result ? (
-          <div className="mt-6 rounded-2xl border border-[#31a3db] bg-[#31a3db] p-5">
-            <p className="text-center font-semibold text-[#0b2230]">¿Eres tú?</p>
-            <p className="mt-1 text-center text-sm text-[#0b2230]/80">Sugerencias mientras escribes · tócate para continuar.</p>
+          <div className="mt-6 rounded-2xl border-2 border-[#31a3db] bg-[#0d2b45] p-5">
+            <p className="text-center text-xl font-bold text-white">¿Eres tú?</p>
+            <p className="mt-1 text-center text-white/90">Sugerencias mientras escribes, tócate para continuar.</p>
             <div className="mt-4 flex flex-col gap-2">
               {suggests.map((m) => (
                 <button
