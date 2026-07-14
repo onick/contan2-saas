@@ -19,6 +19,7 @@ import {
   type PublicActivity,
   type PublicBrandingResponse,
   type PublicVisitorLookupResponse,
+  type PublicVisitorSuggestResponse,
   type PublicCheckinResponse,
   type RsvpPreviewResponse,
 } from '@contan2/contracts';
@@ -39,6 +40,12 @@ import { CheckinError, checkinIdentified } from '../services/checkin-core.js';
 // contra enumeración de códigos/emails; /activities (listado no sensible) no se
 // limita.
 const lookupLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('public-lookup') });
+// Typeahead del kiosko (suggest): umbral mínimo + tope de resultados. Tablas de
+// translate() para el match de nombre acento-insensible (á→a, etc.).
+const SUGGEST_MIN = 3;
+const SUGGEST_MAX = 8;
+const NAME_ACC = 'áéíóúüÁÉÍÓÚÜ';
+const NAME_PLAIN = 'aeiouuAEIOUU';
 const checkinLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('public-checkin') });
 const rsvpLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: endpointPrefix('public-rsvp') });
 // Login email-first desde el marketing: estricto (enumeración de correos).
@@ -236,6 +243,60 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
 
     const body: PublicVisitorLookupResponse = { visitor: toVisitor(row) };
     return body;
+    });
+  });
+
+  // GET /api/v2/public/users/suggest?q= · TYPEAHEAD del kiosko. Lista (0..8) por
+  // PREFIJO de nombre (una sola palabra basta) o de email. A diferencia del
+  // lookup (Buscar, match exacto), esto sugiere mientras el visitante escribe.
+  // Guardrails de privacidad: umbral mínimo de 3 caracteres, tope 8, SÓLO
+  // nombre + código + visitas (nunca email/teléfono), rate-limit compartido y
+  // excluye archivados. LIKE-safe (escapa %_\ y sanea el nombre).
+  app.get('/public/users/suggest', async (req, reply) => {
+    const db = getDb();
+    const t = await tenantOnly(db, req);
+    if (!t.ok) { reply.code(t.status); return { error: t.error }; }
+    return withTenant(db, t.orgId, async (db) => {
+      if ((await lookupLimiter.hit(`${t.orgId}:${req.ip}`)).limited) {
+        reply.code(429);
+        return { error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' };
+      }
+
+      const q = String((req.query as Record<string, unknown>).q ?? '').trim();
+      const empty: PublicVisitorSuggestResponse = { suggestions: [] };
+      if (q.length < SUGGEST_MIN) return empty;
+
+      const toVisitor = (r: { code: string; first_name: string; last_name: string; visit_count: number }) => ({
+        firstName: r.first_name, lastName: r.last_name, code: r.code, visitCount: r.visit_count,
+      });
+
+      let rows: { code: string; first_name: string; last_name: string; visit_count: number }[];
+      if (q.includes('@')) {
+        // Email por PREFIJO, case-insensitive. Escapa comodines para el LIKE.
+        const like = q.toLowerCase().replace(/([%_\\])/g, '\\$1') + '%';
+        rows = await db.selectFrom('users')
+          .select(['code', 'first_name', 'last_name', 'visit_count'])
+          .where('organization_id', '=', t.orgId).where('deleted_at', 'is', null)
+          .where(sql<boolean>`lower(email) like ${like} escape '\\'`)
+          .orderBy('visit_count', 'desc').limit(SUGGEST_MAX).execute();
+      } else {
+        // Nombre por PREFIJO de cada palabra escrita (1+ palabras), acento-insensible.
+        const words = q.split(/\s+/).filter(Boolean)
+          .map((w) => w.replace(/[^a-zA-ZáéíóúüñÁÉÍÓÚÜÑ'’-]/g, ''));
+        if (words.some((w) => w.length === 0) || words.length > 6) return empty;
+        let nameQ = db.selectFrom('users')
+          .select(['code', 'first_name', 'last_name', 'visit_count'])
+          .where('organization_id', '=', t.orgId).where('deleted_at', 'is', null);
+        for (const w of words) {
+          nameQ = nameQ.where(
+            sql<boolean>`' ' || lower(translate(first_name || ' ' || last_name, ${NAME_ACC}, ${NAME_PLAIN})) like '% ' || lower(translate(${w}, ${NAME_ACC}, ${NAME_PLAIN})) || '%'`,
+          );
+        }
+        rows = await nameQ.orderBy('visit_count', 'desc').limit(SUGGEST_MAX).execute();
+      }
+
+      const body: PublicVisitorSuggestResponse = { suggestions: rows.map(toVisitor) };
+      return body;
     });
   });
 

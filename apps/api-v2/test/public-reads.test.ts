@@ -16,6 +16,7 @@ import {
   PublicActivitiesResponseSchema,
   PublicBrandingResponseSchema,
   PublicVisitorLookupResponseSchema,
+  PublicVisitorSuggestResponseSchema,
 } from '@contan2/contracts';
 import { buildApp } from '../src/server.js';
 
@@ -202,6 +203,40 @@ run('slice público read-only (kiosko)', () => {
     // OJO: una palabra de EXACTAMENTE 6 alfanuméricos (p. ej. "Carmen") se trata
     // como código corto (precedencia del contrato) → 404. Una palabra no-código:
     expect((await get('/api/v2/public/users/lookup?q=Carmencita', hostA)).statusCode).toBe(400);
+  });
+
+  // ── suggest (typeahead del kiosko): a diferencia del lookup, sugiere por
+  //    PREFIJO de nombre (una sola palabra basta) o de email, en lista. ────────
+  it('suggest por NOMBRE (una sola palabra) → lista por prefijo, ordenada por visitas, SIN PII', async () => {
+    const res = await get('/api/v2/public/users/suggest?q=ana', hostA);
+    expect(res.statusCode).toBe(200);
+    const out = PublicVisitorSuggestResponseSchema.parse(res.json());
+    const codes = out.suggestions.map((s) => s.code);
+    expect(codes).toContain('CCB-ANA001');
+    expect(codes).toContain('CCB-ANA002');
+    // ordenadas por visitas desc: ANA001 (5) antes que ANA002 (1)
+    expect(out.suggestions[0]!.code).toBe('CCB-ANA001');
+    // anti-leak PII: shape mínimo, sin email/teléfono en el body
+    expect(res.body).not.toContain('@');
+    expect(res.body).not.toContain('phone');
+    expect(res.body).not.toContain('809-555');
+  });
+
+  it('suggest por EMAIL (prefijo, con @) → encuentra al visitante; aislamiento por tenant', async () => {
+    const res = await get(`/api/v2/public/users/suggest?q=${encodeURIComponent('visitante.pub@')}`, hostA);
+    expect(res.statusCode).toBe(200);
+    const out = PublicVisitorSuggestResponseSchema.parse(res.json());
+    expect(out.suggestions.some((s) => s.code === codeU1)).toBe(true);
+    // el email de orgB no debe verse desde host A
+    const cross = PublicVisitorSuggestResponseSchema.parse((await get(`/api/v2/public/users/suggest?q=${encodeURIComponent('ajeno@b.do')}`, hostA)).json());
+    expect(cross.suggestions).toHaveLength(0);
+  });
+
+  it('suggest: umbral < 3 chars → lista vacía; nombre inexistente → lista vacía (silencioso, no 404)', async () => {
+    expect(PublicVisitorSuggestResponseSchema.parse((await get('/api/v2/public/users/suggest?q=an', hostA)).json()).suggestions).toHaveLength(0);
+    const none = await get('/api/v2/public/users/suggest?q=zzzxxx', hostA);
+    expect(none.statusCode).toBe(200);
+    expect(PublicVisitorSuggestResponseSchema.parse(none.json()).suggestions).toHaveLength(0);
   });
 
   it('nombre con HOMÓNIMOS → 200 { matches } ordenados por visitas', async () => {

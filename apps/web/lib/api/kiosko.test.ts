@@ -11,7 +11,7 @@ vi.mock('./client', () => {
 
 import { apiGet, ApiError } from './client';
 import {
-  toKioskActivity, toKioskVisitor, formatKioskDate, getKioskActivities, lookupKioskVisitor,
+  toKioskActivity, toKioskVisitor, formatKioskDate, getKioskActivities, lookupKioskVisitor, suggestKioskVisitors,
 } from './kiosko';
 
 const apiGetMock = vi.mocked(apiGet);
@@ -81,5 +81,21 @@ describe('lookupKioskVisitor', () => {
   it('re-lanza en 5xx (error real → no se cae a demo)', async () => {
     apiGetMock.mockRejectedValueOnce(new ApiError(502, 'down'));
     await expect(lookupKioskVisitor('CCB-1')).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe('suggestKioskVisitors', () => {
+  it('mapea la lista de sugerencias (isNew=false)', async () => {
+    apiGetMock.mockResolvedValue({ suggestions: [
+      { firstName: 'Ana', lastName: 'Pérez', code: 'CCB-AAA111', visitCount: 3 },
+      { firstName: 'Ana', lastName: 'Peña', code: 'CCB-BBB222', visitCount: 1 },
+    ] });
+    const out = await suggestKioskVisitors('ana');
+    expect(out.map((v) => v.code)).toEqual(['CCB-AAA111', 'CCB-BBB222']);
+    expect(out[0]!.isNew).toBe(false);
+  });
+  it('devuelve [] ante error (typeahead silencioso, NO re-lanza)', async () => {
+    apiGetMock.mockRejectedValueOnce(new ApiError(502, 'down'));
+    expect(await suggestKioskVisitors('ana')).toEqual([]);
   });
 });

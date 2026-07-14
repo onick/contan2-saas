@@ -8,6 +8,7 @@ import {
   PublicActivitiesResponseSchema,
   PublicBrandingResponseSchema,
   PublicVisitorLookupResponseSchema,
+  PublicVisitorSuggestResponseSchema,
   type PublicActivity,
   type PublicBrandingResponse,
   type PublicVisitor,
@@ -144,5 +145,20 @@ export async function lookupKioskVisitor(q: string): Promise<KioskLookupOutcome 
     }
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;
+  }
+}
+
+// Sugerencias del typeahead: lista (0..8) por prefijo de nombre o email. Ante
+// cualquier error/umbral corto devuelve [] (el typeahead es silencioso; el
+// "no encontrado" con guía lo maneja el Buscar explícito vía lookupKioskVisitor).
+export async function suggestKioskVisitors(q: string): Promise<KioskVisitor[]> {
+  try {
+    const { suggestions } = await apiGet(
+      `/api/v2/public/users/suggest?q=${encodeURIComponent(q)}`,
+      PublicVisitorSuggestResponseSchema,
+    );
+    return suggestions.map(toKioskVisitor);
+  } catch {
+    return [];
   }
 }

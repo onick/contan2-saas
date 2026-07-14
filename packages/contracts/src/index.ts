@@ -987,6 +987,14 @@ export const PublicVisitorLookupResponseSchema = z.union([
 ]);
 export type PublicVisitorLookupResponse = z.infer<typeof PublicVisitorLookupResponseSchema>;
 
+// Sugerencias del typeahead del kiosko: lista (0..8) por PREFIJO de nombre (una
+// sola palabra basta) o de email. Sólo nombre + código + visitas (nunca
+// email/teléfono). Umbral mínimo de longitud y rate-limit en el endpoint.
+export const PublicVisitorSuggestResponseSchema = z.object({
+  suggestions: z.array(PublicVisitorSchema).max(8),
+});
+export type PublicVisitorSuggestResponse = z.infer<typeof PublicVisitorSuggestResponseSchema>;
+
 // Check-in público (escritura · POST /api/v2/public/checkin). El visitante se
 // identifica por código, por email, o se registra como nuevo (un solo adulto
 // por check-in; sólo niños como acompañantes). Tope server-side de niños.

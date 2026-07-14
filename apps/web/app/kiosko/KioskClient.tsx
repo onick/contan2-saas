@@ -55,6 +55,19 @@ async function apiLookup(query: string): Promise<LookupOutcome> {
   return data.visitor ? { visitor: data.visitor } : null;
 }
 
+// Typeahead (modo api): sugerencias por prefijo de nombre o email. Silencioso
+// ante error (devuelve []): el aviso/guía lo maneja el Buscar explícito.
+async function apiSuggest(query: string): Promise<KioskVisitor[]> {
+  try {
+    const res = await fetch(`/kiosko/suggest?q=${encodeURIComponent(query.trim())}`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { suggestions?: KioskVisitor[] };
+    return data.suggestions ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // Cuerpo del check-in público: el visitante se identifica por código (hallado) o
 // se registra como nuevo. Un solo adulto por check-in; sólo niños acompañantes.
 type CheckinVisitor =
@@ -136,6 +149,8 @@ export function KioskClient({
 
   // Lookup según el modo (sin mezclar). En demo se envuelve en Promise.
   const lookup = source === 'api' ? apiLookup : (q: string) => { const v = demoLookup(q); return Promise.resolve(v ? { visitor: v } : null); };
+  // Sugerencias del typeahead: api → endpoint suggest; demo → 1 hallado local o [].
+  const suggest = source === 'api' ? apiSuggest : (q: string) => { const v = demoLookup(q); return Promise.resolve(v ? [v] : []); };
 
   // Confirmar VISITANTE HALLADO. Demo → presentacional. API → check-in real {code}.
   const confirmFound = async (found: KioskVisitor) => {
@@ -207,6 +222,7 @@ export function KioskClient({
       {screen === 'code' && (
         <CodeScreen
           onLookup={lookup}
+          onSuggest={suggest}
           onFound={confirmFound}
           submitting={submitting}
           onNew={() => setScreen('new')}

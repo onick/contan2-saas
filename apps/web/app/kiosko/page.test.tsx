@@ -25,7 +25,7 @@ describe('/kiosko · flujo del visitante (modo demo)', () => {
     fireEvent.click(screen.getByText('Toca para registrarte'));
     fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Tengo mi código'));
-    fireEvent.change(screen.getByLabelText(/Código/), { target: { value: KIOSK_KNOWN_VISITOR.code } });
+    fireEvent.change(screen.getByLabelText(/código/i), { target: { value: KIOSK_KNOWN_VISITOR.code } });
     fireEvent.click(screen.getByRole('button', { name: /Buscar/ }));
     expect(await screen.findByText(`${KIOSK_KNOWN_VISITOR.firstName} ${KIOSK_KNOWN_VISITOR.lastName}`)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Sí, confirmar asistencia/ }));
@@ -66,7 +66,7 @@ describe('/kiosko · flujo del visitante (modo demo)', () => {
     fireEvent.click(screen.getByText('Toca para registrarte'));
     fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Tengo mi código'));
-    fireEvent.change(screen.getByLabelText(/Código/), { target: { value: 'CCB-000000' } });
+    fireEvent.change(screen.getByLabelText(/código/i), { target: { value: 'CCB-000000' } });
     fireEvent.click(screen.getByRole('button', { name: /Buscar/ }));
     expect(await screen.findByText(/No te encontramos/)).toBeInTheDocument();
   });
@@ -83,7 +83,7 @@ describe('/kiosko · modo API (lookup real vía proxy /kiosko/lookup)', () => {
     fireEvent.click(screen.getByText('Toca para registrarte'));
     fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Tengo mi código'));
-    fireEvent.change(screen.getByLabelText(/Código/), { target: { value: 'CCB-PUB001' } });
+    fireEvent.change(screen.getByLabelText(/código/i), { target: { value: 'CCB-PUB001' } });
     fireEvent.click(screen.getByRole('button', { name: /Buscar/ }));
   };
 
@@ -175,7 +175,7 @@ describe('/kiosko · modo API · check-in REAL al confirmar (/kiosko/checkin)', 
     fireEvent.click(screen.getByText('Toca para registrarte'));
     fireEvent.click(screen.getAllByRole('button', { name: /cupos/i })[0]!);
     fireEvent.click(screen.getByText('Tengo mi código'));
-    fireEvent.change(screen.getByLabelText(/Código/), { target: { value: 'CCB-PUB001' } });
+    fireEvent.change(screen.getByLabelText(/código/i), { target: { value: 'CCB-PUB001' } });
     fireEvent.click(screen.getByRole('button', { name: /Buscar/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Sí, confirmar asistencia/ }));
 

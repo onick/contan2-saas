@@ -369,7 +369,7 @@ function ChoiceCard({ index, icon, title, subtitle, onClick }: { index: number; 
 
 // ── 4a · Buscar por código / email ─────────────────────────────────────────
 export function CodeScreen({
-  onLookup, onFound, submitting, onNew, onBack, audience = 'adultos',
+  onLookup, onSuggest, onFound, submitting, onNew, onBack, audience = 'adultos',
 }: {
   // Async: en modo API resuelve por la red; en demo es Promise.resolve(local).
   // null = no encontrado (404); { matches } = homónimos (el visitante elige);
@@ -377,6 +377,8 @@ export function CodeScreen({
   // GUÍA sin ofrecer registro nuevo (evita visitantes duplicados).
   // throw = error real (api caído/5xx/red).
   onLookup: (query: string) => Promise<{ visitor: KioskVisitor } | { matches: KioskVisitor[] } | { needsFullName: true; hint: string } | null>;
+  // TYPEAHEAD: sugerencias en vivo por prefijo de nombre o email (lista 0..8).
+  onSuggest: (query: string) => Promise<KioskVisitor[]>;
   onFound: (v: KioskVisitor) => void;
   submitting?: boolean; // confirmando el check-in real (modo API)
   onNew: () => void;
@@ -419,20 +421,16 @@ export function CodeScreen({
 
   useEffect(() => {
     const q = query.trim();
-    const namePath = /^[\p{L}'’-]{2,}\s+[\p{L}'’-]{1,}/u.test(q) && !q.includes('@');
-    if (!namePath || loading || result || matches) { setSuggests(null); return; }
+    // Sugerencias en vivo por PREFIJO de nombre (una sola palabra basta) o de
+    // email, desde 3 caracteres. El endpoint suggest acota (tope 8, sin
+    // email/teléfono) y el "no encontrado" del typeahead es SILENCIOSO.
+    if (q.length < 3 || loading || result || matches) { setSuggests(null); return; }
     const mySeq = ++suggestSeq.current;
     const t = setTimeout(async () => {
-      try {
-        const out = await onLookup(q);
-        if (mySeq !== suggestSeq.current) return;
-        if (out && 'matches' in out) setSuggests(out.matches);
-        else if (out && 'visitor' in out) setSuggests([out.visitor]);
-        else setSuggests(null);
-      } catch {
-        if (mySeq === suggestSeq.current) setSuggests(null);
-      }
-    }, 450);
+      const list = await onSuggest(q);
+      if (mySeq !== suggestSeq.current) return;
+      setSuggests(list.length ? list : null);
+    }, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
@@ -448,7 +446,7 @@ export function CodeScreen({
           </h1>
         </div>
         <form onSubmit={search} className="mt-8 flex w-full max-w-2xl flex-col gap-3">
-          <label htmlFor="k-code" className="text-sm font-medium text-[#a2a5b4]">Código (CCB-XXXXXX), correo, o tu nombre y apellido</label>
+          <label htmlFor="k-code" className="text-sm font-medium text-[#a2a5b4]">Escribe tu nombre o correo y elige de la lista — o usa tu código (CCB-XXXXXX)</label>
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               id="k-code"
