@@ -249,9 +249,12 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
   });
 
   // POST /activities/:id/invite-existing {userIds} · owner/admin. Agrega a la
-  // lista de invitados a usuarios YA EXISTENTES del padrón (incluye SIN email),
-  // sin enviar correo. Idempotente: ya invitado (no cancelado) → se omite; una
-  // cancelada se reactiva. Para el flujo "Agregar del padrón" (buscar e invitar).
+  // lista de invitados a usuarios YA EXISTENTES del padrón (incluye SIN email).
+  // Los que TIENEN email reciben el correo de invitación (RSVP) — antes no se
+  // enviaba nada y el admin veía "Sin responder" eterno (bug 2026-07-15); los
+  // sin email quedan solo en la lista (paridad v1). Re-entrega a pendientes
+  // nunca enviados (sent_at null). Idempotente: ya invitado (no cancelado) → se
+  // omite; una cancelada se reactiva. Flujo "Agregar del padrón".
   app.post('/activities/:id/invite-existing', async (req: FastifyRequest, reply) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
@@ -274,46 +277,67 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     const expiresAt = new Date(new Date(act.date).getTime() + DAY_MS).toISOString(); // paridad v1
 
     // Usuarios válidos del tenant (CON o SIN email; acá no se filtra por correo).
-    const users = await db.selectFrom('users').select(['id'])
+    const users = await db.selectFrom('users').select(['id', 'email', 'first_name', 'last_name'])
       .where('organization_id', '=', orgId).where('deleted_at', 'is', null)
       .where('id', 'in', parsed.data.userIds).execute();
-    const validIds = [...new Set(users.map((u) => u.id))];
+    const byId = new Map(users.map((u) => [u.id, u]));
+    const validIds = [...byId.keys()];
 
     let invited = 0;
     let alreadyInvited = 0;
     const skipped = new Set(parsed.data.userIds).size - validIds.length; // ids inexistentes/archivados
+    const deliverables: DeliverableInvitation[] = []; // con email → correo RSVP
 
     await withTenant(db, orgId, async (tx) => {
       for (const uid of validIds) {
-        const existing = await tx.selectFrom('invitations').select(['id', 'status'])
+        const u = byId.get(uid)!;
+        const invitee = u.email ? { email: u.email, firstName: u.first_name, lastName: u.last_name } : null;
+        const existing = await tx.selectFrom('invitations').select(['id', 'status', 'token', 'sent_at'])
           .where('organization_id', '=', orgId).where('activity_id', '=', id).where('user_id', '=', uid)
           .executeTakeFirst();
         if (existing) {
           if (existing.status === 'canceled') {
+            const token = randomBytes(24).toString('hex');
             await tx.updateTable('invitations').set({
-              status: 'pending', token: randomBytes(24).toString('hex'), sent_at: null, responded_at: null, expires_at: expiresAt,
+              status: 'pending', token, sent_at: null, responded_at: null, expires_at: expiresAt,
             }).where('id', '=', existing.id).execute();
             invited += 1;
+            if (invitee) deliverables.push({ invitationId: existing.id, token, user: invitee });
           } else {
             alreadyInvited += 1; // pending/confirmada/declinada → ya está en la lista
+            // Pendiente NUNCA enviada (sent_at null) → re-encolar la entrega.
+            if (existing.status === 'pending' && !existing.sent_at && invitee) {
+              deliverables.push({ invitationId: existing.id, token: existing.token, user: invitee });
+            }
           }
           continue;
         }
-        await tx.insertInto('invitations').values({
+        const token = randomBytes(24).toString('hex');
+        const ins = await tx.insertInto('invitations').values({
           organization_id: orgId, activity_id: id, user_id: uid,
-          token: randomBytes(24).toString('hex'), expires_at: expiresAt,
-        }).execute();
+          token, expires_at: expiresAt,
+        }).returning('id').executeTakeFirstOrThrow();
         invited += 1;
+        if (invitee) deliverables.push({ invitationId: ins.id, token, user: invitee });
       }
       await tx.insertInto('tenant_audit_log').values({
         organization_id: orgId, actor_staff_id: guard.ctx.staff.id, actor_email_masked: null,
         actor_role: guard.ctx.staff.role, action: 'activity.guests_added', target_type: 'activity',
         target_id: id, target_label: act.name,
-        metadata: JSON.stringify({ invited, alreadyInvited, skipped }),
+        metadata: JSON.stringify({ invited, alreadyInvited, skipped, withEmail: deliverables.length }),
       }).execute();
     });
 
-    req.log.info({ activity: id, invited, alreadyInvited, skipped }, 'invitados agregados desde el padrón');
+    // Entrega best-effort post-commit (mismo patrón que "Invitar audiencia"):
+    // con RESEND envía y marca sent_at; sin key → dry-run honesto (sent_at null).
+    const host = effectiveHost(req);
+    if (host && deliverables.length > 0) {
+      void withTenant(getDb(), orgId, (trx) => deliverInvitations(trx, orgId, host,
+        { name: act.name, date: act.date, location: act.location, imageUrl: act.image_url }, deliverables))
+        .then((d) => req.log.info({ activity: id, ...d }, 'entrega de invitaciones del padrón terminada'))
+        .catch(() => {});
+    }
+    req.log.info({ activity: id, invited, alreadyInvited, skipped, withEmail: deliverables.length, host }, 'invitados agregados desde el padrón');
     reply.code(201);
     return { ok: true, summary: { invited, alreadyInvited, skipped } } satisfies ActivityInviteExistingResponse;
     });
