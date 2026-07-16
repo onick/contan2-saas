@@ -46,9 +46,12 @@ function CompanionsControl({
 }: { children: number; onChildren: (n: number) => void; audience?: ActivityAudience }) {
   const infantil = audience === 'infantil';
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#191b22] p-5">
-      <p className="text-sm font-medium text-[#f4f5f8]">{infantil ? '¿Vienes con niños?' : '¿Vienes con acompañantes?'}</p>
-      <p className="mt-0.5 text-xs text-[#71748a]">Opcional · ocupan cupo, sin credencial propia</p>
+    <div className={cx('rounded-2xl border p-5', children > 0 ? 'border-2 border-[#ff8a3d] bg-[#e65100]/10' : 'border-white/10 bg-[#191b22]')}>
+      <p className="text-lg font-bold text-[#f4f5f8]">{infantil ? '¿Vienes con niños?' : '¿Vienes con acompañantes?'}</p>
+      <p className="mt-1 text-sm text-[#a2a5b4]">
+        Cuenta solo a quienes entran <span className="font-bold text-[#f4f5f8]">contigo</span> — tú no te cuentas.{' '}
+        <span className="font-bold text-[#ff8a3d]">Si vienes solo/a, déjalo en 0.</span>
+      </p>
       <div className="mt-4">
         <StepperRow
           icon={infantil ? <Baby size={20} aria-hidden="true" /> : <Users size={20} aria-hidden="true" />}
@@ -57,9 +60,11 @@ function CompanionsControl({
           onChange={onChildren}
         />
       </div>
-      <p className="mt-4 flex items-center gap-2 border-t border-white/10 pt-3 text-xs text-[#a2a5b4]">
+      <p className="mt-4 flex items-center gap-2 border-t border-white/10 pt-3 text-sm text-[#a2a5b4]" aria-live="polite">
         <Info size={14} aria-hidden="true" className="flex-none text-[#ff8a3d]" />
-        {infantil ? 'Cada adulto debe registrarse por separado.' : 'Cada acompañante adulto ocupa un cupo.'}
+        {children > 0
+          ? <span>Entrarán <span className="font-bold text-[#f4f5f8]">{children + 1} personas</span>: tú + {children} {infantil ? (children === 1 ? 'niño' : 'niños') : (children === 1 ? 'acompañante' : 'acompañantes')}. Ocupan cupo, sin credencial propia.</span>
+          : (infantil ? 'Cada adulto debe registrarse por separado.' : 'Cada acompañante adulto ocupa un cupo.')}
       </p>
     </div>
   );
