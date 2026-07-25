@@ -423,7 +423,7 @@ export function CheckinConsole() {
                   </Button>
                 </div>
                 {/* Acompañantes del registro (sin credencial propia; suman al cupo). */}
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-5 py-3.5 md:px-6">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Acompañantes</span>
                   <MiniStepper label="Niños" value={compKids} onChange={setCompKids} />
                   <MiniStepper label="Adultos" value={compAdults} onChange={setCompAdults} />
