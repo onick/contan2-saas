@@ -10,8 +10,9 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, Check, AlertTriangle, Plus, QrCode, Users, X, UserPlus, Search, DoorOpen } from 'lucide-react';
-import type { PuertaSala } from '@contan2/contracts';
+import { Loader2, Check, AlertTriangle, Plus, QrCode, Users, X, UserPlus, Search, DoorOpen, UserCheck } from 'lucide-react';
+import type { PuertaSala, CheckinVisitorItem } from '@contan2/contracts';
+import { searchCheckinVisitors } from '../../lib/api/checkin-client';
 import { Card, Button, IconButton, Field, Chip, EmptyState, cn, focusRing, useDrawerLifecycle } from '../ui';
 import { DoorButton } from './DoorButton';
 import { PuertaIdentify } from './PuertaIdentify';
@@ -165,6 +166,10 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
   const titleId = useId();
   const [tab, setTab] = useState<Tab>('new');
   const [nv, setNv] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  // Dedup: sugerencias del padrón mientras se escribe (nombre/email/teléfono).
+  // "Usar" registra como IDENTIFICADO (misma credencial, +1 visita) en vez de
+  // crear un duplicado. NUNCA auto-merge: siempre elige el staff.
+  const [dup, setDup] = useState<CheckinVisitorItem[]>([]);
   const [comp, setComp] = useState(0);
   const [g, setG] = useState({ colegio: '', level: '', contactName: '', studentCount: 30 });
   const [gKind, setGKind] = useState<GroupKindSel>('Colegio');
@@ -179,7 +184,26 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
   const busyRef = useRef(busy); busyRef.current = busy;
   const requestClose = useRef(() => {});
   requestClose.current = () => { if (busyRef.current) return; onClose(); };
-  const reset = () => { setTab('new'); setNv({ firstName: '', lastName: '', email: '', phone: '' }); setComp(0); setG({ colegio: '', level: '', contactName: '', studentCount: 30 }); setGKind('Colegio'); setGKindCustom(''); };
+  const reset = () => { setTab('new'); setNv({ firstName: '', lastName: '', email: '', phone: '' }); setDup([]); setComp(0); setG({ colegio: '', level: '', contactName: '', studentCount: 30 }); setGKind('Colegio'); setGKindCustom(''); };
+
+  // Typeahead de dedup (email > teléfono > nombre completo), debounce 350ms.
+  useEffect(() => {
+    if (tab !== 'new' || reg === null) { setDup([]); return; }
+    const email = nv.email.trim();
+    const phone = nv.phone.replace(/\D/g, '');
+    const name = `${nv.firstName.trim()} ${nv.lastName.trim()}`.trim();
+    const q = email.length >= 3 ? email : phone.length >= 4 ? nv.phone.trim() : name.length >= 5 ? name : '';
+    if (!q) { setDup([]); return; }
+    const ctl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchCheckinVisitors(q, ctl.signal);
+        if (r.ok) setDup(r.data.items.slice(0, 4));
+      } catch { /* abort */ }
+    }, 350);
+    return () => { clearTimeout(t); ctl.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nv, tab, reg === null]);
 
   const { mounted, closing, panelRef } = useDrawerLifecycle({ open: reg !== null, onEscape: () => requestClose.current(), onClosed: reset });
   if (!mounted || typeof document === 'undefined') return null;
@@ -223,6 +247,25 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
                 <Field label="Email (opcional)" type="email" value={nv.email} onChange={(e) => setNv({ ...nv, email: e.target.value })} />
                 <Field label="Teléfono (opcional)" value={nv.phone} onChange={(e) => setNv({ ...nv, phone: e.target.value })} />
               </div>
+              {dup.length > 0 ? (
+                <div className="mt-3 rounded-xl border border-line bg-surface-container/60 p-3">
+                  <p className="text-[12px] font-semibold text-ink">¿Ya está en el padrón? Usá su credencial (no crea duplicado):</p>
+                  <div className="mt-2 flex flex-col gap-1.5">
+                    {dup.map((v) => (
+                      <div key={v.code} className="flex items-center gap-2.5 rounded-lg bg-surface px-3 py-2">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13.5px] font-semibold text-ink">{v.firstName} {v.lastName}</span>
+                          <span className="block text-[11.5px] tabular-nums text-muted">{v.code} · {v.visitCount} {v.visitCount === 1 ? 'visita' : 'visitas'}</span>
+                        </span>
+                        <Button type="button" variant="secondary" size="sm" disabled={busy}
+                          onClick={() => onSubmit({ salaIds, mode: 'identified', code: v.code, companions: comp }, okMsg)}>
+                          <UserCheck size={14} /> Usar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <Companions value={comp} onChange={setComp} />
               <SubmitBtn busy={busy} label={`Registrar entrada${comp > 0 ? ` · ${1 + comp} personas` : ''}`} disabled={!nv.firstName.trim() || !nv.lastName.trim()} />
             </form>

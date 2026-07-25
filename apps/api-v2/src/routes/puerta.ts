@@ -135,6 +135,18 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
           .executeTakeFirst();
         if (existing) { user = existing; bumpExisting = true; }
       }
+      // find-or-create por TELÉFONO exacto (dígitos normalizados; tolera el 1 de
+      // país). NUNCA por nombre — homónimos reales en el padrón.
+      const phoneDigits = (visitor.phone ?? '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+      if (!user && phoneDigits.length >= 7) {
+        const existing = await db.selectFrom('users').select(['id', 'code', 'first_name', 'last_name'])
+          .where('organization_id', '=', orgId).where('deleted_at', 'is', null)
+          .where(sql<boolean>`(regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g') = ${phoneDigits}
+                              or regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g') = ${'1' + phoneDigits})`)
+          .orderBy('visit_count', 'desc')
+          .executeTakeFirst();
+        if (existing) { user = existing; bumpExisting = true; }
+      }
       if (!user) {
         // Crea el visitante (silencioso, sin email de credencial). Loop por
         // colisión de code (mismo patrón que el check-in).

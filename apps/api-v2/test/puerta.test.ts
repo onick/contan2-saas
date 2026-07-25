@@ -139,6 +139,21 @@ run('puerta · salas permanentes', () => {
     expect((await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'new' })).statusCode).toBe(400);
   });
 
+  it('mode new: find-or-create por TELÉFONO exacto (normalizado) — no duplica el padrón', async () => {
+    const r1 = await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'new', visitor: { firstName: 'Rosa', lastName: 'Duarte', phone: '809-555-7777' } });
+    expect(r1.statusCode).toBe(201);
+    const code = r1.json().code as string;
+    // Mismo teléfono con otro formato (espacios, 1 de país) → MISMO usuario.
+    const r2 = await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'new', visitor: { firstName: 'Rosa', lastName: 'Duarte', phone: '1 (809) 555 7777' } });
+    expect(r2.json().code).toBe(code);
+    const n = await db.selectFrom('users').select((eb) => eb.fn.countAll<string>().as('n'))
+      .where('organization_id', '=', orgId).where('phone', '=', '809-555-7777').executeTakeFirstOrThrow();
+    expect(n.n).toBe('1');
+    // Teléfono corto (<7 dígitos) NO matchea → crea usuario aparte (sin falsos positivos).
+    const r3 = await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'new', visitor: { firstName: 'Otra', lastName: 'Persona', phone: '809-55' } });
+    expect(r3.json().code).not.toBe(code);
+  });
+
   it('export.xlsx: descarga la data de las salas (ambas y filtrada a una) → 200 xlsx', async () => {
     const res = await get('/api/v2/puerta/export.xlsx');
     expect(res.statusCode).toBe(200);
