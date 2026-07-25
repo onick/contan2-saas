@@ -109,9 +109,9 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     // Una sola consulta (subqueries) → sin N+1.
     const res = await sql<{ today: string; last10: string; uniq: string; active: string }>`
       SELECT
-        (SELECT count(*) FROM attendance
+        (SELECT count(*) + coalesce(sum(companions_children + companions_adults), 0) FROM attendance
            WHERE organization_id = ${orgId} AND checked_in_at >= ${todayStart}) AS today,
-        (SELECT count(*) FROM attendance
+        (SELECT count(*) + coalesce(sum(companions_children + companions_adults), 0) FROM attendance
            WHERE organization_id = ${orgId} AND checked_in_at >= now() - interval '10 minutes') AS last10,
         ((SELECT count(DISTINCT user_id) FROM attendance
             WHERE organization_id = ${orgId} AND user_id IS NOT NULL AND checked_in_at >= ${todayStart})

@@ -71,6 +71,8 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
       .selectFrom('attendance as a')
       .leftJoin('users as u', 'u.id', 'a.user_id')
       .select(db.fn.countAll<string>().as('n'))
+      // PERSONAS = filas + acompañantes (los acompañantes no son filas propias).
+      .select(sql<string>`count(*) + coalesce(sum(a.companions_children + a.companions_adults), 0)`.as('people'))
       .where('a.organization_id', '=', orgId);
     if (activityId) {
       rowsQ = rowsQ.where('a.activity_id', '=', activityId);
@@ -127,7 +129,7 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
       companionsAdults: r.companions_adults ?? 0,
     }));
 
-    const body: AttendanceListResponse = { items, total: Number(count.n), limit, offset };
+    const body: AttendanceListResponse = { items, total: Number(count.n), people: Number(count.people), limit, offset };
     return body;
     });
   });

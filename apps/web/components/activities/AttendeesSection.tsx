@@ -26,6 +26,7 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [items, setItems] = useState<AttendanceListItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [people, setPeople] = useState(0); // filas + acompañantes
   const [q, setQ] = useState('');
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
         const body = AttendanceListResponseSchema.parse(await r.json());
         setItems(body.items);
         setTotal(body.total);
+        setPeople(body.people ?? body.total);
         setPhase('ready');
       })
       .catch(() => { if (!ignore) setPhase('error'); });
@@ -109,7 +111,11 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
       <div className="flex flex-wrap items-center gap-2">
         <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
           <UsersRound size={13} strokeWidth={1.75} aria-hidden="true" /> Asistentes
-          {phase === 'ready' ? <span className="tabular-nums">({total})</span> : null}
+          {phase === 'ready' ? (
+            <span className="tabular-nums">
+              ({total}){people > total ? <span className="ml-1 normal-case text-muted">· {people} personas</span> : null}
+            </span>
+          ) : null}
         </p>
         <span className="ml-auto flex items-center gap-3">
           {canExport && items.length > 0 ? (

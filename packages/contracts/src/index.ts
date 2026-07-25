@@ -918,6 +918,9 @@ export type AttendanceCompanionsUpdateRequest = z.infer<typeof AttendanceCompani
 export const AttendanceListResponseSchema = z.object({
   items: z.array(AttendanceListItemSchema),
   total: z.number().int(),
+  // PERSONAS del filtro: total de filas + acompañantes (niños+adultos). Optional
+  // por compat con clientes viejos; el server siempre lo manda.
+  people: z.number().int().optional(),
   limit: z.number().int(),
   offset: z.number().int(),
 });
