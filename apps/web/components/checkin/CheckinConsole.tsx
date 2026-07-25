@@ -9,7 +9,7 @@
 // sin credencial" con Idempotency-Key reutilizada en reintentos del MISMO click.
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History, Medal, ListChecks, Image as ImageIcon } from 'lucide-react';
+import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History, Medal, ListChecks, Image as ImageIcon, Minus, Plus } from 'lucide-react';
 import { GuestListDrawer } from './GuestListDrawer';
 import { CoverThumb } from '../activities/CoverThumb';
 import type { CheckinMetricsResponse, CheckinActivityItem, CheckinVisitorItem, AttendanceListItem } from '@contan2/contracts';
@@ -72,6 +72,11 @@ export function CheckinConsole() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<{ phase: 'idle' | 'searching' | 'ready' | 'error'; items: CheckinVisitorItem[]; error?: string }>({ phase: 'idle', items: [] });
   const [selected, setSelected] = useState<CheckinVisitorItem | null>(null);
+  // Acompañantes del registro en curso (viajan con el POST; se resetean al
+  // cambiar/limpiar el visitante). Sin fila propia: suman al partySize.
+  const [compKids, setCompKids] = useState(0);
+  const [compAdults, setCompAdults] = useState(0);
+  const resetCompanions = () => { setCompKids(0); setCompAdults(0); };
   const [toast, setToast] = useState<Toast>(null);
   const [busyActivity, setBusyActivity] = useState<string | null>(null);
   const [pendingAnon, setPendingAnon] = useState<{ activityId: string; activityName: string; key: string } | null>(null);
@@ -172,7 +177,7 @@ export function CheckinConsole() {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  const selectVisitor = (v: CheckinVisitorItem) => { setSelected(v); setQuery(''); setResults({ phase: 'idle', items: [] }); };
+  const selectVisitor = (v: CheckinVisitorItem) => { setSelected(v); setQuery(''); setResults({ phase: 'idle', items: [] }); resetCompanions(); };
 
   // ── Escaneo de credencial → resolver visitante ──
   // El QR no registra: trae el código y la consola lo busca. Coincidencia exacta
@@ -197,17 +202,20 @@ export function CheckinConsole() {
   async function registerExisting(act: CheckinActivityItem) {
     if (!selected || busyActivity || act.full) return;
     setBusyActivity(act.id);
-    const r = await postCheckin({ activityId: act.id, visitor: { code: selected.code }, companionsChildren: 0, companionsAdults: 0 });
+    const r = await postCheckin({ activityId: act.id, visitor: { code: selected.code }, companionsChildren: compKids, companionsAdults: compAdults });
     setBusyActivity(null);
     if (r.ok) {
       const proto = r.data.protocol;
+      const compTotal = compKids + compAdults;
+      const compTxt = compTotal > 0 ? ` +${compTotal} acompañante${compTotal === 1 ? '' : 's'} (${compTotal + 1} personas)` : '';
       flash({
         kind: 'success',
         msg: proto
           ? `★ PROTOCOLO · ${proto.honorific ? `${proto.honorific} ` : ''}${selected.firstName} registrado en "${act.name}"${proto.plusOnes > 0 ? ` · trae +${proto.plusOnes} acompañantes autorizados` : ''}.`
-          : `${selected.firstName} registrado en "${act.name}". Quedó auditado.`,
+          : `${selected.firstName} registrado en "${act.name}"${compTxt}. Quedó auditado.`,
       });
       setSelected(null);
+      resetCompanions();
       refreshLive();
     } else {
       flash({ kind: 'error', msg: r.error });
@@ -306,7 +314,7 @@ export function CheckinConsole() {
                       </p>
                     ) : null}
                   </div>
-                  <IconButton label="Quitar visitante" variant="outline" size="sm" onClick={() => setSelected(null)}>
+                  <IconButton label="Quitar visitante" variant="outline" size="sm" onClick={() => { setSelected(null); resetCompanions(); }}>
                     <X size={16} strokeWidth={2} aria-hidden="true" />
                   </IconButton>
                 </div>
@@ -413,6 +421,17 @@ export function CheckinConsole() {
                     onClick={() => registerExisting(focusedActivity)} style={{ backgroundColor: 'var(--color-brand-accent)' }}>
                     {busyActivity === focusedActivity.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Registrar
                   </Button>
+                </div>
+                {/* Acompañantes del registro (sin credencial propia; suman al cupo). */}
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Acompañantes</span>
+                  <MiniStepper label="Niños" value={compKids} onChange={setCompKids} />
+                  <MiniStepper label="Adultos" value={compAdults} onChange={setCompAdults} />
+                  {compKids + compAdults > 0 ? (
+                    <span className="text-xs font-semibold text-[#b35400]" aria-live="polite">
+                      Entrarán {1 + compKids + compAdults} personas
+                    </span>
+                  ) : null}
                 </div>
               </Card>
             </div>
@@ -604,5 +623,22 @@ export function CheckinConsole() {
         onArrival={refreshLive}
       />
     </>
+  );
+}
+
+// Stepper compacto de acompañantes (0..10) para el registro identificado.
+function MiniStepper({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
+  const btn = cn('grid h-8 w-8 place-items-center rounded-lg border border-line bg-surface text-ink hover:bg-surface-container disabled:opacity-40', focusRing);
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="text-xs text-muted">{label}</span>
+      <button type="button" aria-label={`Menos ${label.toLowerCase()}`} disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))} className={btn}>
+        <Minus size={14} aria-hidden="true" />
+      </button>
+      <span className="w-5 text-center text-sm font-bold tabular-nums text-ink" aria-live="polite">{value}</span>
+      <button type="button" aria-label={`Más ${label.toLowerCase()}`} disabled={value >= 10} onClick={() => onChange(Math.min(10, value + 1))} className={btn}>
+        <Plus size={14} aria-hidden="true" />
+      </button>
+    </span>
   );
 }
