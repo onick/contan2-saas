@@ -69,6 +69,11 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
         .where('organization_id', '=', orgId).where('activity_id', '=', s.id)
         .where(sql<boolean>`registered_at >= ${todaySql}`)
         .executeTakeFirst();
+      const vw = await db.selectFrom('attendance')
+        .select(sql<number>`coalesce(sum(1 + companions_children + companions_adults), 0)`.as('n'))
+        .where('organization_id', '=', orgId).where('activity_id', '=', s.id)
+        .where(sql<boolean>`registered_at >= ${todaySql} - interval '6 days'`)
+        .executeTakeFirst();
       const bks = await db.selectFrom('space_bookings')
         .select(['id', 'scheduled_at', 'colegio', 'group_kind', 'level', 'student_count', 'status'])
         .where('activity_id', '=', s.id)
@@ -81,6 +86,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
         aforo: s.capacity <= AFORO_MAX ? s.capacity : null,
         occupancy: s.occupancy,
         visitorsToday: Number(vt?.n ?? 0),
+        visitorsWeek: Number(vw?.n ?? 0),
         todayBookings: bks.map((b) => ({
           id: b.id, time: hhmm(b.scheduled_at as unknown as string), colegio: b.colegio,
           kind: b.group_kind ?? null, level: b.level ?? null, studentCount: b.student_count,

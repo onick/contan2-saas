@@ -17,17 +17,9 @@ import { Card, Button, IconButton, Field, Chip, EmptyState, cn, focusRing, useDr
 import { DoorButton } from './DoorButton';
 import { PuertaIdentify } from './PuertaIdentify';
 import { VrAgenda } from './VrAgenda';
-import { PuertaExport } from './PuertaExport';
+import { salaColor } from './salaColors';
 
 const money = (n: number) => n.toLocaleString('en-US');
-
-// Identidad de color por sala (SOLO decorativa: franja + eyebrow + ícono). El
-// CTA usa <Button> primary del kit (WCAG AA) — no fills de color con texto blanco.
-function colorOf(sala: PuertaSala): { c: string; soft: string; deep: string } {
-  return sala.aforo !== null
-    ? { c: '#2f9fd6', soft: '#e7f3fb', deep: '#1a6194' }
-    : { c: '#ee8c27', soft: '#fdf2e5', deep: '#c9701a' };
-}
 
 type OkData = { visitor: string | null; code?: string | null; registered: { salaName: string }[] };
 type Reg = { salaIds: string[] } | null;
@@ -87,7 +79,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
             <EmptyState icon={DoorOpen} title="No hay salas permanentes" description="Todavía no se configuraron salas permanentes (Ada Balcácer, Sala VR) para este tenant." />
           </div>
         ) : salas.map((s) => {
-          const col = colorOf(s);
+          const col = salaColor(s.aforo);
           const isVR = s.aforo !== null;
           return (
             <Card key={s.id} padding="none" className="flex flex-col overflow-hidden">
@@ -105,6 +97,9 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
               <div className="px-5 pb-1">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">Visitantes hoy</div>
                 <div className="text-[34px] font-bold leading-none tabular-nums" style={{ color: col.deep }}>{money(s.visitorsToday)}</div>
+                {typeof s.visitorsWeek === 'number' ? (
+                  <div className="mt-1.5 text-[12px] text-muted">Últimos 7 días: <b className="font-bold tabular-nums text-ink">{money(s.visitorsWeek)}</b></div>
+                ) : null}
               </div>
 
               {s.todayBookings.length > 0 ? (
@@ -133,8 +128,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
         })}
       </div>
 
-      {/* Descargar la data de las salas (ambas o una sola, con rango opcional). */}
-      {salas.length > 0 ? <PuertaExport salas={salas} /> : null}
+      {/* La descarga de datos vive en /app/puerta/reportes (con sala + rango). */}
 
       {/* Agenda de la Sala VR (aforo != null): agendar visitas de colegios. */}
       {salas.filter((s) => s.aforo !== null).map((s) => (

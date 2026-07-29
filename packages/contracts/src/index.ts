@@ -1634,6 +1634,8 @@ export const PuertaSalaSchema = z.object({
   aforo: z.number().int().nullable(),   // null = ilimitada (no muestra ocupación)
   occupancy: z.number().int(),
   visitorsToday: z.number().int(),
+  // Personas de los últimos 7 días (hoy incluido). Optional para compat.
+  visitorsWeek: z.number().int().optional(),
   todayBookings: z.array(PuertaBookingSchema),
 });
 export type PuertaSala = z.infer<typeof PuertaSalaSchema>;
@@ -1734,3 +1736,57 @@ export type PuertaBookingFull = z.infer<typeof PuertaBookingFullSchema>;
 
 export const PuertaBookingsResponseSchema = z.object({ bookings: z.array(PuertaBookingFullSchema) });
 export type PuertaBookingsResponse = z.infer<typeof PuertaBookingsResponseSchema>;
+
+// ── Reportes y estadísticas de la Puerta ─────────────────────────────────────
+// GET /puerta/stats?from&to&sala → dashboard PROPIO del módulo: todo en PERSONAS
+// (1 + acompañantes/alumnos) además de registros, con delta vs el período
+// inmediatamente anterior de igual duración. `sala` acota todo menos `bySala`
+// (que es la vista comparativa entre salas).
+export const PuertaStatsKpisSchema = z.object({
+  people: z.number().int(),      // personas que entraron
+  entries: z.number().int(),     // registros de entrada (filas)
+  identified: z.number().int(),  // visitantes identificados distintos
+  groupPeople: z.number().int(), // personas que entraron en grupo
+});
+export type PuertaStatsKpis = z.infer<typeof PuertaStatsKpisSchema>;
+
+export const PuertaStatsResponseSchema = z.object({
+  range: z.object({ from: z.string(), to: z.string() }),
+  prevRange: z.object({ from: z.string(), to: z.string() }),
+  // Salas permanentes del tenant (para el filtro), histórico completo.
+  salas: z.array(z.object({ id: z.string(), name: z.string(), aforo: z.number().int().nullable() })),
+  kpis: PuertaStatsKpisSchema,
+  prev: PuertaStatsKpisSchema,
+  deltas: z.object({
+    people: z.number().nullable(),
+    entries: z.number().nullable(),
+    identified: z.number().nullable(),
+    groupPeople: z.number().nullable(),
+  }),
+  // Serie diaria de personas: período actual vs el anterior alineado por índice.
+  daily: z.array(z.object({ label: z.string(), current: z.number().int(), previous: z.number().int() })),
+  bySala: z.array(z.object({
+    id: z.string(), name: z.string(), aforo: z.number().int().nullable(),
+    entries: z.number().int(), people: z.number().int(),
+  })),
+  // Composición del público del período (partición de los registros).
+  composition: z.array(z.object({
+    key: z.enum(['identificados', 'grupos', 'anonimos']),
+    entries: z.number().int(), people: z.number().int(),
+  })),
+  byHour: z.array(z.object({ hour: z.number().int(), count: z.number().int() })),
+  byWeekday: z.array(z.object({ weekday: z.number().int(), count: z.number().int() })),
+  // Grupos que nos visitaron (top por personas).
+  groups: z.array(z.object({
+    label: z.string(), kind: z.string().nullable(),
+    visits: z.number().int(), people: z.number().int(),
+  })),
+  // Resultado de la agenda de reservas (VR) del período, por scheduled_at.
+  bookings: z.object({
+    scheduled: z.number().int(), confirmed: z.number().int(), attended: z.number().int(),
+    noShow: z.number().int(), cancelled: z.number().int(),
+    peopleExpected: z.number().int(),   // personas de reservas no canceladas
+    attendedPct: z.number().nullable(), // asistieron / (asistieron + no vinieron)
+  }),
+});
+export type PuertaStatsResponse = z.infer<typeof PuertaStatsResponseSchema>;

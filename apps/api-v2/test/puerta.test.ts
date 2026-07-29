@@ -43,6 +43,7 @@ run('puerta · salas permanentes', () => {
 
   afterAll(async () => {
     if (app) await app.close();
+    await db.deleteFrom('space_bookings').where('organization_id', '=', orgId).execute();
     await db.deleteFrom('attendance').where('organization_id', '=', orgId).execute();
     await db.deleteFrom('activities').where('organization_id', '=', orgId).execute();
     await db.deleteFrom('users').where('organization_id', '=', orgId).execute();
@@ -179,5 +180,69 @@ run('puerta · salas permanentes', () => {
     expect((await h('/api/v2/org/team/overview')).statusCode).toBe(403);
     // Protocolo ESCRITURA → 403 (solo lectura).
     expect((await p('/api/v2/protocol', {})).statusCode).toBe(403);
+  });
+
+  it('stats: KPIs en PERSONAS consistentes con visitorsToday; grupos, composición, por sala y reservas', async () => {
+    // Hoy en la TZ de la puerta (los registros de los tests son de "ahora").
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santo_Domingo' });
+    const range = `from=${today}&to=${today}`;
+
+    // Sin cookie → 401 · rango inválido → 400 · sala inexistente → 404.
+    expect((await app.inject({ method: 'GET', url: `/api/v2/puerta/stats?${range}`, headers: { host } })).statusCode).toBe(401);
+    expect((await get('/api/v2/puerta/stats?from=2026&to=hoy')).statusCode).toBe(400);
+    expect((await get(`/api/v2/puerta/stats?${range}&sala=${randomUUID()}`)).statusCode).toBe(404);
+
+    // Reservas de HOY para el funnel: confirmada + asistió + no vino.
+    const bk = (status: string) => db.insertInto('space_bookings').values({
+      organization_id: orgId, activity_id: salaId, scheduled_at: new Date().toISOString(),
+      colegio: `Colegio Stats ${status}`, level: null, group_kind: null,
+      contact_name: 'Prof. Stats', contact_email: null, contact_phone: null,
+      student_count: 10, status, notes: null,
+    } as never).execute();
+    await bk('confirmed'); await bk('attended'); await bk('no_show');
+
+    const salasRes = (await get('/api/v2/puerta/salas')).json();
+    const salaHoy = salasRes.salas.find((s: { id: string }) => s.id === salaId);
+    // visitorsWeek acompaña a visitorsToday en las tarjetas del board.
+    expect(salaHoy.visitorsWeek).toBeGreaterThanOrEqual(salaHoy.visitorsToday);
+
+    const res = await get(`/api/v2/puerta/stats?${range}`);
+    expect(res.statusCode).toBe(200);
+    const s = res.json();
+    // KPIs de personas = lo que muestran las tarjetas del board (misma métrica).
+    const totalToday = salasRes.salas.reduce((a: number, x: { visitorsToday: number }) => a + x.visitorsToday, 0);
+    expect(s.kpis.people).toBe(totalToday);
+    expect(s.kpis.entries).toBeGreaterThan(0);
+    expect(s.kpis.people).toBeGreaterThanOrEqual(s.kpis.entries);
+    // Particiones consistentes: composición y por-sala suman las mismas personas.
+    const compSum = s.composition.reduce((a: number, c: { people: number }) => a + c.people, 0);
+    expect(compSum).toBe(s.kpis.people);
+    const bySalaSum = s.bySala.reduce((a: number, x: { people: number }) => a + x.people, 0);
+    expect(bySalaSum).toBe(s.kpis.people);
+    // Grupos del período: el colegio registrado en los tests aparece con personas.
+    const sanJose = s.groups.find((g: { label: string }) => g.label === 'Colegio San José');
+    expect(sanJose).toBeTruthy();
+    expect(sanJose.people).toBe(36); // 1 profesor + 35 alumnos
+    expect(sanJose.kind).toBeNull(); // null = colegio
+    // Serie diaria de 1 día (hoy) con el total; sin período anterior → deltas null.
+    expect(s.daily).toHaveLength(1);
+    expect(s.daily[0].current).toBe(totalToday);
+    expect(s.deltas.people).toBeNull();
+    // Reservas del período: funnel + tasa de asistencia 50% (1 asistió / 2 decididas).
+    expect(s.bookings.confirmed).toBe(1);
+    expect(s.bookings.attended).toBe(1);
+    expect(s.bookings.noShow).toBe(1);
+    expect(s.bookings.peopleExpected).toBe(33); // 3 reservas × (10 alumnos + 1 prof)
+    expect(s.bookings.attendedPct).toBe(50);
+
+    // Filtro por sala: en este suite todo pasó en la sala VR → mismos totales,
+    // y bySala (comparativa) la sigue incluyendo.
+    const rf = await get(`/api/v2/puerta/stats?${range}&sala=${salaId}`);
+    expect(rf.statusCode).toBe(200);
+    expect(rf.json().kpis.people).toBe(salaHoy.visitorsToday);
+
+    // El rol 'puerta' también lee sus estadísticas.
+    const rp = await app.inject({ method: 'GET', url: `/api/v2/puerta/stats?${range}`, headers: { host, cookie: `contan2_session=${tokPuerta}` } });
+    expect(rp.statusCode).toBe(200);
   });
 });
