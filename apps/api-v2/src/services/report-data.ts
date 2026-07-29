@@ -6,6 +6,7 @@
 // silencio — para datasets enormes el camino futuro es CSV en streaming / jobs).
 
 import { sql, type DbClient } from '@contan2/db';
+import { normCategory, normCategorySql } from './category-norm.js';
 
 export const MAX_REPORT_RANGE_DAYS = 366;
 export const MAX_REPORT_ROWS = 5000;
@@ -81,13 +82,17 @@ export async function attendanceByActivity(
   category?: string, // filtro opcional por categoría/ciclo (ej. "5to ciclo de cine dominicano")
 ): Promise<AttendanceByActivityReport> {
   // Cota dura: contamos primero (barato) para no materializar un dataset enorme.
+  // El filtro por categoría/ciclo compara NORMALIZADO (minúsculas, sin
+  // acentos, espacios colapsados): "Cine Clásico" matchea "cine clasico".
+  const categoryNorm = category ? normCategory(category) : null;
+  const categoryWhere = sql<boolean>`${normCategorySql(sql`category`)} = ${categoryNorm ?? ''}`;
   let countQ = db
     .selectFrom('activities')
     .select(db.fn.countAll<string>().as('n'))
     .where('organization_id', '=', orgId)
     .where('date', '>=', range.fromDate)
     .where('date', '<', range.toExclusive);
-  if (category) countQ = countQ.where('category', '=', category);
+  if (categoryNorm) countQ = countQ.where(categoryWhere);
   const countRow = await countQ.executeTakeFirstOrThrow();
   if (Number(countRow.n) > MAX_REPORT_ROWS) {
     throw new ReportError(400, `El período tiene ${countRow.n} actividades (máx ${MAX_REPORT_ROWS}). Acotá el rango.`);
@@ -101,7 +106,7 @@ export async function attendanceByActivity(
     .where('a.organization_id', '=', orgId)
     .where('a.date', '>=', range.fromDate)
     .where('a.date', '<', range.toExclusive);
-  if (category) rowsQ = rowsQ.where('a.category', '=', category);
+  if (categoryNorm) rowsQ = rowsQ.where(sql<boolean>`${normCategorySql(sql`a.category`)} = ${categoryNorm}`);
   const rows = await rowsQ
     .groupBy(['a.id', 'a.name', 'a.date', 'a.location', 'a.category', 'a.status', 'a.capacity', 'a.enrolled_count'])
     .select([

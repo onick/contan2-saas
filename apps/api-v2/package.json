@@ -25,7 +25,6 @@
     "exceljs": "^4.4.0",
     "fastify": "^5.2.0",
     "ioredis": "^5.4.1",
-    "pdfkit": "^0.19.0",
     "puppeteer-core": "^24.43.1",
     "qrcode": "^1.5.4",
     "resend": "^4.0.0",
@@ -35,7 +34,6 @@
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^22.10.0",
-    "@types/pdfkit": "^0.17.6",
     "@types/qrcode": "^1.5.5",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",

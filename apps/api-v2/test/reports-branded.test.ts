@@ -33,7 +33,7 @@ run('reportería branded · period/activity xlsx+pdf+preview', () => {
   let app: FastifyInstance;
 
   const stamp = Date.now();
-  const slugA = `rep-a-${stamp}`;
+  const slugA = `repbr-a-${stamp}`;
   const hostA = `${slugA}.contan2.com`;
   let orgAId: string;
   let orgBId: string;
@@ -95,7 +95,7 @@ run('reportería branded · period/activity xlsx+pdf+preview', () => {
       slug: slugA, name: 'Centro Reportes', status: 'active',
       primary_color: '#0182a2', secondary_color: '#ff6f00',
     } as never).returning('id').executeTakeFirstOrThrow()).id;
-    orgBId = (await db.insertInto('organizations').values({ slug: `rep-b-${stamp}`, name: 'Org B', status: 'active' })
+    orgBId = (await db.insertInto('organizations').values({ slug: `repbr-b-${stamp}`, name: 'Org B', status: 'active' })
       .returning('id').executeTakeFirstOrThrow()).id;
     await mkStaff(TOK.admin, 'admin');
     await mkStaff(TOK.operator, 'operator');

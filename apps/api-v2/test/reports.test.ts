@@ -7,6 +7,8 @@
 process.env.ROOT_DOMAIN = 'contan2.com';
 
 import { randomUUID } from 'node:crypto';
+import { homedir } from 'node:os';
+import { existsSync } from 'node:fs';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
@@ -17,6 +19,13 @@ import { buildApp } from '../src/server.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const run = DATABASE_URL ? describe : describe.skip;
+
+// Chromium local para el render del PDF (mismo criterio que reports-branded:
+// mac dev usa el de Playwright; CI sin Chromium → skip honesto del test PDF).
+const PLAYWRIGHT_CHROME = `${homedir()}/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`;
+const CHROME = process.env.PUPPETEER_EXECUTABLE_PATH
+  ?? (existsSync(PLAYWRIGHT_CHROME) ? PLAYWRIGHT_CHROME : null);
+if (CHROME) process.env.PUPPETEER_EXECUTABLE_PATH = CHROME;
 
 run('GET /reports/attendance-by-activity', () => {
   let db: Kysely<Database>;
@@ -204,7 +213,7 @@ run('GET /reports/attendance-by-activity', () => {
     expect(maliciousIsText).toBe(true); // el nombre con '=' es texto, NO fórmula
   });
 
-  it('pdf: application/pdf + Content-Disposition + magic bytes; formato inválido → 400', async () => {
+  it.skipIf(!CHROME)('pdf: application/pdf branded (HTML→Chromium) + Content-Disposition + magic bytes', async () => {
     const res = await get(`?from=${FROM}&to=${TO}&format=pdf`, TOK.admin);
     expect(res.statusCode).toBe(200);
     expect(String(res.headers['content-type'])).toContain('application/pdf');
@@ -212,7 +221,35 @@ run('GET /reports/attendance-by-activity', () => {
     const buf = res.rawPayload;
     expect(buf.length).toBeGreaterThan(500);
     expect(buf.subarray(0, 5).toString('latin1')).toBe('%PDF-'); // PDF válido
+  });
+
+  it('formato inválido → 400', async () => {
     expect((await get(`?from=${FROM}&to=${TO}&format=foo`, TOK.admin)).statusCode).toBe(400);
+  });
+
+  it('variantes de mayúsculas/acentos/espacios = UNA categoría: se consolidan y el filtro matchea todas', async () => {
+    // 3 actividades con la "misma" categoría escrita distinto (el caso real del
+    // CCB: "Cine Clásico" / "cine clasico" / "cine clásico").
+    const v1 = await mkActivity(orgAId, 'Tango 1', '2026-03-05T19:00:00.000Z', 50, 'Ciclo Tango');
+    await mkActivity(orgAId, 'Tango 2', '2026-03-12T19:00:00.000Z', 50, 'ciclo  tango');
+    await mkActivity(orgAId, 'Tango 3', '2026-03-19T19:00:00.000Z', 50, 'CICLO TANGO');
+    const u = await mkUser(orgAId);
+    await mkAttendance(orgAId, v1, { userId: u.id, userCode: u.code });
+
+    // categories: una sola entrada consolidada con el conteo total.
+    const cats = (await app.inject({ method: 'GET', url: '/api/v2/reports/categories', headers: { host: hostA, cookie: `contan2_session=${TOK.admin}` } })).json();
+    const tango = cats.categories.filter((c: { category: string }) => c.category.toLowerCase().includes('tango'));
+    expect(tango).toHaveLength(1);
+    expect(tango[0]).toEqual({ category: 'Ciclo Tango', activities: 3 });
+
+    // El filtro por categoría matchea las 3 variantes, escrito como sea.
+    for (const q of ['Ciclo Tango', 'ciclo tango', 'CICLO   TANGO']) {
+      const res = await get(`?from=${FROM}&to=${TO}&category=${encodeURIComponent(q)}`, TOK.admin);
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.rows.map((r: { name: string }) => r.name).sort()).toEqual(['Tango 1', 'Tango 2', 'Tango 3']);
+      expect(body.totals.activities).toBe(3);
+    }
   });
 
   it('auditoría: una fila report.generated, actor enmascarado, sin PII', async () => {

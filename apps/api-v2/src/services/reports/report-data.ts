@@ -5,6 +5,7 @@
 // Fechas en UTC (paridad v1: month/day keys con getUTC*).
 
 import { sql, type DbClient } from '@contan2/db';
+import { normCategory, normCategorySql } from '../category-norm.js';
 
 const TYPE_LABELS: Record<string, string> = {
   exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
@@ -68,8 +69,10 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
     .orderBy('date', 'asc');
   if (q.types && q.types.length > 0) actsQ = actsQ.where('type', 'in', q.types);
   if (q.categories && q.categories.length > 0) {
-    const lowered = q.categories.map((c) => c.toLowerCase());
-    actsQ = actsQ.where(sql<boolean>`lower(coalesce(category, '')) in (${sql.join(lowered)})`);
+    // Comparación NORMALIZADA (minúsculas, sin acentos, espacios colapsados):
+    // "Cine Clásico" matchea también "cine clasico" / "cine clásico ".
+    const normed = q.categories.map((c) => normCategory(c));
+    actsQ = actsQ.where(sql<boolean>`${normCategorySql(sql`category`)} in (${sql.join(normed)})`);
   }
   const acts = await actsQ.execute();
   const actIds = acts.map((a) => a.id);

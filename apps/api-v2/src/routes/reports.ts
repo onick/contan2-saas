@@ -12,11 +12,12 @@ import type { ReportAttendanceByActivityResponse } from '@contan2/contracts';
 import { requireTenantStaff, requireRole } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { attendanceByActivity, parseRange, ReportError } from '../services/report-data.js';
+import { consolidateCategories } from '../services/category-norm.js';
 import { periodSummary } from '../services/reports/period-summary.js';
 import { ACTIVITY_TYPES, type PeriodSummaryResponse } from '@contan2/contracts';
 import { CSV_BOM, csvRow, safeFilename } from '../services/csv.js';
 import { buildAttendanceWorkbook } from '../services/report-excel.js';
-import { buildAttendancePdf } from '../services/report-pdf.js';
+import { buildAttendancePdfHtml, attendancePdfHeaderFooter } from '../services/reports/attendance-pdf-template.js';
 import { monthlyRegister, monthNameEs } from '../services/reports/monthly-register.js';
 import { buildMonthlyRegisterWorkbook } from '../services/reports/monthly-register-excel.js';
 import { writeReportAudit } from '../services/report-audit.js';
@@ -125,7 +126,10 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       .groupBy('category')
       .orderBy('category', 'asc')
       .execute();
-    return { categories: rows.map((r) => ({ category: r.category as string, activities: Number(r.n) })) };
+    // Variantes de mayúsculas/acentos/espacios = la MISMA categoría: se
+    // consolidan y se muestra la variante más usada (el filtro por categoría
+    // también compara normalizado, así que el label elegido matchea todas).
+    return { categories: consolidateCategories(rows.map((r) => ({ category: r.category as string, activities: Number(r.n) }))) };
     });
   });
 
@@ -204,7 +208,11 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     }
 
     if (format === 'pdf') {
-      const buf = await buildAttendancePdf(report, { name: org.name, primaryColor: org.primaryColor });
+      // PDF branded con KPIs + gráficos (misma tubería HTML→Chromium que los
+      // informes de actividad y período), no una tabla plana.
+      const organization = await loadReportOrg(db, org.id);
+      const html = await buildAttendancePdfHtml({ organization, report, category: category ?? null });
+      const buf = await renderHtmlToPdf(html, attendancePdfHeaderFooter({ organization, category: category ?? null }));
       const filename = safeFilename(`${base}.pdf`);
       reply.header('content-type', 'application/pdf');
       reply.header('content-disposition', `attachment; filename="${filename}"`);
