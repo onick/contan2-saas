@@ -286,7 +286,10 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
               {visible.map((g) => {
                 const m = CAT[g.category];
                 return (
-                  <Card key={g.userId} data-anim="gcard" padding="md" className="relative">
+                  // La animación de entrada deja a cada tarjeta como stacking context:
+                  // al abrir el menú, la tarjeta se eleva (z-30) para que el menú no
+                  // quede tapado por las tarjetas siguientes.
+                  <Card key={g.userId} data-anim="gcard" padding="md" className={cn('relative', menuOpen === g.userId && 'z-30')}>
                     <div className="absolute right-3 top-3" onClick={(e) => e.stopPropagation()}>
                       <button type="button" aria-label="Acciones" onClick={() => setMenuOpen((v) => (v === g.userId ? null : g.userId))} className={cn('grid h-7 w-7 place-items-center rounded-lg text-faint hover:bg-surface-container', focusRing)}><MoreVertical size={16} /></button>
                       {menuOpen === g.userId && (
@@ -331,22 +334,24 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
               })}
             </div>
           ) : (
-            /* Vista de filas (compacta) */
-            <Card padding="none" className="mt-4 overflow-hidden">
+            /* Vista de filas (compacta). Sin overflow-hidden: el menú de la última
+               fila se sale de la Card y no debe recortarse. */
+            <Card padding="none" className="mt-4">
               <ul className="divide-y divide-line/70">
                 {visible.map((g) => {
                   const m = CAT[g.category];
                   return (
-                    <li key={g.userId} data-anim="gcard" className="relative flex items-center gap-3 px-4 py-3">
+                    <li key={g.userId} data-anim="gcard" className={cn('relative flex items-center gap-3 px-4 py-3', menuOpen === g.userId && 'z-30')}>
                       <span className="grid h-10 w-10 flex-none place-items-center rounded-full text-[13px] font-extrabold" style={{ background: m.bg, color: m.text }}>{initials(g.firstName, g.lastName)}</span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[14px] font-bold leading-tight text-ink">{g.honorific ? `${g.honorific} ` : ''}{g.firstName} {g.lastName}</p>
                         <p className="truncate text-[12px] text-muted">{g.orgTitle ?? g.email ?? '—'}</p>
                       </div>
                       <span className="hidden flex-none rounded-full px-2.5 py-0.5 text-[11px] font-bold sm:inline-block" style={{ background: m.bg, color: m.text }}>{m.label}</span>
-                      <div className="hidden w-28 flex-none md:block">
+                      <div className="hidden w-40 flex-none md:block">
                         <p className="text-[10.5px] font-semibold text-faint">Última asistencia</p>
                         <p className="text-[12.5px] font-bold text-ink">{fdate(g.lastAttendanceAt)}</p>
+                        {g.lastActivityName && <p className="truncate text-[11px] text-muted" title={g.lastActivityName}>{g.lastActivityName}</p>}
                       </div>
                       <div className="hidden w-20 flex-none lg:block">
                         <p className="text-[10.5px] font-semibold text-faint">Eventos/año</p>
