@@ -114,7 +114,7 @@ export function MobileNav({ branding, activeKey }: { branding: BrandingOrg; acti
                 <BrandChip slug={branding.slug} name={branding.name} rounded="rounded-full" />
                 <span className="min-w-0">
                   <span className="block truncate text-[13px] font-semibold text-ink">Administración</span>
-                  <span className="block text-xs text-muted">Panel del tenant</span>
+                  <span className="block text-xs text-muted">Panel de tu organización</span>
                 </span>
               </div>
               <LogoutButton className="mt-1" />

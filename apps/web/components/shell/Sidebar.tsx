@@ -148,7 +148,8 @@ export function Sidebar({ branding, activeKey }: SidebarProps) {
           <BrandChip slug={branding.slug} name={branding.name} rounded="rounded-full" bg="bg-brand" />
           <span className="min-w-0">
             <span className="block truncate text-[13px] font-semibold text-ink">Administración</span>
-            <span className="block text-xs text-muted">Panel del tenant</span>
+            {/* "tenant" es jerga interna del SaaS: el cliente ve su panel, no un "tenant". */}
+            <span className="block text-xs text-muted">Panel de tu organización</span>
           </span>
         </div>
         <LogoutButton className="mt-1 group-data-[sidebar=collapsed]/shell:mt-0" />
