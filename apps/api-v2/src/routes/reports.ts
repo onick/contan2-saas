@@ -99,9 +99,11 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     // types: CSV de tipos válidos (enum). Vacío/ausente = todos.
     const allowed = new Set<string>(ACTIVITY_TYPES);
     const types = String(q.types ?? '').split(',').map((t) => t.trim()).filter((t) => allowed.has(t));
+    // categories: CSV texto libre (ciclos); el servicio compara normalizado.
+    const categories = String(q.categories ?? '').split(',').map((c) => c.trim()).filter((c) => c.length > 0 && c.length <= 60).slice(0, 10);
     try {
       const range = parseRange(q.from, q.to);
-      const body: PeriodSummaryResponse = await periodSummary(db, guard.ctx.org.id, range, types.length ? types : undefined);
+      const body: PeriodSummaryResponse = await periodSummary(db, guard.ctx.org.id, range, types.length ? types : undefined, categories.length ? categories : undefined);
       return body;
     } catch (e) {
       if (e instanceof ReportError) { reply.code(e.status); return { error: e.message }; }

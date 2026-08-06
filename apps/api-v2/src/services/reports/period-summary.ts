@@ -7,6 +7,7 @@
 
 import { sql, type DbClient } from '@contan2/db';
 import { type ReportRange } from '../report-data.js';
+import { normCategory, normCategorySql } from '../category-norm.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const pct = (a: number, b: number): number => (b > 0 ? Math.round((a / b) * 100) : 0);
@@ -50,8 +51,16 @@ export async function periodSummary(
   orgId: string,
   range: ReportRange,
   types?: string[],
+  categories?: string[],
 ): Promise<PeriodSummary> {
   const prevR = previousRange(range);
+  // Filtro por ciclo/categoría NORMALIZADO (minúsculas, sin acentos, espacios
+  // colapsados): "cine clasico" matchea "Cine Clásico" y sus variantes.
+  const cats = Array.isArray(categories) && categories.length > 0
+    ? categories.map((c) => normCategory(c)).filter(Boolean)
+    : null;
+  const hasCats = cats !== null && cats.length > 0;
+  const catCond = () => sql<boolean>`${normCategorySql(sql`a.category`)} in (${sql.join(cats!)})`;
 
   // Totales (activities/asistencias/aforo) por rango — un GROUP BY por actividad.
   async function totals(r: ReportRange) {
@@ -62,6 +71,7 @@ export async function periodSummary(
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
+      .$if(hasCats, (qb) => qb.where(catCond()))
       .groupBy(['a.id', 'a.type', 'a.name', 'a.capacity', 'a.image_url'])
       .select(['a.id as id', 'a.type as type', 'a.name as name', 'a.capacity as capacity', 'a.image_url as imageUrl'])
       .select((eb) => eb.fn.count('att.id').as('attendances'))
@@ -82,6 +92,7 @@ export async function periodSummary(
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
+      .$if(hasCats, (qb) => qb.where(catCond()))
       .select(sql<string>`count(distinct att.user_id)`.as('n'))
       .executeTakeFirstOrThrow();
     return Number(row.n);
@@ -96,6 +107,7 @@ export async function periodSummary(
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
+      .$if(hasCats, (qb) => qb.where(catCond()))
       .select([
         sql<string>`to_char(date_trunc('day', a.date), 'YYYY-MM-DD')`.as('d'),
         sql<string>`count(att.id)`.as('att'),
@@ -119,6 +131,7 @@ export async function periodSummary(
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
+      .$if(hasCats, (qb) => qb.where(catCond()))
       .select([
         sql<number>`extract(hour from att.checked_in_at)`.as('hour'),
         sql<number>`extract(dow from att.checked_in_at)`.as('dow'),
@@ -139,6 +152,7 @@ export async function periodSummary(
   // tuvieron su PRIMERA asistencia (de toda la historia filtrada) dentro de él.
   async function newVsReturning(r: ReportRange) {
     const typeClause = hasTypes(types) ? sql`and a.type in (${sql.join(types.map((t) => sql`${t}`))})` : sql``;
+    const catClause = hasCats ? sql`and ${normCategorySql(sql`a.category`)} in (${sql.join(cats!)})` : sql``;
     const res = await sql<{ nuevos: string; total: string }>`
       select
         count(*) filter (where u.first_date >= ${r.fromDate}) as nuevos,
@@ -149,7 +163,7 @@ export async function periodSummary(
                bool_or(a.date >= ${r.fromDate} and a.date < ${r.toExclusive}) as in_period
         from attendance att
         join activities a on a.id = att.activity_id
-        where att.organization_id = ${orgId} and att.user_id is not null ${typeClause}
+        where att.organization_id = ${orgId} and att.user_id is not null ${typeClause} ${catClause}
         group by att.user_id
       ) u
       where u.in_period

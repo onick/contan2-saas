@@ -19,9 +19,10 @@ import { useDataAnim } from '../charts/useDataAnim';
 import { ReportsAgent } from './ReportsAgent';
 
 // Querystring del período (client-safe; el server usa el de lib/api/reports).
-function reportsQuery(from: string, to: string, types?: string[]): string {
+function reportsQuery(from: string, to: string, types?: string[], categories?: string[]): string {
   const p = new URLSearchParams({ from, to });
   if (types && types.length) p.set('types', types.join(','));
+  if (categories && categories.length) p.set('categories', categories.join(','));
   return p.toString();
 }
 
@@ -74,8 +75,11 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
   const [periodKey, setPeriodKey] = useState('mes');
   const [range, setRange] = useState(initialRange);
   const [types, setTypes] = useState<string[]>([]);
+  const [cats, setCats] = useState<string[]>([]);
+  const [catList, setCatList] = useState<CatItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [ddOpen, setDdOpen] = useState(false);
+  const [ddCatOpen, setDdCatOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const first = useRef(true);
 
@@ -84,27 +88,39 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
     if (first.current) { first.current = false; return; }
     let cancel = false;
     setLoading(true);
-    fetch(`/app/reportes/api/summary?${reportsQuery(range.from, range.to, types)}`, { cache: 'no-store' })
+    fetch(`/app/reportes/api/summary?${reportsQuery(range.from, range.to, types, cats)}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => { if (!cancel && j && j.kpis) setData(j as PeriodSummaryResponse); })
       .catch(() => {})
       .finally(() => { if (!cancel) setLoading(false); });
     return () => { cancel = true; };
-  }, [range, types]);
+  }, [range, types, cats]);
 
-  // Cerrar dropdown al click afuera.
+  // Ciclos/categorías del tenant (una vez) para el filtro del dashboard.
   useEffect(() => {
-    if (!ddOpen) return;
-    const h = () => setDdOpen(false);
+    let cancel = false;
+    fetch('/app/reportes/api/categories', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancel && j && Array.isArray(j.categories)) setCatList(j.categories as CatItem[]); })
+      .catch(() => {});
+    return () => { cancel = true; };
+  }, []);
+
+  // Cerrar dropdowns al click afuera.
+  useEffect(() => {
+    if (!ddOpen && !ddCatOpen) return;
+    const h = () => { setDdOpen(false); setDdCatOpen(false); };
     document.addEventListener('click', h);
     return () => document.removeEventListener('click', h);
-  }, [ddOpen]);
+  }, [ddOpen, ddCatOpen]);
 
   function pickPreset(key: string) { setPeriodKey(key); setRange(presetRange(key)); }
   function setDate(which: 'from' | 'to', v: string) { if (v) { setPeriodKey('custom'); setRange((r) => ({ ...r, [which]: v })); } }
   function toggleType(v: string) { setTypes((t) => (t.includes(v) ? t.filter((x) => x !== v) : [...t, v])); }
+  function toggleCat(v: string) { setCats((c) => (c.includes(v) ? c.filter((x) => x !== v) : [...c, v])); }
 
   const typeLabel = types.length === 0 ? 'Todos los tipos' : types.length === 1 ? (TYPE_OPTIONS.find((o) => o.v === types[0])?.l ?? '1 tipo') : `${types.length} tipos`;
+  const catLabel = cats.length === 0 ? 'Todos los ciclos' : cats.length === 1 ? cats[0]! : `${cats.length} ciclos`;
 
   // Animación GSAP "de datos" compartida (counters/barras/arcos/líneas).
   useDataAnim(rootRef, data);
@@ -148,10 +164,10 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
         </div>
         <div className="flex flex-none flex-wrap gap-2.5 sm:ml-auto">
           <ReportsAgent />
-          <a href={`/app/reportes/api/period?kind=xlsx&${reportsQuery(range.from, range.to, types)}`} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+          <a href={`/app/reportes/api/period?kind=xlsx&${reportsQuery(range.from, range.to, types, cats)}`} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <Download size={16} strokeWidth={1.9} /> Exportar Excel
           </a>
-          <a href={`/app/reportes/api/period?kind=pdf&${reportsQuery(range.from, range.to, types)}`} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
+          <a href={`/app/reportes/api/period?kind=pdf&${reportsQuery(range.from, range.to, types, cats)}`} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
             <FileText size={16} strokeWidth={1.9} /> Descargar PDF
           </a>
         </div>
@@ -187,6 +203,33 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
             </div>
           )}
         </div>
+        {/* dropdown de ciclos/categorías: filtra TODO el dashboard (KPIs,
+            evolución, gráficos) y los exports del encabezado */}
+        {catList.length > 0 ? (
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <button type="button" onClick={() => { setDdCatOpen((v) => !v); setDdOpen(false); }}
+              className={cn('inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[12.5px] font-semibold', focusRing, ddCatOpen || cats.length ? 'border-brand text-brand' : 'border-line bg-surface text-muted hover:bg-surface-container')}>
+              <Layers size={14} strokeWidth={1.9} /> <span className="max-w-[180px] truncate">{catLabel}</span>
+              {cats.length > 0 && <span className="rounded-full bg-brand px-1.5 text-[10px] font-extrabold text-white">{cats.length}</span>}
+              <ChevronDown size={14} strokeWidth={2.25} className={cn('transition-transform', ddCatOpen && 'rotate-180')} />
+            </button>
+            {ddCatOpen && (
+              <div className="absolute left-0 top-[calc(100%+7px)] z-20 max-h-80 min-w-[260px] overflow-y-auto rounded-xl border border-line bg-surface p-1.5 shadow-xl">
+                <label className={cn('flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] hover:bg-surface-container')}>
+                  <input type="checkbox" checked={cats.length === 0} onChange={() => setCats([])} className="h-4 w-4 accent-brand" /> Todos los ciclos
+                </label>
+                <div className="my-1 h-px bg-line" />
+                {catList.map((c) => (
+                  <label key={c.category} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-ink hover:bg-surface-container">
+                    <input type="checkbox" checked={cats.includes(c.category)} onChange={() => toggleCat(c.category)} className="h-4 w-4 accent-brand" />
+                    <span className="min-w-0 flex-1 truncate" title={c.category}>{c.category}</span>
+                    <span className="text-[11px] text-faint tabular-nums">({c.activities})</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
         {/* rango de fechas */}
         <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
           <label className="flex flex-col gap-1">

@@ -162,6 +162,18 @@ run('reportería branded · period/activity xlsx+pdf+preview', () => {
     expect(cat.summary.activitiesCount).toBe(1); // match case-insensitive
   });
 
+  it('period-summary con categories: el dashboard filtra por ciclo (normalizado)', async () => {
+    const all = (await get(`/api/v2/reports/period-summary?from=${FROM}&to=${TO}`)).json();
+    expect(all.kpis.activities).toBe(2);
+    // "CICLO  JAZZ" (mayúsculas + doble espacio) matchea 'ciclo jazz'.
+    const cat = (await get(`/api/v2/reports/period-summary?from=${FROM}&to=${TO}&categories=${encodeURIComponent('CICLO  JAZZ')}`)).json();
+    expect(cat.kpis).toMatchObject({ activities: 1, attendances: 1, uniqueVisitors: 1 });
+    expect(cat.byType).toHaveLength(1);
+    expect(cat.byType[0].type).toBe('cine');
+    // Nuevos-vs-recurrentes también respeta el filtro (u1 es "nuevo" del ciclo).
+    expect(cat.newVsReturning.nuevos + cat.newVsReturning.recurrentes).toBe(1);
+  });
+
   it('period.xlsx: workbook re-parseable con contenido', async () => {
     const res = await get(`/api/v2/reports/period.xlsx?from=${FROM}&to=${TO}`);
     expect(res.statusCode).toBe(200);
