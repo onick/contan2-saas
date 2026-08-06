@@ -16,6 +16,7 @@ import type { PeriodSummaryResponse } from '@contan2/contracts';
 import { Card, cn, focusRing } from '../ui';
 import { DeltaPct, buildSlices, Donut, Bars, LineChart } from '../charts/primitives';
 import { useDataAnim } from '../charts/useDataAnim';
+import { ReportsAgent } from './ReportsAgent';
 
 // Querystring del período (client-safe; el server usa el de lib/api/reports).
 function reportsQuery(from: string, to: string, types?: string[]): string {
@@ -145,7 +146,8 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
           <h1 className="text-[28px] font-extrabold tracking-tight text-ink sm:text-[30px]">Reportes</h1>
           <p className="mt-1 text-[14px] text-muted">Resumen ejecutivo con comparación contra el período anterior.</p>
         </div>
-        <div className="flex flex-none gap-2.5 sm:ml-auto">
+        <div className="flex flex-none flex-wrap gap-2.5 sm:ml-auto">
+          <ReportsAgent />
           <a href={`/app/reportes/api/period?kind=xlsx&${reportsQuery(range.from, range.to, types)}`} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <Download size={16} strokeWidth={1.9} /> Exportar Excel
           </a>

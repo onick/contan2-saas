@@ -1790,3 +1790,71 @@ export const PuertaStatsResponseSchema = z.object({
   }),
 });
 export type PuertaStatsResponse = z.infer<typeof PuertaStatsResponseSchema>;
+
+// ── Asistente de Reportes (agente de acciones básicas) ──────────────────────
+// POST /reports/agent · el staff escribe en español ("compara julio con junio",
+// "emite el reporte de este mes en pdf", "cómo le fue a <actividad>") y el
+// motor de intenciones ejecuta la acción y devuelve una respuesta estructurada
+// que la UI renderiza (KPIs, comparaciones, links de descarga, aclaraciones).
+// Determinístico (sin LLM) por diseño en v1; extensible por intent.
+export const ReportsAgentRequestSchema = z.object({
+  query: z.string().trim().min(2).max(300),
+}).strict();
+export type ReportsAgentRequest = z.infer<typeof ReportsAgentRequestSchema>;
+
+export const AgentPeriodKpisSchema = z.object({
+  activities: z.number().int(),
+  attendances: z.number().int(),
+  uniqueVisitors: z.number().int(),
+  occupancyPct: z.number().int(),
+});
+export type AgentPeriodKpis = z.infer<typeof AgentPeriodKpisSchema>;
+
+const AgentPeriodSchema = z.object({
+  label: z.string(),           // "julio 2026", "este mes"…
+  from: z.string(),            // YYYY-MM-DD
+  to: z.string(),
+  kpis: AgentPeriodKpisSchema,
+});
+
+// Link de descarga SEMÁNTICO: la web lo traduce a su ruta BFF.
+const AgentLinkSchema = z.object({
+  label: z.string(),
+  type: z.enum(['period', 'activity', 'month']),
+  format: z.enum(['pdf', 'xlsx']),
+  params: z.record(z.string(), z.string()), // period: from/to · activity: id · month: year/month
+});
+export type ReportsAgentLink = z.infer<typeof AgentLinkSchema>;
+
+const AgentActivityStatsSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  date: z.string(),
+  status: z.string(),
+  capacity: z.number().int(),
+  enrolledCount: z.number().int(),
+  attendances: z.number().int(), // check-ins reales
+  people: z.number().int(),      // 1 + acompañantes
+  occupancyPct: z.number().int(),
+});
+export type AgentActivityStats = z.infer<typeof AgentActivityStatsSchema>;
+
+export const ReportsAgentResponseSchema = z.object({
+  kind: z.enum(['period_report', 'period_compare', 'activity_compare', 'activity_stats', 'clarify', 'help']),
+  message: z.string(),
+  period: AgentPeriodSchema.optional(),          // period_report
+  compare: z.object({                            // period_compare (A = foco, B = base)
+    a: AgentPeriodSchema,
+    b: AgentPeriodSchema,
+    deltas: z.object({
+      activities: z.number().nullable(),
+      attendances: z.number().nullable(),
+      uniqueVisitors: z.number().nullable(),
+      occupancyPct: z.number().nullable(),
+    }),
+  }).optional(),
+  activities: z.array(AgentActivityStatsSchema).max(2).optional(), // activity_stats / activity_compare
+  links: z.array(AgentLinkSchema).max(4).optional(),
+  options: z.array(z.object({ label: z.string(), query: z.string() })).max(6).optional(), // clarify/help
+});
+export type ReportsAgentResponse = z.infer<typeof ReportsAgentResponseSchema>;

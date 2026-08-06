@@ -25,6 +25,7 @@ import { checkinRoute } from './routes/checkin.js';
 import { puertaRoute } from './routes/puerta.js';
 import { puertaBookingsRoute } from './routes/puerta-bookings.js';
 import { puertaStatsRoute } from './routes/puerta-stats.js';
+import { reportsAgentRoute } from './routes/reports-agent.js';
 import { reportsRoute } from './routes/reports.js';
 import { auditRoute } from './routes/audit.js';
 import { teamRoute } from './routes/team.js';
@@ -116,6 +117,7 @@ export function buildApp(): FastifyInstance {
   app.register(puertaRoute, { prefix: '/api/v2' });
   app.register(puertaBookingsRoute, { prefix: '/api/v2' });
   app.register(puertaStatsRoute, { prefix: '/api/v2' });
+  app.register(reportsAgentRoute, { prefix: '/api/v2' });
   app.register(reportsRoute, { prefix: '/api/v2' });
   app.register(auditRoute, { prefix: '/api/v2' });
   app.register(teamRoute, { prefix: '/api/v2' });
