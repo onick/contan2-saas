@@ -36,7 +36,7 @@ const reportBody = {
 };
 
 function installFetch(body: unknown = compareBody) {
-  const fn = vi.fn(async () => J(200, body));
+  const fn = vi.fn(async (_url: string, _init?: { method?: string; body?: string }) => J(200, body));
   vi.stubGlobal('fetch', fn);
   return fn;
 }
@@ -55,7 +55,7 @@ describe('ReportsAgent', () => {
     // Chip de sugerencia → dispara la consulta.
     fireEvent.click(screen.getByRole('button', { name: 'Compara este mes con el mes anterior' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/app/reportes/api/agent', expect.objectContaining({ method: 'POST' })));
-    const payload = JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body);
+    const payload = JSON.parse(fetchMock.mock.calls[0]![1]!.body!);
     expect(payload.query).toBe('Compara este mes con el mes anterior');
   });
 
@@ -96,7 +96,7 @@ describe('ReportsAgent', () => {
     await waitFor(() => expect(screen.getByText('¿Cuál querés?')).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: /Concierto Estrella \(2026-03-10\)/ }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    const second = JSON.parse((fetchMock.mock.calls[1]![1] as { body: string }).body);
+    const second = JSON.parse(fetchMock.mock.calls[1]![1]!.body!);
     expect(second.query).toBe('¿Cómo le fue a Concierto Estrella?');
   });
 

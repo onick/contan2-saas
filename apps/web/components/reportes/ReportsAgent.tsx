@@ -19,13 +19,15 @@ const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 function linkHref(l: ReportsAgentLink): string {
   if (l.type === 'activity') return `/app/reportes/api/activity/${encodeURIComponent(l.params.id ?? '')}.${l.format}`;
   if (l.type === 'month') return `/app/reportes/api/month?year=${encodeURIComponent(l.params.year ?? '')}&month=${encodeURIComponent(l.params.month ?? '')}`;
+  if (l.type === 'attendance') return `/app/reportes/api/attendance?format=${l.format}&from=${encodeURIComponent(l.params.from ?? '')}&to=${encodeURIComponent(l.params.to ?? '')}&category=${encodeURIComponent(l.params.category ?? '')}`;
   return `/app/reportes/api/period?kind=${l.format}&from=${encodeURIComponent(l.params.from ?? '')}&to=${encodeURIComponent(l.params.to ?? '')}`;
 }
 
 const SUGGESTIONS = [
   'Emite el reporte de este mes en PDF',
   'Compara este mes con el mes anterior',
-  'Reporte del mes pasado en Excel',
+  'Reporte completo de Cine Clásico',
+  'Compara Cine Clásico y el 5to Ciclo de Cine Dominicano',
   '¿Cómo le fue a la Presentación del Catálogo?',
 ];
 
@@ -108,6 +110,24 @@ export function ReportsAgent() {
                 <span className="font-bold tabular-nums text-ink">{fmt(res.compare!.a.kpis[k])}{k === 'occupancyPct' ? '%' : ''}</span>
                 <span className="tabular-nums text-ink/70">{fmt(res.compare!.b.kpis[k])}{k === 'occupancyPct' ? '%' : ''}</span>
                 <DeltaPct pct={res.compare!.deltas[k]} />
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {(res.kind === 'category_report' || res.kind === 'category_compare') && res.categories?.length ? (
+          <div className={cn('mt-2.5 grid gap-2', res.categories.length === 2 && 'grid-cols-2')}>
+            {res.categories.map((c) => (
+              <div key={c.category} className="rounded-lg border border-line bg-surface p-3">
+                <p className="truncate text-[12.5px] font-bold leading-tight text-ink" title={c.category}>{c.category}</p>
+                <p className="text-[10.5px] text-faint">{c.periodLabel}</p>
+                <div className="mt-2 space-y-1 text-[12px]">
+                  <p className="flex justify-between"><span className="text-muted">Actividades</span><b className="tabular-nums">{fmt(c.activities)}</b></p>
+                  <p className="flex justify-between"><span className="text-muted">Check-ins</span><b className="tabular-nums">{fmt(c.attendances)}</b></p>
+                  <p className="flex justify-between"><span className="text-muted">Personas</span><b className="tabular-nums">{fmt(c.people)}</b></p>
+                  <p className="flex justify-between"><span className="text-muted">Ocupación</span><b className="tabular-nums">{c.occupancyPct}%</b></p>
+                </div>
+                {c.topActivity ? <p className="mt-2 truncate border-t border-line pt-1.5 text-[11px] text-muted" title={c.topActivity}>⭐ {c.topActivity}</p> : null}
               </div>
             ))}
           </div>

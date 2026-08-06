@@ -10,8 +10,9 @@
 // fallback de parseo sin tocar los ejecutores.
 
 import { sql, type DbClient } from '@contan2/db';
-import type { ReportsAgentResponse, ReportsAgentLink, AgentActivityStats, AgentPeriodKpis } from '@contan2/contracts';
-import { parseRange } from '../report-data.js';
+import type { ReportsAgentResponse, ReportsAgentLink, AgentActivityStats, AgentPeriodKpis, AgentCategoryStats } from '@contan2/contracts';
+import { parseRange, attendanceByActivity } from '../report-data.js';
+import { normCategory, consolidateCategories } from '../category-norm.js';
 import { periodSummary } from './period-summary.js';
 
 const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
@@ -38,7 +39,9 @@ export interface PeriodSpec { label: string; from: string; to: string }
 export type AgentIntent =
   | { kind: 'period_report'; period: PeriodSpec; format: 'pdf' | 'xlsx' | null }
   | { kind: 'period_compare'; a: PeriodSpec; b: PeriodSpec }
-  | { kind: 'activity_query'; parts: string[] } // 1 = stats · 2 = comparación
+  // 1 parte = stats · 2 = comparación. El ejecutor decide si la parte matchea
+  // una CATEGORÍA/ciclo (reporte por categoría) o una actividad puntual.
+  | { kind: 'activity_query'; parts: string[]; period?: PeriodSpec; format?: 'pdf' | 'xlsx' | null }
   | { kind: 'help' };
 
 // ── Resolución de períodos en español ───────────────────────────────────────
@@ -50,31 +53,34 @@ function monthRange(y: number, m: number, today: Date): PeriodSpec {
   return { label: MONTH_LABEL(m, y), from: ymdOf(first), to: ymdOf(to) };
 }
 
-export function resolvePeriod(text: string, today: Date): PeriodSpec | null {
+// Variante extendida: además del período devuelve el TEXTO que matcheó, para
+// que el parser pueda removerlo y quedarse con el resto ("reporte de cine
+// clásico de julio" → período julio + resto "cine clásico").
+export function resolvePeriodEx(text: string, today: Date): { spec: PeriodSpec; matched: string } | null {
   const n = normText(text);
   const y = today.getUTCFullYear(), m = today.getUTCMonth() + 1;
 
-  if (/\b(este mes|mes actual|el mes)\b/.test(n)) {
-    return { ...monthRange(y, m, today), label: 'este mes' };
-  }
-  if (/\b(mes pasado|mes anterior)\b/.test(n)) {
+  const kw = /\b(este mes|mes actual|el mes)\b/.exec(n);
+  if (kw) return { spec: { ...monthRange(y, m, today), label: 'este mes' }, matched: kw[0] };
+  const kp = /\b(mes pasado|mes anterior)\b/.exec(n);
+  if (kp) {
     const pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y;
-    return { ...monthRange(py, pm, today), label: `${MONTHS[pm - 1]} ${py} (mes pasado)` };
+    return { spec: { ...monthRange(py, pm, today), label: `${MONTHS[pm - 1]} ${py} (mes pasado)` }, matched: kp[0] };
   }
-  if (/\b(este ano|ano actual)\b/.test(n)) {
-    return { label: `${y} (este año)`, from: `${y}-01-01`, to: ymdOf(today) };
-  }
-  if (/\b(ano pasado|ano anterior)\b/.test(n)) {
-    return { label: `${y - 1}`, from: `${y - 1}-01-01`, to: `${y - 1}-12-31` };
-  }
-  const lastDays = /\b(?:ultimos|los ultimos)\s+(\d{1,3})\s+dias\b/.exec(n);
+  const ka = /\b(este ano|ano actual)\b/.exec(n);
+  if (ka) return { spec: { label: `${y} (este año)`, from: `${y}-01-01`, to: ymdOf(today) }, matched: ka[0] };
+  const kpa = /\b(ano pasado|ano anterior)\b/.exec(n);
+  if (kpa) return { spec: { label: `${y - 1}`, from: `${y - 1}-01-01`, to: `${y - 1}-12-31` }, matched: kpa[0] };
+  const lastDays = /\b(?:los\s+)?ultimos\s+(\d{1,3})\s+dias\b/.exec(n);
   if (lastDays) {
     const days = Math.min(366, Math.max(1, Number(lastDays[1])));
     const from = new Date(today.getTime() - (days - 1) * DAY_MS);
-    return { label: `últimos ${days} días`, from: ymdOf(from), to: ymdOf(today) };
+    return { spec: { label: `últimos ${days} días`, from: ymdOf(from), to: ymdOf(today) }, matched: lastDays[0] };
   }
-  if (/\bhoy\b/.test(n)) return { label: 'hoy', from: ymdOf(today), to: ymdOf(today) };
-  if (/\bayer\b/.test(n)) { const a = new Date(today.getTime() - DAY_MS); return { label: 'ayer', from: ymdOf(a), to: ymdOf(a) }; }
+  const kh = /\bhoy\b/.exec(n);
+  if (kh) return { spec: { label: 'hoy', from: ymdOf(today), to: ymdOf(today) }, matched: kh[0] };
+  const ky = /\bayer\b/.exec(n);
+  if (ky) { const a = new Date(today.getTime() - DAY_MS); return { spec: { label: 'ayer', from: ymdOf(a), to: ymdOf(a) }, matched: ky[0] }; }
 
   const mm = new RegExp(`\\b(${MONTHS.join('|')})\\b(?:\\s+(?:de\\s+|del\\s+)?(\\d{4}))?`).exec(n);
   if (mm) {
@@ -82,9 +88,20 @@ export function resolvePeriod(text: string, today: Date): PeriodSpec | null {
     let year = mm[2] ? Number(mm[2]) : y;
     // Sin año explícito, un mes futuro se interpreta como el más reciente pasado.
     if (!mm[2] && mi > m) year = y - 1;
-    return monthRange(year, mi, today);
+    return { spec: monthRange(year, mi, today), matched: mm[0] };
   }
   return null;
+}
+
+export function resolvePeriod(text: string, today: Date): PeriodSpec | null {
+  return resolvePeriodEx(text, today)?.spec ?? null;
+}
+
+// Ventana por defecto para reportes de ciclo/categoría sin período explícito:
+// los últimos 12 meses (cubre ciclos largos; cota de rango de la reportería).
+function last12Months(today: Date): PeriodSpec {
+  const from = new Date(today.getTime() - 364 * DAY_MS);
+  return { label: 'últimos 12 meses', from: ymdOf(from), to: ymdOf(today) };
 }
 
 // ── Parser de intenciones (puro) ────────────────────────────────────────────
@@ -123,12 +140,14 @@ export function parseAgentQuery(query: string, today: Date): AgentIntent {
     return { kind: 'help' };
   }
 
-  const period = resolvePeriod(n, today);
-  if (period) return { kind: 'period_report', period, format };
+  // Extrae el período (si lo hay) y limpia palabras de "pedir reporte": lo que
+  // quede con sustancia es un nombre de actividad o de categoría/ciclo.
+  const pex = resolvePeriodEx(n, today);
+  const STRIP = /\b(dame|dime|emite|emitir|genera|generar|descarga|descargar|quiero|necesito|reporte|informe|completo|completa|de|del|el|la|los|las|un|una|en|me|por favor|pdf|excel|xlsx|como le fue|como fue|estadisticas|stats|a)\b/g;
+  const leftover = (pex ? n.replace(pex.matched, ' ') : n).replace(STRIP, ' ').replace(/\s+/g, ' ').trim();
 
-  // Sin período: lo tratamos como consulta de actividad ("cómo le fue a X").
-  const cleaned = n.replace(/\b(emite|emitir|genera|generar|descarga|descargar|reporte|informe|de|el|la|en|pdf|excel|xlsx|como le fue|como fue|estadisticas|stats)\b/g, ' ').replace(/\s+/g, ' ').trim();
-  if (cleaned.length >= 3) return { kind: 'activity_query', parts: [cleaned] };
+  if (pex && leftover.length < 3) return { kind: 'period_report', period: pex.spec, format };
+  if (leftover.length >= 3) return { kind: 'activity_query', parts: [leftover], period: pex?.spec, format };
   return { kind: 'help' };
 }
 
@@ -179,6 +198,61 @@ async function searchActivities(db: DbClient, orgId: string, phrase: string): Pr
   }).sort((x, y) => y.score - x.score || new Date(y.r.date).getTime() - new Date(x.r.date).getTime());
   const best = scored[0]?.score ?? 0;
   return scored.filter((s) => s.score === best).map((s) => s.r);
+}
+
+// ── Categorías / ciclos ─────────────────────────────────────────────────────
+async function loadCategories(db: DbClient, orgId: string): Promise<string[]> {
+  const rows = await db.selectFrom('activities')
+    .select(['category'])
+    .select(db.fn.countAll<string>().as('n'))
+    .where('organization_id', '=', orgId)
+    .where('category', 'is not', null)
+    .where('is_permanent', '=', false)
+    .groupBy('category').execute();
+  return consolidateCategories(rows.map((r) => ({ category: r.category as string, activities: Number(r.n) })))
+    .map((c) => c.category);
+}
+
+// Matchea una frase contra las categorías del tenant (normalizado): exacta →
+// una; por contención → puede haber varias (clarify).
+function matchCategories(cats: string[], phrase: string): string[] {
+  const p = normCategory(phrase);
+  if (!p) return [];
+  const exact = cats.filter((c) => normCategory(c) === p);
+  if (exact.length) return exact;
+  return cats.filter((c) => {
+    const nc = normCategory(c);
+    return nc.includes(p) || p.includes(nc);
+  });
+}
+
+async function categoryStats(db: DbClient, orgId: string, category: string, p: PeriodSpec): Promise<AgentCategoryStats> {
+  const rep = await attendanceByActivity(db, orgId, parseRange(p.from, p.to), category);
+  const top = [...rep.rows].sort((a, b) => b.people - a.people)[0] ?? null;
+  return {
+    category, from: p.from, to: p.to, periodLabel: p.label,
+    activities: rep.totals.activities,
+    attendances: rep.totals.attendances,
+    people: rep.totals.people,
+    occupancyPct: rep.totals.occupancyPct,
+    topActivity: top && top.people > 0 ? top.name : null,
+  };
+}
+
+function categoryLinks(c: AgentCategoryStats, format: 'pdf' | 'xlsx' | null): ReportsAgentLink[] {
+  const params = { from: c.from, to: c.to, category: c.category };
+  const out: ReportsAgentLink[] = [];
+  if (format !== 'xlsx') out.push({ label: `PDF de ${c.category}`, type: 'attendance', format: 'pdf', params });
+  if (format !== 'pdf') out.push({ label: `Excel de ${c.category}`, type: 'attendance', format: 'xlsx', params });
+  return out;
+}
+
+function clarifyCategories(phrase: string, cats: string[]): ReportsAgentResponse {
+  return {
+    kind: 'clarify',
+    message: `«${phrase.trim()}» matchea varios ciclos/categorías — ¿cuál querés?`,
+    options: cats.slice(0, 5).map((c) => ({ label: c, query: `Reporte completo de ${c}` })),
+  };
 }
 
 async function activityStats(db: DbClient, orgId: string, a: ActivityRow): Promise<AgentActivityStats> {
@@ -261,7 +335,56 @@ export async function runAgentQuery(db: DbClient, orgId: string, query: string, 
     };
   }
 
-  // activity_query: 1 parte = stats · 2 partes = comparación.
+  // activity_query: primero probamos CATEGORÍAS/ciclos (reporte agregado);
+  // si no matchean, caemos a actividades puntuales.
+  const cats = await loadCategories(db, orgId);
+  const period = intent.period ?? last12Months(today);
+  const fmt2 = intent.format ?? null;
+
+  const catMatches = intent.parts.map((p) => matchCategories(cats, p));
+
+  if (intent.parts.length === 2 && catMatches[0]!.length >= 1 && catMatches[1]!.length >= 1) {
+    if (catMatches[0]!.length > 1) return clarifyCategories(intent.parts[0]!, catMatches[0]!);
+    if (catMatches[1]!.length > 1) return clarifyCategories(intent.parts[1]!, catMatches[1]!);
+    const [ca, cb] = [
+      await categoryStats(db, orgId, catMatches[0]![0]!, period),
+      await categoryStats(db, orgId, catMatches[1]![0]!, period),
+    ];
+    const d = deltaPct(ca.people, cb.people);
+    const tono = d === null ? '' : ` «${ca.category}» tuvo ${d > 0 ? `${d}% más` : d < 0 ? `${Math.abs(d)}% menos` : 'las mismas'} personas que «${cb.category}».`;
+    return {
+      kind: 'category_compare',
+      message: `Comparación de ciclos (${period.label}):${tono}`,
+      categories: [ca, cb],
+      links: [...categoryLinks(ca, 'pdf'), ...categoryLinks(cb, 'pdf')],
+    };
+  }
+
+  if (intent.parts.length === 1) {
+    const part = intent.parts[0]!;
+    const single = catMatches[0]!;
+    // "cine clasico y cine dominicano" en una sola frase → dos categorías
+    // (se intenta ANTES de declarar ambigüedad: la frase completa "contiene"
+    // a ambas y el matcheo por contención devolvería las dos).
+    if (single.length !== 1 && / y /.test(part)) {
+      const [l, r] = part.split(/ y /).map((s) => s.trim());
+      const ml = matchCategories(cats, l ?? ''), mr = matchCategories(cats, r ?? '');
+      if (ml.length === 1 && mr.length === 1 && ml[0] !== mr[0]) {
+        return runAgentQuery(db, orgId, `compara ${ml[0]} vs ${mr[0]}`, todayYmd);
+      }
+    }
+    if (single.length > 1) return clarifyCategories(part, single);
+    if (single.length === 1) {
+      const c = await categoryStats(db, orgId, single[0]!, period);
+      return {
+        kind: 'category_report',
+        message: `Reporte de «${c.category}» (${c.periodLabel}): ${fmtNum(c.activities)} actividades, ${fmtNum(c.attendances)} check-ins, ${fmtNum(c.people)} personas y ${c.occupancyPct}% de ocupación.${c.topActivity ? ` La función con más personas fue «${c.topActivity}».` : ''}`,
+        categories: [c],
+        links: categoryLinks(c, fmt2),
+      };
+    }
+  }
+
   const found: ActivityRow[][] = [];
   for (const part of intent.parts) {
     const c = await searchActivities(db, orgId, part);

@@ -1820,11 +1820,26 @@ const AgentPeriodSchema = z.object({
 // Link de descarga SEMÁNTICO: la web lo traduce a su ruta BFF.
 const AgentLinkSchema = z.object({
   label: z.string(),
-  type: z.enum(['period', 'activity', 'month']),
+  type: z.enum(['period', 'activity', 'month', 'attendance']),
   format: z.enum(['pdf', 'xlsx']),
-  params: z.record(z.string(), z.string()), // period: from/to · activity: id · month: year/month
+  // period: from/to · activity: id · month: year/month · attendance: from/to/category
+  params: z.record(z.string(), z.string()),
 });
 export type ReportsAgentLink = z.infer<typeof AgentLinkSchema>;
+
+// Reporte por ciclo/categoría ("Cine Clásico", "5to Ciclo de Cine Dominicano").
+export const AgentCategoryStatsSchema = z.object({
+  category: z.string(),
+  from: z.string(),
+  to: z.string(),
+  periodLabel: z.string(),
+  activities: z.number().int(),
+  attendances: z.number().int(), // check-ins
+  people: z.number().int(),      // 1 + acompañantes
+  occupancyPct: z.number().int(),
+  topActivity: z.string().nullable(), // la función con más personas
+});
+export type AgentCategoryStats = z.infer<typeof AgentCategoryStatsSchema>;
 
 const AgentActivityStatsSchema = z.object({
   id: z.string(),
@@ -1840,8 +1855,9 @@ const AgentActivityStatsSchema = z.object({
 export type AgentActivityStats = z.infer<typeof AgentActivityStatsSchema>;
 
 export const ReportsAgentResponseSchema = z.object({
-  kind: z.enum(['period_report', 'period_compare', 'activity_compare', 'activity_stats', 'clarify', 'help']),
+  kind: z.enum(['period_report', 'period_compare', 'activity_compare', 'activity_stats', 'category_report', 'category_compare', 'clarify', 'help']),
   message: z.string(),
+  categories: z.array(AgentCategoryStatsSchema).max(2).optional(), // category_report / category_compare
   period: AgentPeriodSchema.optional(),          // period_report
   compare: z.object({                            // period_compare (A = foco, B = base)
     a: AgentPeriodSchema,

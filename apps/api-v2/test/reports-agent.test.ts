@@ -70,6 +70,17 @@ describe('agente de reportes · parser de intenciones', () => {
       expect(i.parts[0]).toContain('presentacion');
     }
   });
+
+  it('nombre + período en la misma frase → activity_query CON período', () => {
+    const i = parseAgentQuery('reporte de cine clasico de marzo 2026', today);
+    expect(i.kind).toBe('activity_query');
+    if (i.kind === 'activity_query') {
+      expect(i.parts[0]).toBe('cine clasico');
+      expect(i.period).toMatchObject({ from: '2026-03-01', to: '2026-03-31' });
+    }
+    // Solo el período (sin nombre) sigue siendo period_report.
+    expect(parseAgentQuery('dame el reporte completo de marzo 2026', today).kind).toBe('period_report');
+  });
 });
 
 // ── Endpoint (integración) ──────────────────────────────────────────────────
@@ -86,8 +97,8 @@ run('POST /reports/agent · integración', () => {
     payload: { query },
   });
 
-  const mkActivity = async (name: string, dateIso: string, capacity: number) =>
-    (await db.insertInto('activities').values({ id: randomUUID(), organization_id: orgId, name, type: 'concierto', location: 'Sala', date: dateIso, capacity, enrolled_count: 0, status: 'finalizada' }).returning('id').executeTakeFirstOrThrow()).id;
+  const mkActivity = async (name: string, dateIso: string, capacity: number, category: string | null = null) =>
+    (await db.insertInto('activities').values({ id: randomUUID(), organization_id: orgId, name, type: 'concierto', location: 'Sala', date: dateIso, capacity, enrolled_count: 0, status: 'finalizada', category }).returning('id').executeTakeFirstOrThrow()).id;
   const mkUser = async () => {
     const code = `AGT-${randomUUID().slice(0, 6).toUpperCase()}`;
     return (await db.insertInto('users').values({ id: randomUUID(), organization_id: orgId, code, first_name: 'V', last_name: 'T', email: `${code.toLowerCase()}@agt.do`, phone: null, visit_count: 1 }).returning('id').executeTakeFirstOrThrow()).id;
@@ -105,9 +116,16 @@ run('POST /reports/agent · integración', () => {
     const estrella = await mkActivity('Concierto Estrella', '2026-03-10T19:00:00.000Z', 100);
     await mkActivity('Taller Estrella', '2026-03-12T19:00:00.000Z', 30);
     const luna = await mkActivity('Concierto Luna', '2026-02-05T19:00:00.000Z', 80);
+    // Ciclos: dos funciones de Bolero Viejo (una variante de mayúsculas) + una de Rock Andino.
+    const b1 = await mkActivity('Bolero | Noche 1', '2026-05-10T19:00:00.000Z', 50, 'Bolero Viejo');
+    const b2 = await mkActivity('Bolero | Noche 2', '2026-05-17T19:00:00.000Z', 50, 'bolero  viejo');
+    const r1 = await mkActivity('Rock | Único', '2026-05-20T19:00:00.000Z', 100, 'Rock Andino');
     const u1 = await mkUser(); const u2 = await mkUser(); const u3 = await mkUser();
+    const u4 = await mkUser(); const u5 = await mkUser(); const u6 = await mkUser();
     await mkAtt(estrella, u1); await mkAtt(estrella, u2, 2); // 2 check-ins · 4 personas
     await mkAtt(luna, u3);
+    await mkAtt(b1, u4, 1); await mkAtt(b2, u5); // Bolero Viejo: 2 check-ins · 3 personas
+    await mkAtt(r1, u6); // Rock Andino: 1 check-in · 1 persona
 
     app = buildApp(); await app.ready();
   });
@@ -174,6 +192,36 @@ run('POST /reports/agent · integración', () => {
     const b = res.json();
     expect(b.kind).toBe('activity_compare');
     expect(b.activities.map((a: { name: string }) => a.name)).toEqual(['Concierto Estrella', 'Concierto Luna']);
+  });
+
+  it('reporte por categoría/ciclo: consolida variantes y trae links de descarga', async () => {
+    const res = await post('Dame el reporte completo de bolero viejo');
+    expect(res.statusCode).toBe(200);
+    const b = res.json();
+    expect(b.kind).toBe('category_report');
+    // Las 2 variantes ("Bolero Viejo" + "bolero  viejo") cuentan juntas.
+    expect(b.categories[0]).toMatchObject({ category: 'Bolero Viejo', activities: 2, attendances: 2, people: 3 });
+    const link = b.links.find((l: { type: string }) => l.type === 'attendance');
+    expect(link.params.category).toBe('Bolero Viejo');
+  });
+
+  it('reporte por categoría con período explícito', async () => {
+    const res = await post('reporte de bolero viejo de mayo 2026');
+    const b = res.json();
+    expect(b.kind).toBe('category_report');
+    expect(b.categories[0].from).toBe('2026-05-01');
+    expect(b.categories[0].people).toBe(3);
+  });
+
+  it('comparar ciclos: "compara X vs Y" y también "X y Y"', async () => {
+    const r1 = (await post('compara bolero viejo vs rock andino')).json();
+    expect(r1.kind).toBe('category_compare');
+    expect(r1.categories.map((c: { category: string }) => c.category)).toEqual(['Bolero Viejo', 'Rock Andino']);
+    expect(r1.categories[0].people).toBe(3);
+    expect(r1.categories[1].people).toBe(1);
+    // "dame el reporte de bolero viejo y rock andino" (sin "compara").
+    const r2 = (await post('dame el reporte de bolero viejo y rock andino')).json();
+    expect(r2.kind).toBe('category_compare');
   });
 
   it('ayuda → opciones sugeridas', async () => {
