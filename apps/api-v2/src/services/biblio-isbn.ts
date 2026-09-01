@@ -17,6 +17,10 @@ export interface IsbnData {
 }
 export interface IsbnLookupResult { found: boolean; source: string | null; data: IsbnData | null }
 
+// OpenLibrary tarda 4-8s en frío (medido en staging): 10s de margen. El cache
+// hace que cada ISBN pague esta latencia UNA sola vez en la vida del sistema.
+const FETCH_TIMEOUT_MS = 10_000;
+
 // Normaliza a dígitos (y X de ISBN-10): "978-9945-620-14-8" → "9789945620148".
 export function normalizeIsbn(raw: string): string {
   return raw.replace(/[^0-9Xx]/g, '').toUpperCase();
@@ -84,7 +88,7 @@ export async function lookupIsbn(
   try {
     const r = await fetchImpl(
       `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`,
-      { signal: AbortSignal.timeout(6000) },
+      { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
     );
     if (r.ok) {
       providerAnswered = true;
@@ -98,7 +102,7 @@ export async function lookupIsbn(
     try {
       const r = await fetchImpl(
         `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`,
-        { signal: AbortSignal.timeout(6000) },
+        { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
       );
       if (r.ok) {
         providerAnswered = true;
