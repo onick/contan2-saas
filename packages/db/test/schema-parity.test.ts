@@ -100,6 +100,20 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'id', 'organization_id', 'name', 'slug', 'is_cyclical', 'edition_anchor_year',
     'edition_anchor_number', 'edition_noun', 'active', 'sort_order', 'created_at', 'updated_at',
   ],
+  // Módulo Biblioteca (migración 050).
+  biblio_sites: ['id', 'organization_id', 'name', 'active', 'created_at'],
+  biblio_titles: [
+    'id', 'organization_id', 'kind', 'isbn', 'issn', 'title', 'subtitle', 'authors',
+    'publisher', 'year', 'edition', 'language', 'subjects', 'keywords', 'dewey',
+    'call_number', 'description', 'cover_url', 'isbn_autofilled',
+    'created_at', 'updated_at', 'deleted_at',
+  ],
+  biblio_items: [
+    'id', 'organization_id', 'title_id', 'inventory_code', 'site_id', 'shelf',
+    'collection', 'call_number', 'physical_status', 'loanable', 'notes',
+    'created_at', 'updated_at', 'retired_at', 'retired_reason',
+  ],
+  biblio_isbn_cache: ['isbn', 'payload', 'source', 'fetched_at'],
 };
 
 run('schema parity · información_schema vs tipos declarados', () => {

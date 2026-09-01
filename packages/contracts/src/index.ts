@@ -17,7 +17,7 @@ export const PublicStaffSchema = z.object({
   email: z.string(),
   fullName: z.string(),
   status: z.enum(['active', 'suspended', 'deleted']),
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta', 'biblioteca']),
   mustChangePassword: z.boolean(),
   mfaEnabled: z.boolean(),
   lastLoginAt: z.string().nullable(),
@@ -161,7 +161,7 @@ export type DashboardMetricsResponse = z.infer<typeof DashboardMetricsResponseSc
 // Resumen liviano para el shell (sidebar): rol del staff (para filtrar la nav en
 // el command palette) + badges numéricos vivos. Un solo fetch, tenant-scoped.
 export const ShellSummaryResponseSchema = z.object({
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta', 'biblioteca']),
   badges: z.object({
     activeActivities: z.number().int(),
     checkinsToday: z.number().int(),
@@ -406,7 +406,7 @@ export const StaffInvitationSchema = z.object({
   id: z.string(),
   email: z.string(),
   fullName: z.string().nullable(),
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta', 'biblioteca']),
   status: z.enum(['pending', 'accepted', 'revoked', 'expired']),
   expiresAt: z.string(),
   createdAt: z.string(),
@@ -418,7 +418,7 @@ export type StaffInvitationsListResponse = z.infer<typeof StaffInvitationsListRe
 export const StaffInviteCreateRequestSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   fullName: z.string().trim().max(120).optional(),
-  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']),
+  role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta', 'biblioteca']),
 }).strict();
 export type StaffInviteCreateRequest = z.infer<typeof StaffInviteCreateRequestSchema>;
 
@@ -426,7 +426,7 @@ export const InvitationPreviewResponseSchema = z.object({
   invitation: z.object({
     email: z.string(),
     fullName: z.string().nullable(),
-    role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']),
+    role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta', 'biblioteca']),
     expiresAt: z.string(),
     organization: z.object({ slug: z.string(), name: z.string() }).nullable(),
   }),
@@ -1314,7 +1314,7 @@ export const TeamListResponseSchema = z.object({
 });
 export type TeamListResponse = z.infer<typeof TeamListResponseSchema>;
 
-export const TeamRoleUpdateRequestSchema = z.object({ role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta']) }).strict();
+export const TeamRoleUpdateRequestSchema = z.object({ role: z.enum(['owner', 'admin', 'operator', 'protocolo', 'consulta', 'puerta', 'biblioteca']) }).strict();
 export type TeamRoleUpdateRequest = z.infer<typeof TeamRoleUpdateRequestSchema>;
 // Overview del equipo (dashboard "Mi equipo"): KPIs + resumen por rol. Todo
 // desde datos reales (staff_members + staff_invitations + tenant_audit_log).
@@ -1874,3 +1874,138 @@ export const ReportsAgentResponseSchema = z.object({
   options: z.array(z.object({ label: z.string(), query: z.string() })).max(6).optional(), // clarify/help
 });
 export type ReportsAgentResponse = z.infer<typeof ReportsAgentResponseSchema>;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Módulo Biblioteca · F1 catálogo (plan docs/plan-modulo-biblioteca.md)
+// D1: título (obra) ≠ ejemplar (copia). D9: ubicación sitio→estante.
+// ═════════════════════════════════════════════════════════════════════════════
+export const BIBLIO_KINDS = ['libro', 'revista', 'periodico', 'tesis', 'audiovisual', 'documento'] as const;
+export const BiblioKindSchema = z.enum(BIBLIO_KINDS);
+export type BiblioKind = z.infer<typeof BiblioKindSchema>;
+
+export const BIBLIO_PHYSICAL_STATUSES = ['bueno', 'deteriorado', 'reparacion', 'perdido', 'baja'] as const;
+export const BiblioPhysicalStatusSchema = z.enum(BIBLIO_PHYSICAL_STATUSES);
+export type BiblioPhysicalStatus = z.infer<typeof BiblioPhysicalStatusSchema>;
+
+// ── Sitios físicos (Biblioteca · Censo Pérez · Almacén KM23 …) ──────────────
+export const BiblioSiteSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  active: z.boolean(),
+  items: z.number().int().optional(), // ejemplares en el sitio (listados)
+});
+export type BiblioSite = z.infer<typeof BiblioSiteSchema>;
+export const BiblioSitesResponseSchema = z.object({ sites: z.array(BiblioSiteSchema) });
+export type BiblioSitesResponse = z.infer<typeof BiblioSitesResponseSchema>;
+export const BiblioSiteCreateSchema = z.object({ name: z.string().trim().min(2).max(80) }).strict();
+
+// ── Títulos ──────────────────────────────────────────────────────────────────
+export const BiblioTitleInputSchema = z.object({
+  kind: BiblioKindSchema.default('libro'),
+  isbn: z.string().trim().max(20).optional().nullable(),
+  issn: z.string().trim().max(20).optional().nullable(),
+  title: z.string().trim().min(1).max(300),
+  subtitle: z.string().trim().max(300).optional().nullable(),
+  authors: z.array(z.string().trim().min(1).max(160)).max(10).default([]),
+  publisher: z.string().trim().max(160).optional().nullable(),
+  year: z.number().int().min(0).max(3000).optional().nullable(),
+  edition: z.string().trim().max(80).optional().nullable(),
+  language: z.string().trim().max(40).optional().nullable(),
+  subjects: z.array(z.string().trim().min(1).max(80)).max(15).default([]),
+  keywords: z.array(z.string().trim().min(1).max(60)).max(15).default([]),
+  dewey: z.string().trim().max(30).optional().nullable(),
+  callNumber: z.string().trim().max(60).optional().nullable(),
+  description: z.string().trim().max(2000).optional().nullable(),
+  coverUrl: z.string().trim().url().max(500).optional().nullable(),
+  isbnAutofilled: z.boolean().optional(),
+}).strict();
+export type BiblioTitleInput = z.infer<typeof BiblioTitleInputSchema>;
+export const BiblioTitleUpdateSchema = BiblioTitleInputSchema.partial().strict();
+
+export const BiblioTitleSchema = z.object({
+  id: z.string(),
+  kind: BiblioKindSchema,
+  isbn: z.string().nullable(),
+  issn: z.string().nullable(),
+  title: z.string(),
+  subtitle: z.string().nullable(),
+  authors: z.array(z.string()),
+  publisher: z.string().nullable(),
+  year: z.number().int().nullable(),
+  edition: z.string().nullable(),
+  language: z.string().nullable(),
+  subjects: z.array(z.string()),
+  keywords: z.array(z.string()),
+  dewey: z.string().nullable(),
+  callNumber: z.string().nullable(),
+  description: z.string().nullable(),
+  coverUrl: z.string().nullable(),
+  isbnAutofilled: z.boolean(),
+  createdAt: z.string(),
+  itemsTotal: z.number().int(),   // ejemplares no dados de baja
+  itemsActive: z.number().int(),  // en estado físico prestable (bueno/deteriorado)
+});
+export type BiblioTitle = z.infer<typeof BiblioTitleSchema>;
+
+export const BiblioTitlesListResponseSchema = z.object({
+  titles: z.array(BiblioTitleSchema),
+  total: z.number().int(),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+});
+export type BiblioTitlesListResponse = z.infer<typeof BiblioTitlesListResponseSchema>;
+
+// ── Ejemplares ───────────────────────────────────────────────────────────────
+export const BiblioItemInputSchema = z.object({
+  inventoryCode: z.string().trim().min(3).max(40),
+  siteId: z.string().uuid().optional().nullable(),
+  shelf: z.string().trim().max(60).optional().nullable(),
+  collection: z.string().trim().max(80).optional().nullable(),
+  callNumber: z.string().trim().max(60).optional().nullable(),
+  physicalStatus: BiblioPhysicalStatusSchema.default('bueno'),
+  loanable: z.boolean().default(true),
+  notes: z.string().trim().max(500).optional().nullable(),
+}).strict();
+export type BiblioItemInput = z.infer<typeof BiblioItemInputSchema>;
+// Update parcial + baja lógica (retiredReason presente ⇒ dar de baja).
+export const BiblioItemUpdateSchema = BiblioItemInputSchema.partial().extend({
+  retiredReason: z.string().trim().min(3).max(200).optional(),
+}).strict();
+
+export const BiblioItemSchema = z.object({
+  id: z.string(),
+  inventoryCode: z.string(),
+  siteId: z.string().nullable(),
+  siteName: z.string().nullable(),
+  shelf: z.string().nullable(),
+  collection: z.string().nullable(),
+  callNumber: z.string().nullable(),
+  physicalStatus: BiblioPhysicalStatusSchema,
+  loanable: z.boolean(),
+  notes: z.string().nullable(),
+  retiredAt: z.string().nullable(),
+  retiredReason: z.string().nullable(),
+});
+export type BiblioItem = z.infer<typeof BiblioItemSchema>;
+
+export const BiblioTitleDetailResponseSchema = z.object({
+  title: BiblioTitleSchema,
+  items: z.array(BiblioItemSchema),
+});
+export type BiblioTitleDetailResponse = z.infer<typeof BiblioTitleDetailResponseSchema>;
+
+// ── Autofill por ISBN (D8) ───────────────────────────────────────────────────
+export const BiblioIsbnLookupResponseSchema = z.object({
+  found: z.boolean(),
+  source: z.string().nullable(), // openlibrary | googlebooks | cache | null
+  data: z.object({
+    title: z.string().optional(),
+    subtitle: z.string().optional(),
+    authors: z.array(z.string()).optional(),
+    publisher: z.string().optional(),
+    year: z.number().int().optional(),
+    coverUrl: z.string().optional(),
+    language: z.string().optional(),
+  }).nullable(),
+});
+export type BiblioIsbnLookupResponse = z.infer<typeof BiblioIsbnLookupResponseSchema>;

@@ -16,7 +16,7 @@
 import { createHash } from 'node:crypto';
 import { withTenant, type DbClient } from '@contan2/db';
 
-export type StaffRole = 'owner' | 'admin' | 'operator' | 'protocolo' | 'consulta' | 'puerta';
+export type StaffRole = 'owner' | 'admin' | 'operator' | 'protocolo' | 'consulta' | 'puerta' | 'biblioteca';
 export type StaffStatus = 'active' | 'suspended';
 
 export class TeamWriteError extends Error {

@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard,
+  Library,
   CalendarDays,
   DoorOpen,
   QrCode,
@@ -46,6 +47,9 @@ export interface NavItem {
 // bundle (server y cliente) en build, así que filtra parejo en Sidebar,
 // CommandPalette y MobileNav. Ver también el guard en app/app/puerta/page.tsx.
 export const PUERTA_ENABLED = process.env.NEXT_PUBLIC_PUERTA_ENABLED === '1';
+// Módulo Biblioteca (plan docs/plan-modulo-biblioteca.md): mismo patrón de flag.
+// Se enciende en STAGING; producción queda sin la var hasta el lanzamiento.
+export const BIBLIOTECA_ENABLED = process.env.NEXT_PUBLIC_BIBLIOTECA_ENABLED === '1';
 
 const ALL_NAV_ITEMS: NavItem[] = [
   // Principal
@@ -53,6 +57,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { key: 'actividades', label: 'Actividades', icon: CalendarDays, group: 'Principal', href: '/app/actividades', liveBadge: 'activeActivities' },
   { key: 'checkin', label: 'Check-in', icon: QrCode, group: 'Principal', href: '/app/check-in', liveBadge: 'checkinsToday' },
   { key: 'puerta', label: 'Puerta', icon: DoorOpen, group: 'Principal', href: '/app/puerta' },
+  { key: 'biblioteca', label: 'Biblioteca', icon: Library, group: 'Principal', href: '/app/biblioteca' },
   // Audiencia
   { key: 'usuarios', label: 'Usuarios', icon: Users, group: 'Audiencia', href: '/app/usuarios' },
   { key: 'registros', label: 'Registros', icon: ClipboardList, group: 'Audiencia', href: '/app/registros' },
@@ -69,7 +74,9 @@ const ALL_NAV_ITEMS: NavItem[] = [
 ];
 
 // Nav efectivo: sin la Puerta salvo que el flag esté encendido.
-export const NAV_ITEMS: NavItem[] = ALL_NAV_ITEMS.filter((i) => i.key !== 'puerta' || PUERTA_ENABLED);
+export const NAV_ITEMS: NavItem[] = ALL_NAV_ITEMS.filter(
+  (i) => (i.key !== 'puerta' || PUERTA_ENABLED) && (i.key !== 'biblioteca' || BIBLIOTECA_ENABLED),
+);
 
 export const NAV_GROUPS: NavGroup[] = ['Principal', 'Audiencia', 'Operación', 'Equipo'];
 
@@ -81,6 +88,7 @@ export const NAV_GROUPS: NavGroup[] = ['Principal', 'Audiencia', 'Operación', '
 const ROLE_NAV_ALLOWLIST: Record<string, Set<string>> = {
   protocolo: new Set(['protocolo', 'cuenta']),
   puerta: new Set(['puerta', 'registros', 'protocolo', 'reportes', 'cuenta']),
+  biblioteca: new Set(['biblioteca', 'cuenta']),
 };
 export function filterNavByRole(items: NavItem[], role: string | null | undefined): NavItem[] {
   const allowed = role ? ROLE_NAV_ALLOWLIST[role] : undefined;

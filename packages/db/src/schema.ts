@@ -405,6 +405,67 @@ export interface ProgramsTable {
   updated_at: UpdatedAt;
 }
 
+// ── Módulo Biblioteca (migración 050) · plan docs/plan-modulo-biblioteca.md ──
+// D1: título (obra) ≠ ejemplar (copia física). D9: ubicación sitio→estante.
+export interface BiblioSitesTable {
+  id: Generated<string>;
+  organization_id: string;
+  name: string;
+  active: DefaultedBool;
+  created_at: CreatedAt;
+}
+
+export interface BiblioTitlesTable {
+  id: Generated<string>;
+  organization_id: string;
+  kind: DefaultedText; // libro | revista | periodico | tesis | audiovisual | documento
+  isbn: string | null;
+  issn: string | null;
+  title: string;
+  subtitle: string | null;
+  authors: ColumnType<unknown, string, string>; // JSONB ["Autor", …] (JSON.stringify)
+  publisher: string | null;
+  year: number | null;
+  edition: string | null;
+  language: string | null;
+  subjects: ColumnType<string[], string[] | undefined, string[]>; // TEXT[]
+  keywords: ColumnType<string[], string[] | undefined, string[]>; // TEXT[]
+  dewey: string | null;
+  call_number: string | null;
+  description: string | null;
+  cover_url: string | null;
+  isbn_autofilled: DefaultedBool;
+  created_at: CreatedAt;
+  updated_at: UpdatedAt;
+  deleted_at: NullableTs;
+}
+
+export interface BiblioItemsTable {
+  id: Generated<string>;
+  organization_id: string;
+  title_id: string;
+  inventory_code: string;
+  site_id: string | null;
+  shelf: string | null;
+  collection: string | null;
+  call_number: string | null;
+  physical_status: DefaultedText; // bueno | deteriorado | reparacion | perdido | baja
+  loanable: DefaultedBool;
+  notes: string | null;
+  created_at: CreatedAt;
+  updated_at: UpdatedAt;
+  retired_at: NullableTs;
+  retired_reason: string | null;
+}
+
+// Cache GLOBAL de metadata por ISBN (sin organization_id: dato público).
+export interface BiblioIsbnCacheTable {
+  isbn: string;
+  payload: ColumnType<unknown, string, string>; // JSONB
+  source: string; // openlibrary | googlebooks | none
+  fetched_at: CreatedAt;
+}
+
 export interface Database {
   protocol_profiles: ProtocolProfilesTable;
   programs: ProgramsTable;
@@ -424,5 +485,9 @@ export interface Database {
   invitations: InvitationsTable;
   checkin_idempotency: CheckinIdempotencyTable;
   signup_verifications: SignupVerificationsTable;
+  biblio_sites: BiblioSitesTable;
+  biblio_titles: BiblioTitlesTable;
+  biblio_items: BiblioItemsTable;
+  biblio_isbn_cache: BiblioIsbnCacheTable;
 }
 

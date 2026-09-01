@@ -14,7 +14,7 @@ export type AccountStatus = 'active' | 'suspended' | 'deleted';
 // 'puerta' (migración 046): rol del DEPARTAMENTO DE PUERTA (salas permanentes).
 // Confinado a su módulo (Puerta, escribe) + Registros/Reportes (lee/descarga) +
 // Protocolo (lee) + Mi cuenta. Fuera de toda allowlist de escritura del resto.
-export type StaffRole = 'owner' | 'admin' | 'operator' | 'protocolo' | 'consulta' | 'puerta';
+export type StaffRole = 'owner' | 'admin' | 'operator' | 'protocolo' | 'consulta' | 'puerta' | 'biblioteca';
 
 // activities.status CHECK (migración 001_initial.sql).
 export type ActivityStatus = 'activa' | 'finalizada' | 'cancelada';

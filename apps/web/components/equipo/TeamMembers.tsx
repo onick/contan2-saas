@@ -13,8 +13,8 @@ import { TeamRowActions } from './TeamRowActions';
 interface Member { id: string; fullName: string; email: string; role: string; status: string; lastLoginAt: string | null; createdAt: string }
 interface Filters { q: string; role: string; status: string }
 
-const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador', protocolo: 'Protocolo', consulta: 'Consulta', puerta: 'Puerta' };
-const ROLE_TONE: Record<string, ChipTone> = { owner: 'warning', admin: 'success', operator: 'neutral', protocolo: 'brand', consulta: 'neutral', puerta: 'brand' };
+const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador', protocolo: 'Protocolo', consulta: 'Consulta', puerta: 'Puerta', biblioteca: 'Biblioteca' };
+const ROLE_TONE: Record<string, ChipTone> = { owner: 'warning', admin: 'success', operator: 'neutral', protocolo: 'brand', consulta: 'neutral', puerta: 'brand', biblioteca: 'brand' };
 const STATUS_LABEL: Record<string, string> = { active: 'Activo', suspended: 'Suspendido', deleted: 'Eliminado' };
 const STATUS_TONE: Record<string, ChipTone> = { active: 'success', suspended: 'danger', deleted: 'neutral' };
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');

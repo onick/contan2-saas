@@ -52,6 +52,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     const path = (await headers()).get('x-pathname') ?? '';
     if (!/^\/app\/(protocolo|cuenta)(\/|$|\?)/.test(path)) redirect('/app/protocolo');
   }
+  if (gate.staff.role === 'biblioteca') {
+    const path = (await headers()).get('x-pathname') ?? '';
+    if (!/^\/app\/(biblioteca|cuenta)(\/|$|\?)/.test(path)) redirect('/app/biblioteca');
+  }
   if (gate.staff.role === 'puerta') {
     const path = (await headers()).get('x-pathname') ?? '';
     if (!/^\/app\/(puerta|registros|protocolo|reportes|cuenta)(\/|$|\?)/.test(path)) redirect('/app/puerta');
