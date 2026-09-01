@@ -280,8 +280,10 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
       .where('a.organization_id', '=', org.id)
       .where('a.activity_id', 'in', salaIds)
       .where('a.is_permanent', '=', true);
-    if (fromRaw) rowsQ = rowsQ.where(sql<boolean>`a.registered_at >= (${fromRaw}::date AT TIME ZONE ${sql.lit(TZ)})`);
-    if (toRaw) rowsQ = rowsQ.where(sql<boolean>`a.registered_at < ((${toRaw}::date + 1) AT TIME ZONE ${sql.lit(TZ)})`);
+    // ::timestamp ANTES del AT TIME ZONE (con date, Postgres invierte la
+    // conversión y la ventana queda corrida ±8h — mismo fix que puerta-stats).
+    if (fromRaw) rowsQ = rowsQ.where(sql<boolean>`a.registered_at >= (${fromRaw}::timestamp AT TIME ZONE ${sql.lit(TZ)})`);
+    if (toRaw) rowsQ = rowsQ.where(sql<boolean>`a.registered_at < ((${toRaw}::date + 1)::timestamp AT TIME ZONE ${sql.lit(TZ)})`);
     const raw = await rowsQ.orderBy('a.registered_at', 'asc').limit(EXPORT_ROW_CAP).execute();
 
     const rows: PuertaExportRow[] = raw.map((r) => {

@@ -62,9 +62,13 @@ export const puertaStatsRoute: FastifyPluginAsync = async (app) => {
     if (salaId && !allIds.includes(salaId)) { reply.code(404); return { error: 'Sala no encontrada.' }; }
     const scopeIds = salaId ? [salaId] : allIds;
 
-    // Ventana [f, t] inclusiva en la TZ de la puerta (mismo criterio del export).
-    const winGe = (f: string) => sql<boolean>`a.registered_at >= (${f}::date AT TIME ZONE ${sql.lit(TZ)})`;
-    const winLt = (t: string) => sql<boolean>`a.registered_at < ((${t}::date + 1) AT TIME ZONE ${sql.lit(TZ)})`;
+    // Ventana [f, t] inclusiva en la TZ de la puerta. OJO: el cast ::timestamp
+    // ANTES del AT TIME ZONE es obligatorio — con un operando date, Postgres lo
+    // vuelve timestamptz de sesión PRIMERO y AT TIME ZONE lo re-interpreta al
+    // revés (la ventana quedaba corrida 8h; lo cazó el test corriendo de tarde).
+    // '<ymd>'::timestamp AT TIME ZONE tz = "medianoche EN esa zona" (correcto).
+    const winGe = (f: string) => sql<boolean>`a.registered_at >= (${f}::timestamp AT TIME ZONE ${sql.lit(TZ)})`;
+    const winLt = (t: string) => sql<boolean>`a.registered_at < ((${t}::date + 1)::timestamp AT TIME ZONE ${sql.lit(TZ)})`;
     const base = (ids: string[], f: string, t: string) =>
       db.selectFrom('attendance as a')
         .where('a.organization_id', '=', orgId)
@@ -90,7 +94,8 @@ export const puertaStatsRoute: FastifyPluginAsync = async (app) => {
     const kpis = await kpisOf(from, to);
     const prev = await kpisOf(prevFrom, prevTo);
 
-    // Serie diaria de personas (día en la TZ de la puerta).
+    // Serie diaria de personas. registered_at es timestamptz: UNA sola
+    // AT TIME ZONE la convierte a hora de pared de la puerta (correcto).
     const dayExpr = sql<string>`to_char(a.registered_at AT TIME ZONE ${sql.lit(TZ)}, 'YYYY-MM-DD')`;
     async function dailyOf(f: string, t: string): Promise<Map<string, number>> {
       const rows = await base(scopeIds, f, t)
@@ -164,8 +169,8 @@ export const puertaStatsRoute: FastifyPluginAsync = async (app) => {
       .select(['b.status', sql<string>`count(*)`.as('n'), sql<string>`coalesce(sum(b.student_count + 1), 0)`.as('people')])
       .where('b.organization_id', '=', orgId)
       .where('b.activity_id', 'in', scopeIds)
-      .where(sql<boolean>`b.scheduled_at >= (${from}::date AT TIME ZONE ${sql.lit(TZ)})`)
-      .where(sql<boolean>`b.scheduled_at < ((${to}::date + 1) AT TIME ZONE ${sql.lit(TZ)})`)
+      .where(sql<boolean>`b.scheduled_at >= (${from}::timestamp AT TIME ZONE ${sql.lit(TZ)})`)
+      .where(sql<boolean>`b.scheduled_at < ((${to}::date + 1)::timestamp AT TIME ZONE ${sql.lit(TZ)})`)
       .groupBy('b.status').execute();
     const bk = { scheduled: 0, confirmed: 0, attended: 0, noShow: 0, cancelled: 0, peopleExpected: 0 };
     for (const r of bookRows) {
