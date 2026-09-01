@@ -147,6 +147,20 @@ run('biblioteca · catálogo F1', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('ISBN con fallo de RED: NO cachea el negativo — el retry vuelve a consultar', async () => {
+    const failing = vi.fn(async () => { throw new Error('network down'); });
+    const r1 = await lookupIsbn(db as never, '9789945000036', failing as never);
+    expect(r1.found).toBe(false);
+    expect(failing).toHaveBeenCalledTimes(2); // OL + GB, ambos fallaron
+    // Retry con red sana: vuelve a salir (no quedó envenenado) y encuentra.
+    const okBody = { 'ISBN:9789945000036': { title: 'Retry OK', authors: [{ name: 'A' }] } };
+    const okFetch = vi.fn(async () => new Response(JSON.stringify(okBody), { status: 200 }));
+    const r2 = await lookupIsbn(db as never, '9789945000036', okFetch as never);
+    expect(r2.found).toBe(true);
+    expect(okFetch).toHaveBeenCalledTimes(1);
+    await db.deleteFrom('biblio_isbn_cache').where('isbn', '=', '9789945000036').execute();
+  });
+
   it('ISBN no encontrado: se cachea el negativo (no re-consulta afuera)', async () => {
     const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
     const r1 = await lookupIsbn(db as never, '9789945000029', fetchMock as never);

@@ -78,12 +78,16 @@ export async function lookupIsbn(
 
   let data: IsbnData | null = null;
   let source = 'none';
+  // El negativo solo se cachea si ALGÚN proveedor respondió OK (miss real).
+  // Un fallo de red transitorio NO debe envenenar el ISBN para siempre.
+  let providerAnswered = false;
   try {
     const r = await fetchImpl(
       `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`,
       { signal: AbortSignal.timeout(6000) },
     );
     if (r.ok) {
+      providerAnswered = true;
       const j = await r.json() as Record<string, OlBook>;
       const b = j[`ISBN:${isbn}`];
       if (b?.title) { data = mapOpenLibrary(b); source = 'openlibrary'; }
@@ -97,6 +101,7 @@ export async function lookupIsbn(
         { signal: AbortSignal.timeout(6000) },
       );
       if (r.ok) {
+        providerAnswered = true;
         const j = await r.json() as { items?: Array<{ volumeInfo?: GbVolume }> };
         const v = j.items?.[0]?.volumeInfo;
         if (v?.title) { data = mapGoogleBooks(v); source = 'googlebooks'; }
@@ -104,10 +109,12 @@ export async function lookupIsbn(
     } catch { /* sin red / sin match */ }
   }
 
-  await db.insertInto('biblio_isbn_cache')
-    .values({ isbn, payload: JSON.stringify(data ?? {}), source })
-    .onConflict((oc) => oc.column('isbn').doNothing())
-    .execute();
+  if (data || providerAnswered) {
+    await db.insertInto('biblio_isbn_cache')
+      .values({ isbn, payload: JSON.stringify(data ?? {}), source })
+      .onConflict((oc) => oc.column('isbn').doNothing())
+      .execute();
+  }
 
   return data ? { found: true, source, data } : { found: false, source: null, data: null };
 }
