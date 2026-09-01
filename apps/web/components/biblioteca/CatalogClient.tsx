@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import {
   Library, Search, Plus, X, Loader2, Check, BookOpen, Newspaper, GraduationCap, Film, FileText, ScrollText, Sparkles,
+  LayoutGrid, List as ListIcon,
 } from 'lucide-react';
 import type { BiblioTitlesListResponse, BiblioTitle, BiblioSite, BiblioKind, BiblioIsbnLookupResponse } from '@contan2/contracts';
 import { Card, Button, IconButton, Field, Chip, EmptyState, SectionHeader, cn, focusRing, useDrawerLifecycle } from '../ui';
@@ -31,6 +32,8 @@ export function CatalogClient({ initial, sites }: { initial: BiblioTitlesListRes
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  // Vista de PORTADAS por defecto (estantería digital, modelo Libib) o lista.
+  const [view, setView] = useState<'grid' | 'list'>('grid');
   const first = useRef(true);
 
   useEffect(() => {
@@ -79,6 +82,16 @@ export function CatalogClient({ initial, sites }: { initial: BiblioTitlesListRes
             </Button>
           ))}
         </div>
+        <div className="ml-auto flex overflow-hidden rounded-lg border border-line" role="group" aria-label="Cambiar vista">
+          <button type="button" aria-label="Vista de portadas" aria-pressed={view === 'grid'} onClick={() => setView('grid')}
+            className={cn('grid h-9 w-10 place-items-center', focusRing, view === 'grid' ? 'bg-brand text-white' : 'bg-surface text-faint hover:bg-surface-container')}>
+            <LayoutGrid size={16} strokeWidth={2} />
+          </button>
+          <button type="button" aria-label="Vista de lista" aria-pressed={view === 'list'} onClick={() => setView('list')}
+            className={cn('grid h-9 w-10 place-items-center', focusRing, view === 'list' ? 'bg-brand text-white' : 'bg-surface text-faint hover:bg-surface-container')}>
+            <ListIcon size={16} strokeWidth={2} />
+          </button>
+        </div>
       </div>
 
       {/* tabla de títulos */}
@@ -92,6 +105,11 @@ export function CatalogClient({ initial, sites }: { initial: BiblioTitlesListRes
                 : 'Probá con otra parte del título, el autor o el ISBN.'}
               action={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={15} /> Nuevo título</Button>} />
           </Card>
+        ) : view === 'grid' ? (
+          /* Estantería digital: muro de portadas con disponibilidad encima. */
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-4 gap-y-6">
+            {data.titles.map((t) => <TitleCoverCard key={t.id} t={t} />)}
+          </div>
         ) : (
           <Card padding="none">
             <ul className="divide-y divide-line/70">
@@ -112,6 +130,43 @@ export function CatalogClient({ initial, sites }: { initial: BiblioTitlesListRes
 
       <NewTitleDrawer open={drawer} onClose={() => setDrawer(false)} sitesCount={sites.length} />
     </div>
+  );
+}
+
+// Paleta de "lomos" para portadas sin imagen (determinística por título).
+const SPINE_COLORS = ['#1a6194', '#7c3aed', '#0f766e', '#b45309', '#be185d', '#4d7c0f', '#1d4ed8', '#a21caf'];
+function spineColor(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return SPINE_COLORS[h % SPINE_COLORS.length]!;
+}
+
+function TitleCoverCard({ t }: { t: BiblioTitle }) {
+  const { Icon } = KIND_META[t.kind] ?? KIND_META.libro;
+  const agotado = t.itemsTotal > 0 && t.itemsActive === 0;
+  return (
+    <Link href={`/app/biblioteca/${t.id}`} className={cn('group block min-w-0 rounded-xl', focusRing)}>
+      <span className="relative block aspect-[2/3] overflow-hidden rounded-xl border border-line bg-surface shadow-sm transition-transform duration-150 group-hover:-translate-y-1 group-hover:shadow-md">
+        {t.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={t.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+        ) : (
+          <span className="flex h-full w-full flex-col justify-between p-3 text-white" style={{ background: `linear-gradient(165deg, ${spineColor(t.title)}, ${spineColor(t.title)}cc)` }}>
+            <Icon size={18} strokeWidth={1.8} className="opacity-70" aria-hidden="true" />
+            <span className="text-[12.5px] font-bold leading-snug [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:5] overflow-hidden">{t.title}</span>
+          </span>
+        )}
+        {t.itemsTotal === 0 ? (
+          <span className="absolute left-1.5 top-1.5 rounded-md bg-ink/70 px-1.5 py-0.5 text-[10px] font-bold text-white">Sin ejemplares</span>
+        ) : agotado ? (
+          <span className="absolute left-1.5 top-1.5 rounded-md bg-[#c5221f] px-1.5 py-0.5 text-[10px] font-bold text-white">No disponible</span>
+        ) : (
+          <span className="absolute left-1.5 top-1.5 rounded-md bg-[#137333] px-1.5 py-0.5 text-[10px] font-bold text-white tabular-nums">{t.itemsActive} disp.</span>
+        )}
+      </span>
+      <span className="mt-1.5 block truncate text-[12.5px] font-bold leading-tight text-ink" title={t.title}>{t.title}</span>
+      <span className="block truncate text-[11px] text-muted">{t.authors[0] ?? (t.year ? String(t.year) : KIND_META[t.kind]?.label ?? '')}</span>
+    </Link>
   );
 }
 
