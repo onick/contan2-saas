@@ -468,6 +468,20 @@ export interface BiblioItemsTable {
 }
 
 // Cache GLOBAL de metadata por ISBN (sin organization_id: dato público).
+export interface BiblioMemberProfilesTable {
+  id: Generated<string>;
+  organization_id: string;
+  user_id: string; // users.id es TEXT (padrón legacy v1)
+  reader_type: DefaultedText; // empleado | no_empleado
+  employee_code: string | null;
+  document: string | null;
+  notes: string | null;
+  suspended_at: NullableTs;
+  suspended_reason: string | null;
+  created_at: CreatedAt;
+  updated_at: UpdatedAt;
+}
+
 export interface BiblioIsbnCacheTable {
   isbn: string;
   payload: ColumnType<unknown, string, string>; // JSONB
@@ -498,5 +512,6 @@ export interface Database {
   biblio_titles: BiblioTitlesTable;
   biblio_items: BiblioItemsTable;
   biblio_isbn_cache: BiblioIsbnCacheTable;
+  biblio_member_profiles: BiblioMemberProfilesTable;
 }
 

@@ -5,8 +5,10 @@
 import {
   BiblioTitlesListResponseSchema, BiblioTitleDetailResponseSchema, BiblioSitesResponseSchema,
   BiblioFacetsResponseSchema, BiblioOverviewResponseSchema,
+  BiblioReadersListResponseSchema, BiblioReadersStatsResponseSchema,
   type BiblioTitlesListResponse, type BiblioTitleDetailResponse, type BiblioSitesResponse,
   type BiblioFacetsResponse, type BiblioOverviewResponse,
+  type BiblioReadersListResponse, type BiblioReadersStatsResponse,
 } from '@contan2/contracts';
 import { apiGet } from './client';
 
@@ -30,5 +32,13 @@ export async function getBiblioFacets(): Promise<BiblioFacetsResponse | null> {
 }
 export async function getBiblioOverview(): Promise<BiblioOverviewResponse | null> {
   try { return await apiGet('/api/v2/biblio/overview', BiblioOverviewResponseSchema); }
+  catch { return null; }
+}
+export async function getBiblioReaders(page = 1): Promise<BiblioReadersListResponse | null> {
+  try { return await apiGet(`/api/v2/biblio/readers?page=${page}`, BiblioReadersListResponseSchema); }
+  catch { return null; }
+}
+export async function getBiblioReadersStats(): Promise<BiblioReadersStatsResponse | null> {
+  try { return await apiGet('/api/v2/biblio/readers/stats', BiblioReadersStatsResponseSchema); }
   catch { return null; }
 }

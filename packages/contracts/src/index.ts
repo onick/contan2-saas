@@ -2023,6 +2023,71 @@ export const BiblioFacetsResponseSchema = z.object({
 export type BiblioFacetsResponse = z.infer<typeof BiblioFacetsResponseSchema>;
 
 // ── Overview del Inicio de Biblioteca (alertas del acervo + actividad) ──────
+// ── Biblioteca · Lectores (el lector ES el padrón; perfil bibliotecario encima) ──
+export const BiblioReaderTypeSchema = z.enum(['empleado', 'no_empleado']);
+export type BiblioReaderType = z.infer<typeof BiblioReaderTypeSchema>;
+
+export const BiblioReaderSchema = z.object({
+  userId: z.string(),
+  code: z.string(),            // carné QR del centro (nunca se regenera)
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  visitCount: z.number().int(),
+  registeredAt: z.string(),    // users.created_at
+  archived: z.boolean(),       // users.deleted_at (padrón)
+  // Perfil bibliotecario (biblio_member_profiles; null-ish si aún no existe)
+  readerType: BiblioReaderTypeSchema,
+  employeeCode: z.string().nullable(),
+  document: z.string().nullable(),
+  notes: z.string().nullable(),
+  suspendedAt: z.string().nullable(),
+  suspendedReason: z.string().nullable(),
+});
+export type BiblioReader = z.infer<typeof BiblioReaderSchema>;
+
+export const BiblioReadersListResponseSchema = z.object({
+  readers: z.array(BiblioReaderSchema),
+  total: z.number().int(),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+});
+export type BiblioReadersListResponse = z.infer<typeof BiblioReadersListResponseSchema>;
+
+export const BiblioReadersStatsResponseSchema = z.object({
+  total: z.number().int(),        // padrón vivo (sin archivados)
+  active: z.number().int(),       // vivo y sin suspensión de biblioteca
+  newThisMonth: z.number().int(),
+  suspended: z.number().int(),
+});
+export type BiblioReadersStatsResponse = z.infer<typeof BiblioReadersStatsResponseSchema>;
+
+export const BiblioReaderProfileInputSchema = z.object({
+  readerType: BiblioReaderTypeSchema,
+  employeeCode: z.string().trim().max(40).optional().nullable(),
+  document: z.string().trim().max(40).optional().nullable(),
+  notes: z.string().trim().max(1000).optional().nullable(),
+}).strict();
+export type BiblioReaderProfileInput = z.infer<typeof BiblioReaderProfileInputSchema>;
+
+export const BiblioReaderSuspendInputSchema = z.object({
+  suspended: z.boolean(),
+  reason: z.string().trim().max(300).optional().nullable(),
+}).strict();
+export type BiblioReaderSuspendInput = z.infer<typeof BiblioReaderSuspendInputSchema>;
+
+export const BiblioReaderCreateSchema = z.object({
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().min(1).max(80),
+  email: z.string().trim().email().max(160).optional().nullable(),
+  phone: z.string().trim().max(30).optional().nullable(),
+  document: z.string().trim().max(40).optional().nullable(),
+  readerType: BiblioReaderTypeSchema.default('no_empleado'),
+  employeeCode: z.string().trim().max(40).optional().nullable(),
+}).strict();
+export type BiblioReaderCreate = z.infer<typeof BiblioReaderCreateSchema>;
+
 export const BiblioOverviewResponseSchema = z.object({
   alerts: z.object({
     titlesWithoutItems: z.number().int(),   // títulos sin ejemplares vivos

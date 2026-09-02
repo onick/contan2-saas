@@ -111,6 +111,11 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'acquisition_source', 'acquired_on',
     'created_at', 'updated_at', 'deleted_at',
   ],
+  biblio_member_profiles: [
+    'id', 'organization_id', 'user_id', 'reader_type', 'employee_code',
+    'document', 'notes', 'suspended_at', 'suspended_reason',
+    'created_at', 'updated_at',
+  ],
   biblio_items: [
     'id', 'organization_id', 'title_id', 'inventory_code', 'site_id', 'shelf',
     'collection', 'call_number', 'physical_status', 'loanable', 'notes',
