@@ -8,11 +8,13 @@ import {
   BiblioReadersListResponseSchema, BiblioReadersStatsResponseSchema,
   BiblioLoansListResponseSchema, BiblioCirculationSummarySchema,
   BiblioReservationsListResponseSchema, BiblioReservationsSummarySchema,
+  BiblioInventoriesListResponseSchema,
   type BiblioTitlesListResponse, type BiblioTitleDetailResponse, type BiblioSitesResponse,
   type BiblioFacetsResponse, type BiblioOverviewResponse,
   type BiblioReadersListResponse, type BiblioReadersStatsResponse,
   type BiblioLoansListResponse, type BiblioCirculationSummary,
   type BiblioReservationsListResponse, type BiblioReservationsSummary,
+  type BiblioInventoriesListResponse,
 } from '@contan2/contracts';
 import { apiGet } from './client';
 
@@ -60,5 +62,9 @@ export async function getBiblioReservations(tab = 'activas'): Promise<BiblioRese
 }
 export async function getBiblioReservationsSummary(): Promise<BiblioReservationsSummary | null> {
   try { return await apiGet('/api/v2/biblio/reservations/summary', BiblioReservationsSummarySchema); }
+  catch { return null; }
+}
+export async function getBiblioInventories(): Promise<BiblioInventoriesListResponse | null> {
+  try { return await apiGet('/api/v2/biblio/inventories', BiblioInventoriesListResponseSchema); }
   catch { return null; }
 }

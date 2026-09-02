@@ -36,7 +36,7 @@ const NAV: BiblioNavItem[] = [
   { key: 'lectores', label: 'Lectores', href: '/app/biblioteca/lectores', Icon: Users },
   { key: 'circulacion', label: 'Circulación', href: '/app/biblioteca/circulacion', Icon: ArrowLeftRight },
   { key: 'reservas', label: 'Reservas', href: '/app/biblioteca/reservas', Icon: Bookmark },
-  { key: 'inventario', label: 'Inventario', href: '#', Icon: ClipboardList, soon: true },
+  { key: 'inventario', label: 'Inventario', href: '/app/biblioteca/inventario', Icon: ClipboardList },
   { key: 'adquisiciones', label: 'Adquisiciones', href: '#', Icon: PackagePlus, soon: true },
   { key: 'reportes', label: 'Reportes', href: '#', Icon: BarChart3, soon: true },
   { key: 'configuracion', label: 'Configuración', href: '#', Icon: Settings, soon: true },
@@ -48,6 +48,7 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith('/app/biblioteca/lectores')) return 'lectores';
   if (pathname.startsWith('/app/biblioteca/circulacion')) return 'circulacion';
   if (pathname.startsWith('/app/biblioteca/reservas')) return 'reservas';
+  if (pathname.startsWith('/app/biblioteca/inventario')) return 'inventario';
   return '';
 }
 

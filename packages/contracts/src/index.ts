@@ -2242,6 +2242,78 @@ export const BiblioReservationCreateSchema = z.object({
 }).strict();
 export type BiblioReservationCreate = z.infer<typeof BiblioReservationCreateSchema>;
 
+// ── Biblioteca · Inventario (F6): sesiones de conteo físico ──────────────────
+export const BiblioInventoryStatusSchema = z.enum(['en_progreso', 'finalizado', 'cancelado']);
+export const BiblioInventorySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: BiblioInventoryStatusSchema,
+  siteId: z.string().nullable(),
+  siteName: z.string().nullable(), // null = todo el acervo
+  startedByName: z.string().nullable(),
+  startedAt: z.string(),
+  finishedAt: z.string().nullable(),
+  // Conteos (en vivo si está abierta; congelados al finalizar)
+  expected: z.number().int(),
+  scanned: z.number().int(),
+  found: z.number().int(),
+  misplaced: z.number().int(),
+  onLoan: z.number().int(),   // sin escanear pero prestados (no son faltantes)
+  missing: z.number().int(),  // pendientes (abierta) / faltantes (finalizada)
+});
+export type BiblioInventory = z.infer<typeof BiblioInventorySchema>;
+
+export const BiblioInventoriesListResponseSchema = z.object({
+  active: BiblioInventorySchema.nullable(),
+  previous: z.array(BiblioInventorySchema),
+});
+export type BiblioInventoriesListResponse = z.infer<typeof BiblioInventoriesListResponseSchema>;
+
+export const BiblioInventoryCreateSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  siteId: z.string().uuid().optional().nullable(),
+}).strict();
+export type BiblioInventoryCreate = z.infer<typeof BiblioInventoryCreateSchema>;
+
+export const BiblioInventoryItemResultSchema = z.enum(['encontrado', 'fuera_ubicacion', 'prestado', 'pendiente', 'faltante']);
+export const BiblioInventoryItemEstadoSchema = z.enum(['disponible', 'prestado', 'reservado', 'reparacion', 'deteriorado', 'baja', 'extraviado']);
+export const BiblioInventoryItemSchema = z.object({
+  itemId: z.string(),
+  inventoryCode: z.string(),
+  titleId: z.string(),
+  title: z.string(),
+  authors: z.array(z.string()),
+  coverUrl: z.string().nullable(),
+  callNumber: z.string().nullable(),
+  siteName: z.string().nullable(),
+  shelf: z.string().nullable(),
+  estado: BiblioInventoryItemEstadoSchema,
+  resultado: BiblioInventoryItemResultSchema,
+  scannedAt: z.string().nullable(),
+  foundSiteName: z.string().nullable(), // dónde apareció (si fuera de ubicación)
+  retiredReason: z.string().nullable(),
+});
+export type BiblioInventoryItem = z.infer<typeof BiblioInventoryItemSchema>;
+
+export const BiblioInventoryItemsResponseSchema = z.object({
+  items: z.array(BiblioInventoryItemSchema),
+  total: z.number().int(),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+});
+export type BiblioInventoryItemsResponse = z.infer<typeof BiblioInventoryItemsResponseSchema>;
+
+export const BiblioInventoryScanResponseSchema = z.object({
+  result: z.enum(['encontrado', 'fuera_ubicacion', 'ya_escaneado', 'prestado']),
+  item: z.object({
+    inventoryCode: z.string(), title: z.string(),
+    siteName: z.string().nullable(), shelf: z.string().nullable(),
+  }),
+  scanned: z.number().int(),
+  expected: z.number().int(),
+});
+export type BiblioInventoryScanResponse = z.infer<typeof BiblioInventoryScanResponseSchema>;
+
 export const BiblioOverviewResponseSchema = z.object({
   alerts: z.object({
     titlesWithoutItems: z.number().int(),   // títulos sin ejemplares vivos

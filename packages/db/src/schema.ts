@@ -518,6 +518,36 @@ export interface BiblioReservationsTable {
   updated_at: UpdatedAt;
 }
 
+export interface BiblioInventoriesTable {
+  id: Generated<string>;
+  organization_id: string;
+  name: string;
+  site_id: string | null; // NULL = todo el acervo
+  status: DefaultedText; // en_progreso | finalizado | cancelado
+  started_by_staff_id: string | null;
+  started_at: CreatedAt;
+  finished_at: NullableTs;
+  expected_count: number | null;
+  scanned_count: number | null;
+  found_count: number | null;
+  misplaced_count: number | null;
+  missing_count: number | null;
+  notes: string | null;
+  created_at: CreatedAt;
+  updated_at: UpdatedAt;
+}
+
+export interface BiblioInventoryScansTable {
+  id: Generated<string>;
+  organization_id: string;
+  inventory_id: string;
+  item_id: string;
+  found_site_id: string | null;
+  misplaced: DefaultedBool;
+  scanned_by_staff_id: string | null;
+  scanned_at: CreatedAt;
+}
+
 export interface BiblioIsbnCacheTable {
   isbn: string;
   payload: ColumnType<unknown, string, string>; // JSONB
@@ -551,5 +581,7 @@ export interface Database {
   biblio_member_profiles: BiblioMemberProfilesTable;
   biblio_loans: BiblioLoansTable;
   biblio_reservations: BiblioReservationsTable;
+  biblio_inventories: BiblioInventoriesTable;
+  biblio_inventory_scans: BiblioInventoryScansTable;
 }
 

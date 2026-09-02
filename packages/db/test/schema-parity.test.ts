@@ -131,6 +131,16 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'ready_item_id', 'ready_at', 'expires_at', 'fulfilled_at', 'loan_id',
     'cancelled_at', 'notes', 'created_by_staff_id', 'created_at', 'updated_at',
   ],
+  biblio_inventories: [
+    'id', 'organization_id', 'name', 'site_id', 'status', 'started_by_staff_id',
+    'started_at', 'finished_at', 'expected_count', 'scanned_count',
+    'found_count', 'misplaced_count', 'missing_count', 'notes',
+    'created_at', 'updated_at',
+  ],
+  biblio_inventory_scans: [
+    'id', 'organization_id', 'inventory_id', 'item_id', 'found_site_id',
+    'misplaced', 'scanned_by_staff_id', 'scanned_at',
+  ],
   biblio_isbn_cache: ['isbn', 'payload', 'source', 'fetched_at'],
 };
 

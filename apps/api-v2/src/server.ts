@@ -30,6 +30,7 @@ import { biblioRoute } from './routes/biblio.js';
 import { biblioReadersRoute } from './routes/biblio-readers.js';
 import { biblioLoansRoute } from './routes/biblio-loans.js';
 import { biblioReservationsRoute } from './routes/biblio-reservations.js';
+import { biblioInventoriesRoute } from './routes/biblio-inventories.js';
 import { reportsRoute } from './routes/reports.js';
 import { auditRoute } from './routes/audit.js';
 import { teamRoute } from './routes/team.js';
@@ -126,6 +127,7 @@ export function buildApp(): FastifyInstance {
   app.register(biblioReadersRoute, { prefix: '/api/v2' });
   app.register(biblioLoansRoute, { prefix: '/api/v2' });
   app.register(biblioReservationsRoute, { prefix: '/api/v2' });
+  app.register(biblioInventoriesRoute, { prefix: '/api/v2' });
   app.register(reportsRoute, { prefix: '/api/v2' });
   app.register(auditRoute, { prefix: '/api/v2' });
   app.register(teamRoute, { prefix: '/api/v2' });
