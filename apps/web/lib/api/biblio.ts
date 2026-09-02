@@ -4,7 +4,9 @@
 
 import {
   BiblioTitlesListResponseSchema, BiblioTitleDetailResponseSchema, BiblioSitesResponseSchema,
+  BiblioFacetsResponseSchema,
   type BiblioTitlesListResponse, type BiblioTitleDetailResponse, type BiblioSitesResponse,
+  type BiblioFacetsResponse,
 } from '@contan2/contracts';
 import { apiGet } from './client';
 
@@ -18,5 +20,9 @@ export async function getBiblioTitleDetail(id: string): Promise<BiblioTitleDetai
 }
 export async function getBiblioSites(): Promise<BiblioSitesResponse | null> {
   try { return await apiGet('/api/v2/biblio/sites', BiblioSitesResponseSchema); }
+  catch { return null; }
+}
+export async function getBiblioFacets(): Promise<BiblioFacetsResponse | null> {
+  try { return await apiGet('/api/v2/biblio/facets', BiblioFacetsResponseSchema); }
   catch { return null; }
 }

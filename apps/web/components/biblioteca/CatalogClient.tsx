@@ -12,7 +12,7 @@ import {
   Library, Search, Plus, X, Loader2, Check, BookOpen, Newspaper, GraduationCap, Film, FileText, ScrollText, Sparkles,
   LayoutGrid, List as ListIcon,
 } from 'lucide-react';
-import type { BiblioTitlesListResponse, BiblioTitle, BiblioSite, BiblioKind, BiblioIsbnLookupResponse } from '@contan2/contracts';
+import type { BiblioTitlesListResponse, BiblioTitle, BiblioSite, BiblioKind, BiblioIsbnLookupResponse, BiblioFacetsResponse } from '@contan2/contracts';
 import { Card, Button, IconButton, Field, Chip, EmptyState, SectionHeader, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 const KIND_META: Record<BiblioKind, { label: string; Icon: typeof BookOpen }> = {
@@ -25,10 +25,11 @@ const KIND_META: Record<BiblioKind, { label: string; Icon: typeof BookOpen }> = 
 };
 const KINDS = Object.keys(KIND_META) as BiblioKind[];
 
-export function CatalogClient({ initial, sites }: { initial: BiblioTitlesListResponse; sites: BiblioSite[] }) {
+export function CatalogClient({ initial, sites, facets }: { initial: BiblioTitlesListResponse; sites: BiblioSite[]; facets: BiblioFacetsResponse | null }) {
   const [data, setData] = useState(initial);
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<string>('');
+  const [subject, setSubject] = useState<string>('');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [drawer, setDrawer] = useState(false);
@@ -45,14 +46,17 @@ export function CatalogClient({ initial, sites }: { initial: BiblioTitlesListRes
         const p = new URLSearchParams({ page: String(page) });
         if (q.trim()) p.set('q', q.trim());
         if (kind) p.set('kind', kind);
+        if (subject) p.set('subject', subject);
         const res = await fetch(`/app/biblioteca/api/titles?${p.toString()}`, { cache: 'no-store', signal: ctl.signal });
         if (res.ok) setData(await res.json() as BiblioTitlesListResponse);
       } catch { /* abort */ } finally { setLoading(false); }
     }, q ? 300 : 0);
     return () => { clearTimeout(t); ctl.abort(); };
-  }, [q, kind, page]);
+  }, [q, kind, subject, page]);
 
   const pages = Math.max(1, Math.ceil(data.total / data.pageSize));
+  const pickKind = (k: string) => { setKind(k); setPage(1); };
+  const pickSubject = (s: string) => { setSubject(s); setPage(1); };
 
   return (
     <div>
@@ -65,7 +69,7 @@ export function CatalogClient({ initial, sites }: { initial: BiblioTitlesListRes
         />
       </div>
 
-      {/* búsqueda + filtro de tipo */}
+      {/* búsqueda + vista (los filtros viven en el menú lateral) */}
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
         <label className={cn('flex min-w-[280px] flex-1 items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-2.5', focusRing)}>
           <Search size={16} className="text-faint" aria-hidden="true" />
@@ -74,14 +78,21 @@ export function CatalogClient({ initial, sites }: { initial: BiblioTitlesListRes
             className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
           {loading ? <Loader2 size={15} className="animate-spin text-faint" /> : null}
         </label>
-        <div className="flex flex-wrap gap-1.5">
-          <Button variant="pill" size="sm" selected={kind === ''} onClick={() => { setKind(''); setPage(1); }}>Todos</Button>
-          {KINDS.map((k) => (
-            <Button key={k} variant="pill" size="sm" selected={kind === k} onClick={() => { setKind(k); setPage(1); }}>
-              {KIND_META[k].label}
-            </Button>
-          ))}
-        </div>
+        {/* fallback móvil del menú lateral: selects compactos */}
+        {facets ? (
+          <div className="flex gap-2 lg:hidden">
+            <select value={kind} onChange={(e) => pickKind(e.target.value)} aria-label="Filtrar por tipo"
+              className={cn('min-h-10 rounded-lg border border-line bg-surface px-2.5 text-[13px] text-ink', focusRing)}>
+              <option value="">Todos los tipos</option>
+              {facets.kinds.map((k) => <option key={k.kind} value={k.kind}>{KIND_META[k.kind]?.label ?? k.kind} ({k.count})</option>)}
+            </select>
+            <select value={subject} onChange={(e) => pickSubject(e.target.value)} aria-label="Filtrar por materia"
+              className={cn('min-h-10 max-w-[180px] rounded-lg border border-line bg-surface px-2.5 text-[13px] text-ink', focusRing)}>
+              <option value="">Todas las materias</option>
+              {facets.subjects.map((s) => <option key={s.subject} value={s.subject}>{s.subject} ({s.count})</option>)}
+            </select>
+          </div>
+        ) : null}
         <div className="ml-auto flex overflow-hidden rounded-lg border border-line" role="group" aria-label="Cambiar vista">
           <button type="button" aria-label="Vista de portadas" aria-pressed={view === 'grid'} onClick={() => setView('grid')}
             className={cn('grid h-9 w-10 place-items-center', focusRing, view === 'grid' ? 'bg-brand text-white' : 'bg-surface text-faint hover:bg-surface-container')}>
@@ -94,8 +105,13 @@ export function CatalogClient({ initial, sites }: { initial: BiblioTitlesListRes
         </div>
       </div>
 
-      {/* tabla de títulos */}
-      <div className={cn('mt-4 transition-opacity', loading && 'opacity-50')}>
+      {/* menú lateral (catálogos) + estantería */}
+      <div className={cn('mt-4', facets && 'lg:grid lg:grid-cols-[225px_1fr] lg:items-start lg:gap-5')}>
+        {facets ? (
+          <CatalogSidebar facets={facets} kind={kind} subject={subject} onKind={pickKind} onSubject={pickSubject} />
+        ) : null}
+
+      <div className={cn('transition-opacity', loading && 'opacity-50')}>
         {data.titles.length === 0 ? (
           <Card padding="lg">
             <EmptyState icon={Library}
@@ -127,9 +143,74 @@ export function CatalogClient({ initial, sites }: { initial: BiblioTitlesListRes
           </div>
         ) : null}
       </div>
+      </div>
 
       <NewTitleDrawer open={drawer} onClose={() => setDrawer(false)} sitesCount={sites.length} />
     </div>
+  );
+}
+
+// ── Menú lateral: los "catálogos" vivos del acervo (tipos + materias) ────────
+function CatalogSidebar({ facets, kind, subject, onKind, onSubject }: {
+  facets: BiblioFacetsResponse; kind: string; subject: string;
+  onKind: (k: string) => void; onSubject: (s: string) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const subjects = showAll ? facets.subjects : facets.subjects.slice(0, 12);
+  const itemCls = (active: boolean) => cn(
+    'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors',
+    focusRing,
+    active ? 'bg-brand/10 font-bold text-brand' : 'text-muted hover:bg-surface-container hover:text-ink',
+  );
+  const Count = ({ n }: { n: number }) => <span className="ml-auto text-[11px] tabular-nums text-faint">{n.toLocaleString('en-US')}</span>;
+
+  return (
+    <aside className="sticky top-20 mb-4 hidden lg:block">
+      <Card padding="md">
+        <button type="button" onClick={() => { onKind(''); onSubject(''); }} className={itemCls(kind === '' && subject === '')}>
+          <Library size={15} strokeWidth={1.9} /> Todo el catálogo <Count n={facets.total} />
+        </button>
+
+        {facets.kinds.length > 0 ? (
+          <>
+            <p className="mb-1 mt-3.5 px-2.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-faint">Tipos</p>
+            <div className="flex flex-col gap-0.5">
+              {facets.kinds.map((k) => {
+                const Icon = KIND_META[k.kind]?.Icon ?? BookOpen;
+                return (
+                  <button key={k.kind} type="button" onClick={() => onKind(kind === k.kind ? '' : k.kind)} className={itemCls(kind === k.kind)}>
+                    <Icon size={15} strokeWidth={1.9} /> {KIND_META[k.kind]?.label ?? k.kind} <Count n={k.count} />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
+        {facets.subjects.length > 0 ? (
+          <>
+            <p className="mb-1 mt-3.5 px-2.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-faint">Materias</p>
+            <div className="flex flex-col gap-0.5">
+              {subjects.map((s) => (
+                <button key={s.subject} type="button" onClick={() => onSubject(subject === s.subject ? '' : s.subject)} className={itemCls(subject === s.subject)}>
+                  <span className="h-1.5 w-1.5 flex-none rounded-full bg-current opacity-60" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate" title={s.subject}>{s.subject}</span>
+                  <Count n={s.count} />
+                </button>
+              ))}
+            </div>
+            {facets.subjects.length > 12 ? (
+              <button type="button" onClick={() => setShowAll((v) => !v)}
+                className={cn('mt-1.5 w-full rounded-lg px-2.5 py-1.5 text-left text-[12px] font-semibold text-brand hover:bg-surface-container', focusRing)}>
+                {showAll ? 'Ver menos' : `Ver las ${facets.subjects.length} materias`}
+              </button>
+            ) : null}
+          </>
+        ) : (
+          <p className="mt-3.5 px-2.5 text-[12px] leading-relaxed text-faint">Las materias que agregues a las fichas aparecerán acá como catálogos.</p>
+        )}
+      </Card>
+    </aside>
   );
 }
 

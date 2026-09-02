@@ -1994,6 +1994,14 @@ export const BiblioTitleDetailResponseSchema = z.object({
 });
 export type BiblioTitleDetailResponse = z.infer<typeof BiblioTitleDetailResponseSchema>;
 
+// ── Facetas del catálogo (menú lateral: tipos y materias EXISTENTES) ────────
+export const BiblioFacetsResponseSchema = z.object({
+  total: z.number().int(), // títulos vivos del catálogo
+  kinds: z.array(z.object({ kind: BiblioKindSchema, count: z.number().int() })),
+  subjects: z.array(z.object({ subject: z.string(), count: z.number().int() })),
+});
+export type BiblioFacetsResponse = z.infer<typeof BiblioFacetsResponseSchema>;
+
 // ── Autofill por ISBN (D8) ───────────────────────────────────────────────────
 export const BiblioIsbnLookupResponseSchema = z.object({
   found: z.boolean(),

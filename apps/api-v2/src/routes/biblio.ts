@@ -19,10 +19,12 @@ import {
   BiblioItemInputSchema, BiblioItemUpdateSchema,
   type BiblioSitesResponse, type BiblioTitlesListResponse, type BiblioTitleDetailResponse,
   type BiblioTitle, type BiblioItem, type BiblioIsbnLookupResponse, type BiblioTitleInput,
+  type BiblioFacetsResponse,
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { lookupIsbn } from '../services/biblio-isbn.js';
+import { normCategory, normCategorySql, consolidateCategories } from '../services/category-norm.js';
 
 // Rol 'biblioteca' (mig 049) + gestores. El resto → 403 (módulo confinado).
 const BIBLIO_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'biblioteca']);
@@ -149,12 +151,44 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
     });
   });
 
+  // ── Facetas: tipos y materias EXISTENTES en el catálogo (menú lateral) ─────
+  app.get('/biblio/facets', async (req: FastifyRequest, reply) => {
+    const r = await gate(req, reply); if (!r.ok) return r.body;
+    return withTenant(getDb(), r.g.orgId, async (db) => {
+      const kinds = await db.selectFrom('biblio_titles')
+        .select(['kind'])
+        .select(db.fn.countAll<string>().as('n'))
+        .where('organization_id', '=', r.g.orgId).where('deleted_at', 'is', null)
+        .groupBy('kind').execute();
+      const total = kinds.reduce((a, k) => a + Number(k.n), 0);
+      // Materias: unnest del array + consolidación de variantes (acentos/mayúsculas).
+      const subjectRows = await sql<{ subject: string; n: string }>`
+        select s.subject as subject, count(*)::text as n
+        from biblio_titles t
+        cross join lateral unnest(t.subjects) as s(subject)
+        where t.organization_id = ${r.g.orgId} and t.deleted_at is null
+        group by 1 order by count(*) desc limit 60
+      `.execute(db);
+      const subjects = consolidateCategories(subjectRows.rows.map((s) => ({ category: s.subject, activities: Number(s.n) })))
+        .map((c) => ({ subject: c.category, count: c.activities }))
+        .sort((a, b) => b.count - a.count || a.subject.localeCompare(b.subject, 'es'));
+      const body: BiblioFacetsResponse = {
+        total,
+        kinds: kinds.map((k) => ({ kind: k.kind as BiblioFacetsResponse['kinds'][number]['kind'], count: Number(k.n) }))
+          .sort((a, b) => b.count - a.count),
+        subjects,
+      };
+      return body;
+    });
+  });
+
   // ── Títulos: búsqueda paginada ─────────────────────────────────────────────
   app.get('/biblio/titles', async (req: FastifyRequest, reply) => {
     const r = await gate(req, reply); if (!r.ok) return r.body;
     const q = req.query as Record<string, unknown>;
     const term = typeof q.q === 'string' ? q.q.trim().slice(0, 120) : '';
     const kind = typeof q.kind === 'string' && q.kind.trim() ? q.kind.trim() : null;
+    const subject = typeof q.subject === 'string' && q.subject.trim() ? q.subject.trim().slice(0, 80) : null;
     const page = Math.max(1, Number(q.page) || 1);
     const pageSize = Math.min(PAGE_SIZE_MAX, Math.max(1, Number(q.pageSize) || 20));
 
@@ -164,6 +198,13 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
         .where('t.organization_id', '=', r.g.orgId)
         .where('t.deleted_at', 'is', null);
       if (kind) base = base.where('t.kind', '=', kind);
+      if (subject) {
+        // Materia NORMALIZADA: "arte dominicano" matchea "Arte Dominicano".
+        base = base.where(sql<boolean>`exists (
+          select 1 from unnest(t.subjects) as s(x)
+          where ${normCategorySql(sql`s.x`)} = ${normCategory(subject)}
+        )`);
+      }
       if (term) {
         const like = `%${term.toLowerCase()}%`;
         const digits = term.replace(/[^0-9Xx]/g, '');

@@ -126,6 +126,23 @@ run('biblioteca · catálogo F1', () => {
     expect(gone.retiredAt).toBeTruthy();
   });
 
+  it('facetas: tipos y materias existentes con conteos (variantes consolidadas) + filtro por materia', async () => {
+    // Variante con acentos/mayúsculas distinta de la existente 'Novela'.
+    await req('POST', '/api/v2/biblio/titles', TOK.admin, { kind: 'libro', title: 'Otra novela', authors: [], subjects: ['NOVELA'], keywords: [] });
+    const f = (await req('GET', '/api/v2/biblio/facets', TOK.biblio)).json();
+    expect(f.total).toBeGreaterThanOrEqual(3);
+    expect(f.kinds.find((k: { kind: string }) => k.kind === 'revista').count).toBe(1);
+    // 'Novela' + 'NOVELA' consolidan en UNA materia con count 2.
+    const novela = f.subjects.filter((s: { subject: string }) => s.subject.toLowerCase() === 'novela');
+    expect(novela).toHaveLength(1);
+    expect(novela[0].count).toBe(2);
+    // Filtro por materia, escrito como sea (normalizado).
+    const bySubject = (await req('GET', `/api/v2/biblio/titles?subject=${encodeURIComponent('novela')}`, TOK.admin)).json();
+    expect(bySubject.total).toBe(2);
+    const byBoth = (await req('GET', `/api/v2/biblio/titles?subject=${encodeURIComponent('realismo magico')}`, TOK.admin)).json();
+    expect(byBoth.total).toBe(1); // solo Cien años tiene 'Realismo mágico'
+  });
+
   it('ISBN (D8): normaliza, mapea OpenLibrary, cachea y no repite el fetch', async () => {
     expect(normalizeIsbn('978-9945-000-01-2')).toBe('9789945000012');
     const olBody = {

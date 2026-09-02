@@ -4,7 +4,7 @@ import { AppShell } from '../../../components/shell/AppShell';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { CatalogClient } from '../../../components/biblioteca/CatalogClient';
 import { getTenantBranding } from '../../../lib/branding/tenant';
-import { getBiblioTitles, getBiblioSites } from '../../../lib/api/biblio';
+import { getBiblioTitles, getBiblioSites, getBiblioFacets } from '../../../lib/api/biblio';
 import { BIBLIOTECA_ENABLED } from '../../../lib/shell/nav';
 
 // Biblioteca · Catálogo (F1). Plan docs/plan-modulo-biblioteca.md.
@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 export default async function BibliotecaPage() {
   if (!BIBLIOTECA_ENABLED) notFound();
   const branding = await getTenantBranding();
-  const [titles, sites] = [await getBiblioTitles(), await getBiblioSites()];
+  const [titles, sites, facets] = [await getBiblioTitles(), await getBiblioSites(), await getBiblioFacets()];
 
   return (
     <AppShell branding={branding} title="Biblioteca" activeKey="biblioteca">
@@ -26,7 +26,7 @@ export default async function BibliotecaPage() {
         {titles === null ? (
           <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar el catálogo. Reintentá en unos segundos." />
         ) : (
-          <CatalogClient initial={titles} sites={sites?.sites ?? []} />
+          <CatalogClient initial={titles} sites={sites?.sites ?? []} facets={facets} />
         )}
       </div>
     </AppShell>
