@@ -65,7 +65,8 @@ interface TitleRow {
   pages: number | null; country: string | null; physical_format: string | null;
   binding: string | null; dimensions: string | null; audience: string | null;
   acquisition_source: string | null; acquired_on: Date | string | null;
-  itemsTotal: string | number; itemsActive: string | number; siteNames: string[] | null;
+  itemsTotal: string | number; itemsActive: string | number;
+  itemsLoaned: string | number; siteNames: string[] | null;
 }
 function toTitle(r: TitleRow): BiblioTitle {
   return {
@@ -78,7 +79,7 @@ function toTitle(r: TitleRow): BiblioTitle {
     coverUrl: r.cover_url, isbnAutofilled: r.isbn_autofilled,
     createdAt: new Date(r.created_at as string).toISOString(),
     itemsTotal: Number(r.itemsTotal), itemsActive: Number(r.itemsActive),
-    siteNames: r.siteNames ?? [],
+    itemsLoaned: Number(r.itemsLoaned), siteNames: r.siteNames ?? [],
     pages: r.pages, country: r.country, physicalFormat: r.physical_format,
     binding: r.binding, dimensions: r.dimensions, audience: r.audience,
     acquisitionSource: r.acquisition_source,
@@ -123,6 +124,13 @@ const itemsCountSql = (statuses?: string[]) => sql<string>`(
   ${statuses ? sql`and i.physical_status in (${sql.join(statuses)})` : sql``}
 )`;
 
+// Ejemplares del título con préstamo abierto (F2): disponible = active - loaned.
+const itemsLoanedSql = () => sql<string>`(
+  select count(*) from biblio_loans l
+  join biblio_items i on i.id = l.item_id
+  where i.title_id = t.id and l.returned_at is null
+)`;
+
 // Sitios (distintos) donde el título tiene ejemplares vivos — la "Ubicación"
 // de la fila del catálogo. Sin sitio asignado no aporta nombre.
 const siteNamesSql = () => sql<string[]>`(
@@ -134,7 +142,7 @@ const siteNamesSql = () => sql<string[]>`(
 async function loadTitle(db: DbClient, orgId: string, id: string): Promise<BiblioTitle | null> {
   const r = await db.selectFrom('biblio_titles as t')
     .selectAll('t')
-    .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive'), siteNamesSql().as('siteNames')])
+    .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive'), itemsLoanedSql().as('itemsLoaned'), siteNamesSql().as('siteNames')])
     .where('t.organization_id', '=', orgId).where('t.id', '=', id)
     .where('t.deleted_at', 'is', null)
     .executeTakeFirst();
@@ -322,7 +330,7 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
       const totalRow = await base.select(db.fn.countAll<string>().as('n')).executeTakeFirst();
       const rows = await base
         .selectAll('t')
-        .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive'), siteNamesSql().as('siteNames')])
+        .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive'), itemsLoanedSql().as('itemsLoaned'), siteNamesSql().as('siteNames')])
         .orderBy('t.created_at', 'desc')
         .limit(pageSize).offset((page - 1) * pageSize)
         .execute();
@@ -342,7 +350,7 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
     return withTenant(getDb(), r.g.orgId, async (db) => {
       const rows = await filteredTitles(db, r.g.orgId, f)
         .selectAll('t')
-        .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive'), siteNamesSql().as('siteNames')])
+        .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive'), itemsLoanedSql().as('itemsLoaned'), siteNamesSql().as('siteNames')])
         .orderBy('t.title', 'asc')
         .limit(EXPORT_MAX_ROWS)
         .execute();
@@ -367,7 +375,7 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
           kind: t.kind, title: t.title, subtitle: t.subtitle, authors: t.authors,
           isbn: t.isbn, publisher: t.publisher, year: t.year, language: t.language,
           dewey: t.dewey, callNumber: t.callNumber, subjects: t.subjects,
-          itemsTotal: t.itemsTotal, itemsActive: t.itemsActive, siteNames: t.siteNames,
+          itemsTotal: t.itemsTotal, itemsActive: t.itemsActive, itemsLoaned: t.itemsLoaned, siteNames: t.siteNames,
         })),
         { orgName: r.g.orgName, primaryColor: r.g.primaryColor, filterLabel },
       );
@@ -401,8 +409,13 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
       if (!title) { reply.code(404); return { error: 'Título no encontrado.' }; }
       const items = await db.selectFrom('biblio_items as i')
         .leftJoin('biblio_sites as s', 's.id', 'i.site_id')
+        .leftJoin('biblio_loans as l', (join) => join
+          .onRef('l.item_id', '=', 'i.id')
+          .on('l.returned_at', 'is', null))
+        .leftJoin('users as lu', 'lu.id', 'l.user_id')
         .select(['i.id', 'i.inventory_code', 'i.site_id', 's.name as site_name', 'i.shelf', 'i.collection',
-          'i.call_number', 'i.physical_status', 'i.loanable', 'i.notes', 'i.retired_at', 'i.retired_reason'])
+          'i.call_number', 'i.physical_status', 'i.loanable', 'i.notes', 'i.retired_at', 'i.retired_reason',
+          'l.due_at as loan_due_at', sql<string | null>`case when l.id is null then null else lu.first_name || ' ' || lu.last_name end`.as('loan_reader')])
         .where('i.organization_id', '=', r.g.orgId).where('i.title_id', '=', id)
         .orderBy('i.inventory_code', 'asc').execute();
       const body: BiblioTitleDetailResponse = {
@@ -413,6 +426,9 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
           physicalStatus: i.physical_status as BiblioItem['physicalStatus'], loanable: i.loanable,
           notes: i.notes, retiredAt: i.retired_at ? new Date(i.retired_at as unknown as string).toISOString() : null,
           retiredReason: i.retired_reason,
+          onLoan: i.loan_due_at !== null,
+          loanDueAt: i.loan_due_at ? new Date(i.loan_due_at as unknown as string).toISOString() : null,
+          loanReaderName: i.loan_reader ?? null,
         })),
       };
       return body;

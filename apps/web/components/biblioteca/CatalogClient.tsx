@@ -332,11 +332,13 @@ function spineColor(s: string): string {
   return SPINE_COLORS[h % SPINE_COLORS.length]!;
 }
 
-// Disponibilidad del título en F1 (sin préstamos todavía): estados del acervo.
+// Disponibilidad DERIVADA del título: acervo (activos) menos préstamos abiertos.
 function AvailabilityChip({ t }: { t: BiblioTitle }) {
   if (t.itemsTotal === 0) return <Chip tone="neutral">Sin ejemplares</Chip>;
   if (t.itemsActive === 0) return <Chip tone="danger" dot>No disponible</Chip>;
-  return <Chip tone="success" dot>Disponible · {t.itemsActive} de {t.itemsTotal}</Chip>;
+  const libres = Math.max(0, t.itemsActive - t.itemsLoaned);
+  if (libres === 0) return <Chip tone="warning" dot>Prestado · {t.itemsLoaned} de {t.itemsTotal}</Chip>;
+  return <Chip tone="success" dot>Disponible · {libres} de {t.itemsTotal}</Chip>;
 }
 
 function CatalogTableRow({ t }: { t: BiblioTitle }) {
@@ -400,8 +402,10 @@ function TitleCoverCard({ t }: { t: BiblioTitle }) {
           <span className="absolute left-1.5 top-1.5 rounded-md bg-ink/70 px-1.5 py-0.5 text-[10px] font-bold text-white">Sin ejemplares</span>
         ) : agotado ? (
           <span className="absolute left-1.5 top-1.5 rounded-md bg-[#c5221f] px-1.5 py-0.5 text-[10px] font-bold text-white">No disponible</span>
+        ) : Math.max(0, t.itemsActive - t.itemsLoaned) === 0 ? (
+          <span className="absolute left-1.5 top-1.5 rounded-md bg-[#b45309] px-1.5 py-0.5 text-[10px] font-bold text-white">Prestado</span>
         ) : (
-          <span className="absolute left-1.5 top-1.5 rounded-md bg-[#137333] px-1.5 py-0.5 text-[10px] font-bold text-white tabular-nums">{t.itemsActive} disp.</span>
+          <span className="absolute left-1.5 top-1.5 rounded-md bg-[#137333] px-1.5 py-0.5 text-[10px] font-bold text-white tabular-nums">{Math.max(0, t.itemsActive - t.itemsLoaned)} disp.</span>
         )}
       </span>
       <span className="mt-1.5 block truncate text-[12.5px] font-bold leading-tight text-ink" title={t.title}>{t.title}</span>

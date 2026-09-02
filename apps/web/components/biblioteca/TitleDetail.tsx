@@ -153,6 +153,11 @@ function ItemRow({ item: i, retiring, onStartRetire, onCancelRetire, onReason, o
         <span className="w-32 flex-none font-mono text-[13px] font-bold tabular-nums text-ink">{i.inventoryCode}</span>
         <span className="min-w-0 flex-1 text-[13px] text-ink">{ubicacion}{i.collection ? <span className="text-faint"> · {i.collection}</span> : null}</span>
         {!i.loanable && !retired ? <Chip tone="neutral">Solo sala</Chip> : null}
+        {i.onLoan && !retired ? (
+          <Chip tone="warning" dot>
+            Prestado{i.loanDueAt ? ` · vence ${new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit' }).format(new Date(i.loanDueAt))}` : ''}{i.loanReaderName ? ` · ${i.loanReaderName}` : ''}
+          </Chip>
+        ) : null}
         <Chip tone={st.tone} dot>{st.label}</Chip>
         {retired ? (
           <span className="text-[11.5px] text-faint">{i.retiredReason}</span>

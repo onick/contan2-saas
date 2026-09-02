@@ -1953,6 +1953,7 @@ export const BiblioTitleSchema = z.object({
   createdAt: z.string(),
   itemsTotal: z.number().int(),   // ejemplares no dados de baja
   itemsActive: z.number().int(),  // en estado físico prestable (bueno/deteriorado)
+  itemsLoaned: z.number().int(),  // con préstamo abierto (F2) — disponible = active - loaned
   siteNames: z.array(z.string()), // sitios con ejemplares vivos (Ubicación)
   pages: z.number().int().nullable(),
   country: z.string().nullable(),
@@ -2003,6 +2004,10 @@ export const BiblioItemSchema = z.object({
   notes: z.string().nullable(),
   retiredAt: z.string().nullable(),
   retiredReason: z.string().nullable(),
+  // Préstamo abierto sobre el ejemplar (F2; null = en estante).
+  onLoan: z.boolean(),
+  loanDueAt: z.string().nullable(),
+  loanReaderName: z.string().nullable(),
 });
 export type BiblioItem = z.infer<typeof BiblioItemSchema>;
 
@@ -2087,6 +2092,97 @@ export const BiblioReaderCreateSchema = z.object({
   employeeCode: z.string().trim().max(40).optional().nullable(),
 }).strict();
 export type BiblioReaderCreate = z.infer<typeof BiblioReaderCreateSchema>;
+
+// ── Biblioteca · Circulación (F2): ledger de préstamos, vencido DERIVADO ────
+export const BiblioLoanKindSchema = z.enum(['domicilio', 'sala']);
+export type BiblioLoanKind = z.infer<typeof BiblioLoanKindSchema>;
+
+// Estado derivado del préstamo (nunca almacenado).
+export const BiblioLoanStatusSchema = z.enum(['a_tiempo', 'vence_pronto', 'vencido', 'en_sala', 'devuelto']);
+export type BiblioLoanStatus = z.infer<typeof BiblioLoanStatusSchema>;
+
+export const BiblioLoanSchema = z.object({
+  id: z.string(),
+  kind: BiblioLoanKindSchema,
+  status: BiblioLoanStatusSchema,
+  loanedAt: z.string(),
+  dueAt: z.string(),
+  returnedAt: z.string().nullable(),
+  renewals: z.number().int(),
+  notes: z.string().nullable(),
+  // Lector (padrón)
+  userId: z.string(),
+  userCode: z.string(),
+  userFirstName: z.string(),
+  userLastName: z.string(),
+  // Ejemplar + obra
+  itemId: z.string(),
+  inventoryCode: z.string(),
+  titleId: z.string(),
+  title: z.string(),
+  authors: z.array(z.string()),
+  coverUrl: z.string().nullable(),
+});
+export type BiblioLoan = z.infer<typeof BiblioLoanSchema>;
+
+export const BiblioLoansListResponseSchema = z.object({
+  loans: z.array(BiblioLoanSchema),
+  total: z.number().int(),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+});
+export type BiblioLoansListResponse = z.infer<typeof BiblioLoansListResponseSchema>;
+
+export const BiblioLoanCreateSchema = z.object({
+  // Escaneables: carné del lector y código de inventario del ejemplar.
+  readerCode: z.string().trim().min(1).max(40).optional(),
+  userId: z.string().trim().min(1).max(60).optional(),
+  inventoryCode: z.string().trim().min(1).max(40),
+  kind: BiblioLoanKindSchema.default('domicilio'),
+  notes: z.string().trim().max(500).optional().nullable(),
+}).strict();
+export type BiblioLoanCreate = z.infer<typeof BiblioLoanCreateSchema>;
+
+export const BiblioReturnSchema = z.object({
+  inventoryCode: z.string().trim().min(1).max(40),
+  notes: z.string().trim().max(500).optional().nullable(),
+}).strict();
+export type BiblioReturn = z.infer<typeof BiblioReturnSchema>;
+
+export const BiblioCirculationSummarySchema = z.object({
+  today: z.object({
+    loans: z.number().int(),       // préstamos realizados hoy
+    returns: z.number().int(),     // devoluciones hoy
+    renewals: z.number().int(),    // renovaciones hoy
+  }),
+  alerts: z.object({
+    overdue: z.number().int(),     // vencidos ahora
+    dueSoon: z.number().int(),     // vencen en ≤3 días
+    activeTotal: z.number().int(), // préstamos abiertos
+  }),
+  policy: z.object({
+    loanDays: z.number().int(),
+    maxRenewals: z.number().int(),
+    maxOpenLoans: z.number().int(),
+  }),
+});
+export type BiblioCirculationSummary = z.infer<typeof BiblioCirculationSummarySchema>;
+
+// Chequeos previos al préstamo (para el flujo de 2 escaneos).
+export const BiblioLoanPrecheckResponseSchema = z.object({
+  reader: z.object({
+    userId: z.string(), code: z.string(), firstName: z.string(), lastName: z.string(),
+    readerType: BiblioReaderTypeSchema, suspended: z.boolean(), archived: z.boolean(),
+    openLoans: z.number().int(), maxOpenLoans: z.number().int(),
+  }).nullable(),
+  item: z.object({
+    itemId: z.string(), inventoryCode: z.string(), titleId: z.string(), title: z.string(),
+    authors: z.array(z.string()), coverUrl: z.string().nullable(),
+    physicalStatus: BiblioPhysicalStatusSchema, loanable: z.boolean(), retired: z.boolean(),
+    onLoan: z.boolean(),
+  }).nullable(),
+});
+export type BiblioLoanPrecheckResponse = z.infer<typeof BiblioLoanPrecheckResponseSchema>;
 
 export const BiblioOverviewResponseSchema = z.object({
   alerts: z.object({

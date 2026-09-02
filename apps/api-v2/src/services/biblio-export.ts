@@ -19,6 +19,7 @@ export interface BiblioExportRow {
   subjects: string[];
   itemsTotal: number;
   itemsActive: number;
+  itemsLoaned: number;
   siteNames: string[];
 }
 
@@ -30,7 +31,7 @@ export interface BiblioExportMeta {
 
 const HEADERS = [
   'Tipo', 'Título', 'Subtítulo', 'Autores', 'ISBN', 'Editorial', 'Año',
-  'Idioma', 'Dewey', 'Signatura', 'Materias', 'Ejemplares', 'Disponibles', 'Ubicación',
+  'Idioma', 'Dewey', 'Signatura', 'Materias', 'Ejemplares', 'Disponibles', 'Prestados', 'Ubicación',
 ];
 
 const KIND_LABEL: Record<string, string> = {
@@ -82,7 +83,7 @@ export async function buildBiblioExportWorkbook(
       KIND_LABEL[r.kind] ?? r.kind, r.title, r.subtitle ?? '', r.authors.join('; '),
       r.isbn ?? '', r.publisher ?? '', r.year ?? '', r.language ?? '',
       r.dewey ?? '', r.callNumber ?? '', r.subjects.join('; '),
-      r.itemsTotal, r.itemsActive, r.siteNames.join('; '),
+      r.itemsTotal, Math.max(0, r.itemsActive - r.itemsLoaned), r.itemsLoaned, r.siteNames.join('; '),
     ];
     vals.forEach((v, i) => { row.getCell(i + 1).value = v; });
     if (idx % 2 === 1) {
@@ -92,7 +93,7 @@ export async function buildBiblioExportWorkbook(
     }
   });
 
-  const widths = [11, 42, 26, 30, 16, 20, 7, 10, 11, 16, 30, 11, 12, 26];
+  const widths = [11, 42, 26, 30, 16, 20, 7, 10, 11, 16, 30, 11, 12, 11, 26];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   ws.views = [{ state: 'frozen', ySplit: 4 }];
 

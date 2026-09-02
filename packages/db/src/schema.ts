@@ -482,6 +482,23 @@ export interface BiblioMemberProfilesTable {
   updated_at: UpdatedAt;
 }
 
+export interface BiblioLoansTable {
+  id: Generated<string>;
+  organization_id: string;
+  item_id: string;
+  user_id: string; // users.id es TEXT (padrón legacy v1)
+  kind: DefaultedText; // domicilio | sala
+  loaned_at: CreatedAt;
+  due_at: RequiredTs;
+  renewals: DefaultedInt;
+  returned_at: NullableTs;
+  notes: string | null;
+  created_by_staff_id: string | null;
+  returned_by_staff_id: string | null;
+  created_at: CreatedAt;
+  updated_at: UpdatedAt;
+}
+
 export interface BiblioIsbnCacheTable {
   isbn: string;
   payload: ColumnType<unknown, string, string>; // JSONB
@@ -513,5 +530,6 @@ export interface Database {
   biblio_items: BiblioItemsTable;
   biblio_isbn_cache: BiblioIsbnCacheTable;
   biblio_member_profiles: BiblioMemberProfilesTable;
+  biblio_loans: BiblioLoansTable;
 }
 

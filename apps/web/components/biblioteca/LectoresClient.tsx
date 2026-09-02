@@ -21,7 +21,9 @@ import {
 } from 'lucide-react';
 import type {
   BiblioReadersListResponse, BiblioReadersStatsResponse, BiblioReader, BiblioReaderType,
+  BiblioLoan,
 } from '@contan2/contracts';
+import { LoanStatusChip } from './CirculacionClient';
 import { Card, Button, IconButton, Field, Chip, EmptyState, SectionHeader, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
@@ -329,6 +331,8 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
   const [suspending, setSuspending] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'informacion' | 'prestamos'>('informacion');
+  const [loans, setLoans] = useState<BiblioLoan[] | null>(null);
   const est = estadoDe(reader);
 
   // Al cambiar de lector, el panel vuelve al modo lectura.
@@ -338,7 +342,23 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
     if (editing) setEditing(false);
     if (suspending) setSuspending(false);
     if (error) setError(null);
+    setTab('informacion');
+    setLoans(null);
   }
+
+  // Préstamos del lector: fetch perezoso al abrir la tab (F2).
+  useEffect(() => {
+    if (tab !== 'prestamos' || loans !== null) return;
+    const ctl = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`/app/biblioteca/api/readers/${reader.userId}/loans`, { cache: 'no-store', signal: ctl.signal });
+        if (res.ok) setLoans(((await res.json()) as { loans: BiblioLoan[] }).loans);
+        else setLoans([]);
+      } catch { /* abort */ }
+    })();
+    return () => ctl.abort();
+  }, [tab, loans, reader.userId]);
 
   async function suspend(suspended: boolean, reason: string) {
     setBusy(true); setError(null);
@@ -380,15 +400,20 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
         </span>
       </div>
 
-      {/* tabs (Préstamos/Reservas/Historial llegan con F2) */}
-      <div className="mt-3.5 flex gap-1 border-b border-line text-[12.5px]">
-        <span className="border-b-2 border-brand px-2.5 py-1.5 font-bold text-brand">Información</span>
-        {['Préstamos', 'Reservas', 'Historial'].map((t) => (
-          <span key={t} className="cursor-default px-2.5 py-1.5 font-medium text-faint/70" title="Llega con Circulación (F2)">{t}</span>
+      {/* tabs: Información / Préstamos reales (F2) / Reservas (Pronto) */}
+      <div className="mt-3.5 flex gap-1 border-b border-line text-[12.5px]" role="tablist" aria-label="Secciones del lector">
+        {(['informacion', 'prestamos'] as const).map((t) => (
+          <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
+            className={cn('px-2.5 py-1.5', focusRing, tab === t ? 'border-b-2 border-brand font-bold text-brand' : 'font-medium text-muted hover:text-ink')}>
+            {t === 'informacion' ? 'Información' : 'Préstamos'}
+          </button>
         ))}
+        <span className="cursor-default px-2.5 py-1.5 font-medium text-faint/70" title="Llega con la fase de reservas">Reservas · Pronto</span>
       </div>
 
-      {editing ? (
+      {tab === 'prestamos' ? (
+        <ReaderLoans loans={loans} />
+      ) : editing ? (
         <ProfileEditForm reader={reader} busy={busy} setBusy={setBusy} setError={setError}
           onSaved={(r) => { onUpdated(r); setEditing(false); }} onCancel={() => setEditing(false)} />
       ) : (
@@ -436,6 +461,44 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
         </>
       )}
     </Card>
+  );
+}
+
+function ReaderLoans({ loans }: { loans: BiblioLoan[] | null }) {
+  if (loans === null) {
+    return <p className="mt-4 flex items-center gap-2 text-[12.5px] text-muted"><Loader2 size={14} className="animate-spin" /> Cargando préstamos…</p>;
+  }
+  if (loans.length === 0) {
+    return <p className="mt-4 text-[12.5px] leading-relaxed text-muted">Sin préstamos registrados todavía. Se prestan desde Circulación con los dos escaneos.</p>;
+  }
+  const abiertos = loans.filter((l) => !l.returnedAt);
+  const devueltos = loans.filter((l) => l.returnedAt);
+  const Row = ({ l }: { l: BiblioLoan }) => (
+    <li className="flex items-center gap-2.5 py-2">
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[12.5px] font-bold leading-tight text-ink">{l.title}</span>
+        <span className="block font-mono text-[10.5px] text-faint tabular-nums">
+          {l.inventoryCode} · {l.returnedAt ? `devuelto ${fmtDate(l.returnedAt)}` : `vence ${fmtDate(l.dueAt)}`}
+        </span>
+      </span>
+      <LoanStatusChip loan={l} />
+    </li>
+  );
+  return (
+    <div className="mt-3">
+      {abiertos.length > 0 ? (
+        <>
+          <h3 className="text-[11.5px] font-bold uppercase tracking-[0.05em] text-faint">En curso ({abiertos.length})</h3>
+          <ul className="divide-y divide-line/60">{abiertos.map((l) => <Row key={l.id} l={l} />)}</ul>
+        </>
+      ) : null}
+      {devueltos.length > 0 ? (
+        <>
+          <h3 className="mt-3 text-[11.5px] font-bold uppercase tracking-[0.05em] text-faint">Devueltos</h3>
+          <ul className="divide-y divide-line/60">{devueltos.slice(0, 10).map((l) => <Row key={l.id} l={l} />)}</ul>
+        </>
+      ) : null}
+    </div>
   );
 }
 

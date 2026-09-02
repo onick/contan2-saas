@@ -64,10 +64,10 @@ export default async function BibliotecaInicioPage() {
   const quick = [
     { label: 'Buscar en el catálogo', href: '/app/biblioteca/catalogo', Icon: Search },
     { label: 'Nuevo título', href: '/app/biblioteca/titulos/nuevo', Icon: Plus },
+    { label: 'Nuevo préstamo', href: '/app/biblioteca/circulacion', Icon: ArrowLeftRight },
+    { label: 'Devolución', href: '/app/biblioteca/circulacion', Icon: RotateCcw },
   ];
   const soon = [
-    { label: 'Nuevo préstamo', Icon: ArrowLeftRight },
-    { label: 'Devolución', Icon: RotateCcw },
     { label: 'Nueva reserva', Icon: Bookmark },
   ];
 
@@ -180,16 +180,15 @@ export default async function BibliotecaInicioPage() {
                 ))}
               </ul>
             )}
-            <p className="mt-3 text-[11.5px] leading-relaxed text-faint">Los préstamos vencidos y reservas por vencer llegan con Circulación (F2).</p>
+            <p className="mt-3 text-[11.5px] leading-relaxed text-faint">Los vencidos de circulación viven en <a className="font-bold text-brand hover:underline" href="/app/biblioteca/circulacion">Circulación</a>.</p>
           </Card>
 
           {/* qué sigue (honesto) */}
           <Card padding="lg" className="app-reveal mt-4" style={{ animationDelay: '180ms' }}>
             <h2 className="flex items-center gap-1.5 text-[15.5px] font-bold tracking-tight text-ink"><Sparkles size={15} className="text-brand" /> Próximo en la biblioteca</h2>
             <ul className="mt-3 space-y-3 text-[13px] leading-relaxed text-muted">
-              <li><b className="text-ink">Circulación (F2):</b> prestar y devolver en dos escaneos, préstamos recientes y vencidos acá en el Inicio.</li>
-              <li><b className="text-ink">Lectores:</b> perfil sobre el padrón — el mismo carné QR del centro.</li>
-              <li><b className="text-ink">Reservas y alertas:</b> cola de espera y avisos por correo.</li>
+              <li><b className="text-ink">Reservas:</b> cola de espera por título y avisos por correo.</li>
+              <li><b className="text-ink">Inventario:</b> conteo por estante con el lector de códigos.</li>
               <li><b className="text-ink">Reportes:</b> préstamos por mes, más prestados, uso por colección.</li>
             </ul>
           </Card>
