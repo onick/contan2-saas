@@ -172,7 +172,15 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
       const subjects = consolidateCategories(subjectRows.rows.map((s) => ({ category: s.subject, activities: Number(s.n) })))
         .map((c) => ({ subject: c.category, count: c.activities }))
         .sort((a, b) => b.count - a.count || a.subject.localeCompare(b.subject, 'es'));
+      const itemsRow = await db.selectFrom('biblio_items')
+        .select([
+          sql<string>`count(*) filter (where retired_at is null)`.as('total'),
+          sql<string>`count(*) filter (where retired_at is null and physical_status in (${sql.join(ACTIVE_STATUSES)}))`.as('active'),
+        ])
+        .where('organization_id', '=', r.g.orgId)
+        .executeTakeFirst();
       const body: BiblioFacetsResponse = {
+        items: { total: Number(itemsRow?.total ?? 0), active: Number(itemsRow?.active ?? 0) },
         total,
         kinds: kinds.map((k) => ({ kind: k.kind as BiblioFacetsResponse['kinds'][number]['kind'], count: Number(k.n) }))
           .sort((a, b) => b.count - a.count),

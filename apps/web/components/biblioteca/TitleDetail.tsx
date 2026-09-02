@@ -58,7 +58,7 @@ export function TitleDetail({ initial, sites }: { initial: BiblioTitleDetailResp
       <div className="app-reveal">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
           <div className="min-w-0">
-            <Link href="/app/biblioteca" className={cn('inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted hover:text-ink', focusRing)}>
+            <Link href="/app/biblioteca/catalogo" className={cn('inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted hover:text-ink', focusRing)}>
               <ArrowLeft size={14} /> Catálogo
             </Link>
             <h1 className="mt-1 text-[24px] font-extrabold leading-tight tracking-tight text-ink">{t.title}</h1>

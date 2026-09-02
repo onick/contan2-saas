@@ -226,7 +226,7 @@ function TitleCoverCard({ t }: { t: BiblioTitle }) {
   const { Icon } = KIND_META[t.kind] ?? KIND_META.libro;
   const agotado = t.itemsTotal > 0 && t.itemsActive === 0;
   return (
-    <Link href={`/app/biblioteca/${t.id}`} className={cn('group block min-w-0 rounded-xl', focusRing)}>
+    <Link href={`/app/biblioteca/titulos/${t.id}`} className={cn('group block min-w-0 rounded-xl', focusRing)}>
       <span className="relative block aspect-[2/3] overflow-hidden rounded-xl border border-line bg-surface shadow-sm transition-transform duration-150 group-hover:-translate-y-1 group-hover:shadow-md">
         {t.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -255,7 +255,7 @@ function TitleRow({ t }: { t: BiblioTitle }) {
   const { label, Icon } = KIND_META[t.kind] ?? KIND_META.libro;
   return (
     <li>
-      <Link href={`/app/biblioteca/${t.id}`} className={cn('flex items-center gap-3.5 px-4 py-3 hover:bg-surface-container/50', focusRing)}>
+      <Link href={`/app/biblioteca/titulos/${t.id}`} className={cn('flex items-center gap-3.5 px-4 py-3 hover:bg-surface-container/50', focusRing)}>
         <span className="grid h-11 w-9 flex-none place-items-center overflow-hidden rounded-md bg-[#e7f0f7] text-[#1a6194]">
           {t.coverUrl
             // eslint-disable-next-line @next/next/no-img-element
@@ -344,7 +344,7 @@ function NewTitleDrawer({ open, onClose, sitesCount }: { open: boolean; onClose:
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j?.title?.id) { setError(j.error ?? 'No se pudo crear el título.'); setBusy(false); return; }
-      router.push(`/app/biblioteca/${j.title.id}`);
+      router.push(`/app/biblioteca/titulos/${j.title.id}`);
     } catch { setError('Problema de red. Reintentá.'); setBusy(false); }
   }
 
