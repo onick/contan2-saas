@@ -435,6 +435,15 @@ export interface BiblioTitlesTable {
   description: string | null;
   cover_url: string | null;
   isbn_autofilled: DefaultedBool;
+  // Extras bibliográficos (mig 051): información física + adquisición.
+  pages: number | null;
+  country: string | null;
+  physical_format: string | null;
+  binding: string | null;
+  dimensions: string | null;
+  audience: string | null;
+  acquisition_source: string | null;
+  acquired_on: ColumnType<Date | string | null, string | null, string | null>;
   created_at: CreatedAt;
   updated_at: UpdatedAt;
   deleted_at: NullableTs;

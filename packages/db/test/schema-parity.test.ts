@@ -106,6 +106,9 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'id', 'organization_id', 'kind', 'isbn', 'issn', 'title', 'subtitle', 'authors',
     'publisher', 'year', 'edition', 'language', 'subjects', 'keywords', 'dewey',
     'call_number', 'description', 'cover_url', 'isbn_autofilled',
+    // extras bibliográficos (mig 051)
+    'pages', 'country', 'physical_format', 'binding', 'dimensions', 'audience',
+    'acquisition_source', 'acquired_on',
     'created_at', 'updated_at', 'deleted_at',
   ],
   biblio_items: [

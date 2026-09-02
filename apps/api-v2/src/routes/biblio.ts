@@ -27,6 +27,8 @@ import { lookupIsbn } from '../services/biblio-isbn.js';
 import { normCategory, normCategorySql, consolidateCategories } from '../services/category-norm.js';
 import { buildBiblioExportWorkbook } from '../services/biblio-export.js';
 import { safeFilename } from '../services/csv.js';
+import { assertAllowedImage, processCover, persistCover, CoverError } from '../services/cover-upload.js';
+import { ensureWritableRoot, StorageError } from '../storage.js';
 
 // Rol 'biblioteca' (mig 049) + gestores. El resto → 403 (módulo confinado).
 const BIBLIO_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'biblioteca']);
@@ -60,6 +62,9 @@ interface TitleRow {
   edition: string | null; language: string | null; subjects: string[]; keywords: string[];
   dewey: string | null; call_number: string | null; description: string | null;
   cover_url: string | null; isbn_autofilled: boolean; created_at: Date | string;
+  pages: number | null; country: string | null; physical_format: string | null;
+  binding: string | null; dimensions: string | null; audience: string | null;
+  acquisition_source: string | null; acquired_on: Date | string | null;
   itemsTotal: string | number; itemsActive: string | number; siteNames: string[] | null;
 }
 function toTitle(r: TitleRow): BiblioTitle {
@@ -74,6 +79,10 @@ function toTitle(r: TitleRow): BiblioTitle {
     createdAt: new Date(r.created_at as string).toISOString(),
     itemsTotal: Number(r.itemsTotal), itemsActive: Number(r.itemsActive),
     siteNames: r.siteNames ?? [],
+    pages: r.pages, country: r.country, physicalFormat: r.physical_format,
+    binding: r.binding, dimensions: r.dimensions, audience: r.audience,
+    acquisitionSource: r.acquisition_source,
+    acquiredOn: r.acquired_on ? new Date(r.acquired_on as string).toISOString().slice(0, 10) : null,
   };
 }
 
@@ -97,6 +106,14 @@ function titleCols(p: Partial<BiblioTitleInput>) {
   if (p.description !== undefined) out.description = p.description?.trim() || null;
   if (p.coverUrl !== undefined) out.cover_url = p.coverUrl?.trim() || null;
   if (p.isbnAutofilled !== undefined) out.isbn_autofilled = p.isbnAutofilled;
+  if (p.pages !== undefined) out.pages = p.pages ?? null;
+  if (p.country !== undefined) out.country = p.country?.trim() || null;
+  if (p.physicalFormat !== undefined) out.physical_format = p.physicalFormat?.trim() || null;
+  if (p.binding !== undefined) out.binding = p.binding?.trim() || null;
+  if (p.dimensions !== undefined) out.dimensions = p.dimensions?.trim() || null;
+  if (p.audience !== undefined) out.audience = p.audience?.trim() || null;
+  if (p.acquisitionSource !== undefined) out.acquisition_source = p.acquisitionSource?.trim() || null;
+  if (p.acquiredOn !== undefined) out.acquired_on = p.acquiredOn ?? null;
   return out;
 }
 
@@ -421,6 +438,75 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
   });
 
   // ── Ejemplares ─────────────────────────────────────────────────────────────
+  // ── Portada del título (multipart, magic bytes + sharp → WebP) ────────────
+  // Mismo pipeline que las portadas de actividades: validación real, escritura
+  // atómica con rollback, borra la portada v2 anterior solo tras el éxito.
+  app.post('/biblio/titles/:id/cover', async (req: FastifyRequest, reply) => {
+    const r = await gate(req, reply); if (!r.ok) return r.body;
+    return withTenant(getDb(), r.g.orgId, async (db) => {
+      const id = (req.params as { id: string }).id;
+      const existing = await db.selectFrom('biblio_titles')
+        .select(['id', 'title', 'cover_url'])
+        .where('organization_id', '=', r.g.orgId).where('id', '=', id)
+        .where('deleted_at', 'is', null)
+        .executeTakeFirst();
+      if (!existing) { reply.code(404); return { error: 'Título no encontrado.' }; }
+
+      // Multipart: EXACTAMENTE un archivo (tope global 5MB del plugin → 413).
+      let buf: Buffer | undefined; let fileCount = 0; let oversize = false; let parseErr = false;
+      try {
+        for await (const part of req.parts()) {
+          if (part.type !== 'file') continue;
+          fileCount += 1;
+          if (fileCount > 1) break;
+          buf = await part.toBuffer();
+          if (part.file.truncated) oversize = true;
+        }
+      } catch (e) {
+        if ((e as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') oversize = true;
+        else parseErr = true;
+      }
+      if (parseErr) { reply.code(400); return { error: 'Carga de archivo inválida.' }; }
+      if (fileCount > 1) { reply.code(400); return { error: 'Subí exactamente un archivo.' }; }
+      if (oversize) { reply.code(413); return { error: 'La imagen supera el máximo de 5 MB.' }; }
+      if (fileCount === 0 || !buf) { reply.code(400); return { error: 'Se requiere un archivo de portada.' }; }
+
+      let processed: { data: Buffer };
+      try {
+        assertAllowedImage(buf);
+        processed = await processCover(buf);
+      } catch (e) {
+        reply.code(e instanceof CoverError && e.code === 'unsupported_type' ? 415 : 400);
+        return { error: e instanceof Error ? e.message : 'Imagen inválida.' };
+      }
+
+      let root: string;
+      try { root = await ensureWritableRoot(); }
+      catch (e) { req.log.error({ err: e }, 'uploads dir no escribible (biblio cover)'); reply.code(500); return { error: 'Almacenamiento de portadas no disponible.' }; }
+
+      try {
+        await persistCover({
+          root,
+          data: processed.data,
+          oldImageUrl: existing.cover_url,
+          update: (url) => db.updateTable('biblio_titles')
+            .set({ cover_url: url, updated_at: sql`now()` })
+            .where('organization_id', '=', r.g.orgId).where('id', '=', id)
+            .returning(['id'])
+            .executeTakeFirst(),
+        });
+        await audit(db, r.g, 'biblio.title.cover_updated', id, existing.title);
+        const title = await loadTitle(db, r.g.orgId, id);
+        reply.code(200);
+        return { title };
+      } catch (e) {
+        if (e instanceof StorageError) req.log.error({ err: e }, 'fallo de storage al guardar portada de título');
+        reply.code(500);
+        return { error: 'No se pudo guardar la portada.' };
+      }
+    });
+  });
+
   app.post('/biblio/titles/:id/items', async (req: FastifyRequest, reply) => {
     const r = await gate(req, reply); if (!r.ok) return r.body;
     const titleId = (req.params as { id: string }).id;

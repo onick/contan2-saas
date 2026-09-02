@@ -6,6 +6,10 @@ process.env.ROOT_DOMAIN = 'contan2.com';
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import sharp from 'sharp';
 import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 import { createDb, type Database } from '@contan2/db';
@@ -21,7 +25,7 @@ run('biblioteca · catálogo F1', () => {
   const stamp = Date.now();
   const slug = `bib-${stamp}`; const host = `${slug}.contan2.com`;
   const TOK = { admin: `bib-adm-${stamp}`, biblio: `bib-bib-${stamp}`, operator: `bib-ope-${stamp}` };
-  let orgId: string; let siteId: string; let titleId: string;
+  let orgId: string; let siteId: string; let titleId: string; let uploadsDir: string;
 
   const req = (method: 'GET' | 'POST' | 'PATCH', url: string, token: string | null, body?: unknown) =>
     app.inject({ method, url, headers: { host, 'content-type': 'application/json', ...(token ? { cookie: `contan2_session=${token}` } : {}) }, ...(body !== undefined ? { payload: body } : {}) });
@@ -36,11 +40,15 @@ run('biblioteca · catálogo F1', () => {
     await mkStaff(TOK.admin, 'admin');
     await mkStaff(TOK.biblio, 'biblioteca'); // rol nuevo (mig 049)
     await mkStaff(TOK.operator, 'operator');
+    uploadsDir = await mkdtemp(path.join(tmpdir(), 'biblio-uploads-'));
+    process.env.UPLOADS_DIR = uploadsDir;
     app = buildApp(); await app.ready();
   });
 
   afterAll(async () => {
     if (app) await app.close();
+    delete process.env.UPLOADS_DIR;
+    await rm(uploadsDir, { recursive: true, force: true });
     await db.deleteFrom('biblio_items').where('organization_id', '=', orgId).execute();
     await db.deleteFrom('biblio_titles').where('organization_id', '=', orgId).execute();
     await db.deleteFrom('biblio_sites').where('organization_id', '=', orgId).execute();
@@ -227,6 +235,52 @@ run('biblioteca · catálogo F1', () => {
     expect(r.rawPayload.subarray(0, 2).toString()).toBe('PK'); // zip real, no JSON
     const audit = await db.selectFrom('tenant_audit_log').select('action')
       .where('organization_id', '=', orgId).where('action', '=', 'biblio.exported').executeTakeFirst();
+    expect(audit).toBeTruthy();
+  });
+
+  it('extras bibliográficos (mig 051): crear con formato/páginas/adquisición y leerlos', async () => {
+    const r = await req('POST', '/api/v2/biblio/titles', TOK.biblio, {
+      kind: 'libro', title: 'Ficha completa', authors: ['A. Autor'], subjects: [], keywords: [],
+      pages: 417, country: 'República Dominicana', physicalFormat: 'Impreso', binding: 'Rústica',
+      dimensions: '21 cm', audience: 'Adultos', acquisitionSource: 'Donación', acquiredOn: '2026-08-15',
+    });
+    expect(r.statusCode).toBe(201);
+    expect(r.json().title).toMatchObject({
+      pages: 417, country: 'República Dominicana', physicalFormat: 'Impreso', binding: 'Rústica',
+      dimensions: '21 cm', audience: 'Adultos', acquisitionSource: 'Donación', acquiredOn: '2026-08-15',
+    });
+  });
+
+  it('portada del título: multipart real → WebP servido en /uploads; RBAC y validación', async () => {
+    const png = await sharp({ create: { width: 120, height: 180, channels: 3, background: { r: 230, g: 81, b: 0 } } }).png().toBuffer();
+    const boundary = '----bibcov' + randomUUID().replace(/-/g, '');
+    const payload = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="cover"; filename="tapa.png"\r\nContent-Type: image/png\r\n\r\n`),
+      png, Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const post = (token: string, body: Buffer, ct: string) => app.inject({
+      method: 'POST', url: `/api/v2/biblio/titles/${titleId}/cover`,
+      headers: { host, 'content-type': ct, cookie: `contan2_session=${token}` }, payload: body,
+    });
+
+    expect((await post(TOK.operator, payload, `multipart/form-data; boundary=${boundary}`)).statusCode).toBe(403);
+    // Archivo no-imagen → 415 (magic bytes, no extensión).
+    const fakeBoundary = '----bibfake' + randomUUID().replace(/-/g, '');
+    const fake = Buffer.concat([
+      Buffer.from(`--${fakeBoundary}\r\nContent-Disposition: form-data; name="cover"; filename="x.png"\r\nContent-Type: image/png\r\n\r\nno soy imagen`),
+      Buffer.from(`\r\n--${fakeBoundary}--\r\n`),
+    ]);
+    expect((await post(TOK.biblio, fake, `multipart/form-data; boundary=${fakeBoundary}`)).statusCode).toBe(415);
+
+    const ok = await post(TOK.biblio, payload, `multipart/form-data; boundary=${boundary}`);
+    expect(ok.statusCode).toBe(200);
+    const coverUrl: string = ok.json().title.coverUrl;
+    expect(coverUrl).toMatch(/^\/uploads\//);
+    const served = await app.inject({ method: 'GET', url: coverUrl, headers: { host } });
+    expect(served.statusCode).toBe(200);
+    expect(served.headers['content-type']).toContain('image/webp');
+    const audit = await db.selectFrom('tenant_audit_log').select('action')
+      .where('organization_id', '=', orgId).where('action', '=', 'biblio.title.cover_updated').executeTakeFirst();
     expect(audit).toBeTruthy();
   });
 });

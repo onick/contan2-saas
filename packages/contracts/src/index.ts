@@ -1918,6 +1918,15 @@ export const BiblioTitleInputSchema = z.object({
   description: z.string().trim().max(2000).optional().nullable(),
   coverUrl: z.string().trim().url().max(500).optional().nullable(),
   isbnAutofilled: z.boolean().optional(),
+  // Extras bibliográficos (mig 051)
+  pages: z.number().int().min(1).max(100_000).optional().nullable(),
+  country: z.string().trim().max(80).optional().nullable(),
+  physicalFormat: z.string().trim().max(40).optional().nullable(),
+  binding: z.string().trim().max(40).optional().nullable(),
+  dimensions: z.string().trim().max(60).optional().nullable(),
+  audience: z.string().trim().max(40).optional().nullable(),
+  acquisitionSource: z.string().trim().max(40).optional().nullable(),
+  acquiredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
 }).strict();
 export type BiblioTitleInput = z.infer<typeof BiblioTitleInputSchema>;
 export const BiblioTitleUpdateSchema = BiblioTitleInputSchema.partial().strict();
@@ -1945,6 +1954,14 @@ export const BiblioTitleSchema = z.object({
   itemsTotal: z.number().int(),   // ejemplares no dados de baja
   itemsActive: z.number().int(),  // en estado físico prestable (bueno/deteriorado)
   siteNames: z.array(z.string()), // sitios con ejemplares vivos (Ubicación)
+  pages: z.number().int().nullable(),
+  country: z.string().nullable(),
+  physicalFormat: z.string().nullable(),
+  binding: z.string().nullable(),
+  dimensions: z.string().nullable(),
+  audience: z.string().nullable(),
+  acquisitionSource: z.string().nullable(),
+  acquiredOn: z.string().nullable(), // YYYY-MM-DD
 });
 export type BiblioTitle = z.infer<typeof BiblioTitleSchema>;
 

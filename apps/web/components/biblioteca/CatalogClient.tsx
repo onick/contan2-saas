@@ -11,16 +11,15 @@
 // muestra como "Pronto" honesto. Server manda la primera página; los filtros
 // re-fetchean vía el BFF.
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createPortal } from 'react-dom';
 import {
-  Library, Search, Plus, X, Loader2, Check, BookOpen, Newspaper, GraduationCap, Film, FileText, ScrollText, Sparkles,
+  Library, Search, Plus, Loader2, BookOpen, Newspaper, GraduationCap, Film, FileText, ScrollText,
   LayoutGrid, Table2, ScanBarcode, Download, Printer, Upload, Eye, ChevronLeft, ChevronRight, BarChart3, MapPin,
 } from 'lucide-react';
-import type { BiblioTitlesListResponse, BiblioTitle, BiblioSite, BiblioKind, BiblioIsbnLookupResponse, BiblioFacetsResponse } from '@contan2/contracts';
-import { Card, Button, IconButton, Field, Chip, EmptyState, SectionHeader, cn, focusRing, useDrawerLifecycle } from '../ui';
+import type { BiblioTitlesListResponse, BiblioTitle, BiblioSite, BiblioKind, BiblioFacetsResponse } from '@contan2/contracts';
+import { Card, Button, IconButton, Chip, EmptyState, SectionHeader, cn, focusRing } from '../ui';
 
 const KIND_META: Record<BiblioKind, { label: string; Icon: typeof BookOpen }> = {
   libro: { label: 'Libro', Icon: BookOpen },
@@ -57,8 +56,8 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(false);
-  const [drawer, setDrawer] = useState(false);
   const [view, setView] = useState<'tabla' | 'tarjetas'>('tabla');
+  const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
   const first = useRef(true);
 
@@ -108,7 +107,7 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
             level={1}
             title="Catálogo"
             subtitle="Títulos y ejemplares del acervo. Un título es la obra; cada copia física es un ejemplar con su propio código."
-            actions={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nuevo título</Button>}
+            actions={<Button variant="primary" onClick={() => router.push('/app/biblioteca/titulos/nuevo')}><Plus size={16} strokeWidth={2.2} /> Nuevo título</Button>}
           />
         </div>
 
@@ -193,7 +192,7 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
                 description={data.total === 0 && !hasFilters
                   ? 'Registrá el primer título — con el ISBN, la ficha se completa sola.'
                   : 'Probá con otra parte del título, el autor o el ISBN, o quitá filtros.'}
-                action={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={15} /> Nuevo título</Button>} />
+                action={<Button variant="primary" onClick={() => router.push('/app/biblioteca/titulos/nuevo')}><Plus size={15} /> Nuevo título</Button>} />
             </Card>
           ) : view === 'tabla' ? (
             <Card padding="none" className="overflow-hidden">
@@ -264,7 +263,7 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
         <Card padding="md" className="app-reveal" style={{ animationDelay: '60ms' }}>
           <h2 className="text-[14px] font-bold tracking-tight text-ink">Acciones rápidas</h2>
           <div className="mt-2.5 flex flex-col gap-1">
-            <RailAction Icon={BookOpen} label="Nuevo título" hint="Con ISBN la ficha se completa sola" onClick={() => setDrawer(true)} />
+            <RailAction Icon={BookOpen} label="Nuevo título" hint="Con ISBN la ficha se completa sola" onClick={() => router.push('/app/biblioteca/titulos/nuevo')} />
             <RailAction Icon={ScanBarcode} label="Lectura de código" hint="El lector escribe el ISBN en la búsqueda" onClick={focusScan} />
             <RailAction Icon={Upload} label="Importar registros" hint="Desde archivo CSV o Excel" soon />
             <RailAction Icon={Printer} label="Imprimir etiquetas" hint="Códigos de barras de ejemplares" soon />
@@ -289,7 +288,6 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
         ) : null}
       </aside>
 
-      <NewTitleDrawer open={drawer} onClose={() => setDrawer(false)} sitesCount={sites.length} />
     </div>
   );
 }
@@ -409,145 +407,5 @@ function TitleCoverCard({ t }: { t: BiblioTitle }) {
       <span className="mt-1.5 block truncate text-[12.5px] font-bold leading-tight text-ink" title={t.title}>{t.title}</span>
       <span className="block truncate text-[11px] text-muted">{t.authors[0] ?? (t.year ? String(t.year) : KIND_META[t.kind]?.label ?? '')}</span>
     </Link>
-  );
-}
-
-// ── Alta de título con autofill por ISBN ─────────────────────────────────────
-function NewTitleDrawer({ open, onClose, sitesCount }: { open: boolean; onClose: () => void; sitesCount: number }) {
-  const router = useRouter();
-  const titleId = useId();
-  const [f, setF] = useState({ isbn: '', title: '', subtitle: '', authors: '', publisher: '', year: '', language: '', dewey: '', callNumber: '' });
-  const [kind, setKind] = useState<BiblioKind>('libro');
-  const [autofill, setAutofill] = useState<{ source: string } | null>(null);
-  const [coverUrl, setCoverUrl] = useState<string | null>(null);
-  const [looking, setLooking] = useState(false);
-  const [lookMsg, setLookMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const busyRef = useRef(busy); busyRef.current = busy;
-  const reset = () => { setF({ isbn: '', title: '', subtitle: '', authors: '', publisher: '', year: '', language: '', dewey: '', callNumber: '' }); setKind('libro'); setAutofill(null); setCoverUrl(null); setLookMsg(null); setError(null); };
-  const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: () => { if (!busyRef.current) onClose(); }, onClosed: reset });
-
-  async function buscarIsbn() {
-    if (!f.isbn.trim() || looking) return;
-    setLooking(true); setLookMsg(null);
-    try {
-      const res = await fetch(`/app/biblioteca/api/isbn/${encodeURIComponent(f.isbn.trim())}`, { cache: 'no-store' });
-      const j = await res.json().catch(() => null) as BiblioIsbnLookupResponse | null;
-      if (res.ok && j?.found && j.data) {
-        const d = j.data;
-        setF((prev) => ({
-          ...prev,
-          title: d.title ?? prev.title,
-          subtitle: d.subtitle ?? prev.subtitle,
-          authors: d.authors?.length ? d.authors.join(', ') : prev.authors,
-          publisher: d.publisher ?? prev.publisher,
-          year: d.year ? String(d.year) : prev.year,
-          language: d.language ?? prev.language,
-        }));
-        setCoverUrl(d.coverUrl ?? null);
-        setAutofill({ source: j.source === 'googlebooks' ? 'Google Books' : j.source === 'cache' ? 'el catálogo global' : 'OpenLibrary' });
-      } else {
-        setAutofill(null);
-        setLookMsg('No encontramos ese ISBN — completá la ficha a mano.');
-      }
-    } catch { setLookMsg('No pudimos consultar el ISBN. Completá la ficha a mano.'); }
-    finally { setLooking(false); }
-  }
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (busy) return;
-    setBusy(true); setError(null);
-    try {
-      const res = await fetch('/app/biblioteca/api/titles', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          kind,
-          isbn: f.isbn.trim() || null,
-          title: f.title.trim(),
-          subtitle: f.subtitle.trim() || null,
-          authors: f.authors.split(',').map((a) => a.trim()).filter(Boolean).slice(0, 10),
-          publisher: f.publisher.trim() || null,
-          year: f.year.trim() ? Number(f.year) : null,
-          language: f.language.trim() || null,
-          dewey: f.dewey.trim() || null,
-          callNumber: f.callNumber.trim() || null,
-          coverUrl,
-          isbnAutofilled: !!autofill,
-        }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j?.title?.id) { setError(j.error ?? 'No se pudo crear el título.'); setBusy(false); return; }
-      router.push(`/app/biblioteca/titulos/${j.title.id}`);
-    } catch { setError('Problema de red. Reintentá.'); setBusy(false); }
-  }
-
-  if (!mounted || typeof document === 'undefined') return null;
-  return createPortal(
-    <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => { if (!busy) onClose(); }}
-        className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
-      <div ref={panelRef} className={cn(
-        'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
-        'md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:h-auto md:w-full md:max-w-lg md:rounded-none md:border-l md:border-t-0',
-        'flex flex-col', closing && 'drawer-panel--closing')}>
-        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Catálogo</p>
-            <h2 id={titleId} className="mt-1 text-lg font-bold leading-tight tracking-tight text-ink">Nuevo título</h2>
-          </div>
-          <IconButton label="Cerrar" variant="outline" size="sm" onClick={onClose} disabled={busy}><X size={18} /></IconButton>
-        </header>
-
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
-          {/* ISBN primero: la ficha se llena sola (D8) */}
-          <div className="rounded-xl border border-line bg-surface-container/50 p-3.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Empezá por el ISBN (opcional)</span>
-            <div className="mt-1.5 flex gap-2">
-              <input value={f.isbn} onChange={(e) => setF({ ...f, isbn: e.target.value })} placeholder="978-…"
-                aria-label="ISBN" className={cn('min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
-              <Button type="button" variant="secondary" onClick={buscarIsbn} disabled={looking || !f.isbn.trim()}>
-                {looking ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />} Buscar
-              </Button>
-            </div>
-            {autofill ? <p className="mt-2 text-[12px] font-semibold text-success-fg">✓ Ficha completada desde {autofill.source} — revisá y ajustá lo que haga falta.</p> : null}
-            {lookMsg ? <p className="mt-2 text-[12px] text-muted">{lookMsg}</p> : null}
-          </div>
-
-          <div className="mt-4">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Tipo</span>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {KINDS.map((k) => (
-                <Button key={k} type="button" variant="pill" size="sm" selected={kind === k} onClick={() => setKind(k)}>{KIND_META[k].label}</Button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-col gap-3">
-            <Field label="Título" required value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
-            <Field label="Subtítulo (opcional)" value={f.subtitle} onChange={(e) => setF({ ...f, subtitle: e.target.value })} />
-            <Field label="Autores (separados por coma)" value={f.authors} onChange={(e) => setF({ ...f, authors: e.target.value })} placeholder="García Márquez, Gabriel" />
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Editorial" value={f.publisher} onChange={(e) => setF({ ...f, publisher: e.target.value })} />
-              <Field label="Año" inputMode="numeric" value={f.year} onChange={(e) => setF({ ...f, year: e.target.value.replace(/\D/g, '').slice(0, 4) })} />
-              <Field label="Idioma" value={f.language} onChange={(e) => setF({ ...f, language: e.target.value })} placeholder="Español" />
-              <Field label="Dewey" value={f.dewey} onChange={(e) => setF({ ...f, dewey: e.target.value })} placeholder="709.7293" />
-            </div>
-            <Field label="Signatura topográfica" value={f.callNumber} onChange={(e) => setF({ ...f, callNumber: e.target.value })} placeholder="709.7293 A347u" />
-          </div>
-
-          {error ? <p role="status" className="mt-3 rounded-lg bg-danger-bg px-3 py-2 text-[13px] font-semibold text-danger-fg">{error}</p> : null}
-          {sitesCount === 0 ? <p className="mt-3 text-[12px] text-muted">Consejo: creá los sitios físicos (Biblioteca, depósitos…) para ubicar los ejemplares.</p> : null}
-
-          <Button type="submit" variant="primary" size="lg" className="mt-4 w-full" disabled={busy || !f.title.trim()}>
-            {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} strokeWidth={2.2} />} Crear título
-          </Button>
-          <p className="mb-1 mt-2 text-center text-[12px] text-muted">Después de crearlo vas directo a la ficha para agregar sus ejemplares.</p>
-        </form>
-      </div>
-    </div>,
-    document.body,
   );
 }

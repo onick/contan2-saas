@@ -51,6 +51,11 @@ export function TitleDetail({ initial, sites }: { initial: BiblioTitleDetailResp
     ['Editorial', t.publisher], ['Año', t.year ? String(t.year) : null],
     ['Edición', t.edition], ['Idioma', t.language],
     ['Dewey', t.dewey], ['Signatura', t.callNumber],
+    // Extras bibliográficos (mig 051) — solo se muestran si están cargados.
+    ['País', t.country], ['Formato', t.physicalFormat],
+    ['Páginas', t.pages ? String(t.pages) : null], ['Dimensiones', t.dimensions],
+    ['Encuadernación', t.binding], ['Público', t.audience],
+    ['Adquisición', t.acquisitionSource && t.acquiredOn ? `${t.acquisitionSource} · ${t.acquiredOn}` : t.acquisitionSource ?? t.acquiredOn],
   ];
 
   return (

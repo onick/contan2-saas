@@ -63,7 +63,7 @@ export default async function BibliotecaInicioPage() {
 
   const quick = [
     { label: 'Buscar en el catálogo', href: '/app/biblioteca/catalogo', Icon: Search },
-    { label: 'Nuevo título', href: '/app/biblioteca/catalogo', Icon: Plus },
+    { label: 'Nuevo título', href: '/app/biblioteca/titulos/nuevo', Icon: Plus },
   ];
   const soon = [
     { label: 'Nuevo préstamo', Icon: ArrowLeftRight },
