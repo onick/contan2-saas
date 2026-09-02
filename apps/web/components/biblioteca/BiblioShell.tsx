@@ -17,7 +17,15 @@ import {
 } from 'lucide-react';
 import type { BrandingOrg } from '../../lib/branding/theme';
 import { BrandChip } from '../shell/BrandMark';
+import { LogoutButton } from '../shell/LogoutButton';
 import { cn, focusRing } from '../ui';
+import { Search, Bell } from 'lucide-react';
+
+const ROLE_LABEL: Record<string, string> = {
+  biblioteca: 'Equipo de biblioteca', owner: 'Propietario', admin: 'Administración',
+  operator: 'Operación', consulta: 'Consulta', puerta: 'Puerta', protocolo: 'Protocolo',
+};
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '?';
 
 interface BiblioNavItem { key: string; label: string; href: string; Icon: LucideIcon; soon?: boolean }
 
@@ -40,7 +48,9 @@ function activeKeyFor(pathname: string): string {
   return '';
 }
 
-export function BiblioShell({ branding, children }: { branding: BrandingOrg; children: ReactNode }) {
+export interface BiblioStaff { fullName: string; role: string }
+
+export function BiblioShell({ branding, staff, children }: { branding: BrandingOrg; staff: BiblioStaff | null; children: ReactNode }) {
   const pathname = usePathname() ?? '';
   const active = activeKeyFor(pathname);
 
@@ -80,6 +90,16 @@ export function BiblioShell({ branding, children }: { branding: BrandingOrg; chi
         </nav>
 
         <div className="border-t border-line p-3">
+          {staff ? (
+            <div className="mb-1.5 flex items-center gap-2.5 rounded-xl bg-surface-container/70 px-3 py-2.5">
+              <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[13px] font-extrabold text-brand">{initials(staff.fullName)}</span>
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] font-bold leading-tight text-ink">{staff.fullName}</span>
+                <span className="block truncate text-[11px] text-faint">{ROLE_LABEL[staff.role] ?? staff.role}</span>
+              </span>
+            </div>
+          ) : null}
+          <LogoutButton />
           <Link href="/app" className={cn('flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold text-muted hover:bg-surface-container hover:text-ink', focusRing)}>
             <ArrowLeft size={15} strokeWidth={2} /> Volver al panel
           </Link>
@@ -107,6 +127,19 @@ export function BiblioShell({ branding, children }: { branding: BrandingOrg; chi
           </nav>
         </div>
 
+        <div className="sticky top-0 z-30 hidden items-center gap-3 border-b border-line bg-surface/95 px-7 py-3 backdrop-blur lg:flex">
+          {/* Búsqueda global del catálogo: GET simple → /catalogo?q= */}
+          <form action="/app/biblioteca/catalogo" method="get" className="max-w-md flex-1">
+            <label className={cn('flex items-center gap-2.5 rounded-xl border border-line bg-page/60 px-3.5 py-2', focusRing)}>
+              <Search size={15} className="text-faint" aria-hidden="true" />
+              <input name="q" placeholder="Buscar en el catálogo…" aria-label="Buscar en el catálogo"
+                className="w-full bg-transparent text-[13.5px] text-ink outline-none placeholder:text-faint" />
+            </label>
+          </form>
+          <span className="ml-auto grid h-9 w-9 cursor-default place-items-center rounded-xl text-faint/60" title="Las alertas llegan con Circulación (F2)">
+            <Bell size={17} strokeWidth={1.9} />
+          </span>
+        </div>
         <main className="p-5 md:p-7 xl:p-8">
           <div className="mx-auto w-full max-w-[1500px]">{children}</div>
         </main>

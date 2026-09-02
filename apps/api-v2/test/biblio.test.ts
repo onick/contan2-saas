@@ -187,4 +187,46 @@ run('biblioteca · catálogo F1', () => {
     expect(r2.found).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2); // negativo cacheado
   });
+
+  it('catálogo: siteNames por título + filtros por ubicación y disponibilidad', async () => {
+    // 'Otra novela' recibe un ejemplar BUENO ubicado en Biblioteca.
+    const otra = (await req('GET', `/api/v2/biblio/titles?q=${encodeURIComponent('otra novela')}`, TOK.admin)).json().titles[0];
+    expect((await req('POST', `/api/v2/biblio/titles/${otra.id}/items`, TOK.biblio,
+      { inventoryCode: 'OTR-000001', siteId, physicalStatus: 'bueno', loanable: true })).statusCode).toBe(201);
+
+    const refreshed = (await req('GET', `/api/v2/biblio/titles?q=${encodeURIComponent('otra novela')}`, TOK.admin)).json().titles[0];
+    expect(refreshed.siteNames).toEqual(['Biblioteca']);
+    // 'Cien años': su único ejemplar vivo (reparación) NO tiene sitio → sin ubicación.
+    const cien = (await req('GET', '/api/v2/biblio/titles?q=cien%20a', TOK.admin)).json().titles[0];
+    expect(cien.siteNames).toEqual([]);
+
+    // Filtro por ubicación: solo títulos con ejemplares vivos en ese sitio.
+    const bySite = (await req('GET', `/api/v2/biblio/titles?siteId=${siteId}`, TOK.admin)).json();
+    expect(bySite.titles.map((t: { title: string }) => t.title)).toEqual(['Otra novela']);
+
+    // Solo disponibles: 'Cien años' (reparación) y la revista (0 ejemplares) quedan afuera.
+    const disp = (await req('GET', '/api/v2/biblio/titles?disponible=1', TOK.admin)).json();
+    expect(disp.titles.map((t: { title: string }) => t.title)).toEqual(['Otra novela']);
+  });
+
+  it('overview: alertas reales del acervo + actividad reciente', async () => {
+    const o = (await req('GET', '/api/v2/biblio/overview', TOK.biblio)).json();
+    expect(o.alerts.titlesWithoutItems).toBe(1);   // la revista
+    expect(o.alerts.itemsNeedingCare).toBe(1);     // BIB-000002 en reparación (la baja no cuenta)
+    expect(o.alerts.itemsWithoutLocation).toBe(1); // BIB-000002 sin sitio
+    expect(o.activity.length).toBeGreaterThan(0);
+    expect(o.activity[0]).toMatchObject({ action: expect.stringMatching(/^biblio\./) });
+  });
+
+  it('export .xlsx: respeta filtros, RBAC y audita la descarga', async () => {
+    expect((await req('GET', '/api/v2/biblio/export.xlsx', TOK.operator)).statusCode).toBe(403);
+    const r = await req('GET', '/api/v2/biblio/export.xlsx?disponible=1', TOK.biblio);
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['content-type']).toContain('spreadsheetml');
+    expect(r.headers['content-disposition']).toContain('catalogo_biblioteca.xlsx');
+    expect(r.rawPayload.subarray(0, 2).toString()).toBe('PK'); // zip real, no JSON
+    const audit = await db.selectFrom('tenant_audit_log').select('action')
+      .where('organization_id', '=', orgId).where('action', '=', 'biblio.exported').executeTakeFirst();
+    expect(audit).toBeTruthy();
+  });
 });

@@ -4,14 +4,16 @@
 
 import {
   BiblioTitlesListResponseSchema, BiblioTitleDetailResponseSchema, BiblioSitesResponseSchema,
-  BiblioFacetsResponseSchema,
+  BiblioFacetsResponseSchema, BiblioOverviewResponseSchema,
   type BiblioTitlesListResponse, type BiblioTitleDetailResponse, type BiblioSitesResponse,
-  type BiblioFacetsResponse,
+  type BiblioFacetsResponse, type BiblioOverviewResponse,
 } from '@contan2/contracts';
 import { apiGet } from './client';
 
-export async function getBiblioTitles(page = 1): Promise<BiblioTitlesListResponse | null> {
-  try { return await apiGet(`/api/v2/biblio/titles?page=${page}`, BiblioTitlesListResponseSchema); }
+export async function getBiblioTitles(page = 1, q = ''): Promise<BiblioTitlesListResponse | null> {
+  const p = new URLSearchParams({ page: String(page) });
+  if (q.trim()) p.set('q', q.trim());
+  try { return await apiGet(`/api/v2/biblio/titles?${p.toString()}`, BiblioTitlesListResponseSchema); }
   catch { return null; }
 }
 export async function getBiblioTitleDetail(id: string): Promise<BiblioTitleDetailResponse | null> {
@@ -24,5 +26,9 @@ export async function getBiblioSites(): Promise<BiblioSitesResponse | null> {
 }
 export async function getBiblioFacets(): Promise<BiblioFacetsResponse | null> {
   try { return await apiGet('/api/v2/biblio/facets', BiblioFacetsResponseSchema); }
+  catch { return null; }
+}
+export async function getBiblioOverview(): Promise<BiblioOverviewResponse | null> {
+  try { return await apiGet('/api/v2/biblio/overview', BiblioOverviewResponseSchema); }
   catch { return null; }
 }

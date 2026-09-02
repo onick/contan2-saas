@@ -1944,6 +1944,7 @@ export const BiblioTitleSchema = z.object({
   createdAt: z.string(),
   itemsTotal: z.number().int(),   // ejemplares no dados de baja
   itemsActive: z.number().int(),  // en estado físico prestable (bueno/deteriorado)
+  siteNames: z.array(z.string()), // sitios con ejemplares vivos (Ubicación)
 });
 export type BiblioTitle = z.infer<typeof BiblioTitleSchema>;
 
@@ -2003,6 +2004,21 @@ export const BiblioFacetsResponseSchema = z.object({
   items: z.object({ total: z.number().int(), active: z.number().int() }).optional(),
 });
 export type BiblioFacetsResponse = z.infer<typeof BiblioFacetsResponseSchema>;
+
+// ── Overview del Inicio de Biblioteca (alertas del acervo + actividad) ──────
+export const BiblioOverviewResponseSchema = z.object({
+  alerts: z.object({
+    titlesWithoutItems: z.number().int(),   // títulos sin ejemplares vivos
+    itemsNeedingCare: z.number().int(),     // en reparación o deteriorados
+    itemsWithoutLocation: z.number().int(), // activos sin sitio asignado
+  }),
+  activity: z.array(z.object({
+    action: z.string(), // biblio.title.created · biblio.item.created · …
+    label: z.string(),
+    at: z.string(),
+  })).max(12),
+});
+export type BiblioOverviewResponse = z.infer<typeof BiblioOverviewResponseSchema>;
 
 // ── Autofill por ISBN (D8) ───────────────────────────────────────────────────
 export const BiblioIsbnLookupResponseSchema = z.object({

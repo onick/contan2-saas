@@ -19,12 +19,14 @@ import {
   BiblioItemInputSchema, BiblioItemUpdateSchema,
   type BiblioSitesResponse, type BiblioTitlesListResponse, type BiblioTitleDetailResponse,
   type BiblioTitle, type BiblioItem, type BiblioIsbnLookupResponse, type BiblioTitleInput,
-  type BiblioFacetsResponse,
+  type BiblioFacetsResponse, type BiblioOverviewResponse,
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { lookupIsbn } from '../services/biblio-isbn.js';
 import { normCategory, normCategorySql, consolidateCategories } from '../services/category-norm.js';
+import { buildBiblioExportWorkbook } from '../services/biblio-export.js';
+import { safeFilename } from '../services/csv.js';
 
 // Rol 'biblioteca' (mig 049) + gestores. El resto → 403 (módulo confinado).
 const BIBLIO_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'biblioteca']);
@@ -34,8 +36,14 @@ const isbnLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpo
 
 const PAGE_SIZE_MAX = 50;
 const ACTIVE_STATUSES = ['bueno', 'deteriorado'];
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const EXPORT_MAX_ROWS = 10_000;
+const KIND_LABELS: Record<string, string> = {
+  libro: 'Libros', revista: 'Revistas', periodico: 'Periódicos',
+  tesis: 'Tesis', audiovisual: 'Audiovisuales', documento: 'Documentos',
+};
 
-type Guarded = { orgId: string; staffId: string; staffRole: string };
+type Guarded = { orgId: string; staffId: string; staffRole: string; orgName: string; primaryColor: string | null };
 
 async function audit(db: DbClient, g: Guarded, action: string, targetId: string, label: string, metadata: Record<string, unknown> = {}) {
   await db.insertInto('tenant_audit_log').values({
@@ -52,7 +60,7 @@ interface TitleRow {
   edition: string | null; language: string | null; subjects: string[]; keywords: string[];
   dewey: string | null; call_number: string | null; description: string | null;
   cover_url: string | null; isbn_autofilled: boolean; created_at: Date | string;
-  itemsTotal: string | number; itemsActive: string | number;
+  itemsTotal: string | number; itemsActive: string | number; siteNames: string[] | null;
 }
 function toTitle(r: TitleRow): BiblioTitle {
   return {
@@ -65,6 +73,7 @@ function toTitle(r: TitleRow): BiblioTitle {
     coverUrl: r.cover_url, isbnAutofilled: r.isbn_autofilled,
     createdAt: new Date(r.created_at as string).toISOString(),
     itemsTotal: Number(r.itemsTotal), itemsActive: Number(r.itemsActive),
+    siteNames: r.siteNames ?? [],
   };
 }
 
@@ -97,10 +106,18 @@ const itemsCountSql = (statuses?: string[]) => sql<string>`(
   ${statuses ? sql`and i.physical_status in (${sql.join(statuses)})` : sql``}
 )`;
 
+// Sitios (distintos) donde el título tiene ejemplares vivos — la "Ubicación"
+// de la fila del catálogo. Sin sitio asignado no aporta nombre.
+const siteNamesSql = () => sql<string[]>`(
+  select coalesce(array_agg(distinct s.name), '{}')
+  from biblio_items i join biblio_sites s on s.id = i.site_id
+  where i.title_id = t.id and i.retired_at is null
+)`;
+
 async function loadTitle(db: DbClient, orgId: string, id: string): Promise<BiblioTitle | null> {
   const r = await db.selectFrom('biblio_titles as t')
     .selectAll('t')
-    .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive')])
+    .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive'), siteNamesSql().as('siteNames')])
     .where('t.organization_id', '=', orgId).where('t.id', '=', id)
     .where('t.deleted_at', 'is', null)
     .executeTakeFirst();
@@ -115,7 +132,7 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { ok: false, body: { error: guard.error } }; }
     if (!BIBLIO_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { ok: false, body: { error: 'No tenés permiso para el módulo Biblioteca.' } }; }
     if ((await biblioLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { ok: false, body: { error: 'Demasiadas operaciones seguidas. Esperá un momento.' } }; }
-    return { ok: true, g: { orgId: guard.ctx.org.id, staffId: guard.ctx.staff.id, staffRole: guard.ctx.staff.role } };
+    return { ok: true, g: { orgId: guard.ctx.org.id, staffId: guard.ctx.staff.id, staffRole: guard.ctx.staff.role, orgName: guard.ctx.org.name, primaryColor: guard.ctx.org.primaryColor ?? null } };
   }
 
   // ── Sitios ─────────────────────────────────────────────────────────────────
@@ -190,42 +207,105 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
     });
   });
 
+  // ── Overview del Inicio: alertas REALES del acervo + actividad reciente ────
+  app.get('/biblio/overview', async (req: FastifyRequest, reply) => {
+    const r = await gate(req, reply); if (!r.ok) return r.body;
+    return withTenant(getDb(), r.g.orgId, async (db) => {
+      const twi = await db.selectFrom('biblio_titles as t')
+        .select(db.fn.countAll<string>().as('n'))
+        .where('t.organization_id', '=', r.g.orgId).where('t.deleted_at', 'is', null)
+        .where(sql<boolean>`not exists (select 1 from biblio_items i where i.title_id = t.id and i.retired_at is null)`)
+        .executeTakeFirst();
+      const care = await db.selectFrom('biblio_items')
+        .select([
+          sql<string>`count(*) filter (where physical_status in ('reparacion', 'deteriorado'))`.as('care'),
+          sql<string>`count(*) filter (where site_id is null)`.as('nosite'),
+        ])
+        .where('organization_id', '=', r.g.orgId).where('retired_at', 'is', null)
+        .executeTakeFirst();
+      const acts = await db.selectFrom('tenant_audit_log')
+        .select(['action', 'target_label', 'created_at'])
+        .where('organization_id', '=', r.g.orgId)
+        .where('action', 'like', 'biblio.%')
+        .orderBy('id', 'desc').limit(12).execute();
+      const body: BiblioOverviewResponse = {
+        alerts: {
+          titlesWithoutItems: Number(twi?.n ?? 0),
+          itemsNeedingCare: Number(care?.care ?? 0),
+          itemsWithoutLocation: Number(care?.nosite ?? 0),
+        },
+        activity: acts.map((a) => ({
+          action: a.action,
+          label: a.target_label ?? '',
+          at: new Date(a.created_at as unknown as string).toISOString(),
+        })),
+      };
+      return body;
+    });
+  });
+
+  // Filtros compartidos entre la lista paginada y el export del catálogo.
+  function parseTitleFilters(q: Record<string, unknown>) {
+    return {
+      term: typeof q.q === 'string' ? q.q.trim().slice(0, 120) : '',
+      kind: typeof q.kind === 'string' && q.kind.trim() ? q.kind.trim() : null,
+      subject: typeof q.subject === 'string' && q.subject.trim() ? q.subject.trim().slice(0, 80) : null,
+      siteId: typeof q.siteId === 'string' && /^[0-9a-f-]{36}$/i.test(q.siteId) ? q.siteId : null,
+      disponible: q.disponible === '1' || q.disponible === 'true',
+    };
+  }
+  type TitleFilters = ReturnType<typeof parseTitleFilters>;
+  function filteredTitles(db: DbClient, orgId: string, f: TitleFilters) {
+    const searchable = sql`lower(t.title || ' ' || coalesce(t.subtitle, ''))`; // matchea el índice trgm
+    let base = db.selectFrom('biblio_titles as t')
+      .where('t.organization_id', '=', orgId)
+      .where('t.deleted_at', 'is', null);
+    if (f.kind) base = base.where('t.kind', '=', f.kind);
+    if (f.siteId) {
+      base = base.where(sql<boolean>`exists (
+        select 1 from biblio_items i
+        where i.title_id = t.id and i.retired_at is null and i.site_id = ${f.siteId}
+      )`);
+    }
+    if (f.disponible) {
+      base = base.where(sql<boolean>`exists (
+        select 1 from biblio_items i
+        where i.title_id = t.id and i.retired_at is null and i.physical_status in (${sql.join(ACTIVE_STATUSES)})
+      )`);
+    }
+    if (f.subject) {
+      // Materia NORMALIZADA: "arte dominicano" matchea "Arte Dominicano".
+      base = base.where(sql<boolean>`exists (
+        select 1 from unnest(t.subjects) as s(x)
+        where ${normCategorySql(sql`s.x`)} = ${normCategory(f.subject)}
+      )`);
+    }
+    if (f.term) {
+      const like = `%${f.term.toLowerCase()}%`;
+      const digits = f.term.replace(/[^0-9Xx]/g, '');
+      base = base.where((eb) => eb.or([
+        sql<boolean>`${searchable} like ${like}`,
+        sql<boolean>`t.authors::text ilike ${like}`,
+        ...(digits.length >= 8 ? [sql<boolean>`replace(coalesce(t.isbn,''), '-', '') = ${digits}`] : []),
+      ]));
+    }
+    return base;
+  }
+
   // ── Títulos: búsqueda paginada ─────────────────────────────────────────────
   app.get('/biblio/titles', async (req: FastifyRequest, reply) => {
     const r = await gate(req, reply); if (!r.ok) return r.body;
     const q = req.query as Record<string, unknown>;
-    const term = typeof q.q === 'string' ? q.q.trim().slice(0, 120) : '';
-    const kind = typeof q.kind === 'string' && q.kind.trim() ? q.kind.trim() : null;
-    const subject = typeof q.subject === 'string' && q.subject.trim() ? q.subject.trim().slice(0, 80) : null;
+    const f = parseTitleFilters(q);
     const page = Math.max(1, Number(q.page) || 1);
     const pageSize = Math.min(PAGE_SIZE_MAX, Math.max(1, Number(q.pageSize) || 20));
 
     return withTenant(getDb(), r.g.orgId, async (db) => {
-      const searchable = sql`lower(t.title || ' ' || coalesce(t.subtitle, ''))`; // matchea el índice trgm
-      let base = db.selectFrom('biblio_titles as t')
-        .where('t.organization_id', '=', r.g.orgId)
-        .where('t.deleted_at', 'is', null);
-      if (kind) base = base.where('t.kind', '=', kind);
-      if (subject) {
-        // Materia NORMALIZADA: "arte dominicano" matchea "Arte Dominicano".
-        base = base.where(sql<boolean>`exists (
-          select 1 from unnest(t.subjects) as s(x)
-          where ${normCategorySql(sql`s.x`)} = ${normCategory(subject)}
-        )`);
-      }
-      if (term) {
-        const like = `%${term.toLowerCase()}%`;
-        const digits = term.replace(/[^0-9Xx]/g, '');
-        base = base.where((eb) => eb.or([
-          sql<boolean>`${searchable} like ${like}`,
-          sql<boolean>`t.authors::text ilike ${like}`,
-          ...(digits.length >= 8 ? [sql<boolean>`replace(coalesce(t.isbn,''), '-', '') = ${digits}`] : []),
-        ]));
-      }
+      const base = filteredTitles(db, r.g.orgId, f);
       const totalRow = await base.select(db.fn.countAll<string>().as('n')).executeTakeFirst();
       const rows = await base
         .selectAll('t')
-        .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive')])
+        .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive'), siteNamesSql().as('siteNames')])
         .orderBy('t.created_at', 'desc')
         .limit(pageSize).offset((page - 1) * pageSize)
         .execute();
@@ -234,6 +314,50 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
         total: Number(totalRow?.n ?? 0), page, pageSize,
       };
       return body;
+    });
+  });
+
+  // ── Export del catálogo (.xlsx, respeta los filtros activos) ───────────────
+  app.get('/biblio/export.xlsx', async (req: FastifyRequest, reply) => {
+    const r = await gate(req, reply); if (!r.ok) return r.body;
+    const f = parseTitleFilters(req.query as Record<string, unknown>);
+
+    return withTenant(getDb(), r.g.orgId, async (db) => {
+      const rows = await filteredTitles(db, r.g.orgId, f)
+        .selectAll('t')
+        .select([itemsCountSql().as('itemsTotal'), itemsCountSql(ACTIVE_STATUSES).as('itemsActive'), siteNamesSql().as('siteNames')])
+        .orderBy('t.title', 'asc')
+        .limit(EXPORT_MAX_ROWS)
+        .execute();
+      const titles = rows.map((x) => toTitle(x as unknown as TitleRow));
+
+      let siteName: string | null = null;
+      if (f.siteId) {
+        const site = await db.selectFrom('biblio_sites').select(['name'])
+          .where('organization_id', '=', r.g.orgId).where('id', '=', f.siteId).executeTakeFirst();
+        siteName = site?.name ?? null;
+      }
+      const parts = [
+        f.kind ? (KIND_LABELS[f.kind] ?? f.kind) : null, f.subject, siteName,
+        f.disponible ? 'solo disponibles' : null, f.term ? `"${f.term}"` : null,
+      ].filter(Boolean);
+      const filterLabel = parts.length ? parts.join(' · ') : 'Todo el catálogo';
+
+      await audit(db, r.g, 'biblio.exported', f.siteId ?? 'all', filterLabel, { rows: titles.length, ...f });
+
+      const buf = await buildBiblioExportWorkbook(
+        titles.map((t) => ({
+          kind: t.kind, title: t.title, subtitle: t.subtitle, authors: t.authors,
+          isbn: t.isbn, publisher: t.publisher, year: t.year, language: t.language,
+          dewey: t.dewey, callNumber: t.callNumber, subjects: t.subjects,
+          itemsTotal: t.itemsTotal, itemsActive: t.itemsActive, siteNames: t.siteNames,
+        })),
+        { orgName: r.g.orgName, primaryColor: r.g.primaryColor, filterLabel },
+      );
+      reply.header('content-type', XLSX_MIME);
+      reply.header('content-disposition', `attachment; filename="${safeFilename('catalogo_biblioteca.xlsx')}"`);
+      reply.header('cache-control', 'no-store');
+      return reply.send(buf);
     });
   });
 
