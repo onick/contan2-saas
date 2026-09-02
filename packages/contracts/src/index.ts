@@ -2180,9 +2180,67 @@ export const BiblioLoanPrecheckResponseSchema = z.object({
     authors: z.array(z.string()), coverUrl: z.string().nullable(),
     physicalStatus: BiblioPhysicalStatusSchema, loanable: z.boolean(), retired: z.boolean(),
     onLoan: z.boolean(),
+    reservedForUserId: z.string().nullable(), // apartado por una reserva 'lista'
   }).nullable(),
 });
 export type BiblioLoanPrecheckResponse = z.infer<typeof BiblioLoanPrecheckResponseSchema>;
+
+// ── Biblioteca · Reservas (F5): cola FIFO por título + expiración ────────────
+export const BiblioReservationStatusSchema = z.enum(['espera', 'lista', 'cumplida', 'cancelada', 'vencida']);
+export type BiblioReservationStatus = z.infer<typeof BiblioReservationStatusSchema>;
+
+export const BiblioReservationSchema = z.object({
+  id: z.string(),
+  code: z.string(), // R-000123 (derivado de seq)
+  status: BiblioReservationStatusSchema,
+  position: z.number().int().nullable(), // solo en 'espera'
+  createdAt: z.string(),
+  readyAt: z.string().nullable(),
+  expiresAt: z.string().nullable(), // ventana de retiro en 'lista'
+  // Lector
+  userId: z.string(),
+  userCode: z.string(),
+  userFirstName: z.string(),
+  userLastName: z.string(),
+  // Obra + ejemplar apartado (solo en 'lista')
+  titleId: z.string(),
+  title: z.string(),
+  authors: z.array(z.string()),
+  coverUrl: z.string().nullable(),
+  inventoryCode: z.string().nullable(),
+  siteName: z.string().nullable(),
+  shelf: z.string().nullable(),
+});
+export type BiblioReservation = z.infer<typeof BiblioReservationSchema>;
+
+export const BiblioReservationsListResponseSchema = z.object({
+  reservations: z.array(BiblioReservationSchema),
+  total: z.number().int(),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+});
+export type BiblioReservationsListResponse = z.infer<typeof BiblioReservationsListResponseSchema>;
+
+export const BiblioReservationsSummarySchema = z.object({
+  activas: z.number().int(),   // espera + lista
+  enEspera: z.number().int(),
+  paraRetirar: z.number().int(),
+  vencenHoy: z.number().int(),
+  proximas: z.array(z.object({
+    id: z.string(), title: z.string(), coverUrl: z.string().nullable(),
+    userFirstName: z.string(), userLastName: z.string(), expiresAt: z.string(),
+  })).max(6),
+  policy: z.object({ pickupDays: z.number().int(), maxActivePerReader: z.number().int() }),
+});
+export type BiblioReservationsSummary = z.infer<typeof BiblioReservationsSummarySchema>;
+
+export const BiblioReservationCreateSchema = z.object({
+  readerCode: z.string().trim().min(1).max(40).optional(),
+  userId: z.string().trim().min(1).max(60).optional(),
+  titleId: z.string().uuid(),
+  notes: z.string().trim().max(500).optional().nullable(),
+}).strict();
+export type BiblioReservationCreate = z.infer<typeof BiblioReservationCreateSchema>;
 
 export const BiblioOverviewResponseSchema = z.object({
   alerts: z.object({

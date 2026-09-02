@@ -35,7 +35,7 @@ const NAV: BiblioNavItem[] = [
   // Las siguientes llegan con F2-F6 del plan (docs/plan-modulo-biblioteca.md).
   { key: 'lectores', label: 'Lectores', href: '/app/biblioteca/lectores', Icon: Users },
   { key: 'circulacion', label: 'Circulación', href: '/app/biblioteca/circulacion', Icon: ArrowLeftRight },
-  { key: 'reservas', label: 'Reservas', href: '#', Icon: Bookmark, soon: true },
+  { key: 'reservas', label: 'Reservas', href: '/app/biblioteca/reservas', Icon: Bookmark },
   { key: 'inventario', label: 'Inventario', href: '#', Icon: ClipboardList, soon: true },
   { key: 'adquisiciones', label: 'Adquisiciones', href: '#', Icon: PackagePlus, soon: true },
   { key: 'reportes', label: 'Reportes', href: '#', Icon: BarChart3, soon: true },
@@ -47,6 +47,7 @@ function activeKeyFor(pathname: string): string {
   if (pathname.startsWith('/app/biblioteca/catalogo') || pathname.startsWith('/app/biblioteca/titulos')) return 'catalogo';
   if (pathname.startsWith('/app/biblioteca/lectores')) return 'lectores';
   if (pathname.startsWith('/app/biblioteca/circulacion')) return 'circulacion';
+  if (pathname.startsWith('/app/biblioteca/reservas')) return 'reservas';
   return '';
 }
 

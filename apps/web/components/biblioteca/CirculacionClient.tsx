@@ -143,10 +143,10 @@ export function CirculacionClient({ initial, initialSummary }: {
         {/* ── Tabs ── */}
         <div className="app-reveal mt-4 flex gap-1 overflow-x-auto border-b border-line" style={{ animationDelay: '30ms' }} role="tablist" aria-label="Vistas de circulación">
           {TABS.map((t) => t.soon ? (
-            <span key={t.key} role="tab" aria-disabled="true" title="Llega con la fase de reservas"
-              className="flex flex-none cursor-default items-center gap-1.5 px-3.5 py-2 text-[13.5px] font-medium text-faint/70">
-              <t.Icon size={15} strokeWidth={1.9} /> {t.label} · Pronto
-            </span>
+            <Link key={t.key} href="/app/biblioteca/reservas"
+              className={cn('flex flex-none items-center gap-1.5 px-3.5 py-2 text-[13.5px] font-medium text-muted hover:text-ink', focusRing)}>
+              <t.Icon size={15} strokeWidth={1.9} /> {t.label}
+            </Link>
           ) : (
             <button key={t.key} type="button" role="tab" aria-selected={tab === t.key}
               onClick={() => { setTab(t.key); setPage(1); }}
@@ -292,7 +292,7 @@ export function CirculacionClient({ initial, initialSummary }: {
             <RailBtn Icon={BookOpen} label="Nuevo préstamo" onClick={() => setDrawer({ mode: 'prestar', kind: 'domicilio' })} />
             <RailBtn Icon={RotateCcw} label="Devolución" onClick={() => setDrawer({ mode: 'devolver' })} />
             <RailBtn Icon={Armchair} label="Consulta en sala" onClick={() => setDrawer({ mode: 'prestar', kind: 'sala' })} />
-            <RailBtn Icon={Bookmark} label="Reserva" soon />
+            <RailBtn Icon={Bookmark} label="Reserva" href="/app/biblioteca/reservas" />
           </div>
         </Card>
 
@@ -335,23 +335,16 @@ export function CirculacionClient({ initial, initialSummary }: {
   );
 }
 
-function RailBtn({ Icon, label, onClick, soon }: { Icon: typeof BookOpen; label: string; onClick?: () => void; soon?: boolean }) {
-  if (soon) {
-    return (
-      <div className="flex cursor-default flex-col items-center gap-1.5 rounded-xl border border-dashed border-line px-2 py-3 text-center" title="Llega con la fase de reservas">
-        <Icon size={18} strokeWidth={1.8} className="text-faint" />
-        <span className="text-[11.5px] font-semibold leading-tight text-faint">{label}</span>
-        <Chip tone="neutral">Pronto</Chip>
-      </div>
-    );
-  }
-  return (
-    <button type="button" onClick={onClick}
-      className={cn('flex flex-col items-center gap-1.5 rounded-xl border border-line bg-surface px-2 py-3 text-center transition-transform hover:-translate-y-0.5 hover:shadow-sm', focusRing)}>
+function RailBtn({ Icon, label, onClick, href }: { Icon: typeof BookOpen; label: string; onClick?: () => void; href?: string }) {
+  const cls = cn('flex flex-col items-center gap-1.5 rounded-xl border border-line bg-surface px-2 py-3 text-center transition-transform hover:-translate-y-0.5 hover:shadow-sm', focusRing);
+  const inner = (
+    <>
       <Icon size={18} strokeWidth={1.8} className="text-brand" />
       <span className="text-[11.5px] font-bold leading-tight text-ink">{label}</span>
-    </button>
+    </>
   );
+  if (href) return <Link href={href} className={cls}>{inner}</Link>;
+  return <button type="button" onClick={onClick} className={cls}>{inner}</button>;
 }
 
 function SummaryRow({ label, value }: { label: string; value: number }) {

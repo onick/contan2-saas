@@ -126,6 +126,11 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'due_at', 'renewals', 'returned_at', 'notes', 'created_by_staff_id',
     'returned_by_staff_id', 'created_at', 'updated_at',
   ],
+  biblio_reservations: [
+    'id', 'seq', 'organization_id', 'title_id', 'user_id', 'status',
+    'ready_item_id', 'ready_at', 'expires_at', 'fulfilled_at', 'loan_id',
+    'cancelled_at', 'notes', 'created_by_staff_id', 'created_at', 'updated_at',
+  ],
   biblio_isbn_cache: ['isbn', 'payload', 'source', 'fetched_at'],
 };
 

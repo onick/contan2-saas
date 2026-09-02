@@ -499,6 +499,25 @@ export interface BiblioLoansTable {
   updated_at: UpdatedAt;
 }
 
+export interface BiblioReservationsTable {
+  id: Generated<string>;
+  seq: Generated<string>; // bigint identity → código legible R-000123
+  organization_id: string;
+  title_id: string;
+  user_id: string; // users.id es TEXT (padrón legacy v1)
+  status: DefaultedText; // espera | lista | cumplida | cancelada | vencida
+  ready_item_id: string | null;
+  ready_at: NullableTs;
+  expires_at: NullableTs;
+  fulfilled_at: NullableTs;
+  loan_id: string | null;
+  cancelled_at: NullableTs;
+  notes: string | null;
+  created_by_staff_id: string | null;
+  created_at: CreatedAt;
+  updated_at: UpdatedAt;
+}
+
 export interface BiblioIsbnCacheTable {
   isbn: string;
   payload: ColumnType<unknown, string, string>; // JSONB
@@ -531,5 +550,6 @@ export interface Database {
   biblio_isbn_cache: BiblioIsbnCacheTable;
   biblio_member_profiles: BiblioMemberProfilesTable;
   biblio_loans: BiblioLoansTable;
+  biblio_reservations: BiblioReservationsTable;
 }
 

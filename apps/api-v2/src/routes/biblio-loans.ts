@@ -21,6 +21,7 @@ import {
 } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
+import { promoteTitleQueue } from '../services/biblio-reservations.js';
 
 const BIBLIO_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'biblioteca']);
 const limiter = createRateLimiter({ max: 240, windowMs: 60_000, prefix: endpointPrefix('biblio-loans') });
@@ -239,12 +240,17 @@ export const biblioLoansRoute: FastifyPluginAsync = async (app) => {
           const open = await db.selectFrom('biblio_loans').select('id')
             .where('organization_id', '=', r.g.orgId).where('item_id', '=', i.id)
             .where('returned_at', 'is', null).executeTakeFirst();
+          const held = await db.selectFrom('biblio_reservations')
+            .select(['user_id'])
+            .where('organization_id', '=', r.g.orgId).where('ready_item_id', '=', i.id)
+            .where('status', '=', 'lista').executeTakeFirst();
           body.item = {
             itemId: i.id, inventoryCode: i.inventory_code, titleId: i.title_id, title: i.title,
             authors: Array.isArray(i.authors) ? (i.authors as string[]) : [],
             coverUrl: i.cover_url,
             physicalStatus: i.physical_status as BiblioPhysicalStatus,
             loanable: i.loanable, retired: i.retired_at !== null, onLoan: !!open,
+            reservedForUserId: held?.user_id ?? null,
           };
         }
       }
@@ -286,6 +292,16 @@ export const biblioLoansRoute: FastifyPluginAsync = async (app) => {
         reply.code(409); return { error: `Límite alcanzado: ${MAX_OPEN_LOANS} préstamos abiertos por lector.` };
       }
 
+      // Copia APARTADA por una reserva 'lista': solo puede llevársela el
+      // reservante (y al prestársela, la reserva queda cumplida).
+      const holding = await db.selectFrom('biblio_reservations')
+        .select(['id', 'user_id'])
+        .where('organization_id', '=', r.g.orgId).where('ready_item_id', '=', item.id)
+        .where('status', '=', 'lista').executeTakeFirst();
+      if (holding && holding.user_id !== user.id) {
+        reply.code(409); return { error: 'Ese ejemplar está apartado por una reserva de otra persona.' };
+      }
+
       try {
         const ins = await db.insertInto('biblio_loans').values({
           organization_id: r.g.orgId, item_id: item.id, user_id: user.id,
@@ -293,9 +309,16 @@ export const biblioLoansRoute: FastifyPluginAsync = async (app) => {
           notes: p.notes?.trim() || null, created_by_staff_id: r.g.staffId,
         }).returning('id').executeTakeFirstOrThrow();
 
+        if (holding) {
+          await db.updateTable('biblio_reservations')
+            .set({ status: 'cumplida', fulfilled_at: sql`now()`, loan_id: ins.id, updated_at: sql`now()` })
+            .where('organization_id', '=', r.g.orgId).where('id', '=', holding.id)
+            .execute();
+        }
+
         await audit(db, r.g, 'biblio.loan.created', ins.id,
           `${item.inventory_code} · ${item.title} → ${user.first_name} ${user.last_name}`,
-          { kind: p.kind, itemId: item.id, userId: user.id });
+          { kind: p.kind, itemId: item.id, userId: user.id, reservationId: holding?.id ?? null });
 
         const row = await loansBase(db, r.g.orgId).where('l.id', '=', ins.id).select([...LOAN_COLS]).executeTakeFirstOrThrow();
         reply.code(201);
@@ -335,6 +358,8 @@ export const biblioLoansRoute: FastifyPluginAsync = async (app) => {
         .execute();
 
       await audit(db, r.g, 'biblio.loan.returned', openLoan.id, `${item.inventory_code} · ${item.title}`);
+      // La copia quedó libre: si hay cola de reservas del título, se aparta ya.
+      await promoteTitleQueue(db, r.g.orgId, item.title_id);
       const row = await loansBase(db, r.g.orgId).where('l.id', '=', openLoan.id).select([...LOAN_COLS]).executeTakeFirstOrThrow();
       return { loan: toLoan(row as unknown as LoanRow) };
     });
