@@ -23,6 +23,7 @@ import {
 import type {
   BiblioLoansListResponse, BiblioLoan, BiblioCirculationSummary, BiblioLoanPrecheckResponse,
 } from '@contan2/contracts';
+import { devolverLoan } from '../../lib/api/biblio-client';
 import { Card, Button, IconButton, Chip, EmptyState, SectionHeader, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
@@ -107,17 +108,11 @@ export function CirculacionClient({ initial, initialSummary }: {
 
   async function devolver(loan: BiblioLoan) {
     setBusyRow(loan.id); setRowError(null);
-    try {
-      const res = await fetch('/app/biblioteca/api/returns', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ inventoryCode: loan.inventoryCode }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j?.loan) { setRowError(j.error ?? 'No se pudo registrar la devolución.'); return; }
-      setFlash(`Devuelto: «${loan.title}» (${loan.inventoryCode}).`);
-      void refresh();
-    } catch { setRowError('Problema de red. Reintentá.'); }
-    finally { setBusyRow(null); }
+    const result = await devolverLoan(loan.inventoryCode);
+    if (!result.ok) { setRowError(result.error ?? 'No se pudo registrar la devolución.'); setBusyRow(null); return; }
+    setFlash(`Devuelto: «${loan.title}» (${loan.inventoryCode}).`);
+    void refresh();
+    setBusyRow(null);
   }
 
   const pages = Math.max(1, Math.ceil(data.total / data.pageSize));
@@ -272,7 +267,7 @@ export function CirculacionClient({ initial, initialSummary }: {
               ) : (
                 <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === data.page ? 'page' : undefined}
                   className={cn('grid h-8 min-w-8 place-items-center rounded-lg px-1 text-[12.5px] font-bold tabular-nums', focusRing,
-                    p === data.page ? 'bg-brand text-white' : 'text-muted hover:bg-surface-container')}>
+                    p === data.page ? 'bg-brand text-brand-fg' : 'text-muted hover:bg-surface-container')}>
                   {p}
                 </button>
               ))}

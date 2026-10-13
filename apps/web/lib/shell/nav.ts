@@ -82,3 +82,20 @@ export function filterNavByRole(items: NavItem[], role: string | null | undefine
   const allowed = role ? ROLE_NAV_ALLOWLIST[role] : undefined;
   return allowed ? items.filter((i) => allowed.has(i.key)) : items;
 }
+
+// Sub-navegación del módulo Biblioteca: tabs que aparecen en el shell de /app/biblioteca/*.
+// D6: la etiqueta visible es «Préstamos» (no Circulación); la ruta /circulacion no cambia.
+export interface BiblioTabItem {
+  key: string;
+  label: string;
+  href: string;
+}
+
+export const BIBLIOTECA_TABS: BiblioTabItem[] = [
+  { key: 'inicio',     label: 'Inicio',     href: '/app/biblioteca' },
+  { key: 'catalogo',   label: 'Catálogo',   href: '/app/biblioteca/catalogo' },
+  { key: 'lectores',   label: 'Lectores',   href: '/app/biblioteca/lectores' },
+  { key: 'prestamos',  label: 'Préstamos',  href: '/app/biblioteca/circulacion' },
+  { key: 'reservas',   label: 'Reservas',   href: '/app/biblioteca/reservas' },
+  { key: 'inventario', label: 'Inventario', href: '/app/biblioteca/inventario' },
+];
