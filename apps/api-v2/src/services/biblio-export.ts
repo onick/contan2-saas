@@ -4,6 +4,7 @@
 // Anti-injection: los strings van como texto plano (nunca fórmulas).
 
 import ExcelJS from 'exceljs';
+import { textArgb } from './branding-tokens.js';
 
 export interface BiblioExportRow {
   kind: string;
@@ -39,10 +40,10 @@ const KIND_LABEL: Record<string, string> = {
   tesis: 'Tesis', audiovisual: 'Audiovisual', documento: 'Documento',
 };
 
-// '#e65100' → 'FFE65100' (ARGB de ExcelJS). Fallback al naranja de marca.
+// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
 function toArgb(hex: string | null): string {
   const h = (hex ?? '').replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFE65100';
+  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
 }
 
 export async function buildBiblioExportWorkbook(
@@ -50,6 +51,7 @@ export async function buildBiblioExportWorkbook(
   meta: BiblioExportMeta,
 ): Promise<Buffer> {
   const brand = toArgb(meta.primaryColor);
+  const brandText = textArgb(meta.primaryColor ?? '#f39228');
   const wb = new ExcelJS.Workbook();
   wb.creator = meta.orgName;
   const ws = wb.addWorksheet('Catálogo');
@@ -57,7 +59,7 @@ export async function buildBiblioExportWorkbook(
   ws.mergeCells(1, 1, 1, HEADERS.length);
   const title = ws.getCell(1, 1);
   title.value = `${meta.orgName} · Catálogo de la Biblioteca — ${meta.filterLabel}`;
-  title.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+  title.font = { bold: true, size: 14, color: { argb: brandText } };
   title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
   title.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
   ws.getRow(1).height = 26;
@@ -71,7 +73,7 @@ export async function buildBiblioExportWorkbook(
   HEADERS.forEach((h, i) => {
     const c = head.getCell(i + 1);
     c.value = h;
-    c.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+    c.font = { bold: true, size: 10, color: { argb: brandText } };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
     c.alignment = { vertical: 'middle' };
   });

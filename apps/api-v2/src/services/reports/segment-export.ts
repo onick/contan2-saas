@@ -5,6 +5,7 @@
 
 import ExcelJS from 'exceljs';
 import type { SegmentMember } from '@contan2/contracts';
+import { textArgb } from '../branding-tokens.js';
 import { CSV_BOM, csvRow, safeFilename } from '../csv.js';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -16,10 +17,10 @@ export interface SegmentExportMeta { label: string; description: string; count: 
 
 const HEADERS = ['Nombre', 'Código', 'Email', 'Teléfono', 'Asistencias', 'Última visita', 'Días desde última', 'Estado'] as const;
 
-// '#e65100' → 'FFE65100' (ARGB de ExcelJS). Fallback al naranja de marca.
+// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
 function toArgb(hex: string | null): string {
   const h = (hex ?? '').replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFE65100';
+  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
 }
 
 function fullName(m: SegmentMember): string {
@@ -35,6 +36,7 @@ export async function buildSegmentExcel(
   members: SegmentMember[],
 ): Promise<ExcelJS.Workbook> {
   const brand = toArgb(org.primaryColor);
+  const brandText = textArgb(org.primaryColor ?? '#f39228');
   const wb = new ExcelJS.Workbook();
   wb.creator = org.name;
   const ws = wb.addWorksheet('Segmento');
@@ -43,7 +45,7 @@ export async function buildSegmentExcel(
   ws.mergeCells(1, 1, 1, HEADERS.length);
   const t = ws.getCell(1, 1);
   t.value = `${org.name} · ${meta.label}`;
-  t.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+  t.font = { bold: true, size: 14, color: { argb: brandText } };
   t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
   t.alignment = { vertical: 'middle', horizontal: 'left' };
   ws.getRow(1).height = 26;
@@ -59,7 +61,7 @@ export async function buildSegmentExcel(
   HEADERS.forEach((h, i) => {
     const c = head.getCell(i + 1);
     c.value = h;
-    c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    c.font = { bold: true, color: { argb: brandText } };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
   });
   head.height = 20;

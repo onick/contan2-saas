@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   description: 'Marca de la organización: nombre, logo, colores y menú',
 };
 
-const FALLBACK: BrandingInitial = { name: 'Centro Cultural', logoUrl: null, credentialLogoUrl: null, logoScale: 100, primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand' };
+const FALLBACK: BrandingInitial = { name: 'Centro Cultural', logoUrl: null, credentialLogoUrl: null, logoScale: 100, primaryColor: '#f39228', secondaryColor: '#31a3db', sidebarTheme: 'brand' };
 
 export default async function IdentidadPage() {
   const branding = await getTenantBranding();

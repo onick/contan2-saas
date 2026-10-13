@@ -68,9 +68,20 @@ function luminance(hex: string): number {
   return 0.2126 * channel(m[1]!) + 0.7152 * channel(m[2]!) + 0.0722 * channel(m[3]!);
 }
 
-/** Color de texto de contraste sobre `hex` (gris oscuro o blanco). */
+/** Color de texto de contraste sobre `hex` (gris oscuro o blanco, umbral 0.5). */
 export function pickOn(hex: string): string {
   return luminance(hex) > 0.5 ? '#1f2937' : '#ffffff';
+}
+
+/** Color de texto WCAG AA (4.5:1) sobre `hex`. Devuelve CSS hex. */
+export function textOn(hex: string): '#ffffff' | '#1f2326' {
+  const L = luminance(hex);
+  return 1.05 / (L + 0.05) >= 4.5 ? '#ffffff' : '#1f2326';
+}
+
+/** Color de texto WCAG AA (4.5:1) sobre `hex`. Devuelve ARGB para ExcelJS. */
+export function textArgb(hex: string): string {
+  return textOn(hex) === '#ffffff' ? 'FFFFFFFF' : 'FF1F2326';
 }
 
 /** Paleta 50..900 desde un hex (mismo algoritmo HSL que v1). null si hex inválido. */
@@ -90,7 +101,7 @@ export function generatePalette(hex: string): Record<string, string> | null {
 // si la org no trae colores. Paridad con v1 resolveBrandingTokens.
 export function resolveBrandingTokens(org: OrgBranding | null): BrandingTokens {
   const primary = org?.primaryColor || '#334155';
-  const accent = org?.secondaryColor || '#ff6f00';
+  const accent = org?.secondaryColor || '#31a3db';
   const palette = generatePalette(primary) || {};
   const primaryMid = palette['500'] || '#3949ab';
   const primaryLight = palette['400'] || '#534bae';

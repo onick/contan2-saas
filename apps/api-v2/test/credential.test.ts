@@ -28,7 +28,7 @@ describe('credential · branding tokens', () => {
     const t = resolveBrandingTokens(null);
     expect(t.orgName).toBe('contan2-saas');
     expect(t.primary).toBe('#334155');
-    expect(t.accent).toBe('#ff6f00');
+    expect(t.accent).toBe('#31a3db');
   });
 });
 

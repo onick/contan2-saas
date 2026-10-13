@@ -40,12 +40,12 @@ const STATUS_LABELS = { activa: 'Activa', finalizada: 'Finalizada', cancelada: '
 const STATUS_CLS = { activa: 'ok', finalizada: 'muted', cancelada: 'danger', borrador: 'muted' };
 
 export async function buildPeriodPdfHtml({ organization, period }) {
-  const palette = generatePalette(organization.primaryColor || '#1a237e') || {};
-  const primary = palette['700'] || organization.primaryColor || '#1a237e';
-  const primaryLight = palette['50'] || '#eeeffc';
-  const primary100 = palette['100'] || '#d5d8f6';
-  const primary900 = palette['900'] || '#0d144f';
-  const accent = organization.secondaryColor || '#ff6f00';
+  const palette = generatePalette(organization.primaryColor || '#f39228') || {};
+  const primary = palette['700'] || organization.primaryColor || '#f39228';
+  const primaryLight = palette['50'] || '#fef4e8';
+  const primary100 = palette['100'] || '#fde6c8';
+  const primary900 = palette['900'] || '#7a3300';
+  const accent = organization.secondaryColor || '#31a3db';
   // Color ESTRUCTURAL (títulos de sección, encabezados de tabla, barras de tipo).
   // Para el CCB usamos el AZUL profundo de su identidad (el azul del arco del
   // logo, #309cd8, en tono oscuro para contraste sobre blanco), que combina con

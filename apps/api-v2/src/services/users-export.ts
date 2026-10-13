@@ -10,7 +10,7 @@ import ExcelJS from 'exceljs';
 import type { DbClient } from '@contan2/db';
 import type { UserCohort } from '@contan2/contracts';
 import { cohortCondition, statusCondition } from './users-query.js';
-import { generatePalette, pickOn } from './branding-tokens.js';
+import { generatePalette, textArgb } from './branding-tokens.js';
 import { loadLogoDataUri } from './credential.js';
 import { CSV_BOM, csvRow } from './csv.js';
 import { likeContains, type UserStatusFilter } from '../query.js';
@@ -164,10 +164,10 @@ export async function buildUsersWorkbook(rows: UserExportRow[], org: ExportOrg):
   wb.creator = org.name || 'contan2-saas';
   wb.created = new Date();
 
-  const palette = generatePalette(org.primaryColor || '#1a237e') || {};
-  const primaryArgb = hexToARGB(palette['700']) || hexToARGB(org.primaryColor) || 'FF1A237E';
-  const accentArgb = hexToARGB(org.secondaryColor) || 'FFFF6F00';
-  const onPrimaryArgb = pickOn(palette['700'] || org.primaryColor || '#1a237e') === '#ffffff' ? 'FFFFFFFF' : 'FF1F2937';
+  const palette = generatePalette(org.primaryColor || '#f39228') || {};
+  const primaryArgb = hexToARGB(palette['700']) || hexToARGB(org.primaryColor) || 'FFF39228';
+  const accentArgb = hexToARGB(org.secondaryColor) || 'FF31A3DB';
+  const onPrimaryArgb = textArgb(palette['700'] || org.primaryColor || '#f39228');
 
   const ws = wb.addWorksheet('Visitantes', {
     properties: { tabColor: { argb: primaryArgb } },

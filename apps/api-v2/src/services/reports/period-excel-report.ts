@@ -12,7 +12,7 @@
 // =============================================================================
 
 import ExcelJS from 'exceljs';
-import { generatePalette, pickOn } from '../branding-tokens.js';
+import { generatePalette, textArgb } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
 
 
@@ -56,11 +56,11 @@ export async function buildPeriodExcelReport({ organization, period }) {
   wb.creator = organization.name || 'contan2-saas';
   wb.created = new Date();
 
-  const palette = generatePalette(organization.primaryColor || '#1a237e') || {};
-  const primaryArgb = hexToARGB(palette['700']) || 'FF1A237E';
-  const primaryLightArgb = hexToARGB(palette['50']) || 'FFEEEFFC';
-  const accentArgb = hexToARGB(organization.secondaryColor) || 'FFFF6F00';
-  const onPrimaryArgb = pickOn(palette['700'] || organization.primaryColor || '#1a237e') === '#ffffff' ? 'FFFFFFFF' : 'FF1F2937';
+  const palette = generatePalette(organization.primaryColor || '#f39228') || {};
+  const primaryArgb = hexToARGB(palette['700']) || 'FFF39228';
+  const primaryLightArgb = hexToARGB(palette['50']) || 'FFFEF4E8';
+  const accentArgb = hexToARGB(organization.secondaryColor) || 'FF31A3DB';
+  const onPrimaryArgb = textArgb(palette['700'] || organization.primaryColor || '#f39228');
   const border = { style: 'thin', color: { argb: 'FFE5E7EB' } };
 
   // -------- Sheet 1: Resumen --------

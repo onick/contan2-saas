@@ -156,7 +156,8 @@ export function AuditTimeline() {
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className="text-[13px] text-ink">
-                              <span className="font-semibold">{e.actorName ?? e.actorEmailMasked ?? 'Sistema'}</span>{' '}
+                              <span className="font-semibold">{e.actorName ?? e.actorEmailMasked ?? 'Sistema'}</span>
+                              {' · '}
                               <span className="text-muted">{actionLabel(e.action)}</span>
                               {e.targetLabel ? <> · <span className="text-ink">{e.targetLabel}</span></> : e.targetId ? <> · <span className="text-faint tabular-nums">{e.targetType}:{e.targetId}</span></> : null}
                             </p>

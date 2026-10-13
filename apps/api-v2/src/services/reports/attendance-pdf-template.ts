@@ -73,11 +73,11 @@ export async function buildAttendancePdfHtml({ organization, report, category }:
   report: AttendanceByActivityReport;
   category: string | null;
 }): Promise<string> {
-  const palette = (generatePalette(organization.primaryColor || '#e65100') ?? {}) as Record<string, string>;
-  const primary = palette['700'] || organization.primaryColor || '#e65100';
+  const palette = (generatePalette(organization.primaryColor || '#f39228') ?? {}) as Record<string, string>;
+  const primary = palette['700'] || organization.primaryColor || '#f39228';
   const primaryLight = palette['50'] || '#fdf2e5';
   const primary900 = palette['900'] || '#7a2e00';
-  const accent = organization.secondaryColor || '#ff6f00';
+  const accent = organization.secondaryColor || '#31a3db';
   // Color estructural: azul profundo de identidad para el CCB (ver
   // period-pdf-template), primary derivado para el resto.
   const structural = organization.slug === 'ccb' ? '#1a6194' : primary;

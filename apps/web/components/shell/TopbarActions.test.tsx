@@ -67,7 +67,7 @@ describe('TopbarNotifications', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Notificaciones (hay novedades)' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: /Notificaciones/ }));
-    expect(screen.getByText(/registró un check-in/)).toBeInTheDocument();
+    expect(screen.getByText(/Check-in registrado/)).toBeInTheDocument();
     expect(screen.getByText(/Frank C\./)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Ver historial completo/ })).toHaveAttribute('href', '/app/historial');
     // Abierto → visto: el label vuelve a neutro y el lastSeen queda guardado.

@@ -344,7 +344,7 @@ export const biblioInventoriesRoute: FastifyPluginAsync = async (app) => {
         .execute();
 
       const brandHex = (r.g.primaryColor ?? '').replace('#', '').trim();
-      const brand = /^[0-9a-fA-F]{6}$/.test(brandHex) ? `FF${brandHex.toUpperCase()}` : 'FFE65100';
+      const brand = /^[0-9a-fA-F]{6}$/.test(brandHex) ? `FF${brandHex.toUpperCase()}` : 'FFF39228';
       const wb = new ExcelJS.Workbook();
       wb.creator = r.g.orgName;
       const ws = wb.addWorksheet('Inventario');

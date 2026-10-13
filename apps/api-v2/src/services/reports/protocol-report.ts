@@ -7,6 +7,7 @@
 
 import ExcelJS from 'exceljs';
 import type { DbClient } from '@contan2/db';
+import { textArgb } from '../branding-tokens.js';
 
 const PROTO_CAT: Record<string, string> = {
   autoridad: 'Autoridad', diplomatico: 'Diplomático', prensa: 'Prensa',
@@ -115,19 +116,19 @@ export async function loadProtocolReportData(
   return { range: { from, to }, summary, byActivity, detail };
 }
 
-// '#e65100' → 'FFE65100' (ARGB de ExcelJS). Fallback al naranja de marca.
+// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
 function toArgb(hex: string | null): string {
   const h = (hex ?? '').replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFE65100';
+  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
 }
 
 // Construye una hoja con banda de título branded + fila de período + encabezado.
-function styledSheet(wb: ExcelJS.Workbook, name: string, title: string, headers: string[], brand: string, range: { from: string; to: string }): ExcelJS.Worksheet {
+function styledSheet(wb: ExcelJS.Workbook, name: string, title: string, headers: string[], brand: string, brandText: string, range: { from: string; to: string }): ExcelJS.Worksheet {
   const ws = wb.addWorksheet(name);
   ws.mergeCells(1, 1, 1, Math.max(headers.length, 2));
   const t = ws.getCell(1, 1);
   t.value = title;
-  t.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+  t.font = { bold: true, size: 14, color: { argb: brandText } };
   t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
   t.alignment = { vertical: 'middle', horizontal: 'left' };
   ws.getRow(1).height = 26;
@@ -140,7 +141,7 @@ function styledSheet(wb: ExcelJS.Workbook, name: string, title: string, headers:
     headers.forEach((h, i) => {
       const c = head.getCell(i + 1);
       c.value = h;
-      c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      c.font = { bold: true, color: { argb: brandText } };
       c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
     });
     head.height = 20;
@@ -153,11 +154,12 @@ export async function buildProtocolExcelReport(
   data: ProtocolReportData,
 ): Promise<ExcelJS.Workbook> {
   const brand = toArgb(organization.primaryColor);
+  const brandText = textArgb(organization.primaryColor ?? '#f39228');
   const wb = new ExcelJS.Workbook();
   wb.creator = organization.name;
 
   // -------- Hoja 1: Resumen --------
-  const s1 = styledSheet(wb, 'Resumen', `${organization.name} · Protocolo`, [], brand, data.range);
+  const s1 = styledSheet(wb, 'Resumen', `${organization.name} · Protocolo`, [], brand, brandText, data.range);
   const kpis: Array<[string, number | string]> = [
     ['Invitados de protocolo', data.summary.invited],
     ['Confirmados', data.summary.confirmed],
@@ -190,7 +192,7 @@ export async function buildProtocolExcelReport(
 
   // -------- Hoja 2: Por actividad --------
   const H2 = ['Actividad', 'Fecha', 'Invitados', 'Confirmados', 'Asistieron', 'Personas'];
-  const s2 = styledSheet(wb, 'Por actividad', `${organization.name} · Protocolo por actividad`, H2, brand, data.range);
+  const s2 = styledSheet(wb, 'Por actividad', `${organization.name} · Protocolo por actividad`, H2, brand, brandText, data.range);
   for (const a of data.byActivity) {
     s2.addRow([a.name, a.date.slice(0, 10), a.invited, a.confirmed, a.attended, a.partySize]);
   }
@@ -199,7 +201,7 @@ export async function buildProtocolExcelReport(
 
   // -------- Hoja 3: Detalle --------
   const H3 = ['Actividad', 'Fecha', 'Invitado', 'Honorífico', 'Categoría', 'Institución', 'Estado', 'Acompañantes', 'Asistió'];
-  const s3 = styledSheet(wb, 'Detalle', `${organization.name} · Detalle de invitados`, H3, brand, data.range);
+  const s3 = styledSheet(wb, 'Detalle', `${organization.name} · Detalle de invitados`, H3, brand, brandText, data.range);
   for (const d of data.detail) {
     s3.addRow([
       d.activityName, d.activityDate.slice(0, 10), d.name, d.honorific ?? '',

@@ -121,7 +121,8 @@ export function TopbarNotifications() {
               {items.map((it) => (
                 <li key={it.id} className="px-4 py-2">
                   <p className="text-[13px] leading-snug text-ink">
-                    <strong className="font-semibold">{it.actorEmailMasked ?? 'Sistema'}</strong>{' '}
+                    <strong className="font-semibold">{it.actorEmailMasked ?? 'Sistema'}</strong>
+                    {' · '}
                     {actionLabel(it.action)}
                     {it.targetLabel ? <span className="text-muted"> · {it.targetLabel}</span> : null}
                   </p>

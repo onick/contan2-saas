@@ -8,6 +8,7 @@
 
 import ExcelJS from 'exceljs';
 import type { AttendanceByActivityReport } from './report-data.js';
+import { textArgb } from './branding-tokens.js';
 
 export interface ReportBranding {
   name: string;
@@ -19,10 +20,10 @@ const HEADERS = [
   'Capacidad', 'Inscritos', 'Check-ins', 'Personas', 'Anónimos', 'Ocupación %',
 ];
 
-// '#e65100' → 'FFE65100' (ARGB de ExcelJS). Fallback al naranja de marca.
+// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
 function toArgb(hex: string): string {
   const h = hex.replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFE65100';
+  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
 }
 
 export async function buildAttendanceWorkbook(
@@ -30,6 +31,7 @@ export async function buildAttendanceWorkbook(
   branding: ReportBranding,
 ): Promise<Buffer> {
   const brand = toArgb(branding.primaryColor);
+  const brandText = textArgb(branding.primaryColor);
   const wb = new ExcelJS.Workbook();
   wb.creator = branding.name;
   const ws = wb.addWorksheet('Asistencia');
@@ -38,7 +40,7 @@ export async function buildAttendanceWorkbook(
   ws.mergeCells(1, 1, 1, HEADERS.length);
   const title = ws.getCell(1, 1);
   title.value = `${branding.name} · Asistencia por actividad`;
-  title.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+  title.font = { bold: true, size: 14, color: { argb: brandText } };
   title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
   title.alignment = { vertical: 'middle', horizontal: 'left' };
   ws.getRow(1).height = 26;
@@ -54,7 +56,7 @@ export async function buildAttendanceWorkbook(
   HEADERS.forEach((h, i) => {
     const c = head.getCell(i + 1);
     c.value = h;
-    c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    c.font = { bold: true, color: { argb: brandText } };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
     c.alignment = { vertical: 'middle' };
   });

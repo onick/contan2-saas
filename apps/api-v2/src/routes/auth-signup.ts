@@ -51,7 +51,7 @@ const verifyLimiter = createRateLimiter({ max: 10, windowMs: 60_000, prefix: end
 // Email de verificación
 // ────────────────────────────────────────────────────────────────────────────
 
-const ACCENT = '#e65100';
+const ACCENT = '#ae5f0a';
 const INK = '#16181d';
 
 function verificationEmailHtml(code: string, orgName: string): string {

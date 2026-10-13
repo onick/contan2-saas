@@ -38,8 +38,15 @@ export {
 export { Tooltip, TooltipProvider, TooltipRoot, TooltipTrigger, TooltipContent } from './Tooltip';
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from './Popover';
 
-// Compartidos (seguros en servidor; client-only cuando onRowClick está activo)
+// Componentes de formato y actividad
+export { RelativeTime, type RelativeTimeProps } from './RelativeTime';
+export { ActivityFeed, type ActivityFeedProps, type ActivityFeedItem } from './ActivityFeed';
+
+// Compartidos (seguros en servidor)
 export { DataTable, type DataTableProps, type DataTableColumn, type DataTablePaginationProps } from './DataTable';
+
+// Variante cliente (callbacks onRowClick/onPrev/onNext)
+export { DataTableClient, type DataTableClientProps, type DataTableClientPaginationProps } from './DataTableClient';
 export { IconButton, type IconButtonProps, type IconButtonVariant, type IconButtonSize } from './IconButton';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { EmptyState, type EmptyStateProps } from './EmptyState';

@@ -11,7 +11,7 @@ export interface Palette { name: string; primary: string; accent: string }
 
 // CCB primero (marca ancla) + 5 alternativas para white-label.
 export const PALETTES: Palette[] = [
-  { name: 'Banreservas', primary: '#e65100', accent: '#ff6f00' },
+  { name: 'Banreservas', primary: '#f39228', accent: '#31a3db' },
   { name: 'Turquesa', primary: '#0182a2', accent: '#34b3d0' },
   { name: 'Índigo', primary: '#4338ca', accent: '#6366f1' },
   { name: 'Verde', primary: '#157f3c', accent: '#34a853' },

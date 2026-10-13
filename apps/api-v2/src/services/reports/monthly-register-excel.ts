@@ -9,13 +9,14 @@
 
 import ExcelJS from 'exceljs';
 import type { MonthlyRegisterReport } from './monthly-register.js';
+import { textArgb } from '../branding-tokens.js';
 
 export interface ReportBranding { name: string; primaryColor: string }
 
-// '#e65100' → 'FFE65100' (ARGB de ExcelJS). Fallback al naranja de marca.
+// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
 function toArgb(hex: string): string {
   const h = (hex ?? '').replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFE65100';
+  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
 }
 
 const HEADERS = [
@@ -29,13 +30,13 @@ export async function buildMonthlyRegisterWorkbook(
   branding: ReportBranding,
 ): Promise<Buffer> {
   const brand = toArgb(branding.primaryColor);
-  const white = 'FFFFFFFF';
+  const brandText = textArgb(branding.primaryColor);
   const wb = new ExcelJS.Workbook();
   wb.creator = branding.name;
   const ws = wb.addWorksheet(`${report.monthName} ${report.year}`);
 
   const band = (cell: ExcelJS.Cell) => {
-    cell.font = { bold: true, color: { argb: white } };
+    cell.font = { bold: true, color: { argb: brandText } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
     cell.alignment = { vertical: 'middle' };
   };
@@ -44,7 +45,7 @@ export async function buildMonthlyRegisterWorkbook(
   ws.mergeCells(1, 1, 1, NCOLS);
   const title = ws.getCell(1, 1);
   title.value = `REGISTRO ACTIVIDADES ${report.monthName.toUpperCase()} ${report.year}`;
-  title.font = { bold: true, size: 14, color: { argb: white } };
+  title.font = { bold: true, size: 14, color: { argb: brandText } };
   title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
   title.alignment = { vertical: 'middle', horizontal: 'center' };
   ws.getRow(1).height = 26;

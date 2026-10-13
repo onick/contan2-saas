@@ -1,6 +1,7 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { DataTable, type DataTableColumn } from './DataTable';
+import { DataTableClient } from './DataTableClient';
 
 afterEach(cleanup);
 
@@ -20,21 +21,22 @@ const columns: DataTableColumn<Person>[] = [
   { id: 'role', header: 'Rol', cell: (r) => r.role, priority: 'md' },
 ];
 
+// — DataTable (servidor, sin callbacks) —
+
 describe('DataTable', () => {
-  it('renders rows from data', () => {
+  it('renderiza filas desde data', () => {
     render(<DataTable data={data} columns={columns} getRowId={(r) => r.id} />);
     expect(screen.getAllByText('Ana García').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Luis Pérez').length).toBeGreaterThan(0);
   });
 
-  it('loading state shows skeleton rows (no data)', () => {
+  it('loading muestra skeleton rows', () => {
     render(<DataTable data={[]} columns={columns} getRowId={(r) => r.id} loading />);
-    // skeleton spans are present
     const skeletons = document.querySelectorAll('.app-shimmer');
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
-  it('empty state renders custom empty node', () => {
+  it('empty renderiza nodo personalizado', () => {
     render(
       <DataTable
         data={[]}
@@ -46,29 +48,111 @@ describe('DataTable', () => {
     expect(screen.getAllByText('Sin datos').length).toBeGreaterThan(0);
   });
 
-  it('pagination bar shows formatted range text', () => {
+  it('paginación con href muestra rango formateado', () => {
     render(
       <DataTable
         data={data}
         columns={columns}
         getRowId={(r) => r.id}
-        pagination={{ page: 1, pageSize: 6, total: 1333 }}
+        pagination={{ page: 1, pageSize: 6, total: 1333, hrefPrev: '/?p=0', hrefNext: '/?p=2' }}
       />,
     );
-    // "Mostrando 1–6 de 1.333" (es-DO) or similar locale format
     expect(screen.getAllByText(/Mostrando/).length).toBeGreaterThan(0);
-    // Total formatted with thousands separator (., , or space depending on locale support)
     expect(document.body.textContent).toMatch(/1[.,\s]333/);
   });
 
-  it('priority md columns have hidden class on mobile', () => {
+  it('columnas md tienen clase hidden en su th', () => {
     const { container } = render(
       <DataTable data={data} columns={columns} getRowId={(r) => r.id} />,
     );
-    // The "Rol" header cell in the desktop table should have hidden md:table-cell
     const ths = container.querySelectorAll('th');
     const rolTh = Array.from(ths).find((th) => th.textContent === 'Rol');
     expect(rolTh).toBeTruthy();
     expect(rolTh!.className).toContain('hidden');
+  });
+
+  it('col.cell(row) se invoca una vez por celda (no dos veces)', () => {
+    const cellSpy = vi.fn((r: Person) => r.name);
+    const spyCols: DataTableColumn<Person>[] = [
+      { id: 'name', header: 'Nombre', cell: cellSpy, priority: 'always' },
+    ];
+    render(<DataTable data={[data[0]!]} columns={spyCols} getRowId={(r) => r.id} />);
+    // desktop + mobile → la función se llama una vez por vista pero gracias a
+    // rowsWithCells el resultado se reutiliza: debe ser exactamente 1 call.
+    expect(cellSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// — DataTableClient (cliente, con callbacks) —
+
+describe('DataTableClient', () => {
+  it('renderiza filas desde data', () => {
+    render(<DataTableClient data={data} columns={columns} getRowId={(r) => r.id} />);
+    expect(screen.getAllByText('Ana García').length).toBeGreaterThan(0);
+  });
+
+  it('onRowClick se dispara al hacer clic en una fila', () => {
+    const onClick = vi.fn();
+    render(
+      <DataTableClient
+        data={data}
+        columns={columns}
+        getRowId={(r) => r.id}
+        onRowClick={onClick}
+      />,
+    );
+    const rows = document.querySelectorAll('tr[tabindex="0"]');
+    expect(rows.length).toBeGreaterThan(0);
+    fireEvent.click(rows[0]!);
+    expect(onClick).toHaveBeenCalledWith(data[0]);
+  });
+
+  it('Enter en una fila dispara onRowClick', () => {
+    const onClick = vi.fn();
+    render(
+      <DataTableClient
+        data={data}
+        columns={columns}
+        getRowId={(r) => r.id}
+        onRowClick={onClick}
+      />,
+    );
+    const rows = document.querySelectorAll('tr[tabindex="0"]');
+    fireEvent.keyDown(rows[0]!, { key: 'Enter' });
+    expect(onClick).toHaveBeenCalledWith(data[0]);
+  });
+
+  it('Espacio en una fila dispara onRowClick', () => {
+    const onClick = vi.fn();
+    render(
+      <DataTableClient
+        data={data}
+        columns={columns}
+        getRowId={(r) => r.id}
+        onRowClick={onClick}
+      />,
+    );
+    const rows = document.querySelectorAll('tr[tabindex="0"]');
+    fireEvent.keyDown(rows[0]!, { key: ' ' });
+    expect(onClick).toHaveBeenCalledWith(data[0]);
+  });
+
+  it('sin onRowClick las filas no tienen tabIndex', () => {
+    render(<DataTableClient data={data} columns={columns} getRowId={(r) => r.id} />);
+    const rows = document.querySelectorAll('tr[tabindex="0"]');
+    expect(rows.length).toBe(0);
+  });
+
+  it('paginación con callbacks muestra rango formateado', () => {
+    render(
+      <DataTableClient
+        data={data}
+        columns={columns}
+        getRowId={(r) => r.id}
+        pagination={{ page: 1, pageSize: 6, total: 1333, onPrev: vi.fn(), onNext: vi.fn() }}
+      />,
+    );
+    expect(screen.getAllByText(/Mostrando/).length).toBeGreaterThan(0);
+    expect(document.body.textContent).toMatch(/1[.,\s]333/);
   });
 });

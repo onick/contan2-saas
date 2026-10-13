@@ -44,4 +44,13 @@ describe('staff-invite-email', () => {
     expect(html).toContain('#0182a2');           // botón con color de marca del tenant
     expect(html).toContain('Protocolo');
   });
+
+  it('buildStaffInviteHtml — botón: texto oscuro sobre primario claro (naranja), blanco sobre primario oscuro', () => {
+    // #f39228 L≈0.40 → contraste blanco 2.35:1 < 4.5 → texto oscuro
+    const htmlLight = buildStaffInviteHtml({ orgName: 'X', role: 'admin', inviteUrl: 'https://x/invite/t', branding: { name: 'X', primaryColor: '#f39228', secondaryColor: '' } });
+    expect(htmlLight).toContain('color:#1f2326');
+    // #1a3c5e L≈0.04 → contraste blanco ≈ 11:1 ≥ 4.5 → texto blanco
+    const htmlDark = buildStaffInviteHtml({ orgName: 'X', role: 'admin', inviteUrl: 'https://x/invite/t', branding: { name: 'X', primaryColor: '#1a3c5e', secondaryColor: '' } });
+    expect(htmlDark).toContain('color:#ffffff');
+  });
 });

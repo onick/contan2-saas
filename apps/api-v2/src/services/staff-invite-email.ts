@@ -5,7 +5,7 @@
 // JAMÁS se loguea. Antes esta ruta era dry-run pura (no mandaba nada).
 
 import { escapeHtml, maskEmail, resendSend, type SendMessage } from './email.js';
-import type { OrgBranding } from './branding-tokens.js';
+import { textOn, type OrgBranding } from './branding-tokens.js';
 
 const DEFAULT_FROM = 'contan2-saas <onboarding@resend.dev>';
 const ROLE_LABEL: Record<string, string> = {
@@ -33,7 +33,7 @@ export interface StaffInviteEmailOpts {
 }
 
 export function buildStaffInviteHtml(opts: StaffInviteEmailOpts): string {
-  const brand = opts.branding?.primaryColor && /^#[0-9a-fA-F]{6}$/.test(opts.branding.primaryColor) ? opts.branding.primaryColor : '#e65100';
+  const brand = opts.branding?.primaryColor && /^#[0-9a-fA-F]{6}$/.test(opts.branding.primaryColor) ? opts.branding.primaryColor : '#f39228';
   const org = escapeHtml(opts.orgName);
   const roleLabel = escapeHtml(ROLE_LABEL[opts.role] ?? opts.role);
   const url = escapeHtml(opts.inviteUrl);
@@ -44,7 +44,7 @@ export function buildStaffInviteHtml(opts: StaffInviteEmailOpts): string {
         <p style="margin:0 0 6px;font-size:13px;color:#6b7280;">${org}</p>
         <h1 style="margin:0 0 12px;font-size:20px;line-height:1.3;color:#111827;">Te invitaron al equipo</h1>
         <p style="margin:0 0 8px;font-size:15px;line-height:1.6;">Te sumaron como <strong>${roleLabel}</strong> en <strong>${org}</strong>. Aceptá la invitación para crear tu cuenta y empezar.</p>
-        <p style="margin:20px 0;"><a href="${url}" style="display:inline-block;background:${brand};color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:10px;">Aceptar invitación</a></p>
+        <p style="margin:20px 0;"><a href="${url}" style="display:inline-block;background:${brand};color:${textOn(brand)};text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:10px;">Aceptar invitación</a></p>
         <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">El enlace vence en 24 horas. Si no esperabas esta invitación, ignorá este correo.<br />Si el botón no funciona, abrí este enlace:<br /><a href="${url}" style="color:#6b7280;word-break:break-all;">${url}</a></p>
       </td></tr>
     </table>

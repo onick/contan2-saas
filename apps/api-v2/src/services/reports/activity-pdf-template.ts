@@ -57,12 +57,12 @@ function categoryFor(prior) {
 }
 
 export async function buildActivityPdfHtml({ organization, activity, attendances, users, affinities, protocol }) {
-  const palette = generatePalette(organization.primaryColor || '#1a237e') || {};
-  const primary = palette['700'] || organization.primaryColor || '#1a237e';
-  const primaryLight = palette['50'] || '#eeeffc';
-  const primary100 = palette['100'] || '#d5d8f6';
-  const primary900 = palette['900'] || '#0d144f';
-  const accent = organization.secondaryColor || '#ff6f00';
+  const palette = generatePalette(organization.primaryColor || '#f39228') || {};
+  const primary = palette['700'] || organization.primaryColor || '#f39228';
+  const primaryLight = palette['50'] || '#fef4e8';
+  const primary100 = palette['100'] || '#fde6c8';
+  const primary900 = palette['900'] || '#7a3300';
+  const accent = organization.secondaryColor || '#31a3db';
   const accentLight = '#fff4e6';
   const onPrimary = pickOn(primary);
   const onAccent = pickOn(accent);
