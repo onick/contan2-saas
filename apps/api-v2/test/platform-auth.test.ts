@@ -43,9 +43,14 @@ run('platform auth · login/logout/me', () => {
     await db.destroy();
   });
 
+  // En CI (REDIS_URL definido) el loginLimiter usa Redis con clave compartida
+  // `test:platform-login:<ip>`. app.inject usa 127.0.0.1 por defecto y con
+  // trustProxy:1 (sin XFF) req.ip == remoteAddress del socket. Se asigna una IP
+  // exclusiva por grupo de tests para no cruzar el cap de 10 entre archivos.
   const login = (body: Record<string, unknown>) => app.inject({
     method: 'POST', url: '/api/v2/platform/auth/login',
     headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: body,
+    remoteAddress: '10.88.0.1',
   });
 
   it('body inválido → 400', async () => {
@@ -87,21 +92,25 @@ run('platform auth · login/logout/me', () => {
   });
 
   it('mi cuenta: cambiar contraseña + sesiones', async () => {
+    // IP propia: change-password también llama loginLimiter.hit(req.ip), así que
+    // este caso acumula 6 hits (login + 3 change-pwd + 2 logins finales). Con la
+    // IP del helper (10.88.0.1) cruzaría el límite de 10 junto con los otros casos.
+    const ACCOUNT_IP = '10.89.0.1';
     // login fresco
-    const login = await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password } });
+    const login = await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password }, remoteAddress: ACCOUNT_IP });
     const tok = cookieFrom(login.headers['set-cookie'])!;
     const H = { host: 'admin.contan2.com', cookie: `contan2_admin_session=${tok}`, 'content-type': 'application/json' };
 
     // actual incorrecta → 401
-    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/change-password', headers: H, payload: { currentPassword: 'nope', newPassword: 'BrandNewPass!9' } })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/change-password', headers: H, payload: { currentPassword: 'nope', newPassword: 'BrandNewPass!9' }, remoteAddress: ACCOUNT_IP })).statusCode).toBe(401);
     // nueva muy corta → 400
-    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/change-password', headers: H, payload: { currentPassword: password, newPassword: 'short' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/change-password', headers: H, payload: { currentPassword: password, newPassword: 'short' }, remoteAddress: ACCOUNT_IP })).statusCode).toBe(400);
     // ok
     const newPw = 'BrandNewPass!9';
-    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/change-password', headers: H, payload: { currentPassword: password, newPassword: newPw } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/change-password', headers: H, payload: { currentPassword: password, newPassword: newPw }, remoteAddress: ACCOUNT_IP })).statusCode).toBe(200);
     // la vieja ya no loguea; la nueva sí
-    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password } })).statusCode).toBe(401);
-    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password: newPw } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password }, remoteAddress: ACCOUNT_IP })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password: newPw }, remoteAddress: ACCOUNT_IP })).statusCode).toBe(200);
 
     // sesiones: la actual aparece marcada; sin cookie → 401
     expect((await app.inject({ method: 'GET', url: '/api/v2/platform/auth/sessions', headers: { host: 'admin.contan2.com' } })).statusCode).toBe(401);
