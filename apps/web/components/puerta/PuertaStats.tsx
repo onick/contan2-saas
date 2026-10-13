@@ -175,11 +175,11 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
         <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Desde</span>
-            <input type="date" value={range.from} onChange={(e) => setDate('from', e.target.value)} className={cn('rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-ink', focusRing)} />
+            <input type="date" value={range.from} onChange={(e) => setDate('from', e.target.value)} className={cn('rounded-lg border border-border-strong bg-surface px-2.5 py-1.5 text-[13px] text-ink', focusRing)} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Hasta</span>
-            <input type="date" value={range.to} onChange={(e) => setDate('to', e.target.value)} className={cn('rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-ink', focusRing)} />
+            <input type="date" value={range.to} onChange={(e) => setDate('to', e.target.value)} className={cn('rounded-lg border border-border-strong bg-surface px-2.5 py-1.5 text-[13px] text-ink', focusRing)} />
           </label>
         </div>
       </div>

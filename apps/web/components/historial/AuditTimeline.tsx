@@ -90,7 +90,7 @@ export function AuditTimeline() {
     else groups.push({ key: d.key, label: d.label, events: [it] });
   }
 
-  const inputCls = cn('h-9 rounded-lg border border-line bg-surface px-3 text-[13px] text-ink', focusRing);
+  const inputCls = cn('h-9 rounded-lg border border-border-strong bg-surface px-3 text-[13px] text-ink', focusRing);
 
   return (
     <div>
@@ -104,7 +104,7 @@ export function AuditTimeline() {
           <label className="relative">
             <span className="sr-only">Buscar por actor</span>
             <Search size={16} strokeWidth={1.75} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-            <input type="search" value={filters.actor} onChange={(e) => set('actor', e.target.value)} placeholder="Actor (ej. a***@…)" className={cn('h-9 w-44 rounded-lg border border-line bg-surface pl-9 pr-3 text-[13px] text-ink placeholder:text-faint', focusRing)} />
+            <input type="search" value={filters.actor} onChange={(e) => set('actor', e.target.value)} placeholder="Actor (ej. a***@…)" className={cn('h-9 w-44 rounded-lg border border-border-strong bg-surface pl-9 pr-3 text-[13px] text-ink placeholder:text-faint', focusRing)} />
           </label>
           <div className="ml-auto flex items-center gap-2">
             <label className="flex items-center gap-1.5 text-[12px] text-faint">Desde
