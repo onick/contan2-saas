@@ -34,6 +34,7 @@ export function RowActions({ code, name, email, archived, canWrite }: RowActions
   const [resendError, setResendError] = useState<string | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const resendKey = useRef('');
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   async function copyCode() {
     try {
@@ -70,6 +71,7 @@ export function RowActions({ code, name, email, archived, canWrite }: RowActions
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
+            ref={triggerRef}
             type="button"
             aria-label={`Acciones para ${name}`}
             className={cn('grid h-9 w-9 place-items-center rounded-lg text-faint hover:bg-page hover:text-ink', focusRing)}
@@ -123,6 +125,7 @@ export function RowActions({ code, name, email, archived, canWrite }: RowActions
         confirmLabel="Sí, reenviar"
         busy={busy}
         error={resendError}
+        returnFocusRef={triggerRef}
       />
 
       <ConfirmDialog
@@ -139,6 +142,7 @@ export function RowActions({ code, name, email, archived, canWrite }: RowActions
         destructive={!archived}
         busy={busy}
         error={archiveError}
+        returnFocusRef={triggerRef}
       />
     </>
   );

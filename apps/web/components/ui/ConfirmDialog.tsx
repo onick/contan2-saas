@@ -1,5 +1,6 @@
 'use client';
 
+import { type RefObject } from 'react';
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { Loader2 } from 'lucide-react';
 import { cn, focusRing } from './cn';
@@ -20,6 +21,7 @@ export interface ConfirmDialogProps {
   busy?: boolean;
   /** Error ocurrido tras confirmar; se mantiene abierto para reintentar. */
   error?: string | null;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export function ConfirmDialog({
@@ -34,6 +36,7 @@ export function ConfirmDialog({
   dismissOnOverlay = false,
   busy,
   error,
+  returnFocusRef,
 }: ConfirmDialogProps) {
   const controlled = busy !== undefined || error !== undefined;
   return (
@@ -48,6 +51,12 @@ export function ConfirmDialog({
           )}
           onPointerDownOutside={(e: { preventDefault: () => void }) => {
             if (!dismissOnOverlay || busy) e.preventDefault();
+          }}
+          onCloseAutoFocus={(e) => {
+            if (returnFocusRef?.current) {
+              e.preventDefault();
+              returnFocusRef.current.focus();
+            }
           }}
         >
           <RadixDialog.Title className="text-[17px] font-semibold text-ink">{title}</RadixDialog.Title>

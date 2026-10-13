@@ -99,6 +99,7 @@ export function MobileNav({ activeKey, role }: { activeKey?: string; role?: stri
         title="Menú"
         dismissOnOverlay
         width={340}
+        returnFocusRef={moreBtnRef}
       >
         <div id="mobile-nav-sheet" className="flex flex-col gap-1">
           {sheetGroups.map(({ group, items }) => (

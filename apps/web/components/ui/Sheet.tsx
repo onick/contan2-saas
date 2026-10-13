@@ -1,5 +1,6 @@
 'use client';
 
+import { type RefObject } from 'react';
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn, focusRing } from './cn';
@@ -15,6 +16,7 @@ export interface SheetProps {
   width?: number;
   className?: string;
   ariaLabel?: string;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export function Sheet({
@@ -28,6 +30,7 @@ export function Sheet({
   width = 560,
   className,
   ariaLabel,
+  returnFocusRef,
 }: SheetProps) {
   return (
     <RadixDialog.Root open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -48,6 +51,12 @@ export function Sheet({
           style={{ ['--sheet-width' as string]: `${width}px` }}
           onPointerDownOutside={(e: { preventDefault: () => void }) => {
             if (!dismissOnOverlay) e.preventDefault();
+          }}
+          onCloseAutoFocus={(e) => {
+            if (returnFocusRef?.current) {
+              e.preventDefault();
+              returnFocusRef.current.focus();
+            }
           }}
         >
           {title ? (

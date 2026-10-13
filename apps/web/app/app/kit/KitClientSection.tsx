@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Settings, Trash2, Copy, ChevronDown } from 'lucide-react';
 import { Button, Tabs, TabsContent, Sheet, ConfirmDialog, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, Tooltip, SegmentedControlClient } from '@/components/ui';
 
@@ -8,6 +8,8 @@ export function KitClientSection() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [seg, setSeg] = useState('todos');
+  const sheetTriggerRef = useRef<HTMLButtonElement>(null);
+  const confirmTriggerRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="space-y-12">
@@ -46,14 +48,15 @@ export function KitClientSection() {
       <section className="space-y-4">
         <h2 className="text-[17px] font-semibold text-ink">Sheet & ConfirmDialog</h2>
         <div className="flex flex-wrap gap-3">
-          <Button variant="secondary" onClick={() => setSheetOpen(true)}>Abrir Sheet</Button>
-          <Button variant="secondary" onClick={() => setConfirmOpen(true)}>Confirmar acción</Button>
+          <Button ref={sheetTriggerRef} variant="secondary" onClick={() => setSheetOpen(true)}>Abrir Sheet</Button>
+          <Button ref={confirmTriggerRef} variant="secondary" onClick={() => setConfirmOpen(true)}>Confirmar acción</Button>
         </div>
         <Sheet
           open={sheetOpen}
           onClose={() => setSheetOpen(false)}
           title="Panel lateral"
           description="Información adicional"
+          returnFocusRef={sheetTriggerRef}
           footer={
             <>
               <Button variant="secondary" onClick={() => setSheetOpen(false)}>Cancelar</Button>
@@ -71,6 +74,7 @@ export function KitClientSection() {
           description="Esta acción no se puede deshacer."
           confirmLabel="Eliminar"
           destructive
+          returnFocusRef={confirmTriggerRef}
         />
       </section>
 

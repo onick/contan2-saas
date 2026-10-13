@@ -1,3 +1,4 @@
+import React from 'react';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -79,5 +80,50 @@ describe('Sheet', () => {
       </Sheet>,
     );
     expect(screen.queryByText('Oculto')).not.toBeInTheDocument();
+  });
+
+  it('returns focus to returnFocusRef on Escape', async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [open, setOpen] = React.useState(false);
+      const btnRef = React.useRef<HTMLButtonElement>(null);
+      return (
+        <>
+          <button ref={btnRef} onClick={() => setOpen(true)}>Open</button>
+          <Sheet open={open} onClose={() => setOpen(false)} title="Test" returnFocusRef={btnRef}>
+            <p>content</p>
+          </Sheet>
+        </>
+      );
+    }
+    render(<Harness />);
+    await user.click(screen.getByText('Open'));
+    await user.keyboard('{Escape}');
+    expect(document.activeElement).toBe(screen.getByText('Open'));
+  });
+
+  it('returns focus even when trigger blurred before close (programmatic open)', async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [open, setOpen] = React.useState(false);
+      const btnRef = React.useRef<HTMLButtonElement>(null);
+      return (
+        <>
+          <button ref={btnRef} onClick={() => setOpen(true)}>Open</button>
+          <Sheet open={open} onClose={() => setOpen(false)} title="Test" returnFocusRef={btnRef}>
+            <p>content</p>
+          </Sheet>
+        </>
+      );
+    }
+    render(<Harness />);
+    // Open via click
+    await user.click(screen.getByText('Open'));
+    // Manually blur the trigger button (simulates trigger losing focus before close)
+    screen.getByText('Open').blur();
+    // Close via Escape
+    await user.keyboard('{Escape}');
+    // Focus still returns to trigger button via returnFocusRef
+    expect(document.activeElement).toBe(screen.getByText('Open'));
   });
 });

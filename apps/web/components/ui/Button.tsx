@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import { forwardRef, type ComponentProps } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Loader2, type LucideIcon } from 'lucide-react';
 import { cn, focusRing } from './cn';
@@ -54,7 +54,7 @@ export interface ButtonProps
   children?: React.ReactNode;
 }
 
-export function Button({
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
   variant = 'primary',
   size = 'md',
   fullWidth = false,
@@ -66,13 +66,14 @@ export function Button({
   type = 'button',
   children,
   ...rest
-}: ButtonProps) {
+}, ref) {
   const isPill = variant === 'pill';
   const pillSelected = isPill && selected;
   const iconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
 
   return (
     <button
+      ref={ref}
       type={type}
       aria-pressed={isPill ? selected : undefined}
       data-variant={variant}
@@ -94,4 +95,4 @@ export function Button({
       {!loading && IconRight ? <IconRight size={iconSize} aria-hidden="true" /> : null}
     </button>
   );
-}
+});

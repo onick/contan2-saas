@@ -1,5 +1,6 @@
 'use client';
 
+import { type RefObject } from 'react';
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn, focusRing } from './cn';
@@ -13,6 +14,7 @@ export interface DialogProps {
   footer?: React.ReactNode;
   dismissOnOverlay?: boolean;
   className?: string;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export function Dialog({
@@ -24,6 +26,7 @@ export function Dialog({
   footer,
   dismissOnOverlay = false,
   className,
+  returnFocusRef,
 }: DialogProps) {
   return (
     <RadixDialog.Root open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -38,6 +41,12 @@ export function Dialog({
           )}
           onPointerDownOutside={(e: { preventDefault: () => void }) => {
             if (!dismissOnOverlay) e.preventDefault();
+          }}
+          onCloseAutoFocus={(e) => {
+            if (returnFocusRef?.current) {
+              e.preventDefault();
+              returnFocusRef.current.focus();
+            }
           }}
         >
           {title ? (
