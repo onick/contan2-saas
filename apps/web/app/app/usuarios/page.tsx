@@ -65,7 +65,8 @@ export default async function UsuariosPage({
     }
   }
 
-  const pendingCreds = facets?.noCredential ?? 0;
+  const byStatus = facets?.byStatus ?? null;
+  const pendingCreds = byStatus?.pendiente ?? facets?.counts.noCredential ?? 0;
 
   const actions = (
     <>
@@ -110,31 +111,31 @@ export default async function UsuariosPage({
         actions={actions}
       />
 
-      {/* KPIs */}
+      {/* KPIs — partición completa (byStatus, sin filtro de búsqueda) */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCardWithInfo
           icon={Users}
-          label={totalLabel}
-          value={numero(view.total)}
-          tooltipText="Visitantes con cuenta en la plataforma que coinciden con los filtros activos."
+          label="Total"
+          value={byStatus === null ? '—' : numero(byStatus.total)}
+          tooltipText="Total de visitantes registrados (no archivados)."
         />
         <StatCardWithInfo
           icon={UserCheck}
           label="Activos"
-          value={facets === null ? '—' : numero(facets.active)}
-          tooltipText="Visitantes que asistieron a una actividad en los últimos 30 días."
+          value={byStatus === null ? '—' : numero(byStatus.activo)}
+          tooltipText="Vino o se registró en los últimos 90 días (excluye pendientes)."
         />
         <StatCardWithInfo
           icon={MailX}
-          label="Invitaciones pendientes"
-          value={facets === null ? '—' : numero(facets.noCredential ?? 0)}
-          tooltipText="Visitantes con email registrado pero sin credencial QR enviada."
+          label="Pendientes"
+          value={byStatus === null ? '—' : numero(byStatus.pendiente)}
+          tooltipText="Visitantes con email registrado pero sin credencial QR enviada aún."
         />
         <StatCardWithInfo
           icon={UserMinus}
           label="Inactivos"
-          value={facets === null ? '—' : numero(facets.dormant)}
-          tooltipText="Visitantes sin asistencia registrada en los últimos 90 días, o sin historial."
+          value={byStatus === null ? '—' : numero(byStatus.inactivo)}
+          tooltipText="Sin actividad en más de 90 días (excluye pendientes)."
         />
       </div>
 

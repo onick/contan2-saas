@@ -65,15 +65,27 @@ describe('getUsersPage', () => {
 });
 
 describe('getUsersFacets', () => {
-  it('pega a /users/facets con q y devuelve los conteos', async () => {
+  it('pega a /users/facets con q y devuelve la respuesta completa con counts y byStatus', async () => {
     const counts = { all: 10, frequent: 3, new7d: 2, noEmail: 1, noCredential: 4, active: 5, dormant: 2 };
-    vi.mocked(apiGet).mockResolvedValue({ counts });
-    expect(await getUsersFacets('ana')).toEqual(counts);
+    const byStatus = { total: 9, activo: 4, pendiente: 4, inactivo: 1, archivado: 2 };
+    vi.mocked(apiGet).mockResolvedValue({ counts, byStatus });
+    const result = await getUsersFacets('ana');
+    expect(result?.counts).toEqual(counts);
+    expect(result?.byStatus).toEqual(byStatus);
     expect(vi.mocked(apiGet).mock.calls[0]![0]).toBe('/api/v2/users/facets?q=ana');
   });
 
-  it('null si falla (las pills siguen navegables sin número)', async () => {
+  it('byStatus es opcional — respuesta válida sin él', async () => {
+    const counts = { all: 5, frequent: 0, new7d: 1, noEmail: 2, noCredential: 1, active: 1, dormant: 0 };
+    vi.mocked(apiGet).mockResolvedValue({ counts });
+    const result = await getUsersFacets();
+    expect(result?.counts).toEqual(counts);
+    expect(result?.byStatus).toBeUndefined();
+  });
+
+  it('null si falla → la UI muestra «—» en los KPIs de estado', async () => {
     vi.mocked(apiGet).mockRejectedValue(new Error('502'));
     expect(await getUsersFacets()).toBeNull();
+    // byStatus = null → página muestra '—' para Total, Activos, Pendientes, Inactivos
   });
 });

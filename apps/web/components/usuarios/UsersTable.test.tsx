@@ -34,4 +34,16 @@ describe('UsersTable', () => {
   it('todos los emails son demo @example.com (no PII real)', () => {
     for (const u of USERS) expect(u.email.endsWith('@example.com')).toBe(true);
   });
+
+  it('nombre completo visible en el DOM (no truncado en tarjeta móvil)', () => {
+    render(<UsersTable users={USERS} />);
+    // Comportamiento: el nombre completo debe encontrarse en el DOM (no cortado).
+    // Clase: el elemento no debe tener "truncate" (causaría ellipsis en móvil).
+    for (const u of USERS) {
+      const nameEls = screen.getAllByText(u.name);
+      expect(nameEls.length).toBeGreaterThan(0); // nombre completo visible
+      const hasNameWithTruncate = nameEls.some((el) => el.classList.contains('truncate'));
+      expect(hasNameWithTruncate).toBe(false); // sin ellipsis
+    }
+  });
 });

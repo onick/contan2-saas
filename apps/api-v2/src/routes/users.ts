@@ -12,7 +12,7 @@ import type { AdminCredentialResendResponse, AdminCredentialResendResult, AdminU
 import { requireTenantStaff } from '../guard.js';
 import { writeUserAudit } from '../services/user-audit.js';
 import { deliverCredential } from '../services/credential-delivery.js';
-import { cohortCondition, statusCondition } from '../services/users-query.js';
+import { cohortCondition, statusCondition, countAudienceByStatus, lastActivityJoin, audienceStatusCase } from '../services/users-query.js';
 import { writeReportAudit } from '../services/report-audit.js';
 import { loadUsersForExport, buildUsersCsv, buildUsersWorkbook, USERS_EXPORT_CAP } from '../services/users-export.js';
 import { parseUsersFile, classifyRows, commitNewRows, buildImportTemplate, IMPORT_MAX_BYTES } from '../services/users-import.js';
@@ -59,26 +59,24 @@ function toUser(r: DetailRow): User {
   };
 }
 
-// Estado de actividad derivado de la última visita (MAX checked_in_at):
-//   nunca visitó            → 'dormant'
-//   última visita ≤ 30 días → 'active'
-//   última visita > 90 días → 'dormant'
-//   31–90 días (intermedia) → null  (sin etiqueta, decisión de producto)
+// Estado de actividad derivado de la última visita (MAX coalesce(checked_in_at, registered_at)):
+//   nunca visitó          → 'dormant'
+//   última visita ≤ 90d   → 'active'
+//   última visita > 90d   → 'dormant'
+// Alineado con audienceStatusCase: activo = actividad o alta en ≤90 días.
 function deriveStatus(lastVisit: Date | null): UserActivityStatus | null {
   if (!lastVisit) return 'dormant';
   const days = (Date.now() - lastVisit.getTime()) / DAY_MS;
-  if (days <= 30) return 'active';
-  if (days > 90) return 'dormant';
-  return null;
+  return days <= 90 ? 'active' : 'dormant';
 }
 
 interface ListRow extends DetailRow {
   credential_sent_at: Date | null;
   deleted_at: Date | null;
-  last_visit_at: Date | string | null;
+  last_activity_at: Date | string | null;
 }
 function toListItem(r: ListRow): UserListItem {
-  const lastVisit = r.last_visit_at ? new Date(r.last_visit_at) : null;
+  const lastVisit = r.last_activity_at ? new Date(r.last_activity_at) : null;
   return {
     ...toUser(r),
     lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
@@ -114,33 +112,15 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     const cohortCond = cohortCondition(cohort);
     const statusCond = statusCondition(parseUserStatusFilter(query.status));
 
-    // Última visita por usuario en UNA agregación (LEFT JOIN a MAX agrupado), no
-    // N+1. lv.last_visit_at es NULL para quien nunca asistió. organizationId
-    // SIEMPRE del guard (sesión), jamás del cliente.
+    // Última actividad por usuario: max(coalesce(checked_in_at, registered_at)).
+    // lv.last_activity_at es NULL para quien no tiene asistencias registradas.
+    // organizationId SIEMPRE del guard (sesión), jamás del cliente.
     let rowsQ = db.selectFrom('users')
-      .leftJoin(
-        (eb) => eb.selectFrom('attendance')
-          .select(['attendance.user_id'])
-          .select((e) => e.fn.max('attendance.checked_in_at').as('last_visit_at'))
-          .where('attendance.organization_id', '=', orgId)
-          .where('attendance.checked_in_at', 'is not', null)
-          .groupBy('attendance.user_id')
-          .as('lv'),
-        (join) => join.onRef('lv.user_id', '=', 'users.id'),
-      )
-      .select([...LIST_COLUMNS, 'lv.last_visit_at'])
+      .leftJoin(lastActivityJoin(db, orgId), (join) => join.onRef('lv.user_id', '=', 'users.id'))
+      .select([...LIST_COLUMNS, 'lv.last_activity_at'])
       .where('users.organization_id', '=', orgId);
     let countQ = db.selectFrom('users')
-      .leftJoin(
-        (eb) => eb.selectFrom('attendance')
-          .select(['attendance.user_id'])
-          .select((e) => e.fn.max('attendance.checked_in_at').as('last_visit_at'))
-          .where('attendance.organization_id', '=', orgId)
-          .where('attendance.checked_in_at', 'is not', null)
-          .groupBy('attendance.user_id')
-          .as('lv'),
-        (join) => join.onRef('lv.user_id', '=', 'users.id'),
-      )
+      .leftJoin(lastActivityJoin(db, orgId), (join) => join.onRef('lv.user_id', '=', 'users.id'))
       .select(db.fn.countAll<string>().as('n'))
       .where('users.organization_id', '=', orgId);
 
@@ -183,6 +163,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
   // GET /api/v2/users/facets · conteos EXACTOS por cohorte, tenant-scoped, dentro
   // de la búsqueda `q` vigente (no del cohorte: cada pill muestra su propio total).
   // Una sola query con `count(*) filter (where …)` + el join de última visita.
+  // byStatus: partición completa del padrón SIN filtro de búsqueda (countAudienceByStatus).
   app.get('/users/facets', async (req, reply) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
@@ -202,16 +183,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     const statusCond = statusCondition(parseUserStatusFilter(query.status));
 
     let q = db.selectFrom('users')
-      .leftJoin(
-        (eb) => eb.selectFrom('attendance')
-          .select(['attendance.user_id'])
-          .select((e) => e.fn.max('attendance.checked_in_at').as('last_visit_at'))
-          .where('attendance.organization_id', '=', orgId)
-          .where('attendance.checked_in_at', 'is not', null)
-          .groupBy('attendance.user_id')
-          .as('lv'),
-        (join) => join.onRef('lv.user_id', '=', 'users.id'),
-      )
+      .leftJoin(lastActivityJoin(db, orgId), (join) => join.onRef('lv.user_id', '=', 'users.id'))
       .where('users.organization_id', '=', orgId);
     if (pattern) {
       q = q.where((eb) => eb.or([
@@ -223,15 +195,18 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       ]));
     }
     if (statusCond) q = q.where(statusCond);
+    // countAudienceByStatus se ejecuta secuencialmente (no en Promise.all) para
+    // no enviar dos queries en paralelo sobre la misma tx/conexión tenant.
     const row = await q.select([
       sql<string>`count(*)`.as('all'),
       sql<string>`count(*) filter (where users.visit_count >= 3)`.as('frequent'),
       sql<string>`count(*) filter (where users.created_at >= now() - interval '7 days')`.as('new7d'),
       sql<string>`count(*) filter (where users.email is null)`.as('noEmail'),
       sql<string>`count(*) filter (where users.email is not null and users.credential_sent_at is null)`.as('noCredential'),
-      sql<string>`count(*) filter (where lv.last_visit_at >= now() - interval '30 days')`.as('active'),
-      sql<string>`count(*) filter (where lv.last_visit_at is null or lv.last_visit_at < now() - interval '90 days')`.as('dormant'),
+      sql<string>`count(*) filter (where users.deleted_at is null and ${audienceStatusCase()} = 'activo')`.as('active'),
+      sql<string>`count(*) filter (where users.deleted_at is null and ${audienceStatusCase()} = 'inactivo')`.as('dormant'),
     ]).executeTakeFirstOrThrow();
+    const byStatus = await countAudienceByStatus(db, orgId);
 
     const body: UsersFacetsResponse = {
       counts: {
@@ -243,6 +218,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
         active: Number(row.active),
         dormant: Number(row.dormant),
       },
+      byStatus,
     };
     return body;
     });
@@ -413,17 +389,8 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     }
 
     const row = await db.selectFrom('users')
-      .leftJoin(
-        (eb) => eb.selectFrom('attendance')
-          .select(['attendance.user_id'])
-          .select((e) => e.fn.max('attendance.checked_in_at').as('last_visit_at'))
-          .where('attendance.organization_id', '=', orgId)
-          .where('attendance.checked_in_at', 'is not', null)
-          .groupBy('attendance.user_id')
-          .as('lv'),
-        (join) => join.onRef('lv.user_id', '=', 'users.id'),
-      )
-      .select([...LIST_COLUMNS, 'lv.last_visit_at'])
+      .leftJoin(lastActivityJoin(db, orgId), (join) => join.onRef('lv.user_id', '=', 'users.id'))
+      .select([...LIST_COLUMNS, 'lv.last_activity_at'])
       .where('users.organization_id', '=', orgId)
       .where('users.code', '=', code)
       .executeTakeFirst();
@@ -726,17 +693,8 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     });
 
     const row = await db.selectFrom('users')
-      .leftJoin(
-        (eb) => eb.selectFrom('attendance')
-          .select(['attendance.user_id'])
-          .select((e) => e.fn.max('attendance.checked_in_at').as('last_visit_at'))
-          .where('attendance.organization_id', '=', orgId)
-          .where('attendance.checked_in_at', 'is not', null)
-          .groupBy('attendance.user_id')
-          .as('lv'),
-        (join) => join.onRef('lv.user_id', '=', 'users.id'),
-      )
-      .select([...LIST_COLUMNS, 'lv.last_visit_at'])
+      .leftJoin(lastActivityJoin(db, orgId), (join) => join.onRef('lv.user_id', '=', 'users.id'))
+      .select([...LIST_COLUMNS, 'lv.last_activity_at'])
       .where('users.id', '=', target.id)
       .executeTakeFirstOrThrow();
     const body: UserDetailResponse = { user: toListItem(row as ListRow) };

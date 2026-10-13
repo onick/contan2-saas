@@ -674,6 +674,8 @@ export type UsersListResponse = z.infer<typeof UsersListResponseSchema>;
 
 // Conteos exactos por cohorte (endpoint facets), tenant-scoped, dentro de la
 // búsqueda `q` vigente (no del cohorte vigente: cada pill muestra su propio total).
+// byStatus: partición completa del padrón (sin filtro de búsqueda), una sola fuente
+// de verdad para los KPIs Total/Activos/Pendientes/Inactivos de la página Usuarios.
 export const UsersFacetsResponseSchema = z.object({
   counts: z.object({
     all: z.number().int(),
@@ -684,6 +686,15 @@ export const UsersFacetsResponseSchema = z.object({
     active: z.number().int(),
     dormant: z.number().int(),
   }),
+  byStatus: z
+    .object({
+      total: z.number().int(),
+      activo: z.number().int(),
+      pendiente: z.number().int(),
+      inactivo: z.number().int(),
+      archivado: z.number().int(),
+    })
+    .optional(),
 });
 export type UsersFacetsResponse = z.infer<typeof UsersFacetsResponseSchema>;
 

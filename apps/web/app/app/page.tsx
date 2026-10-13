@@ -69,25 +69,25 @@ async function OverviewData({ period }: { period: string }) {
       {/* 4 KPIs */}
       <div className="app-reveal mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCardWithInfo
-          label="Asistencias"
+          label="Asistencias del periodo"
           value={numero(data.attendance.current)}
           trend={toTrend(data.attendance.deltaPct)}
           tooltipText={KPI_DEFS.attendance}
         />
         <StatCardWithInfo
-          label="Visitantes nuevos"
+          label="Visitantes nuevos del periodo"
           value={numero(data.newVisitors.current)}
           trend={toTrend(data.newVisitors.deltaPct)}
           tooltipText={KPI_DEFS.newVisitors}
         />
         <StatCardWithInfo
-          label="Ocupación promedio"
+          label="Ocupación promedio del periodo"
           value={`${data.avgOccupancyPct.current}%`}
           trend={toTrend(data.avgOccupancyPct.deltaPct)}
           tooltipText={KPI_DEFS.avgOccupancyPct}
         />
         <StatCardWithInfo
-          label="Tasa de retorno"
+          label="Tasa de retorno del periodo"
           value={`${data.returnRatePct.current}%`}
           trend={toTrend(data.returnRatePct.deltaPct)}
           tooltipText={KPI_DEFS.returnRatePct}

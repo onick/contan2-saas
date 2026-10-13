@@ -98,14 +98,14 @@ export async function getUsersPage(params: UsersPageParams): Promise<UsersPage |
 }
 
 // Conteos exactos por cohorte (para las pills), dentro de la búsqueda `q` vigente.
+// byStatus incluye la partición completa del padrón (sin filtro de búsqueda).
 // null si falla → la UI oculta los conteos pero las pills siguen navegables.
-export async function getUsersFacets(q?: string, status?: UserStatusFilter): Promise<UsersFacetsResponse['counts'] | null> {
+export async function getUsersFacets(q?: string, status?: UserStatusFilter): Promise<UsersFacetsResponse | null> {
   try {
     const sp = new URLSearchParams();
     if (q) sp.set('q', q);
     if (status && status !== 'active') sp.set('status', status);
-    const { counts } = await apiGet(`/api/v2/users/facets?${sp.toString()}`, UsersFacetsResponseSchema);
-    return counts;
+    return await apiGet(`/api/v2/users/facets?${sp.toString()}`, UsersFacetsResponseSchema);
   } catch {
     return null;
   }

@@ -9,7 +9,7 @@
 import ExcelJS from 'exceljs';
 import type { DbClient } from '@contan2/db';
 import type { UserCohort } from '@contan2/contracts';
-import { cohortCondition, statusCondition } from './users-query.js';
+import { cohortCondition, statusCondition, lastActivityJoin } from './users-query.js';
 import { generatePalette, textArgb } from './branding-tokens.js';
 import { loadLogoDataUri } from './credential.js';
 import { CSV_BOM, csvRow } from './csv.js';
@@ -63,34 +63,16 @@ export async function loadUsersForExport(
   const statusCond = statusCondition(params.status);
 
   let rowsQ = db.selectFrom('users')
-    .leftJoin(
-      (eb) => eb.selectFrom('attendance')
-        .select(['attendance.user_id'])
-        .select((e) => e.fn.max('attendance.checked_in_at').as('last_visit_at'))
-        .where('attendance.organization_id', '=', orgId)
-        .where('attendance.checked_in_at', 'is not', null)
-        .groupBy('attendance.user_id')
-        .as('lv'),
-      (join) => join.onRef('lv.user_id', '=', 'users.id'),
-    )
+    .leftJoin(lastActivityJoin(db, orgId), (join) => join.onRef('lv.user_id', '=', 'users.id'))
     .select([
       'users.code', 'users.first_name', 'users.last_name', 'users.email', 'users.phone',
       'users.visit_count', 'users.credential_sent_at', 'users.deleted_at', 'users.created_at',
-      'lv.last_visit_at',
+      'lv.last_activity_at',
     ])
     .where('users.organization_id', '=', orgId);
 
   let countQ = db.selectFrom('users')
-    .leftJoin(
-      (eb) => eb.selectFrom('attendance')
-        .select(['attendance.user_id'])
-        .select((e) => e.fn.max('attendance.checked_in_at').as('last_visit_at'))
-        .where('attendance.organization_id', '=', orgId)
-        .where('attendance.checked_in_at', 'is not', null)
-        .groupBy('attendance.user_id')
-        .as('lv'),
-      (join) => join.onRef('lv.user_id', '=', 'users.id'),
-    )
+    .leftJoin(lastActivityJoin(db, orgId), (join) => join.onRef('lv.user_id', '=', 'users.id'))
     .select(db.fn.countAll<string>().as('n'))
     .where('users.organization_id', '=', orgId);
 
@@ -127,7 +109,7 @@ export async function loadUsersForExport(
     email: r.email,
     phone: r.phone,
     visitCount: Number(r.visit_count),
-    lastVisitAt: toDate(r.last_visit_at as Date | string | null),
+    lastVisitAt: toDate(r.last_activity_at as Date | string | null),
     credentialSentAt: toDate(r.credential_sent_at as Date | string | null),
     archived: r.deleted_at != null,
     createdAt: toDate(r.created_at as Date | string)!,

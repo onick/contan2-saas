@@ -247,7 +247,7 @@ export function DataTableView<T>({
                     {alwaysCols.map((col, i) => (
                       <div key={col.id} className="flex items-start gap-2">
                         <span className="min-w-[6rem] text-[12px] font-medium text-muted">{col.header}</span>
-                        <span className="min-w-0 text-[14px] text-ink">{cells[alwaysIndices[i]!]}</span>
+                        <span className="min-w-0 break-words text-[14px] text-ink">{cells[alwaysIndices[i]!]}</span>
                       </div>
                     ))}
                   </div>

@@ -28,6 +28,7 @@ import {
 } from '@contan2/contracts';
 import { requireTenantStaff, requireRole } from '../guard.js';
 import { buildSegmentExcel, buildSegmentCsv, segmentExportFilename } from '../services/reports/segment-export.js';
+import { countAudienceByStatus } from '../services/users-query.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const SEGMENT_EXPORT_ROLES = new Set(['owner', 'admin']);
@@ -240,13 +241,12 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
     const monthAgoMs = now - ACTIVE_DAYS * DAY_MS;
     const cutoffISO = new Date(monthAgoMs).toISOString();
 
-    const [affs, byType, byCategory, emailFacets, affsThen, byTypeThen] = await Promise.all([
+    const [affs, byType, byCategory, emailFacets, affsThen, byTypeThen, audienceStatus] = await Promise.all([
       affinityBase(db, orgId),
       fanPairs(db, orgId, 'type'),
       fanPairs(db, orgId, 'category'),
       db.selectFrom('users')
         .select([
-          sql<number>`count(*)`.as('all'),
           sql<number>`count(*) filter (where email is not null)`.as('with_email'),
         ])
         .where('organization_id', '=', orgId)
@@ -254,13 +254,14 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
         .executeTakeFirstOrThrow(),
       affinityBase(db, orgId, cutoffISO),
       fanPairs(db, orgId, 'type', cutoffISO),
+      countAudienceByStatus(db, orgId),
     ]);
 
     const cur = engagementCounts(affs, now);
     const prev = engagementCounts(affsThen, monthAgoMs);
     const counts: Record<string, number> = { ...cur };
     counts['with-email'] = Number(emailFacets.with_email);
-    counts['without-email'] = Number(emailFacets.all) - Number(emailFacets.with_email);
+    counts['without-email'] = audienceStatus.total - Number(emailFacets.with_email);
     const deltas: Record<string, number | null> = {
       vip: deltaPct(cur.vip, prev.vip),
       active: deltaPct(cur.active, prev.active),
@@ -302,7 +303,7 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const body: SegmentsResponse = { segments, totalVisitors: Number(emailFacets.all) };
+    const body: SegmentsResponse = { segments, totalVisitors: audienceStatus.total };
     return body;
     });
   });

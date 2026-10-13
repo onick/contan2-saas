@@ -7,12 +7,13 @@
 // dryRun:true y NO marca credential_sent_at (igual que el envío individual).
 
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getDb, sql, withTenant } from '@contan2/db';
+import { getDb, withTenant } from '@contan2/db';
 import { CODE_RE } from '@contan2/codes';
 import { BulkCredentialsRequestSchema, type BulkCredentialsResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { deliverCredential } from '../services/credential-delivery.js';
+import { pendingPredicate } from '../services/users-query.js';
 
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 // 2 lotes/min por org+IP: la operación ya es serial+throttled por dentro; esto
@@ -47,7 +48,7 @@ export const credentialsBulkRoute: FastifyPluginAsync = async (app) => {
       const rows = await withTenant(db, orgId, (trx) => trx.selectFrom('users').select('code')
         .where('organization_id', '=', orgId)
         .where('deleted_at', 'is', null)
-        .where(sql<boolean>`users.email is not null and users.credential_sent_at is null`)
+        .where(pendingPredicate)
         .orderBy('created_at', 'asc')
         .limit(1000)
         .execute());

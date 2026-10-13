@@ -128,20 +128,20 @@ run('users · cohortes + facets + última visita (UI-1)', () => {
     expect(counts.new7d).toBe(1);       // NEW
     expect(counts.noEmail).toBe(1);     // NOML
     expect(counts.noCredential).toBe(2);// NEW, OLD (email + credential null)
-    expect(counts.active).toBe(2);      // FREQ, NEW (≤30d)
-    expect(counts.dormant).toBe(3);     // NOML(200), NVR(nunca), OLD(100)
+    expect(counts.active).toBe(2);      // FREQ, MID (≤90d)
+    expect(counts.dormant).toBe(2);     // NOML(200), NVR(nunca) [OLD es pendiente]
   });
 
   it('cohorte frequent → visit_count >= 3', async () => {
     expect(codes(await list('cohort=frequent'))).toEqual(['CCB-FREQ01', 'CCB-MID001']);
   });
 
-  it('cohorte active (≤30d) y dormant (>90d o nunca)', async () => {
-    expect(codes(await list('cohort=active'))).toEqual(['CCB-FREQ01', 'CCB-NEW001']);
-    expect(codes(await list('cohort=dormant'))).toEqual(['CCB-NOML01', 'CCB-NVR001', 'CCB-OLD001']);
+  it('cohorte active (≤90d) y dormant (inactivo)', async () => {
+    expect(codes(await list('cohort=active'))).toEqual(['CCB-FREQ01', 'CCB-MID001']); // FREQ+MID ≤90d
+    expect(codes(await list('cohort=dormant'))).toEqual(['CCB-NOML01', 'CCB-NVR001']); // OLD es pendiente
   });
 
-  it('límites: nunca visitó → dormant; zona 31–90 → status null (sin etiqueta)', async () => {
+  it('límites: nunca visitó → dormant; zona 31–90 → activo (status = "active")', async () => {
     const dormant = await list('cohort=dormant');
     const never = dormant.items.find((u) => u.code === 'CCB-NVR001')!;
     expect(never.lastVisitAt).toBeNull();
@@ -149,9 +149,9 @@ run('users · cohortes + facets + última visita (UI-1)', () => {
 
     const all = await list('cohort=all&limit=100');
     const mid = all.items.find((u) => u.code === 'CCB-MID001')!;
-    expect(mid.status).toBeNull(); // 31–90 días: sin etiqueta active/dormant
-    // y NO aparece ni en active ni en dormant
-    expect((await list('cohort=active')).items.some((u) => u.code === 'CCB-MID001')).toBe(false);
+    expect(mid.status).toBe('active'); // 31–90 días ahora es activo (≤90d)
+    // aparece en active pero NO en dormant
+    expect((await list('cohort=active')).items.some((u) => u.code === 'CCB-MID001')).toBe(true);
     expect((await list('cohort=dormant')).items.some((u) => u.code === 'CCB-MID001')).toBe(false);
   });
 
