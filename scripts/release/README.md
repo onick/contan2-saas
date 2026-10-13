@@ -164,6 +164,22 @@ entorno `SOURCE_COMMIT` en la aplicación Coolify. Esta variable es **build-time
   `COOLIFY_APP_UUID` y `PUBLIC_*` para staging, no reusar la misma config).
 - Cuando se quiere bypassear A.5 (no se puede; es el gate final, intencional).
 
+## Smoke test
+
+Verifica las rutas principales tras cada deploy:
+
+    BASE_URL=https://ccb.contan2.com \
+    SMOKE_EMAIL=smoke@example.com \
+    SMOKE_PASSWORD=secret \
+    node scripts/release/smoke-app.mjs
+
+Sale con exit 0 si todo pasa, exit 1 si alguna ruta falla (>= 500 o HTML de error),
+exit 2 si faltan env vars.
+
+Para correr sólo los tests unitarios (sin HTTP, sin env vars):
+
+    node scripts/release/smoke-app.test.mjs
+
 ## Roadmap
 
 - [ ] Tests unitarios de las funciones puras (`parseEnvFile`, render de
