@@ -3,7 +3,7 @@
 // si no un ink OSCURO (caso #f39228: blanco da 2.35:1 → falla → texto oscuro). Puro,
 // sin DOM. Sólo opera con hex #RRGGBB válidos (el editor valida antes de llamar).
 
-const INK = '#1c1206'; // ink oscuro de marca para fondos claros (alto contraste)
+const INK = '#1f2326'; // ink oscuro de marca para fondos claros (alto contraste)
 
 function channelLin(c: number): number {
   const s = c / 255;
@@ -33,18 +33,61 @@ export interface TextOnResult {
   whiteRatio: number; // contraste de BLANCO vs el fondo (para mostrar el aviso)
 }
 
-// Texto AA-safe sobre un fondo de marca. Blanco si ≥4.5:1; si no, ink oscuro.
+// Texto AA-safe sobre un fondo de marca. Blanco si ≥4.5:1; INK si ≥4.5:1; negro
+// puro como último recurso para tonos medios donde ningún extremo llega solo.
 export function textOn(bgHex: string): TextOnResult {
   const whiteRatio = contrastRatio('#ffffff', bgHex);
   if (whiteRatio >= 4.5) return { color: '#ffffff', isDark: false, ratio: whiteRatio, whiteRatio };
   const inkRatio = contrastRatio(INK, bgHex);
-  return { color: INK, isDark: true, ratio: inkRatio, whiteRatio };
+  if (inkRatio >= 4.5) return { color: INK, isDark: true, ratio: inkRatio, whiteRatio };
+  const blackRatio = contrastRatio('#000000', bgHex);
+  return { color: '#000000', isDark: true, ratio: blackRatio, whiteRatio };
 }
 
 export const isHex6 = (s: string): boolean => /^#[0-9a-fA-F]{6}$/.test(s);
 
 const clampByte = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
 const toHex = (r: number, g: number, b: number) => `#${[r, g, b].map((x) => clampByte(x).toString(16).padStart(2, '0')).join('')}`;
+
+// Oscurece hex en pasos finos (~1-2% L en HSL) hasta alcanzar `min` de contraste
+// contra `bg`; conserva tono y saturación. Hex inválido → fallback naranja oscuro.
+export function textShade(hex: string, bg = '#ffffff', min = 4.5): string {
+  if (!isHex6(hex)) return '#b45f0a';
+  if (contrastRatio(hex, bg) >= min) return hex;
+  const h = hex.replace('#', '');
+  let r = parseInt(h.slice(0, 2), 16);
+  let g = parseInt(h.slice(2, 4), 16);
+  let b = parseInt(h.slice(4, 6), 16);
+  // Convertir a HSL para oscurecer sólo L y preservar tono+saturación.
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn), min2 = Math.min(rn, gn, bn);
+  let hh = 0, ss = 0;
+  const ll = (max + min2) / 2;
+  if (max !== min2) {
+    const d = max - min2;
+    ss = ll > 0.5 ? d / (2 - max - min2) : d / (max + min2);
+    if (max === rn) hh = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+    else if (max === gn) hh = ((bn - rn) / d + 2) / 6;
+    else hh = ((rn - gn) / d + 4) / 6;
+  }
+  const hsl2rgb = (p: number, q: number, t: number) => {
+    const tt = ((t % 1) + 1) % 1;
+    if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+    if (tt < 1 / 2) return q;
+    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+    return p;
+  };
+  let lCur = ll;
+  for (let i = 0; i < 200 && contrastRatio(toHex(r, g, b), bg) < min; i++) {
+    lCur = Math.max(0, lCur - 0.005);
+    const q = lCur < 0.5 ? lCur * (1 + ss) : lCur + ss - lCur * ss;
+    const p = 2 * lCur - q;
+    r = Math.round(hsl2rgb(p, q, hh + 1 / 3) * 255);
+    g = Math.round(hsl2rgb(p, q, hh) * 255);
+    b = Math.round(hsl2rgb(p, q, hh - 1 / 3) * 255);
+  }
+  return toHex(r, g, b);
+}
 
 // Relleno de marca AA-safe para texto BLANCO (≥4.5:1): devuelve el primario si ya
 // cumple, si no una versión oscurecida que sí cumple (caso #f39228 → blanco 2.35:1

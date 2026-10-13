@@ -183,7 +183,7 @@ export function BrandingEditor({ initial, canEdit }: Props) {
               </div>
               <div className="min-w-0 flex-1 bg-surface p-3">
                 <p className="truncate text-[13px] font-semibold text-ink">{form.name || 'Nombre del centro'}</p>
-                <button type="button" tabIndex={-1} className="mt-2 inline-flex items-center rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ backgroundColor: primaryValid ? form.primaryColor : '#888', color: tone?.color ?? '#fff' }}>Acción primaria</button>
+                <button type="button" tabIndex={-1} className="mt-2 inline-flex items-center rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ backgroundColor: primaryValid ? form.primaryColor : '#888', color: tone?.color ?? '#fff', boxShadow: primaryValid ? `inset 0 0 0 1px rgba(0,0,0,0.06)` : undefined }}>Acción primaria</button>
                 <span className="ml-2 inline-block h-3 w-3 rounded-full align-middle" style={{ backgroundColor: secondaryValid ? form.secondaryColor : '#888' }} />
               </div>
             </div>

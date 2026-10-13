@@ -25,7 +25,7 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 
 // Estilo mono (eyebrows/fechas/etiquetas). La var la inyecta el layout del kiosko.
 export const kioskMono: CSSProperties = {
-  fontFamily: 'var(--font-roboto-mono), ui-monospace, "SF Mono", Menlo, monospace',
+  fontFamily: 'var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace',
 };
 
 // Anillo de foco visible sobre fondo oscuro (WCAG 1.4.11).

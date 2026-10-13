@@ -18,39 +18,68 @@
      md:                = 768px (tablet)
      xl:                = 1280px (desktop)
    No los redefinimos para no divergir de Tailwind. Ver lib/breakpoints.ts. */
-@theme {
-  /* Tipografía (Roboto Flex vía next/font, fallback al stack del sistema). */
-  --font-sans: var(--font-roboto-flex), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+@theme static {
+  /* Tipografía (Inter + IBM Plex Mono vía next/font, fallback al stack del sistema). */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 
-  /* Marca (theming por tenant; overridable desde <body>). Naranja CCB:
-     --color-brand es el acento (íconos, links, bordes, barras, texto-sobre-blanco);
-     --color-brand-accent es el naranja vibrante para acentos (dots/barras, NUNCA
-     lleva texto: blanco/#ff6f00 = 2.79:1). --color-brand-strong es un tono más
-     profundo del MISMO naranja, SOLO para rellenos sólidos con texto blanco
-     (blanco/#c44400 = 5.03:1 → WCAG AA); --color-brand a secas da 3.79:1 y no
-     cumple AA para texto. El theming por tenant deberá derivar un strong propio. */
-  --color-brand: #e65100;
-  --color-brand-accent: #ff6f00;
-  --color-brand-strong: #c44400;
-  /* Anillo de foco visible (focus-visible). Sigue al brand del tenant; 3.79:1
-     sobre blanco cumple el 3:1 de WCAG 1.4.11 para indicadores no-textuales. */
-  --color-focus: var(--color-brand);
+  /* Marca CCB por defecto (theming por tenant: brandingToCssVars sobreescribe en
+     el <div> de app/app/layout.tsx; como los alias var() en @theme resuelven en
+     :root y no siguen al subtree, emitimos todos los derivados como vars concretas). */
+  --color-brand: #f39228;
+  --color-brand-fg: #1f2326;
+  --color-brand-text: #ae5f0a;
+  --color-brand-soft: #fef4e8;
+  --color-brand-accent: #31a3db;
+  --color-info-text: #1d7aa7;
+  --color-info-soft: #eaf6fc;
+  /* brand-strong: alias obsoleto (≈brand-text); conservado para los ~19 consumidores. */
+  --color-brand-strong: #ae5f0a;
+  /* focus sigue a brand-text para cumplir el 3:1 de WCAG 1.4.11. */
+  --color-focus: #ae5f0a;
 
-  /* Material 3 · seed = índigo CCB. Superficies tonales + neutrales. */
-  --color-page: #f5f6fb;             /* fondo de página (tinte índigo leve) */
-  --color-surface: #ffffff;          /* superficie de cards/paneles */
-  --color-surface-container: #f0f1f8;
-  --color-ink: #1a1b21;              /* texto principal */
-  --color-muted: #5b5e6b;            /* texto secundario */
-  --color-faint: #67697a;            /* labels / metadata · AA ≥4.5:1 (white 5.41, page 5.02, surface-container 4.81) */
-  --color-line: #e4e6ef;            /* hairlines / bordes */
+  /* Superficies y texto neutros. */
+  --color-page: #fafaf9;
+  --color-surface: #ffffff;
+  --color-surface-container: #f5f5f4;
+  --color-subtle: #f5f5f4;
+  --color-ink: #1f2326;
+  --color-muted: #636769;            /* texto secundario · 5.71:1 sobre blanco */
+  --color-faint: #67697a;            /* labels / metadata · AA ≥4.5:1 (white 5.41, page 5.18, surface-container 4.96) */
+  --color-line: #e7e5e4;
   --color-primary-container: #ffe6d2;
   --color-on-primary-container: #7a3300;
-  --color-accent-soft: #fff3e6;
-  --color-success-bg: #e6f4ea;
-  --color-success-fg: #137333;
-  --color-danger-bg: #fce8e6;
-  --color-danger-fg: #c5221f;
+  --color-accent-soft: #fef4e8;      /* naranja suave — NO reemplazar (≈38 consumidores) */
+
+  /* Estados semánticos. */
+  --color-success-fg: #15803d;
+  --color-success-bg: #ecfdf3;
+  --color-danger-fg: #b91c1c;
+  --color-danger-bg: #fef2f2;
+  /* warning-fg es semántico (estado) y NO sigue al tenant; siempre fijo. */
+  --color-warning-fg: #b45f0a;
+  --color-warning-bg: #fef4e8;
+
+  /* Geometría. */
+  --radius-pill: 999px;
+  --radius-field: 8px;
+  --radius-card: 12px;
+  --spacing-control: 40px;
+
+  /* Movimiento. */
+  --ease-standard: cubic-bezier(.2,0,0,1);
+  --animate-entrar: entrar .18s var(--ease-standard);
+  @keyframes entrar {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: none; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) { .animate-entrar { animation: none; } }
+
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 :root {

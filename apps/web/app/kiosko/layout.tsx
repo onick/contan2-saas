@@ -1,9 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
-import { Roboto_Mono } from 'next/font/google';
-
-// Mono para eyebrows/fechas/etiquetas (parte del acabado tipo "instalación").
-const robotoMono = Roboto_Mono({ subsets: ['latin'], variable: '--font-roboto-mono', display: 'swap' });
 
 // Layout del KIOSKO · superficie pública del visitante, separada del shell
 // admin (sin sidebar ni rutas internas). Tema OSCURO institucional, full-screen,
@@ -28,7 +24,7 @@ const GRAIN =
 export default function KioskLayout({ children }: { children: ReactNode }) {
   return (
     <main
-      className={`relative min-h-dvh overflow-hidden text-[#f4f5f8] antialiased ${robotoMono.variable}`}
+      className="relative min-h-dvh overflow-hidden text-[#f4f5f8] antialiased"
       style={{
         background:
           'radial-gradient(ellipse at 50% 0%, rgba(255,111,0,0.07), transparent 55%),' +

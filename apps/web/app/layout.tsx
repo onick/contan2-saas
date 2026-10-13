@@ -1,12 +1,21 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
-import { Roboto_Flex } from 'next/font/google';
+import { Inter, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 
-// Tipografía estilo Google/Material: Roboto Flex. next/font self-hostea la
-// fuente en build (sin dep nueva; built-in de Next) y expone la CSS var que
-// globals.css mapea a --font-sans de Tailwind.
-const robotoFlex = Roboto_Flex({ subsets: ['latin'], variable: '--font-roboto-flex', display: 'swap' });
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  variable: '--font-plex-mono',
+  display: 'swap',
+  weight: ['400', '500', '600'],
+});
 
 export const metadata: Metadata = {
   title: 'Contan2 v2',
@@ -29,7 +38,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   // los defaults de @theme (paleta CCB) hasta que el subtree /app aplique el
   // branding real del tenant.
   return (
-    <html lang="es" className={robotoFlex.variable}>
+    <html lang="es" className={`${inter.variable} ${ibmPlexMono.variable}`}>
       <body className="font-sans">{children}</body>
     </html>
   );

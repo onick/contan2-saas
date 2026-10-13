@@ -1,9 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
-import { Roboto_Mono } from 'next/font/google';
-
-// Mono para el código/PIN y etiquetas (lectura mecánica, tipo terminal de puerta).
-const robotoMono = Roboto_Mono({ subsets: ['latin'], variable: '--font-roboto-mono', display: 'swap' });
 
 // Layout del SCANNER · superficie de STAFF en puerta, fuera del shell admin (sin
 // sidebar ni rutas internas). Mobile-first (el staff escanea desde el teléfono),
@@ -25,7 +21,7 @@ export const viewport: Viewport = {
 export default function ScannerLayout({ children }: { children: ReactNode }) {
   return (
     <main
-      className={`relative min-h-dvh bg-[#0b0e14] text-[#f4f5f8] antialiased ${robotoMono.variable}`}
+      className="relative min-h-dvh bg-[#0b0e14] text-[#f4f5f8] antialiased"
     >
       {children}
     </main>
