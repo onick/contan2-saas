@@ -12,6 +12,22 @@ vi.mock('../../../lib/branding/tenant', () => ({
     status: 'active', plan: 'free', trialEndsAt: null,
   }),
 }));
+// AppShell es async (Server Component); mock síncrono que renderiza el sidebar
+// para que el test de activeKey siga verificando el ítem activo.
+vi.mock('../../../components/shell/AppShell', async () => {
+  const { Sidebar } = await import('../../../components/shell/Sidebar');
+  const { DEFAULT_BRANDING } = await import('../../../lib/branding/config');
+  return {
+    AppShell: ({ children, branding, activeKey }: {
+      children: React.ReactNode; branding?: unknown; activeKey?: string;
+    }) => (
+      <>
+        <Sidebar branding={(branding as Parameters<typeof Sidebar>[0]['branding']) ?? DEFAULT_BRANDING} activeKey={activeKey} />
+        {children}
+      </>
+    ),
+  };
+});
 import HistorialPage from './page';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });

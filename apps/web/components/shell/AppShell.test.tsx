@@ -7,19 +7,17 @@ import { DEFAULT_BRANDING } from '../../lib/branding/config';
 afterEach(cleanup);
 
 describe('AppShell', () => {
-  it('renderiza sidebar (nav principal), topbar (breadcrumb) y el contenido en <main>', () => {
-    render(
-      <AppShell branding={DEFAULT_BRANDING} title="Dashboard">
-        <p>contenido hijo</p>
-      </AppShell>,
-    );
+  it('renderiza sidebar (nav principal), topbar (breadcrumb) y el contenido en <main>', async () => {
+    const ui = await AppShell({ branding: DEFAULT_BRANDING, title: 'Inicio', role: null, children: <p>contenido hijo</p> });
+    render(ui);
 
-    // Sidebar: la nav principal está presente.
+    // Navegación del sidebar (única con nombre "Navegación principal" — la barra
+    // inferior ahora tiene aria-label="Navegación inferior").
     expect(screen.getByRole('navigation', { name: 'Navegación principal' })).toBeInTheDocument();
     // Topbar: el breadcrumb (nav "Ruta") está presente.
     expect(screen.getByRole('navigation', { name: 'Ruta' })).toBeInTheDocument();
-    // El título aparece (en el sidebar como link activo y en el breadcrumb).
-    expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0);
+    // El título aparece en el breadcrumb.
+    expect(screen.getAllByText('Inicio').length).toBeGreaterThan(0);
     // Main: el contenido hijo se renderiza dentro de <main>.
     const main = screen.getByRole('main');
     expect(main).toBeInTheDocument();

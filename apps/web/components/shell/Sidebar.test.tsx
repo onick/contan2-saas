@@ -22,31 +22,59 @@ describe('Sidebar', () => {
   it('marca el item activo (según activeKey) con aria-current="page"', () => {
     render(<Sidebar branding={DEFAULT_BRANDING} activeKey="actividades" />);
     expect(screen.getByRole('link', { name: 'Actividades' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Inicio' })).not.toHaveAttribute('aria-current');
   });
 
-  it('usa hrefs reales para Dashboard y Actividades', () => {
+  it('usa hrefs reales para Inicio y Actividades', () => {
     render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" />);
-    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/app');
+    expect(screen.getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/app');
     expect(screen.getByRole('link', { name: 'Actividades' })).toHaveAttribute('href', '/app/actividades');
   });
 
-  it('CCB sin logoUrl: lockup oficial vertical (SVG accesible) + chip del riel con icono', () => {
+  it('sin logo → iniciales', () => {
     render(<Sidebar branding={{ ...DEFAULT_BRANDING, logoUrl: null }} activeKey="dashboard" />);
-    // Lockup a color con nombre accesible (paridad con el logo de v1).
-    expect(screen.getByRole('img', { name: DEFAULT_BRANDING.name })).toBeInTheDocument();
-    // Chip de marca con el ICONO del tenant (riel colapsado + bloque de cuenta).
-    const chips = screen.getAllByTestId('brand-chip');
-    expect(chips.length).toBeGreaterThan(0);
-    expect(chips[0]?.querySelector('svg')).toBeTruthy();
+    const chip = screen.getByTestId('brand-chip');
+    expect(chip).toBeInTheDocument();
+    // Sin SVG propio: siempre iniciales del nombre (CC para "Centro Cultural Banreservas").
+    expect(chip.querySelector('svg')).toBeFalsy();
+    expect(chip.textContent).toBe('CC');
   });
 
   it('tenant sin icono registrado: el chip cae a iniciales', () => {
     render(<Sidebar branding={{ ...DEFAULT_BRANDING, slug: 'otro-tenant', name: 'Museo de Arte Moderno' }} activeKey="dashboard" />);
     const chips = screen.getAllByTestId('brand-chip');
     expect(chips[0]?.textContent).toBe('MD');
-    // Dos líneas también: "Museo de Arte" / "Moderno".
+    // Dos líneas de nombre en el sidebar expandido.
     expect(screen.getByText('Museo de Arte')).toBeInTheDocument();
-    expect(screen.getByText('Moderno')).toBeInTheDocument();
+    // nameSub se renderiza como "${nameSub} · Admin".
+    expect(screen.getByText('Moderno · Admin')).toBeInTheDocument();
+  });
+
+  it('role=protocolo → solo ítems del allowlist (protocolo + cuenta)', () => {
+    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="protocolo" role="protocolo" />);
+    expect(screen.getByRole('link', { name: 'Protocolo' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Mi cuenta' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Actividades' })).not.toBeInTheDocument();
+  });
+
+  it('role=puerta → registros visible, inicio oculto', () => {
+    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="puerta" role="puerta" />);
+    expect(screen.getByRole('link', { name: 'Registros' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Mi cuenta' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument();
+  });
+
+  it('role=biblioteca → mi cuenta visible, inicio oculto', () => {
+    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="biblioteca" role="biblioteca" />);
+    expect(screen.getByRole('link', { name: 'Mi cuenta' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument();
+  });
+
+  it('role=null → sin confinamiento, todos los ítems de nav visibles', () => {
+    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" role={null} />);
+    for (const item of NAV_ITEMS) {
+      expect(screen.getByRole('link', { name: item.label })).toBeInTheDocument();
+    }
   });
 });

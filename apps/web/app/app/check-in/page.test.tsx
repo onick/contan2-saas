@@ -8,6 +8,11 @@ vi.mock('../../../lib/branding/tenant', () => ({
     status: 'active', plan: 'free', trialEndsAt: null,
   }),
 }));
+// AppShell es async (Server Component); en jsdom no se puede renderizar como JSX
+// incrustado → mock síncrono que devuelve solo el contenido de la página.
+vi.mock('../../../components/shell/AppShell', () => ({
+  AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
 import CheckinPage from './page';
 
 // La consola (client) fetchea al montar; stub para que no rompa + estados honestos.

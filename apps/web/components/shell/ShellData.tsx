@@ -100,24 +100,37 @@ export function LiveBadge({ source }: { source: LiveBadgeSource }) {
   );
 }
 
-// Buscador del topbar (el que ya existía, ahora funcional): abre el command
-// palette. Reemplaza el placeholder estático. Muestra el atajo ⌘K real.
+// Buscador del topbar: abre el command palette (⌘K / Ctrl+K).
+// SSR: renderiza "Ctrl K" (neutro multiplataforma). Post-mount en macOS
+// cambia a "⌘K" vía useEffect — sin errores de hidratación.
 export function TopbarSearch() {
   const { openPalette } = useShell();
+  const [kbdLabel, setKbdLabel] = useState('Ctrl K');
+
+  useEffect(() => {
+    const isMac =
+      (navigator as Navigator & { userAgentData?: { platform?: string } })
+        .userAgentData?.platform?.toLowerCase().includes('mac') ??
+      navigator.platform.toLowerCase().includes('mac');
+    if (isMac) setKbdLabel('⌘K');
+  }, []);
+
   return (
     <button
       type="button"
       onClick={openPalette}
-      aria-label="Buscar (⌘K)"
+      aria-label="Buscar"
       className={cn(
-        'ml-2 hidden min-w-0 max-w-[420px] flex-1 items-center gap-2.5 rounded-full bg-surface-container px-4 py-2.5 text-[13px] text-faint transition-colors hover:text-muted md:flex',
+        'ml-2 hidden min-w-0 max-w-[420px] flex-1 items-center gap-2.5 rounded-field h-9 border border-line bg-surface px-3.5 text-[13px] text-muted transition-colors hover:text-ink md:flex',
         focusRing,
       )}
     >
-      <Search size={18} strokeWidth={1.75} aria-hidden="true" />
-      <span className="truncate">Buscar actividad, persona o reporte…</span>
-      <kbd className="ml-auto hidden items-center gap-0.5 rounded-[5px] border border-line bg-surface px-1.5 py-0.5 font-sans text-[11px] font-medium text-faint sm:inline-flex">
-        ⌘K
+      <Search size={16} strokeWidth={1.75} aria-hidden="true" className="flex-none" />
+      <span className="flex-1 truncate text-left">Buscar personas, actividades, libros…</span>
+      <kbd
+        className="ml-auto inline-flex items-center rounded-[4px] border border-line bg-surface-container px-1.5 py-0.5 font-mono text-[11px] text-muted shadow-sm"
+      >
+        {kbdLabel}
       </kbd>
     </button>
   );

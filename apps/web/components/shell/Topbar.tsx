@@ -1,6 +1,5 @@
 import type { BrandingOrg } from '../../lib/branding/theme';
-import { BrandChip } from './BrandMark';
-import { SidebarToggle, MobileNavToggle } from './SidebarShell';
+import { SidebarToggle } from './SidebarShell';
 import { TopbarNotifications } from './TopbarNotifications';
 import { TopbarUserMenu } from './TopbarUserMenu';
 import { TopbarSearch } from './ShellData';
@@ -15,18 +14,12 @@ export interface TopbarProps {
 // Top app bar · estilo Google/Material: breadcrumb, buscador, notificaciones
 // REALES (TopbarNotifications: feed del log de auditoría con no-leídas
 // honestas) y menú de usuario REAL (TopbarUserMenu: identidad de la sesión +
-// Mi cuenta + Cerrar sesión). Mobile muestra el brand compacto (drawer
-// oculto). El buscador sigue siendo visual (pendiente). Server Component
+// Mi cuenta + Cerrar sesión). La navegación mobile la gestiona la barra
+// inferior (MobileNav), no un drawer desde este header. Server Component
 // (los hijos interactivos son client).
 export function Topbar({ branding, title, meta }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur md:px-7">
-      {/* Hamburguesa de navegación (solo mobile) + brand compacto */}
-      <MobileNavToggle className="md:hidden" />
-      <span className="flex items-center gap-2 md:hidden">
-        <BrandChip slug={branding.slug} name={branding.name} className="h-8 w-8" rounded="rounded-[9px]" />
-      </span>
-
+    <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-surface/85 px-6 backdrop-blur">
       {/* Colapso del sidebar (movido del header del sidebar; el sidebar solo
           existe md+, en mobile no hay nada que colapsar) */}
       <SidebarToggle className="hidden flex-none md:grid" />

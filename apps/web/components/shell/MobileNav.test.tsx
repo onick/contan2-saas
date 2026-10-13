@@ -1,46 +1,46 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import { SidebarShell, MobileNavToggle } from './SidebarShell';
 import { MobileNav } from './MobileNav';
-import type { BrandingOrg } from '../../lib/branding/theme';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-const BR: BrandingOrg = {
-  id: 'o', slug: 'acme', name: 'Acme Centro', logoUrl: null, emailLogoUrl: null, credentialLogoUrl: null,
-  logoScale: 100, primaryColor: '#e65100', secondaryColor: '#ff6f00', sidebarTheme: 'brand', status: 'active',
-  plan: 'free', trialEndsAt: null,
-};
-const setup = () => render(
-  <SidebarShell>
-    <MobileNavToggle />
-    <MobileNav branding={BR} activeKey="usuarios" />
-  </SidebarShell>,
-);
-// hidden:true → encuentra el panel esté abierto o cerrado (cerrado va aria-hidden).
-const panel = () => screen.getByRole('dialog', { name: 'Navegación', hidden: true });
-const openDrawer = () => fireEvent.click(screen.getByRole('button', { name: 'Abrir navegación' }));
-
 describe('MobileNav', () => {
-  it('arranca cerrado (off-canvas, fuera de pantalla)', () => {
-    setup();
-    expect(panel().className).toContain('-translate-x-full');
+  it('renderiza la barra inferior con los ítems preferidos como links', () => {
+    render(<MobileNav activeKey="dashboard" />);
+    // Ítems preferidos: dashboard → "Inicio", actividades, usuarios.
+    expect(screen.getAllByRole('link', { name: /inicio/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /actividades/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /usuarios/i }).length).toBeGreaterThan(0);
+    // Botón "Más" siempre presente.
+    expect(screen.getByRole('button', { name: /más opciones/i })).toBeInTheDocument();
   });
 
-  it('la hamburguesa abre el drawer y expone los ítems; tocar un ítem lo cierra', () => {
-    setup();
-    openDrawer();
-    expect(panel().className).toContain('translate-x-0'); // abierto
-    expect(screen.getByRole('link', { name: /Dashboard/ })).toHaveAttribute('href', '/app');
-    expect(screen.getByRole('link', { name: /Usuarios/ })).toHaveAttribute('href', '/app/usuarios');
-    fireEvent.click(screen.getByRole('link', { name: /Actividades/ }));
-    expect(panel().className).toContain('-translate-x-full'); // cerró al navegar
+  it('el ítem activo en la barra tiene aria-current="page" y el resto no', () => {
+    render(<MobileNav activeKey="usuarios" />);
+    const usuariosLinks = screen.getAllByRole('link', { name: /usuarios/i });
+    expect(usuariosLinks[0]).toHaveAttribute('aria-current', 'page');
+    const inicioLinks = screen.getAllByRole('link', { name: /inicio/i });
+    expect(inicioLinks[0]).not.toHaveAttribute('aria-current');
   });
 
-  it('el item activo marca aria-current', () => {
-    setup();
-    openDrawer();
-    expect(screen.getByRole('link', { name: /Usuarios/ })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: /Dashboard/ })).not.toHaveAttribute('aria-current');
+  it('el botón "Más" arranca cerrado (aria-expanded=false) y al clicar lo abre (aria-expanded=true)', () => {
+    render(<MobileNav />);
+    const btn = screen.getByRole('button', { name: /más opciones/i });
+    expect(btn).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(btn);
+    expect(btn).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('role=protocolo → barra inferior con protocolo y mi cuenta, sin inicio', () => {
+    render(<MobileNav activeKey="protocolo" role="protocolo" />);
+    expect(screen.getAllByRole('link', { name: /protocolo/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /mi cuenta/i }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('link', { name: /inicio/i })).not.toBeInTheDocument();
+  });
+
+  it('role=null → sin confinamiento, ítems preferidos presentes en la barra', () => {
+    render(<MobileNav activeKey="dashboard" role={null} />);
+    expect(screen.getAllByRole('link', { name: /inicio/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /actividades/i }).length).toBeGreaterThan(0);
   });
 });

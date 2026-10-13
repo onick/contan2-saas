@@ -7,7 +7,7 @@ export function DemoBanner() {
   return (
     <div
       role="status"
-      className="mb-4 flex items-center gap-2.5 rounded-lg border border-[#e3c98a] bg-[#fdf6e3] px-3.5 py-2.5 text-[12.5px] font-medium text-[#8a6d1a]"
+      className="mb-4 flex items-center gap-2.5 rounded-lg border border-warning-fg/30 bg-warning-bg px-3.5 py-2.5 text-[12.5px] font-medium text-warning-fg"
     >
       <FlaskConical size={16} strokeWidth={2} aria-hidden="true" className="flex-none" />
       <span>

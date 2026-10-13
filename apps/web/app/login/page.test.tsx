@@ -13,10 +13,9 @@ async function renderPage(next?: string) {
 describe('/login', () => {
   it('conserva la identidad y los textos en español', async () => {
     await renderPage();
-    // Logo: ícono real de la marca (símbolo CCB), con alt accesible.
-    const logo = screen.getByRole('img', { name: 'Centro Cultural Banreservas' });
-    expect(logo).toHaveAttribute('src', '/ccb-icon.svg');
-    // Nombre en dos líneas.
+    // Sin logo real (API pública no disponible en tests): BrandChip como fallback neutro.
+    expect(screen.getByTestId('brand-chip')).toBeInTheDocument();
+    // Nombre del tenant en dos líneas (split por splitBrandName).
     expect(screen.getByText('Centro Cultural')).toBeInTheDocument();
     expect(screen.getByText('Banreservas')).toBeInTheDocument();
     expect(screen.getByRole('heading')).toBeInTheDocument();

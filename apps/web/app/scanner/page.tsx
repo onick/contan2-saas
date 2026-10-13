@@ -8,12 +8,14 @@
 import { ScannerClient } from './ScannerClient';
 import { getScannerSession, getScannerActivities } from '../../lib/api/scanner';
 import { getLocalBranding } from '../../lib/branding/config';
+import { getPublicBranding } from '../../lib/api/kiosko';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ScannerPage() {
-  const branding = getLocalBranding();
-  const [session, activities] = await Promise.all([
+  const local = getLocalBranding();
+  const [pub, session, activities] = await Promise.all([
+    getPublicBranding(),
     getScannerSession(),
     getScannerActivities(),
   ]);
@@ -22,7 +24,7 @@ export default async function ScannerPage() {
     <ScannerClient
       initialAuthed={session !== null}
       activities={activities ?? []}
-      brandName={branding.name}
+      brandName={pub?.name ?? local.name}
     />
   );
 }
