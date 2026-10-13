@@ -66,7 +66,7 @@ export function SidebarShell({ children }: { children: ReactNode }) {
         <div
           data-sidebar={collapsed ? 'collapsed' : 'expanded'}
           suppressHydrationWarning
-          className="group/shell min-h-screen bg-page md:grid md:grid-cols-[auto_minmax(0,1fr)]"
+          className="group/shell min-h-dvh bg-page md:grid md:grid-cols-[auto_minmax(0,1fr)]"
         >
           <script dangerouslySetInnerHTML={{ __html: PREPAINT }} />
           {children}

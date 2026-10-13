@@ -29,7 +29,7 @@ export function Sidebar({ branding, activeKey, role }: SidebarProps) {
     <aside
       id="app-sidebar"
       className={
-        'hidden bg-surface md:sticky md:top-0 md:flex md:h-screen md:flex-col md:border-r md:border-line ' +
+        'hidden bg-surface md:sticky md:top-0 md:flex md:h-dvh md:flex-col md:border-r md:border-line ' +
         'md:w-[232px] group-data-[sidebar=collapsed]/shell:md:w-[4.5rem] ' +
         'motion-safe:transition-[width] motion-safe:duration-200 motion-safe:ease-out'
       }
