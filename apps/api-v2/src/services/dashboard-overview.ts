@@ -16,6 +16,7 @@
 //     near_full (90–99%), empty_activities (activas futuras con 0 inscritos).
 
 import { sql, type DbClient } from '@contan2/db';
+import { newVisitorCountQuery } from './users-query.js';
 
 export const DASHBOARD_PERIODS = { today: 1, '7d': 7, '30d': 30, '90d': 90 } as const;
 export type DashboardPeriod = keyof typeof DASHBOARD_PERIODS;
@@ -84,12 +85,8 @@ export async function dashboardOverview(
         .where('organization_id', '=', orgId).where('registered_at', '>=', start).where('registered_at', '<', end).as('att_curr'),
       eb.selectFrom('attendance').select(eb.fn.countAll<string>().as('n'))
         .where('organization_id', '=', orgId).where('registered_at', '>=', prevStart).where('registered_at', '<', start).as('att_prev'),
-      eb.selectFrom('users').select(eb.fn.countAll<string>().as('n'))
-        .where('organization_id', '=', orgId).where('deleted_at', 'is', null)
-        .where('created_at', '>=', start).where('created_at', '<', end).as('new_curr'),
-      eb.selectFrom('users').select(eb.fn.countAll<string>().as('n'))
-        .where('organization_id', '=', orgId).where('deleted_at', 'is', null)
-        .where('created_at', '>=', prevStart).where('created_at', '<', start).as('new_prev'),
+      newVisitorCountQuery(db, orgId, start, end).as('new_curr'),
+      newVisitorCountQuery(db, orgId, prevStart, start).as('new_prev'),
     ]).executeTakeFirstOrThrow(),
     // Ocupación promedio de actividades del período (capacity>0), curr/prev.
     db.selectNoFrom((eb) => [

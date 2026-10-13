@@ -10,10 +10,11 @@ import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
-import { createDb, type Database } from '@contan2/db';
+import { createDb, sql, type Database } from '@contan2/db';
 import { hashToken } from '@contan2/auth';
 import { buildApp } from '../src/server.js';
 import { deltaPct } from '../src/services/dashboard-overview.js';
+import { newVisitorCountQuery } from '../src/services/users-query.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const run = DATABASE_URL ? describe : describe.skip;
@@ -120,6 +121,20 @@ run('GET /dashboard/overview', () => {
     expect(b.avgOccupancyPct.previous).toBe(100); // la del anterior 10/10
     // retorno: 1 de 3 asistencias es de un visitante con >1 visita (la anónima no cuenta)
     expect(b.returnRatePct).toMatchObject({ current: 33, previous: 100 });
+  });
+
+  it('newVisitorCountQuery coincide con overview.newVisitors.current', async () => {
+    // Verifica que el predicado compartido produce el mismo conteo que la overview.
+    const res = await get('?period=7d', TOK.admin);
+    expect(res.statusCode).toBe(200);
+    const overview = res.json();
+    // Reproducir los mismos límites de período que usa dashboard-overview (7 días, tz America/Santo_Domingo).
+    const tz = 'America/Santo_Domingo';
+    const todayStart = sql<Date>`(date_trunc('day', now() AT TIME ZONE ${sql.lit(tz)}) AT TIME ZONE ${sql.lit(tz)})`;
+    const start = sql<Date>`(${todayStart} - ${sql.lit('6')}::int * interval '1 day')`;
+    const end = sql<Date>`(${todayStart} + interval '1 day')`;
+    const row = await newVisitorCountQuery(db, orgAId, start, end).executeTakeFirstOrThrow();
+    expect(Number(row.n)).toBe(overview.newVisitors.current);
   });
 
   it('upcoming + insight low_enrollment (paridad v1: <30% a <14 días)', async () => {

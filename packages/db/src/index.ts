@@ -29,7 +29,7 @@ export { createDb, getDb, getPlatformDb, closeDb, pingDb, type DbClient } from '
 export { withTenant } from './rls.js';
 export { findOrgBySlug, findOrgByCustomDomain, type TenantOrg } from './orgs.js';
 
-// Re-export del helper `sql` de Kysely para construir fragmentos crudos
-// parametrizados (p. ej. UPDATE atómico de cupo) sin que cada consumidor del
-// monorepo necesite kysely como dependencia directa.
+// Re-export del helper `sql` y tipos de Kysely para que los consumidores del
+// monorepo no necesiten kysely como dependencia directa.
 export { sql } from 'kysely';
+export type { RawBuilder } from 'kysely';

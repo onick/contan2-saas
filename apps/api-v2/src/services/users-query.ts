@@ -4,7 +4,7 @@
 // export (services/users-export.ts), para que nunca diverjan.
 
 import { sql } from '@contan2/db';
-import type { DbClient } from '@contan2/db';
+import type { DbClient, RawBuilder } from '@contan2/db';
 import type { UserCohort } from '@contan2/contracts';
 import type { UserStatusFilter } from '../query.js';
 
@@ -98,4 +98,22 @@ export function statusCondition(status: UserStatusFilter) {
   if (status === 'active') return sql<boolean>`users.deleted_at is null`;
   if (status === 'archived') return sql<boolean>`users.deleted_at is not null`;
   return null;
+}
+
+// Subquery COUNT(*) de visitantes nuevos (users.created_at en [from, to)).
+// Única fuente de verdad para "visitante nuevo": activo (deleted_at IS NULL)
+// del org, registrado en el intervalo. Lo usan dashboard-overview (curr y prev)
+// y cualquier otro cómputo que necesite el mismo criterio.
+export function newVisitorCountQuery(
+  db: DbClient,
+  orgId: string,
+  from: RawBuilder<Date>,
+  to: RawBuilder<Date>,
+) {
+  return db.selectFrom('users')
+    .select(db.fn.countAll<string>().as('n'))
+    .where('organization_id', '=', orgId)
+    .where('deleted_at', 'is', null)
+    .where('created_at', '>=', from)
+    .where('created_at', '<', to);
 }
