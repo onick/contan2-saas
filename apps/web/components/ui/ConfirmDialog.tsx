@@ -1,6 +1,7 @@
 'use client';
 
 import * as RadixDialog from '@radix-ui/react-dialog';
+import { Loader2 } from 'lucide-react';
 import { cn, focusRing } from './cn';
 import { Button } from './Button';
 
@@ -14,6 +15,11 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   destructive?: boolean;
   dismissOnOverlay?: boolean;
+  /** Muestra estado de carga; deshabilita botones. Cuando está definido, el diálogo
+   *  no se cierra solo al confirmar — el padre llama onClose() al terminar. */
+  busy?: boolean;
+  /** Error ocurrido tras confirmar; se mantiene abierto para reintentar. */
+  error?: string | null;
 }
 
 export function ConfirmDialog({
@@ -26,9 +32,12 @@ export function ConfirmDialog({
   cancelLabel = 'Cancelar',
   destructive = false,
   dismissOnOverlay = false,
+  busy,
+  error,
 }: ConfirmDialogProps) {
+  const controlled = busy !== undefined || error !== undefined;
   return (
-    <RadixDialog.Root open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <RadixDialog.Root open={open} onOpenChange={(v) => { if (!v && !busy) onClose(); }}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="drawer-backdrop fixed inset-0 z-40 bg-ink/40" />
         <RadixDialog.Content
@@ -38,7 +47,7 @@ export function ConfirmDialog({
             'focus:outline-none',
           )}
           onPointerDownOutside={(e: { preventDefault: () => void }) => {
-            if (!dismissOnOverlay) e.preventDefault();
+            if (!dismissOnOverlay || busy) e.preventDefault();
           }}
         >
           <RadixDialog.Title className="text-[17px] font-semibold text-ink">{title}</RadixDialog.Title>
@@ -47,15 +56,26 @@ export function ConfirmDialog({
               {description}
             </RadixDialog.Description>
           ) : null}
+          {error ? (
+            <p role="alert" className="mt-3 rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">
+              {error}
+            </p>
+          ) : null}
           <div className="mt-6 flex items-center justify-between gap-3">
-            <Button variant="secondary" onClick={onClose}>
+            <Button variant="secondary" onClick={onClose} disabled={busy}>
               {cancelLabel}
             </Button>
             <Button
               variant={destructive ? 'destructive' : 'primary'}
-              onClick={() => { onConfirm(); onClose(); }}
+              disabled={busy}
+              onClick={() => {
+                onConfirm();
+                if (!controlled) onClose();
+              }}
             >
-              {confirmLabel}
+              {busy ? (
+                <><Loader2 size={15} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> {confirmLabel}…</>
+              ) : confirmLabel}
             </Button>
           </div>
         </RadixDialog.Content>

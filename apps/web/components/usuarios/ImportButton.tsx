@@ -207,7 +207,7 @@ export function ImportButton() {
                     <p className="mt-0.5 text-[12.5px] text-success-fg/90">{commitResult.skipped + commitResult.failed} se omitieron (ya existían o hubo un conflicto).</p>
                   ) : null}
                   <p className="mt-3 text-[12.5px] text-muted">
-                    Para enviarles su credencial QR usá <strong>“Enviar credenciales pendientes”</strong> — el import no manda correos automáticamente.
+                    Para enviarles su credencial QR usá <strong>«Enviar credenciales a pendientes…»</strong> — el import no manda correos automáticamente.
                   </p>
                 </div>
               ) : null}

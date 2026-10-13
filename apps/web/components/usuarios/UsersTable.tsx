@@ -1,6 +1,10 @@
-import { ChevronDown, SearchX } from 'lucide-react';
+'use client';
+
+import type { ReactNode } from 'react';
+import { SearchX } from 'lucide-react';
 import type { UserRow, UserStatus } from '../../lib/usuarios/demoData';
-import { Card, Chip, EmptyState, type ChipTone } from '../ui';
+import { fecha } from '../../lib/format';
+import { DataTableClient, type DataTableColumn, EmptyState, Chip, type ChipTone } from '../ui';
 import { ProfileLink } from './ProfileProvider';
 import { RowActions } from './RowActions';
 
@@ -25,139 +29,123 @@ export function avatarFor(code: string): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length]!;
 }
 
-// Estado → tono de Chip (fallback para demo; los datos reales traen statusTone).
+// Estado → tono de Chip (fallback para datos sin statusTone).
 const STATUS_TONE: Record<UserStatus, ChipTone> = {
   activo: 'success',
   nuevo: 'warning',
   inactivo: 'neutral',
 };
 
-export interface UsersTableProps {
-  users: UserRow[];
-  canWrite?: boolean; // owner/admin → habilita acciones de escritura por fila
+function safeDate(s: string): string {
+  if (!s || s === '—') return '—';
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? s : fecha(d);
 }
 
-// Tabla de usuarios · estilo Google/Material: avatar con iniciales (color por
-// índice), código, visitas, última visita y chip de estado con punto. En mobile
-// se ocultan Código y Última visita. Server Component. Datos demo (no PII).
+export interface UsersTableProps {
+  users: UserRow[];
+  canWrite?: boolean;
+}
+
 export function UsersTable({ users, canWrite = false }: UsersTableProps) {
-  if (users.length === 0) {
-    return (
-      <EmptyState
-        icon={SearchX}
-        title="Sin usuarios"
-        description="No hay visitantes que coincidan con la búsqueda o los filtros."
-      />
-    );
-  }
+  const columns: DataTableColumn<UserRow>[] = [
+    {
+      id: 'persona',
+      header: 'Persona',
+      priority: 'always',
+      cell: (u) => (
+        <div className="flex items-center gap-3">
+          <span className={`grid h-9 w-9 flex-none place-items-center rounded-full text-[12px] font-semibold ${avatarFor(u.code)}`}>
+            {initials(u.name)}
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-[14px] font-semibold text-ink">{u.name}</p>
+              <ProfileLink code={u.code} />
+            </div>
+            <p className="truncate text-[12px] text-muted">{u.email}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'estado',
+      header: 'Estado',
+      priority: 'always',
+      cell: (u) => (
+        <div className="flex flex-wrap gap-1">
+          {u.archived ? <Chip tone="neutral" dot>Archivado</Chip> : null}
+          <Chip tone={(u.statusTone as ChipTone | undefined) ?? STATUS_TONE[u.status]} dot>
+            {u.statusLabel}
+          </Chip>
+          {u.credentialLabel ? (
+            <Chip tone={(u.credentialTone as ChipTone | undefined) ?? 'neutral'}>
+              {u.credentialLabel}
+            </Chip>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      id: 'visitas',
+      header: 'Visitas',
+      priority: 'md',
+      cell: (u) => <span className="num text-[13px] text-muted">{u.visits ?? '—'}</span>,
+    },
+    {
+      id: 'ultimo-acceso',
+      header: 'Último acceso',
+      priority: 'lg',
+      cell: (u) => <span className="num text-[13px] text-muted">{safeDate(u.lastVisit) || '—'}</span>,
+    },
+    {
+      id: 'alta',
+      header: 'Alta',
+      priority: 'md',
+      cell: (u) => <span className="num text-[13px] text-muted">{safeDate(u.registeredAt)}</span>,
+    },
+    {
+      id: 'acciones',
+      header: '',
+      priority: 'always',
+      align: 'right',
+      width: 56,
+      cell: (u) => (
+        <RowActions
+          code={u.code}
+          name={u.name}
+          email={u.email === '—' ? null : u.email}
+          archived={!!u.archived}
+          canWrite={canWrite}
+        />
+      ),
+    },
+  ];
+
+  // indices: persona=0, estado=1, visitas=2, ultimo-acceso=3, alta=4, acciones=5
+  const mobileCard = (u: UserRow, cells: ReactNode[]) => (
+    <div className="flex items-center gap-3 px-4 py-3.5">
+      <div className="flex min-w-0 flex-1 items-center gap-3">{cells[0]}</div>
+      <div className="flex flex-none items-center gap-1.5">
+        {cells[1]}
+        {cells[5]}
+      </div>
+    </div>
+  );
 
   return (
-    <Card padding="none" className="overflow-hidden">
-      {/* Mobile (<md): lista de TARJETAS — la tabla (min-w-900) forzaba scroll
-          horizontal y solo se veía la 1ª columna. */}
-      <ul className="app-stagger md:hidden">
-        {users.map((u, i) => {
-          const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
-          return (
-            <li key={u.id} data-user-row={u.code} className="cursor-pointer border-t border-line px-4 py-3.5 first:border-t-0 hover:bg-page">
-              <div className="flex items-center gap-3">
-                <span className={`grid h-10 w-10 flex-none place-items-center rounded-full text-[12px] font-semibold ${avatar}`}>{initials(u.name)}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium tracking-tight text-ink">{u.name}</p>
-                  <p className="truncate text-xs text-faint">{u.email}</p>
-                </div>
-                <div className="flex flex-none items-center gap-1">
-                  <ProfileLink code={u.code} />
-                  <RowActions code={u.code} email={u.email === '—' ? null : u.email} archived={!!u.archived} canWrite={canWrite} />
-                </div>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pl-[52px] text-xs">
-                <span className="tabular-nums text-faint">{u.code}</span>
-                <span className="text-muted"><span className="font-semibold tabular-nums text-ink">{u.visits}</span> visitas</span>
-                {u.archived ? <Chip tone="neutral" dot>Archivado</Chip> : null}
-                {u.statusLabel ? <Chip tone={(u.statusTone as ChipTone | undefined) ?? STATUS_TONE[u.status]} dot>{u.statusLabel}</Chip> : null}
-                {u.credentialLabel ? <Chip tone={(u.credentialTone ?? 'neutral') as ChipTone} dot>{u.credentialLabel}</Chip> : null}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      {/* Tablet/desktop (md+): tabla completa. */}
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[900px] border-collapse">
-          <thead>
-            <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-              <th className="px-5 py-3 md:px-6">Usuario</th>
-              <th className="hidden px-4 py-3 xl:table-cell">Código</th>
-              <th className="hidden px-4 py-3 lg:table-cell">
-                <span className="inline-flex items-center gap-1">
-                  Registro <ChevronDown size={13} strokeWidth={2} aria-hidden="true" className="text-brand" />
-                </span>
-              </th>
-              <th className="px-4 py-3">Visitas</th>
-              <th className="hidden px-4 py-3 md:table-cell">Última visita</th>
-              <th className="hidden px-4 py-3 lg:table-cell">Credencial</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="app-stagger">
-            {users.map((u, i) => {
-              const avatar = AVATAR_COLORS[i % AVATAR_COLORS.length];
-              return (
-                <tr key={u.id} data-user-row={u.code} className="cursor-pointer border-t border-line align-middle hover:bg-page">
-                  <td className="px-5 py-4 md:px-6">
-                    <div className="flex items-center gap-3">
-                      <span className={`grid h-10 w-10 flex-none place-items-center rounded-full text-[12px] font-semibold ${avatar}`}>
-                        {initials(u.name)}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium tracking-tight text-ink">{u.name}</p>
-                        <p className="truncate text-xs text-faint">{u.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="hidden whitespace-nowrap px-4 py-4 text-[13px] tabular-nums text-muted xl:table-cell">{u.code}</td>
-                  <td className="hidden whitespace-nowrap px-4 py-4 lg:table-cell">
-                    <span className="block text-[13px] text-ink">{u.registeredAt}</span>
-                    <span className="block text-xs text-faint">{u.registeredAgo}</span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex min-w-[28px] justify-center rounded-full bg-surface-container px-2 py-0.5 text-xs font-semibold tabular-nums text-muted">
-                      {u.visits}
-                    </span>
-                  </td>
-                  <td className="hidden whitespace-nowrap px-4 py-4 text-[13px] text-muted md:table-cell">{u.lastVisit}</td>
-                  <td className="hidden px-4 py-4 lg:table-cell">
-                    {u.credentialLabel ? (
-                      <Chip tone={(u.credentialTone ?? 'neutral') as ChipTone} dot>{u.credentialLabel}</Chip>
-                    ) : (
-                      <span className="text-[13px] text-faint">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {u.archived ? <Chip tone="neutral" dot>Archivado</Chip> : null}
-                      {u.statusLabel ? (
-                        <Chip tone={(u.statusTone as ChipTone | undefined) ?? STATUS_TONE[u.status]} dot>{u.statusLabel}</Chip>
-                      ) : !u.archived ? (
-                        <span className="text-[13px] text-faint" title="Última visita hace 31–90 días">—</span>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-4">
-                    <div className="flex items-center justify-end gap-1">
-                      <ProfileLink code={u.code} />
-                      <RowActions code={u.code} email={u.email === '—' ? null : u.email} archived={!!u.archived} canWrite={canWrite} />
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+    <DataTableClient
+      data={users}
+      columns={columns}
+      getRowId={(u) => u.id}
+      mobileCard={mobileCard}
+      empty={
+        <EmptyState
+          icon={SearchX}
+          title="Sin usuarios"
+          description="No hay visitantes que coincidan con la búsqueda o los filtros."
+        />
+      }
+    />
   );
 }

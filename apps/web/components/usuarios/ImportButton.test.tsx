@@ -74,7 +74,7 @@ describe('ImportButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /Importar 2 nuevos/ }));
 
     await waitFor(() => expect(screen.getByText('Se crearon 2 visitantes')).toBeInTheDocument());
-    expect(screen.getByText(/Enviar credenciales pendientes/)).toBeInTheDocument();
+    expect(screen.getByText(/Enviar credenciales a pendientes/)).toBeInTheDocument();
     expect(fetchMock.mock.calls[1]![0]).toBe('/app/usuarios/api/import?commit=true');
   });
 

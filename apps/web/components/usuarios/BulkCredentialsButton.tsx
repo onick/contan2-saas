@@ -11,7 +11,7 @@ import { Send, Loader2, AlertTriangle } from 'lucide-react';
 import { BulkCredentialsResponseSchema } from '@contan2/contracts';
 import { Button, cn } from '../ui';
 
-export function BulkCredentialsButton({ pendingCount }: { pendingCount: number }) {
+export function BulkCredentialsButton({ pendingCount, className }: { pendingCount: number; className?: string }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
@@ -52,8 +52,8 @@ export function BulkCredentialsButton({ pendingCount }: { pendingCount: number }
 
   return (
     <>
-      <Button type="button" variant="secondary" onClick={() => { setOutcome(null); setError(null); setOpen(true); }}>
-        <Send size={15} strokeWidth={2} aria-hidden="true" /> Enviar credenciales ({pendingCount})
+      <Button type="button" variant="secondary" className={className} onClick={() => { setOutcome(null); setError(null); setOpen(true); }}>
+        <Send size={15} strokeWidth={2} aria-hidden="true" /> Enviar credenciales a pendientes ({pendingCount})…
       </Button>
 
       {open && typeof document !== 'undefined'
