@@ -8,8 +8,9 @@
 import { useId, useRef, useState } from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '../ui';
+import { numero } from '../../lib/format';
 
-const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
+const fmt = (n: number) => numero(Math.round(n));
 
 export function DeltaPct({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="text-[12px] font-bold text-faint">—</span>;
@@ -106,7 +107,7 @@ export function Bars({ items, max, color, empty }: { items: Array<{ label: strin
 // Línea "este período vs anterior" con tooltip. `tooltipExtra` agrega filas al
 // tooltip (p. ej. visitantes/actividades en Reportes) sin acoplar el gráfico.
 export interface DailyPoint { label: string; current: number; previous: number }
-export function LineChart({ daily, color = '#e65100', currentLabel = 'Asistencias', tooltipExtra }: {
+export function LineChart({ daily, color = 'var(--color-brand)', currentLabel = 'Asistencias', tooltipExtra }: {
   daily: DailyPoint[]; color?: string; currentLabel?: string;
   tooltipExtra?: (i: number) => Array<{ c: string; l: string; v: number }>;
 }) {

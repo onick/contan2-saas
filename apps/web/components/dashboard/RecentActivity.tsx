@@ -1,0 +1,94 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { Card, ActivityFeed, type ActivityFeedItem } from '../ui';
+import { RecentVisitors } from './RecentVisitors';
+import { RECENT_VISITORS } from '../../lib/dashboard/demoData';
+
+interface AuditRow {
+  id: string;
+  action: string;
+  actorEmailMasked: string | null;
+  createdAt: string;
+}
+
+type Phase = 'loading' | 'ready' | 'empty' | 'fallback' | 'forbidden';
+
+interface Props {
+  demoAllowed: boolean;
+}
+
+export function RecentActivity({ demoAllowed }: Props) {
+  const [phase, setPhase] = useState<Phase>('loading');
+  const [items, setItems] = useState<ActivityFeedItem[]>([]);
+
+  useEffect(() => {
+    let ignore = false;
+    void fetch('/app/historial/api/audit?limit=5', { cache: 'no-store' })
+      .then(async (r) => {
+        if (ignore) return;
+        if (r.status === 403) { setPhase('forbidden'); return; }
+        if (!r.ok) { setPhase('fallback'); return; }
+        const b = (await r.json()) as { items?: AuditRow[] };
+        const list = (b.items ?? []).map((it): ActivityFeedItem => ({
+          id: it.id,
+          action: it.action,
+          detalle: it.actorEmailMasked ?? undefined,
+          at: it.createdAt,
+        }));
+        setItems(list);
+        setPhase(list.length === 0 ? 'empty' : 'ready');
+      })
+      .catch(() => { if (!ignore) setPhase('fallback'); });
+    return () => { ignore = true; };
+  }, []);
+
+  if (phase === 'loading') {
+    return (
+      <Card padding="lg" className="min-h-[180px]">
+        <div className="flex items-center gap-2 text-faint" aria-busy="true">
+          <Loader2 size={14} strokeWidth={2} className="animate-spin" aria-hidden="true" />
+          <span className="text-[13px]">Cargando actividad…</span>
+        </div>
+      </Card>
+    );
+  }
+
+  if (phase === 'forbidden') {
+    return (
+      <Card padding="lg">
+        <h3 className="text-[15px] font-semibold tracking-tight text-ink">Actividad reciente</h3>
+        <p className="mt-2 text-[13px] text-faint">Sin acceso al historial.</p>
+      </Card>
+    );
+  }
+
+  if (phase === 'fallback') {
+    if (demoAllowed) return <RecentVisitors visitors={RECENT_VISITORS} />;
+    return (
+      <Card padding="lg">
+        <h3 className="text-[15px] font-semibold tracking-tight text-ink">Actividad reciente</h3>
+        <p className="mt-2 text-[13px] text-faint">No pudimos cargar la actividad.</p>
+      </Card>
+    );
+  }
+
+  if (phase === 'empty') {
+    return (
+      <Card padding="lg">
+        <h3 className="text-[15px] font-semibold tracking-tight text-ink">Actividad reciente</h3>
+        <p className="mt-2 text-[13px] text-faint">Sin actividad reciente todavía.</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card padding="lg">
+      <h3 className="mb-3 text-[15px] font-semibold tracking-tight text-ink">
+        Actividad reciente
+      </h3>
+      <ActivityFeed items={items} verTodoHref="/app/historial" />
+    </Card>
+  );
+}
