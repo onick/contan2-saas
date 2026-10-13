@@ -1,14 +1,19 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { getPublicBranding } from '../../lib/api/kiosko';
 
 // Layout del KIOSKO · superficie pública del visitante, separada del shell
 // admin (sin sidebar ni rutas internas). Tema OSCURO institucional, full-screen,
 // tablet-first. Fondo profundo con glows radiales cálidos (marca) + film grain
-// sutil, igualando el nivel del kiosko v1. Sin fetch → la ruta se prerenderiza.
-export const metadata: Metadata = {
-  title: 'Registro · Centro Cultural Banreservas',
-  description: 'Registra tu asistencia',
-};
+// sutil, igualando el nivel del kiosko v1.
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await getPublicBranding();
+  return {
+    title: branding?.name ? `Registro · ${branding.name}` : 'Registro',
+    description: 'Registra tu asistencia',
+    ...(branding?.logoUrl ? { icons: { icon: branding.logoUrl } } : {}),
+  };
+}
 
 export const viewport: Viewport = {
   width: 'device-width',

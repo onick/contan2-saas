@@ -13,10 +13,14 @@ import { BrandChip } from '../../components/shell/BrandMark';
 // Página de login del admin v2. Server Component, FUERA de /app (no la cubre el
 // middleware) → accesible sin sesión. `next` se sanea server-side antes de
 // pasarlo al form (solo rutas relativas bajo /app).
-export const metadata: Metadata = {
-  title: 'Ingresar · Contan2',
-  description: 'Acceso al panel de administración',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await getPublicBranding();
+  return {
+    title: branding?.name ? `Ingresar · ${branding.name}` : 'Ingresar',
+    description: 'Acceso al panel de administración',
+    ...(branding?.logoUrl ? { icons: { icon: branding.logoUrl } } : {}),
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
