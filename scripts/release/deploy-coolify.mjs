@@ -42,6 +42,7 @@ import {
   verifyCredentials,
   triggerDeploy,
   pollDeployment,
+  upsertSourceCommitEnv,
 } from './lib/coolify.mjs';
 import {
   waitHealthz,
@@ -264,6 +265,16 @@ async function main() {
     if (!args.verifyOnly) {
       log.phase('COOLIFY');
       const coolifyStart = Date.now();
+      // Upsert SOURCE_COMMIT build-time env BEFORE triggering the deploy.
+      log.step(`upsertando SOURCE_COMMIT=${expectedSha.slice(0, 10)}…`);
+      const envResult = await upsertSourceCommitEnv({
+        baseUrl: env.COOLIFY_BASE_URL,
+        token: env.COOLIFY_API_TOKEN,
+        appUuid: env.COOLIFY_APP_UUID,
+        sha: expectedSha,
+      });
+      log.ok(`SOURCE_COMMIT env ${envResult.method} → ${envResult.status}`);
+
       const trigger = await triggerDeploy({
         baseUrl: env.COOLIFY_BASE_URL,
         token: env.COOLIFY_API_TOKEN,

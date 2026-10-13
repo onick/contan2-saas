@@ -55,6 +55,32 @@ export async function triggerDeploy({ baseUrl, token, appUuid, force = false }) 
   return { deploymentUuid, raw: data };
 }
 
+/**
+ * Upsert SOURCE_COMMIT como env build-time en la aplicación Coolify.
+ * Intenta PATCH primero; si falla (no 200/201), hace POST.
+ * Nunca loguea el token.
+ * @returns {Promise<{ method: 'PATCH'|'POST', status: number }>}
+ */
+export async function upsertSourceCommitEnv({ baseUrl, token, appUuid, sha }) {
+  const url = `${baseUrl}/api/v1/applications/${appUuid}/envs`;
+  const body = JSON.stringify({
+    key: 'SOURCE_COMMIT',
+    value: sha,
+    is_buildtime: true,
+    is_runtime: false,
+  });
+  const headers = { ...authHeaders(token), 'Content-Type': 'application/json' };
+
+  // Try PATCH first
+  const patchRes = await fetch(url, { method: 'PATCH', headers, body });
+  if (patchRes.status === 200 || patchRes.status === 201) {
+    return { method: 'PATCH', status: patchRes.status };
+  }
+  // Fallback to POST
+  const postRes = await fetch(url, { method: 'POST', headers, body });
+  return { method: 'POST', status: postRes.status };
+}
+
 const TERMINAL_STATES = new Set(['finished', 'failed', 'cancelled']);
 
 export async function pollDeployment({

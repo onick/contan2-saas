@@ -141,6 +141,20 @@ sin pnpm install previo.
 - **No autorización implícita.** Cada deploy es un comando explícito del
   operador. No hay cron, no hay schedule.
 
+## SOURCE_COMMIT
+
+Antes de cada deploy (fase COOLIFY), el script hace un upsert de la variable de
+entorno `SOURCE_COMMIT` en la aplicación Coolify. Esta variable es **build-time**
+(`is_buildtime: true`) y queda grabada en la imagen del container.
+
+- **Qué es:** el SHA completo del commit que se está deployando (= `expectedSha`).
+- **Para qué sirve:** permite al container reportar su SHA en `/api/version` sin
+  depender de labels OCI ni de args del Dockerfile.
+- **Dónde verlo:** Coolify UI → aplicación → Environment Variables, o en la
+  respuesta de `GET /api/v1/applications/<uuid>/envs`.
+- El upsert intenta PATCH primero (actualizar si ya existe); si Coolify devuelve
+  algo distinto de 200/201, hace POST (crear). Nunca se loguea el token.
+
 ## Cuándo NO usar este script
 
 - Cuando el cambio es runtime crítico que requiere coordinación con el equipo
