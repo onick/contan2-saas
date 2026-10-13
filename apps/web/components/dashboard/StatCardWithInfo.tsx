@@ -1,5 +1,3 @@
-'use client';
-
 import { HelpCircle } from 'lucide-react';
 import { StatCard, Popover, PopoverTrigger, PopoverContent, focusRing, cn, type StatCardProps } from '../ui';
 
