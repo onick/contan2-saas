@@ -46,4 +46,20 @@ describe('UsersTable', () => {
       expect(hasNameWithTruncate).toBe(false); // sin ellipsis
     }
   });
+
+  it('botón Ver no es descendiente del nodo del nombre y no tiene posición absoluta', () => {
+    const user = USERS[0]!;
+    render(<UsersTable users={[user]} />);
+    const verBtns = screen.getAllByRole('button', { name: new RegExp(`Ver perfil ${user.code}`, 'i') });
+    expect(verBtns.length).toBeGreaterThan(0);
+    const nameEls = screen.getAllByText(user.name);
+    for (const verBtn of verBtns) {
+      // "Ver" no puede estar dentro del elemento que muestra el nombre
+      for (const nameEl of nameEls) {
+        expect(nameEl.contains(verBtn)).toBe(false);
+      }
+      // Sin posición absoluta ni fixed que cause solapamiento
+      expect(verBtn.className).not.toMatch(/\babsolute\b|\bfixed\b/);
+    }
+  });
 });
