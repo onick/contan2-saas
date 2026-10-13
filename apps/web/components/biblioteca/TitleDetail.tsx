@@ -79,7 +79,7 @@ export function TitleDetail({ initial, sites }: { initial: BiblioTitleDetailResp
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_220px]">
         <Card padding="lg" className="app-reveal">
           <div className="flex flex-col gap-5 sm:flex-row">
-            <span className="flex h-[168px] w-[120px] flex-none flex-col justify-end overflow-hidden rounded-xl bg-gradient-to-br from-[#1a6194] to-[#123c5c] p-3 text-white">
+            <span className="flex h-[168px] w-[120px] flex-none flex-col justify-end overflow-hidden rounded-xl bg-gradient-to-br from-brand-accent to-brand-accent/60 p-3 text-white">
               {t.coverUrl
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={t.coverUrl} alt="" className="-m-3 h-[168px] w-[120px] object-cover" />

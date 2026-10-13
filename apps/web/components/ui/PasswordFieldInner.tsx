@@ -27,7 +27,7 @@ export function PasswordFieldInner({
   return (
     <label className={cn('block', wrapperClassName)}>
       <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</span>
-      <div className={cn('mt-1 flex min-h-11 md:min-h-10 items-center rounded-field border border-line bg-surface px-3', focusWithin, LeadingIcon && 'gap-2')}>
+      <div className={cn('mt-1 flex min-h-11 md:min-h-10 items-center rounded-field border border-border-strong bg-surface px-3', focusWithin, LeadingIcon && 'gap-2')}>
         {LeadingIcon ? <LeadingIcon size={16} className="flex-none text-muted" aria-hidden="true" /> : null}
         <input
           type={show ? 'text' : 'password'}

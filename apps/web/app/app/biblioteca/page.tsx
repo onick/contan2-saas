@@ -56,7 +56,7 @@ export default async function BibliotecaInicioPage() {
 
   const kpis = [
     { label: 'Títulos', value: facets.total, Icon: Library, tint: 'bg-brand/10 text-brand' },
-    { label: 'Ejemplares', value: facets.items?.total ?? 0, Icon: BookOpen, tint: 'bg-[#e8f0fe] text-[#1a56b0]' },
+    { label: 'Ejemplares', value: facets.items?.total ?? 0, Icon: BookOpen, tint: 'bg-info-soft text-info-text' },
     { label: 'En buen estado', value: facets.items?.active ?? 0, Icon: PackageCheck, tint: 'bg-success-bg text-success-fg' },
     { label: 'Sitios físicos', value: sites?.sites.length ?? 0, Icon: MapPin, tint: 'bg-[#f1e9fe] text-[#7c3aed]' },
   ];
@@ -131,7 +131,7 @@ export default async function BibliotecaInicioPage() {
               <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-6 lg:grid-cols-8">
                 {nuevos.map((t) => (
                   <Link key={t.id} href={`/app/biblioteca/titulos/${t.id}`} className={cn('group block min-w-0 rounded-lg', focusRing)} title={t.title}>
-                    <span className="block aspect-[2/3] overflow-hidden rounded-lg border border-line bg-[#1a6194] shadow-sm transition-transform group-hover:-translate-y-0.5">
+                    <span className="block aspect-[2/3] overflow-hidden rounded-lg border border-line bg-brand-accent shadow-sm transition-transform group-hover:-translate-y-0.5">
                       {t.coverUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={t.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />

@@ -98,7 +98,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
   const k = data.kpis, pr = data.prev, dl = data.deltas;
   const kpis = [
     { label: 'Personas', value: k.people, prev: pr.people, delta: dl.people, tint: 'bg-brand/10 text-brand', Icon: Users },
-    { label: 'Entradas registradas', value: k.entries, prev: pr.entries, delta: dl.entries, tint: 'bg-[#e8f0fe] text-[#1a56b0]', Icon: DoorOpen },
+    { label: 'Entradas registradas', value: k.entries, prev: pr.entries, delta: dl.entries, tint: 'bg-info-soft text-info-text', Icon: DoorOpen },
     { label: 'En grupo', value: k.groupPeople, prev: pr.groupPeople, delta: dl.groupPeople, tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: GraduationCap },
     { label: 'Visitantes identificados', value: k.identified, prev: pr.identified, delta: dl.identified, tint: 'bg-success-bg text-success-fg', Icon: UserCheck },
   ];

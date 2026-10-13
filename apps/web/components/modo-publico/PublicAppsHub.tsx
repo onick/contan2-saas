@@ -43,7 +43,7 @@ const APPS: AppDef[] = [
     ],
     statLabel: 'visitantes únicos hoy',
     statKey: 'uniqueVisitorsToday',
-    accent: 'bg-[#e8f0fe] text-[#1a56b0]',
+    accent: 'bg-info-soft text-info-text',
   },
   {
     id: 'scanner',

@@ -42,7 +42,7 @@ const shortInterest = (label: string): string => label.replace(/^Interesados? en
 
 const ENGAGEMENT_META: Record<string, { tint: string; Icon: LucideIcon }> = {
   active: { tint: 'bg-success-bg text-success-fg', Icon: Activity },
-  newcomers: { tint: 'bg-[#e8f0fe] text-[#1a56b0]', Icon: Sparkles },
+  newcomers: { tint: 'bg-info-soft text-info-text', Icon: Sparkles },
   vip: { tint: 'bg-[#fbf0d8] text-[#8a6116]', Icon: Crown },
   dormant: { tint: 'bg-surface-container text-faint', Icon: Moon },
 };
@@ -110,8 +110,8 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
 
   const kpis: Array<{ id: string; label: string; sub: string; tint: string; Icon: LucideIcon }> = [
     { id: 'active', label: 'Activos recientes', sub: 'Asistieron en los últimos 30 días', tint: 'bg-success-bg text-success-fg', Icon: Activity },
-    { id: 'newcomers', label: 'Nuevos visitantes', sub: 'Una sola asistencia registrada', tint: 'bg-[#e8f0fe] text-[#1a56b0]', Icon: Sparkles },
-    { id: 'fans-cine', label: 'Fans de Cine', sub: '2 o más asistencias de cine', tint: 'bg-[#e8f0fe] text-[#2456c8]', Icon: Film },
+    { id: 'newcomers', label: 'Nuevos visitantes', sub: 'Una sola asistencia registrada', tint: 'bg-info-soft text-info-text', Icon: Sparkles },
+    { id: 'fans-cine', label: 'Fans de Cine', sub: '2 o más asistencias de cine', tint: 'bg-info-soft text-info-text', Icon: Film },
     { id: 'vip', label: 'Visitantes VIP', sub: '10 o más asistencias totales', tint: 'bg-[#fbf0d8] text-[#8a6116]', Icon: Crown },
   ];
   const afinidadCards = (['active', 'newcomers', 'vip', 'dormant'] as const)

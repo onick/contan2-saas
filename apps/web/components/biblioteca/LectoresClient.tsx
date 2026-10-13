@@ -103,7 +103,7 @@ export function LectoresClient({ initial, initialStats }: {
   const kpis = stats ? [
     { label: 'Lectores totales', value: stats.total, Icon: Users, tint: 'bg-brand/10 text-brand', foot: 'Ver todos', onClick: limpiar },
     { label: 'Activos', value: stats.active, Icon: UserCheck, tint: 'bg-success-bg text-success-fg', foot: pct !== null ? `${pct}% del total` : undefined },
-    { label: 'Nuevos este mes', value: stats.newThisMonth, Icon: UserPlus, tint: 'bg-[#e8f0fe] text-[#1a56b0]' },
+    { label: 'Nuevos este mes', value: stats.newThisMonth, Icon: UserPlus, tint: 'bg-info-soft text-info-text' },
     { label: 'Suspendidos', value: stats.suspended, Icon: UserX, tint: 'bg-danger-bg text-danger-fg', foot: 'Ver lista', onClick: () => { setEstado('suspendido'); setPage(1); } },
   ] : [];
 

@@ -5,6 +5,7 @@ import { Unavailable } from '../../../components/shell/Unavailable';
 import { SegmentsDashboard } from '../../../components/segmentos/SegmentsDashboard';
 import { getTenantBranding } from '../../../lib/branding/tenant';
 import { getSegments } from '../../../lib/api/segments';
+import { getUsersFacets } from '../../../lib/api/users';
 
 // Segmentos · dashboard de audiencia por AFINIDAD (paridad v1 insights/segments).
 // Conteos EN VIVO del historial real de asistencias: engagement (VIP/activos/
@@ -20,7 +21,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function SegmentosPage() {
   const branding = await getTenantBranding();
-  const data = await getSegments();
+  const [data, facets] = await Promise.all([getSegments(), getUsersFacets()]);
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Segmentos" activeKey="segmentos">
@@ -34,5 +35,8 @@ export default async function SegmentosPage() {
     );
   }
 
-  return shell(<SegmentsDashboard segments={data.segments} totalVisitors={data.totalVisitors} />);
+  // byStatus.total es la fuente canónica de visitantes únicos (F6b); si no
+  // está disponible (facets falló) cae al conteo del endpoint de segmentos.
+  const totalVisitors = facets?.byStatus?.total ?? data.totalVisitors;
+  return shell(<SegmentsDashboard segments={data.segments} totalVisitors={totalVisitors} />);
 }

@@ -11,7 +11,7 @@ const AVATAR_COLORS = [
   'bg-[#ffe6d2] text-[#7a3300]',
   'bg-[#e3f4f1] text-[#0f7a6b]',
   'bg-[#efe9fb] text-[#6b3fb8]',
-  'bg-[#e8f0fe] text-[#1a56b0]',
+  'bg-info-soft text-info-text',
   'bg-[#fdeaf0] text-[#b03060]',
 ];
 

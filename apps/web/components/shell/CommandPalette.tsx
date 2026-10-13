@@ -31,6 +31,17 @@ export function CommandPalette() {
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<Element | null>(null);
+
+  // Guarda el trigger al abrir; devuelve el foco al cerrarse.
+  useEffect(() => {
+    if (paletteOpen) {
+      triggerRef.current = document.activeElement;
+    } else if (triggerRef.current instanceof HTMLElement) {
+      triggerRef.current.focus();
+      triggerRef.current = null;
+    }
+  }, [paletteOpen]);
 
   // Al abrir: reset + foco. Al cerrar: limpia. Bloqueo de scroll del body.
   useEffect(() => {

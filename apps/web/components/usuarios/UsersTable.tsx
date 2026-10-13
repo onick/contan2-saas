@@ -18,7 +18,7 @@ export const AVATAR_COLORS = [
   'bg-[#ffe6d2] text-[#7a3300]',
   'bg-[#e3f4f1] text-[#0f7a6b]',
   'bg-[#efe9fb] text-[#6b3fb8]',
-  'bg-[#e8f0fe] text-[#1a56b0]',
+  'bg-info-soft text-info-text',
   'bg-[#fdeaf0] text-[#b03060]',
 ];
 
@@ -123,13 +123,13 @@ export function UsersTable({ users, canWrite = false }: UsersTableProps) {
   ];
 
   // indices: persona=0, estado=1, visitas=2, ultimo-acceso=3, alta=4, acciones=5
-  const mobileCard = (u: UserRow, cells: ReactNode[]) => (
-    <div className="flex items-center gap-3 px-4 py-3.5">
-      <div className="flex min-w-0 flex-1 items-center gap-3">{cells[0]}</div>
-      <div className="flex flex-none items-center gap-1.5">
-        {cells[1]}
-        {cells[5]}
+  const mobileCard = (_u: UserRow, cells: ReactNode[]) => (
+    <div className="flex flex-col px-4 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="min-w-0 flex-1">{cells[0]}</div>
+        <div className="flex flex-none items-center">{cells[5]}</div>
       </div>
+      <div className="mt-1.5 flex flex-wrap gap-1 pl-12">{cells[1]}</div>
     </div>
   );
 

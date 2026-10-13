@@ -26,7 +26,9 @@ const NET_ERROR = 'No pudimos conectar. Intentá de nuevo en un momento.';
 export function LoginForm({ next, defaultEmail }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPw, setShowPw] = useState(false); // ojito: ver/ocultar contraseña
+  const [showPw, setShowPw] = useState(false);
+  // email controlado para preservar el valor tras un login fallido
+  const [email, setEmail] = useState(defaultEmail ?? '');
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -63,7 +65,7 @@ export function LoginForm({ next, defaultEmail }: LoginFormProps) {
   const labelCls = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-faint';
   const iconCls = 'pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint';
   const inputCls = cn(
-    'h-12 w-full rounded-full border border-line bg-surface pl-11 pr-4 text-[15px] text-ink',
+    'h-12 w-full rounded-full border border-border-strong bg-surface pl-11 pr-4 text-[15px] text-ink',
     'placeholder:text-faint',
     focusRing,
   );
@@ -89,7 +91,8 @@ export function LoginForm({ next, defaultEmail }: LoginFormProps) {
             autoComplete="username"
             required
             autoFocus={!defaultEmail}
-            defaultValue={defaultEmail}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             inputMode="email"
             placeholder="tu@correo.com"
             className={inputCls}
@@ -107,7 +110,7 @@ export function LoginForm({ next, defaultEmail }: LoginFormProps) {
             autoComplete="current-password"
             required
             placeholder="••••••••"
-            className={cn('h-12 w-full rounded-full border border-line bg-surface pl-11 pr-12 text-[15px] text-ink', 'placeholder:text-faint', focusRing)}
+            className={cn('h-12 w-full rounded-full border border-border-strong bg-surface pl-11 pr-12 text-[15px] text-ink', 'placeholder:text-faint', focusRing)}
           />
           <button
             type="button"
@@ -125,7 +128,7 @@ export function LoginForm({ next, defaultEmail }: LoginFormProps) {
         <input
           name="rememberMe"
           type="checkbox"
-          className="h-4 w-4 rounded border-line accent-[color:var(--color-brand,#c44400)]"
+          className="h-4 w-4 rounded border-border-strong accent-[color:var(--color-brand)]"
         />
         Mantener la sesión iniciada
       </label>
@@ -134,7 +137,7 @@ export function LoginForm({ next, defaultEmail }: LoginFormProps) {
         type="submit"
         disabled={loading}
         className={cn(
-          'mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#e99838] px-4 text-[15px] font-semibold text-[#211c18] shadow-sm',
+          'mt-1 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-brand px-4 text-[15px] font-semibold text-brand-fg shadow-sm',
           'transition hover:brightness-95 active:translate-y-px active:brightness-90',
           'disabled:pointer-events-none disabled:opacity-70',
           focusRing,

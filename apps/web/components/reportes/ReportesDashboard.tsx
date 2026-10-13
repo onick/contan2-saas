@@ -129,7 +129,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
   const k = data.kpis, dl = data.deltas, pr = data.prev;
   // KPIs con valor anterior incorporado (sin panel "Comparación" aparte).
   const kpis = [
-    { label: 'Actividades', value: k.activities, prev: pr.activities, delta: dl.activities, tint: 'bg-[#e8f0fe] text-[#1a56b0]', Icon: Calendar },
+    { label: 'Actividades', value: k.activities, prev: pr.activities, delta: dl.activities, tint: 'bg-info-soft text-info-text', Icon: Calendar },
     { label: 'Asistencias', value: k.attendances, prev: pr.attendances, delta: dl.attendances, tint: 'bg-success-bg text-success-fg', Icon: Users },
     { label: 'Visitantes únicos', value: k.uniqueVisitors, prev: pr.uniqueVisitors, delta: dl.uniqueVisitors, tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: User },
     { label: 'Ocupación promedio', value: k.occupancyPct, prev: pr.occupancyPct, suffix: '%', delta: dl.occupancyPct, tint: 'bg-brand/10 text-brand', Icon: TrendingUp },
@@ -278,7 +278,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
             </div>
             <LineChart daily={data.daily} tooltipExtra={(i) => [
               { c: '#7c3aed', l: 'Visitantes únicos', v: data.daily[i]!.visitors },
-              { c: '#1a56b0', l: 'Actividades', v: data.daily[i]!.activities },
+              { c: '#1d7aa7', l: 'Actividades', v: data.daily[i]!.activities },
             ]} />
           </Card>
           <Card padding="lg">
@@ -441,10 +441,17 @@ function CategoryReport({ range }: { range: { from: string; to: string } }) {
 // v2. El staff elige mes + año y baja el .xlsx branded.
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 function MonthlyRegisterCard() {
-  const now = new Date();
-  const [month, setMonth] = useState(now.getMonth() + 1); // 1-12
-  const [year, setYear] = useState(now.getFullYear());
-  const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - i);
+  // Inicializar con UTC para que servidor y cliente coincidan; useEffect ajusta a
+  // la zona local (evita hydration #418 en bordes de medianoche UTC vs local).
+  const utcNow = new Date();
+  const [month, setMonth] = useState(utcNow.getUTCMonth() + 1); // 1-12
+  const [year, setYear] = useState(utcNow.getUTCFullYear());
+  useEffect(() => {
+    const n = new Date();
+    setMonth(n.getMonth() + 1);
+    setYear(n.getFullYear());
+  }, []);
+  const years = Array.from({ length: 6 }, (_, i) => year - i);
   const href = `/app/reportes/api/month?year=${year}&month=${month}`;
 
   return (
@@ -462,14 +469,14 @@ function MonthlyRegisterCard() {
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Mes</span>
             <select value={month} onChange={(e) => setMonth(Number(e.target.value))}
-              className={cn('rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink', focusRing)}>
+              className={cn('rounded-lg border border-border-strong bg-surface px-3 py-2 text-[13px] text-ink', focusRing)}>
               {MESES.map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
             </select>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Año</span>
             <select value={year} onChange={(e) => setYear(Number(e.target.value))}
-              className={cn('rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink', focusRing)}>
+              className={cn('rounded-lg border border-border-strong bg-surface px-3 py-2 text-[13px] text-ink', focusRing)}>
               {years.map((y) => (<option key={y} value={y}>{y}</option>))}
             </select>
           </label>

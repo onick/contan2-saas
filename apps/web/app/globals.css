@@ -48,6 +48,8 @@
   --color-muted: #636769;            /* texto secundario · 5.71:1 sobre blanco */
   --color-faint: #67697a;            /* labels / metadata · AA ≥4.5:1 (white 5.41, page 5.18, surface-container 4.96) */
   --color-line: #e7e5e4;
+  /* border para inputs/controles → ≥3:1 contra blanco (WCAG 1.4.11). */
+  --color-border-strong: #636769;
   --color-primary-container: #ffe6d2;
   --color-on-primary-container: #7a3300;
   --color-accent-soft: #fef4e8;      /* naranja suave — NO reemplazar (≈38 consumidores) */

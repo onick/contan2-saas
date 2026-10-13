@@ -225,7 +225,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
               <div className="mt-0.5 flex items-center gap-2">
                 <code className="text-[13px] tabular-nums text-muted">{shown}</code>
                 <button type="button" onClick={copyCode}
-                  className={cn('inline-flex items-center gap-1 rounded px-1 text-[12px] font-semibold text-brand', focusRing)}>
+                  className={cn('inline-flex items-center gap-1 rounded px-1 text-[12px] font-semibold text-brand-text', focusRing)}>
                   {copied ? <><Check size={13} strokeWidth={2.5} aria-hidden="true" /> Copiado</> : <><Copy size={13} strokeWidth={2} aria-hidden="true" /> Copiar</>}
                 </button>
               </div>

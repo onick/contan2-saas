@@ -6,7 +6,7 @@ export interface SalaColor { c: string; soft: string; deep: string }
 
 export function salaColor(aforo: number | null): SalaColor {
   return aforo !== null
-    ? { c: '#2f9fd6', soft: '#e7f3fb', deep: '#1a6194' }
+    ? { c: '#2f9fd6', soft: '#e7f3fb', deep: '#1d7aa7' }
     : { c: '#ee8c27', soft: '#fdf2e5', deep: '#c9701a' };
 }
 

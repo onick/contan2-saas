@@ -206,7 +206,7 @@ export function ReservasClient({ initial, initialSummary }: {
                         </td>
                         <td className="px-3 py-2.5">
                           <Link href={`/app/biblioteca/titulos/${r.titleId}`} className={cn('flex items-center gap-2.5 rounded-lg', focusRing)}>
-                            <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-[#1a6194]">
+                            <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
                               {r.coverUrl
                                 // eslint-disable-next-line @next/next/no-img-element
                                 ? <img src={r.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -304,7 +304,7 @@ export function ReservasClient({ initial, initialSummary }: {
                     const lbl = pickupLabel(p.expiresAt);
                     return (
                       <li key={p.id} className="flex items-center gap-2.5 py-2">
-                        <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-[#1a6194]">
+                        <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
                           {p.coverUrl
                             // eslint-disable-next-line @next/next/no-img-element
                             ? <img src={p.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -453,7 +453,7 @@ function NewReservationDrawer({ open, onClose, onDone }: {
                       <li key={o.id}>
                         <button type="button" onClick={() => setPicked({ id: o.id, title: o.title, libres: o.libres })}
                           className={cn('flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-surface-container', focusRing)}>
-                          <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-[#1a6194]">
+                          <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
                             {o.coverUrl
                               // eslint-disable-next-line @next/next/no-img-element
                               ? <img src={o.coverUrl} alt="" className="h-full w-full object-cover" />

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { CSSProperties, ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
@@ -6,6 +7,17 @@ import { brandingToCssVars } from '../../lib/branding/theme';
 import { getAdminGate, sanitizeNext } from '../../lib/auth/session';
 import { Unavailable } from '../../components/shell/Unavailable';
 import { TrialExpired } from '../../components/shell/TrialExpired';
+
+// Favicon dinámico desde el logoUrl del tenant (fallback al icon.svg estático).
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const gate = await getAdminGate();
+    if (gate.status === 'ok' && gate.branding.logoUrl) {
+      return { icons: { icon: gate.branding.logoUrl } };
+    }
+  } catch { /* silencioso: cae al fallback estático */ }
+  return {};
+}
 
 // Gate AUTORITATIVO del tenant-admin (/app/*). El middleware ya hizo el chequeo
 // barato de presencia de cookie; acá validamos de verdad contra api-v2:

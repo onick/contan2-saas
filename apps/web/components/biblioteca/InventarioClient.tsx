@@ -177,7 +177,7 @@ export function InventarioClient({ initial, sites }: {
     const f = (viewing.found / total) * 360;
     const m = (viewing.misplaced / total) * 360;
     const l = (viewing.onLoan / total) * 360;
-    return `conic-gradient(#137333 0deg ${f}deg, #b45309 ${f}deg ${f + m}deg, #1a56b0 ${f + m}deg ${f + m + l}deg, #e5e7eb ${f + m + l}deg 360deg)`;
+    return `conic-gradient(#137333 0deg ${f}deg, #b45309 ${f}deg ${f + m}deg, #1d7aa7 ${f + m}deg ${f + m + l}deg, #e5e7eb ${f + m + l}deg 360deg)`;
   })() : null;
 
   return (
@@ -349,7 +349,7 @@ export function InventarioClient({ initial, sites }: {
                             <td className="whitespace-nowrap px-4 py-2.5 font-mono text-[12.5px] font-bold tabular-nums text-ink">{it.inventoryCode}</td>
                             <td className="px-3 py-2.5">
                               <Link href={`/app/biblioteca/titulos/${it.titleId}`} className={cn('flex items-center gap-2.5 rounded-lg', focusRing)}>
-                                <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-[#1a6194]">
+                                <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
                                   {it.coverUrl
                                     // eslint-disable-next-line @next/next/no-img-element
                                     ? <img src={it.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -427,7 +427,7 @@ export function InventarioClient({ initial, sites }: {
                 <SummaryRow label="Escaneados" value={viewing.scanned} tone="text-ink" />
                 <SummaryRow label="Encontrados" value={viewing.found} tone="text-success-fg" />
                 <SummaryRow label="Fuera de ubicación" value={viewing.misplaced} tone={viewing.misplaced > 0 ? 'text-[#b45309]' : 'text-ink'} />
-                <SummaryRow label="Prestados (en la calle)" value={viewing.onLoan} tone="text-[#1a56b0]" />
+                <SummaryRow label="Prestados (en la calle)" value={viewing.onLoan} tone="text-info-text" />
                 <SummaryRow label={viewing.status === 'finalizado' ? 'Faltantes' : 'Pendientes por escanear'} value={viewing.missing} tone={viewing.status === 'finalizado' && viewing.missing > 0 ? 'text-danger-fg' : 'text-ink'} />
               </dl>
               <div className="mt-2.5 flex items-baseline justify-between border-t border-line/60 pt-2">
@@ -446,7 +446,7 @@ export function InventarioClient({ initial, sites }: {
                   <ul className="flex flex-col gap-1.5 text-[11.5px]">
                     <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#137333]" /> Encontrados <b className="tabular-nums">{fmt(viewing.found)}</b></li>
                     <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#b45309]" /> Fuera de ubicación <b className="tabular-nums">{fmt(viewing.misplaced)}</b></li>
-                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#1a56b0]" /> Prestados <b className="tabular-nums">{fmt(viewing.onLoan)}</b></li>
+                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-info-text" /> Prestados <b className="tabular-nums">{fmt(viewing.onLoan)}</b></li>
                     <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#e5e7eb]" /> {viewing.status === 'finalizado' ? 'Faltantes' : 'Pendientes'} <b className="tabular-nums">{fmt(viewing.missing)}</b></li>
                   </ul>
                 </div>

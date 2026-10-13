@@ -49,7 +49,7 @@ export interface CategoryMeta {
 
 // Ícono + tinte tonal por categoría (texto oscuro sobre tinte claro → legible).
 export const CATEGORY_META: Record<EventCategory, CategoryMeta> = {
-  actividad: { label: 'Actividad', icon: CalendarDays, iconStyle: 'bg-[#e8f0fe] text-[#1a56b0]' },
+  actividad: { label: 'Actividad', icon: CalendarDays, iconStyle: 'bg-info-soft text-info-text' },
   checkin: { label: 'Check-in', icon: QrCode, iconStyle: 'bg-[#e3f4f1] text-[#0f7a6b]' },
   usuario: { label: 'Usuario', icon: UserPlus, iconStyle: 'bg-[#fdeaf0] text-[#b03060]' },
   reporte: { label: 'Reporte', icon: BarChart3, iconStyle: 'bg-accent-soft text-[#b35400]' },

@@ -131,14 +131,25 @@ describe('LoginForm', () => {
     expect(forgot).toHaveAttribute('href', '/recuperar');
   });
 
-  it('botón con color de marca solicitado (#e99838 / texto #211c18) + redondeado', () => {
+  it('botón con token de marca (bg-brand / text-brand-fg) + redondeado', () => {
     render(<LoginForm next="/app" />);
     const cls = screen.getByRole('button', { name: /ingresar/i }).className;
-    expect(cls).toContain('bg-[#e99838]');
-    expect(cls).toContain('text-[#211c18]');
+    expect(cls).toContain('bg-brand');
+    expect(cls).toContain('text-brand-fg');
     expect(cls).toContain('rounded-full');
     expect(cls).toContain('hover:brightness-95');
     expect(cls).toContain('active:brightness-90');
+  });
+
+  it('email se conserva en el campo tras un login fallido (L3)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonRes(401)));
+    render(<LoginForm next="/app" />);
+    const emailInput = screen.getByLabelText('Correo') as HTMLInputElement;
+    fireEvent.change(emailInput, { target: { value: 'usuario@ccb.do' } });
+    fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: /ingresar/i }));
+    await screen.findByRole('alert');
+    expect(emailInput.value).toBe('usuario@ccb.do');
   });
 
   it('ojito: alterna mostrar/ocultar la contraseña', () => {

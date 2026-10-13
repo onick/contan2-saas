@@ -209,7 +209,7 @@ export function CirculacionClient({ initial, initialSummary }: {
                         </td>
                         <td className="px-3 py-2.5">
                           <Link href={`/app/biblioteca/titulos/${l.titleId}`} className={cn('flex items-center gap-2.5 rounded-lg', focusRing)}>
-                            <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-[#1a6194]">
+                            <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
                               {l.coverUrl
                                 // eslint-disable-next-line @next/next/no-img-element
                                 ? <img src={l.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -488,7 +488,7 @@ function CirculacionDrawer({ state, onClose, onDone }: {
               {pre.item ? (
                 <div className={cn('mt-2 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[12.5px] leading-snug',
                   pre.item.retired || pre.item.onLoan || (kind === 'domicilio' && !pre.item.loanable) ? 'bg-danger-bg text-danger-fg' : 'bg-success-bg text-success-fg')}>
-                  <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/50 bg-[#1a6194]">
+                  <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/50 bg-brand-accent">
                     {pre.item.coverUrl
                       // eslint-disable-next-line @next/next/no-img-element
                       ? <img src={pre.item.coverUrl} alt="" className="h-full w-full object-cover" />

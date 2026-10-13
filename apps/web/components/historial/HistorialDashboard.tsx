@@ -20,7 +20,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 
 // Color (hex) por categoría para el donut (coherente con los tintes del módulo).
 const CAT_COLOR: Record<string, string> = {
-  actividad: '#1a56b0', checkin: '#0f7a6b', usuario: '#b03060', reporte: '#b35400',
+  actividad: '#1d7aa7', checkin: '#0f7a6b', usuario: '#b03060', reporte: '#b35400',
   identidad: '#6b3fb8', equipo: '#3f3fb8', auth: '#64748b', segmento: '#8a6116',
 };
 const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador', protocolo: 'Protocolo', consulta: 'Consulta' };
@@ -83,7 +83,7 @@ export function HistorialDashboard({ initialOverview }: { initialOverview: Audit
   const totalToday = ov.byCategory.reduce((a, c) => a + c.count, 0);
 
   const kpis = [
-    { label: 'Eventos hoy', value: k.eventsToday, delta: k.eventsDeltaPct, tint: 'bg-[#e8f0fe] text-[#1a56b0]', Icon: Activity },
+    { label: 'Eventos hoy', value: k.eventsToday, delta: k.eventsDeltaPct, tint: 'bg-info-soft text-info-text', Icon: Activity },
     { label: 'Usuarios activos', value: k.activeUsersToday, delta: k.activeUsersDeltaPct, tint: 'bg-success-bg text-success-fg', Icon: Users },
     { label: 'Reportes exportados', value: k.reportsToday, delta: k.reportsDeltaPct, tint: 'bg-[#efe9fb] text-[#6b3fb8]', Icon: FileDown },
     { label: 'Actividades creadas', value: k.activitiesToday, delta: k.activitiesDeltaPct, tint: 'bg-[#fff1e8] text-[#b35400]', Icon: CalendarPlus },
@@ -169,7 +169,7 @@ export function HistorialDashboard({ initialOverview }: { initialOverview: Audit
                 {ov.topActors.map((a, i) => (
                   <li key={a.staffId ?? i} className="flex items-center gap-2.5">
                     <span className="text-[12px] font-bold tabular-nums text-faint">{i + 1}</span>
-                    <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-brand/10 text-[11px] font-extrabold text-brand">{initials(a.name)}</span>
+                    <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-brand-soft text-[11px] font-extrabold text-brand-text">{initials(a.name)}</span>
                     <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-semibold text-ink">{a.name}</p>{a.role ? <p className="truncate text-[11px] text-faint">{ROLE_LABEL[a.role] ?? a.role}</p> : null}</div>
                     <span className="flex-none text-[12px] font-semibold tabular-nums text-muted">{a.count} eventos</span>
                   </li>

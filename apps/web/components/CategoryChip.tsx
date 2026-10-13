@@ -4,7 +4,7 @@
 // acento naranja (coherente con v1). Categoría desconocida → gris neutro.
 
 const CATEGORY_STYLE: Record<string, string> = {
-  Cine: 'bg-[#e8f0fe] text-[#1a56b0]',
+  Cine: 'bg-info-soft text-info-text',
   Concierto: 'bg-[#fff3e6] text-[#b35400]',
   Tertulia: 'bg-[#e3f4f1] text-[#0f7a6b]',
   Exposición: 'bg-[#efe9fb] text-[#6b3fb8]',

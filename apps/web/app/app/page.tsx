@@ -100,7 +100,7 @@ async function OverviewData({ period }: { period: string }) {
         style={{ animationDelay: '60ms' }}
       >
         <RegistrosChart series={data.series} />
-        <RecentActivity demoAllowed={isDemoFallbackAllowed()} />
+        <RecentActivity demoAllowed={isDemoFallbackAllowed()} period={period} />
       </div>
 
       {/* Próximas actividades */}

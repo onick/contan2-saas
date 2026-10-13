@@ -5,7 +5,7 @@
 // el resto del menú. Usa NAV_ITEMS filtrados por rol (igual que el Sidebar) —
 // el confinamiento es consistente en ambas superficies.
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import { NAV_ITEMS, NAV_GROUPS, filterNavByRole, type NavItem } from '../../lib/shell/nav';
 import { Sheet } from '../ui/Sheet';
@@ -19,6 +19,14 @@ const PREFERRED_BOTTOM = ['dashboard', 'actividades', 'usuarios', 'biblioteca'];
 
 export function MobileNav({ activeKey, role }: { activeKey?: string; role?: string | null }) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const prevOpenRef = useRef(false);
+
+  // Devuelve el foco al botón "Más" cuando el sheet se cierra.
+  useEffect(() => {
+    if (prevOpenRef.current && !moreOpen) moreBtnRef.current?.focus();
+    prevOpenRef.current = moreOpen;
+  }, [moreOpen]);
 
   // Aplica el allowlist por rol (igual que el Sidebar) para que el confinamiento
   // sea consistente en ambas superficies.
@@ -71,6 +79,7 @@ export function MobileNav({ activeKey, role }: { activeKey?: string; role?: stri
           );
         })}
         <button
+          ref={moreBtnRef}
           type="button"
           aria-label="Más opciones"
           aria-expanded={moreOpen}

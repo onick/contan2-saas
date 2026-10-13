@@ -100,6 +100,21 @@ export function LiveBadge({ source }: { source: LiveBadgeSource }) {
   );
 }
 
+// Botón de búsqueda compacto para mobile (icono solo, visible solo en mobile).
+export function TopbarSearchIcon() {
+  const { openPalette } = useShell();
+  return (
+    <button
+      type="button"
+      onClick={openPalette}
+      aria-label="Buscar"
+      className={cn('flex h-9 w-9 items-center justify-center rounded-full text-muted hover:text-ink md:hidden', focusRing)}
+    >
+      <Search size={20} strokeWidth={1.75} aria-hidden="true" />
+    </button>
+  );
+}
+
 // Buscador del topbar: abre el command palette (⌘K / Ctrl+K).
 // SSR: renderiza "Ctrl K" (neutro multiplataforma). Post-mount en macOS
 // cambia a "⌘K" vía useEffect — sin errores de hidratación.

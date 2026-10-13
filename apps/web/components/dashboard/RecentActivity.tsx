@@ -15,17 +15,25 @@ interface AuditRow {
 
 type Phase = 'loading' | 'ready' | 'empty' | 'fallback' | 'forbidden';
 
+const PERIOD_DAYS: Record<string, number> = {
+  today: 1, '7d': 7, '30d': 30, '90d': 90,
+};
+
 interface Props {
   demoAllowed: boolean;
+  period?: string;
 }
 
-export function RecentActivity({ demoAllowed }: Props) {
+export function RecentActivity({ demoAllowed, period }: Props) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [items, setItems] = useState<ActivityFeedItem[]>([]);
 
   useEffect(() => {
     let ignore = false;
-    void fetch('/app/historial/api/audit?limit=5', { cache: 'no-store' })
+    const days = period ? (PERIOD_DAYS[period] ?? 30) : 30;
+    const from = new Date(Date.now() - days * 86_400_000).toISOString();
+    const url = `/app/historial/api/audit?limit=5&from=${encodeURIComponent(from)}`;
+    void fetch(url, { cache: 'no-store' })
       .then(async (r) => {
         if (ignore) return;
         if (r.status === 403) { setPhase('forbidden'); return; }
@@ -42,7 +50,7 @@ export function RecentActivity({ demoAllowed }: Props) {
       })
       .catch(() => { if (!ignore) setPhase('fallback'); });
     return () => { ignore = true; };
-  }, []);
+  }, [period]);
 
   if (phase === 'loading') {
     return (

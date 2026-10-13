@@ -88,7 +88,7 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
     <Card padding="lg" className="mt-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-[17px] font-bold tracking-tight text-ink"><CalendarClock size={18} className="text-[#1a6194]" /> Agenda · {salaName}</h2>
+          <h2 className="flex items-center gap-2 text-[17px] font-bold tracking-tight text-ink"><CalendarClock size={18} className="text-info-text" /> Agenda · {salaName}</h2>
           <p className="mt-0.5 text-[13px] text-muted">Reservas de grupos (colegios, comunidades, empresas). Confirmá para avisar al responsable por email; el día de la visita, hacé el check-in.</p>
         </div>
         <DoorButton tone="vr" onClick={() => setOpen((v) => !v)}><CalendarPlus size={16} /> Nueva reserva</DoorButton>
@@ -142,7 +142,7 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
                 const acting = actingId === b.id;
                 return (
                   <div key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line p-3">
-                    <span className="font-mono text-[13px] font-bold tabular-nums text-[#1a6194]">{TIME_FMT.format(new Date(b.scheduledAt))}</span>
+                    <span className="font-mono text-[13px] font-bold tabular-nums text-info-text">{TIME_FMT.format(new Date(b.scheduledAt))}</span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[14px] font-semibold text-ink">{b.colegio}{b.level ? ` · ${b.level}` : ''}</div>
                       <div className="text-[12px] text-muted">{b.kind ? `${b.kind} · ` : ''}{b.contactName} · {b.studentCount} {b.kind ? `integrante${b.studentCount === 1 ? '' : 's'}` : `alumno${b.studentCount === 1 ? '' : 's'}`}{b.notifiedAt ? ' · ✉ avisado' : ''}</div>

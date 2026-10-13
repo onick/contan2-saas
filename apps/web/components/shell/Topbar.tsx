@@ -2,7 +2,8 @@ import type { BrandingOrg } from '../../lib/branding/theme';
 import { SidebarToggle } from './SidebarShell';
 import { TopbarNotifications } from './TopbarNotifications';
 import { TopbarUserMenu } from './TopbarUserMenu';
-import { TopbarSearch } from './ShellData';
+import { TopbarSearch, TopbarSearchIcon } from './ShellData';
+import { BrandChip } from './BrandMark';
 
 export interface TopbarProps {
   branding: BrandingOrg;
@@ -24,6 +25,21 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
           existe md+, en mobile no hay nada que colapsar) */}
       <SidebarToggle className="hidden flex-none md:grid" />
 
+      {/* Logo del tenant · solo mobile (md+ lo muestra el sidebar) */}
+      <div className="flex flex-none items-center md:hidden">
+        {branding.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={branding.logoUrl}
+            alt={branding.name}
+            style={{ height: `${(32 * (branding.logoScale ?? 100)) / 100}px` }}
+            className="w-auto"
+          />
+        ) : (
+          <BrandChip slug={branding.slug} name={branding.name} className="h-8 w-8 rounded-[8px]" />
+        )}
+      </div>
+
       {/* Breadcrumb (tablet/desktop) */}
       <nav aria-label="Ruta" className="hidden items-center gap-2 text-[13px] text-muted md:flex">
         <span>Inicio</span>
@@ -42,6 +58,9 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
             {meta}
           </span>
         ) : null}
+
+        {/* Búsqueda compacta · solo mobile */}
+        <TopbarSearchIcon />
 
         <TopbarNotifications />
 

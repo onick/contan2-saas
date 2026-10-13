@@ -325,7 +325,7 @@ function RailStat({ label, value, tone }: { label: string; value: number; tone?:
 }
 
 // Paleta de "lomos" para portadas sin imagen (determinística por título).
-const SPINE_COLORS = ['#1a6194', '#7c3aed', '#0f766e', '#b45309', '#be185d', '#4d7c0f', '#1d4ed8', '#a21caf'];
+const SPINE_COLORS = ['#1d7aa7', '#7c3aed', '#0f766e', '#b45309', '#be185d', '#4d7c0f', '#1d4ed8', '#a21caf'];
 function spineColor(s: string): string {
   let h = 0;
   for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;

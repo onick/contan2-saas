@@ -10,7 +10,7 @@ export function Input({ leadingIcon: LeadingIcon, className, ...rest }: InputPro
   return (
     <div
       className={cn(
-        'flex items-center min-h-11 md:min-h-10 rounded-field border border-line bg-surface px-3',
+        'flex items-center min-h-11 md:min-h-10 rounded-field border border-border-strong bg-surface px-3',
         focusWithin,
         LeadingIcon && 'gap-2',
         className,

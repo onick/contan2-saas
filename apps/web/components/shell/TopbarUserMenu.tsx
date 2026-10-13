@@ -75,7 +75,7 @@ export function TopbarUserMenu({ orgName }: { orgName: string }) {
           onPointerDown={(e) => e.preventDefault()}
           onClick={() => setOpen((v) => !v)}
           className={cn(
-            'ml-0.5 grid h-9 w-9 flex-none place-items-center rounded-full bg-brand text-xs font-semibold text-white hover:opacity-90',
+            'ml-0.5 grid h-9 w-9 flex-none place-items-center rounded-full bg-brand text-xs font-semibold text-brand-fg hover:opacity-90',
             focusRing,
           )}
         >

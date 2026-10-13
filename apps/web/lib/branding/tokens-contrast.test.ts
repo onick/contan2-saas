@@ -48,6 +48,18 @@ describe('contraste de tokens derivados por tenant', () => {
   }
 
   // Tokens fijos de globales.css
+  describe('border-strong #636769 (gris logo)', () => {
+    const borderStrong = '#636769';
+
+    it('border-strong sobre blanco ≥3:1 (WCAG 1.4.11)', () => {
+      expect(contrastRatio(borderStrong, BG_WHITE)).toBeGreaterThanOrEqual(3);
+    });
+
+    it('border-strong sobre page (#fafaf9) ≥3:1', () => {
+      expect(contrastRatio(borderStrong, BG_PAGE)).toBeGreaterThanOrEqual(3);
+    });
+  });
+
   describe('tokens fijos (muted #636769, faint #67697a)', () => {
     const muted = '#636769';
     const faint = '#67697a';
