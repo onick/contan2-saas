@@ -57,7 +57,8 @@ run('platform · kpis + tenants (auth)', () => {
     }).returning('id').executeTakeFirstOrThrow()).id;
     app = buildApp();
     await app.ready();
-    const res = await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password } });
+    // IP propia para no compartir el bucket Redis test:platform-login:<ip> con platform-auth.test.ts.
+    const res = await app.inject({ method: 'POST', url: '/api/v2/platform/auth/login', headers: { host: 'admin.contan2.com', 'content-type': 'application/json' }, payload: { email, password }, remoteAddress: '10.90.0.1' });
     token = cookieFrom(res.headers['set-cookie'])!;
     tempOrgId = (await db.insertInto('organizations').values({
       slug: `pa-tmp-${stamp}`, name: `Temp ${stamp}`, status: 'active', plan: 'free',
