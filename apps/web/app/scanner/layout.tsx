@@ -2,10 +2,6 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { getPublicBranding } from '../../lib/api/kiosko';
 
-// Layout del SCANNER · superficie de STAFF en puerta, fuera del shell admin (sin
-// sidebar ni rutas internas). Mobile-first (el staff escanea desde el teléfono),
-// tema oscuro para que el visor de cámara y el feedback de color resalten bajo
-// cualquier luz. Sin filtraciones a rutas admin: es una página aislada.
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getPublicBranding();
   return {

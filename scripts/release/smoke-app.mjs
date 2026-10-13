@@ -31,11 +31,16 @@ const ERROR_STRINGS = [
  * Evaluate a single route response.
  * @param {number} status  HTTP status code
  * @param {string} body    Response body text
+ * @param {{ isProtected?: boolean, finalUrl?: string }} [opts]
  * @returns {'OK'|'FAIL'}
  */
-export function evaluateRoute(status, body) {
+export function evaluateRoute(status, body, { isProtected = false, finalUrl } = {}) {
   if (status >= 500) return 'FAIL';
   if (ERROR_STRINGS.some((s) => body.includes(s))) return 'FAIL';
+  if (isProtected) {
+    if (status === 401 || status === 403) return 'FAIL';
+    if (finalUrl && finalUrl.includes('/login')) return 'FAIL';
+  }
   return 'OK';
 }
 
@@ -156,8 +161,19 @@ async function main() {
   const probe = async (route, needsSession) => {
     const headers = needsSession ? { Cookie: sessionCookie } : {};
     try {
-      const res = await request('GET', `${BASE_URL}${route}`, { headers });
-      const result = evaluateRoute(res.status, res.body);
+      let url = `${BASE_URL}${route}`;
+      let res = await request('GET', url, { headers });
+      // Follow redirects for protected routes; detect redirect-to-login.
+      if (needsSession) {
+        let hops = 0;
+        while (res.status >= 300 && res.status < 400 && res.headers.location && hops < 5) {
+          const loc = res.headers.location;
+          url = loc.startsWith('http') ? loc : new URL(loc, url).href;
+          res = await request('GET', url, { headers });
+          hops++;
+        }
+      }
+      const result = evaluateRoute(res.status, res.body, { isProtected: needsSession, finalUrl: url });
       results.push({ route, status: res.status, result });
     } catch (err) {
       results.push({ route, status: 'ERR', result: 'FAIL', error: err.message });

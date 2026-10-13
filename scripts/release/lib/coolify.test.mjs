@@ -96,4 +96,32 @@ assert.ok(
   'token must NOT appear in the request body',
 );
 
+// ---- Test 5: PATCH fails + POST fails → throws with clear error, token not in message ----
+
+globalThis.fetch = async (_url, opts) => {
+  if (opts.method === 'PATCH') return { status: 409 };
+  return { status: 503 };
+};
+
+let thrownError = null;
+try {
+  await upsertSourceCommitEnv({
+    baseUrl: 'https://coolify.example.com',
+    token: 'super_secret_token_xyz',
+    appUuid: 'app-uuid-123',
+    sha: 'abc1234',
+  });
+  assert.fail('should have thrown when both PATCH and POST fail');
+} catch (err) {
+  thrownError = err;
+}
+
+assert.ok(thrownError instanceof Error, 'should throw an Error');
+assert.ok(thrownError.message.includes('409'), 'error message should mention PATCH status');
+assert.ok(thrownError.message.includes('503'), 'error message should mention POST status');
+assert.ok(
+  !thrownError.message.includes('super_secret_token_xyz'),
+  'token must NOT appear in the error message',
+);
+
 console.log('All tests passed.');

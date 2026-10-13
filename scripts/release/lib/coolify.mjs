@@ -78,6 +78,13 @@ export async function upsertSourceCommitEnv({ baseUrl, token, appUuid, sha }) {
   }
   // Fallback to POST
   const postRes = await fetch(url, { method: 'POST', headers, body });
+  if (postRes.status < 200 || postRes.status >= 300) {
+    const err = new Error(
+      `Coolify · upsert SOURCE_COMMIT: PATCH devolvió ${patchRes.status}, POST devolvió ${postRes.status}`,
+    );
+    err.exitCode = 1;
+    throw err;
+  }
   return { method: 'POST', status: postRes.status };
 }
 
