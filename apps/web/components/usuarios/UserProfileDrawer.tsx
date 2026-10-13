@@ -34,7 +34,7 @@ function relAgo(iso: string | null): string {
 }
 const STATUS: Record<'active' | 'dormant', { label: string; tone: ChipTone }> = {
   active: { label: 'Activo', tone: 'success' },
-  dormant: { label: 'Dormido', tone: 'neutral' },
+  dormant: { label: 'Inactivo', tone: 'neutral' },
 };
 function credentialChip(u: UserListItem): { label: string; tone: ChipTone } {
   if (u.credentialSentAt) return { label: 'Credencial enviada', tone: 'success' };

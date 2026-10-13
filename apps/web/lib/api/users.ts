@@ -40,7 +40,7 @@ function credentialOf(u: UserListItem): { label: string; tone: RowTone } {
 // intermedia 31–90 días → sin etiqueta (la tabla muestra "—").
 function statusOf(u: UserListItem): { label: string; tone: RowTone } {
   if (u.status === 'active') return { label: 'Activo', tone: 'success' };
-  if (u.status === 'dormant') return { label: 'Dormido', tone: 'neutral' };
+  if (u.status === 'dormant') return { label: 'Inactivo', tone: 'neutral' };
   return { label: '', tone: 'neutral' };
 }
 

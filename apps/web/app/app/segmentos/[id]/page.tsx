@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
 const STATUS_TONE: Record<SegmentMember['status'], { label: string; cls: string }> = {
   activo: { label: 'Activo', cls: 'bg-success-bg text-success-fg' },
   regular: { label: 'Regular', cls: 'bg-info-soft text-info-text' },
-  dormido: { label: 'Dormido', cls: 'bg-surface-container text-muted' },
+  dormido: { label: 'Inactivo', cls: 'bg-surface-container text-muted' },
   nuevo: { label: 'Nuevo', cls: 'bg-[#fbf0d8] text-[#8a6116]' },
 };
 

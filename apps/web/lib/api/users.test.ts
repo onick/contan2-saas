@@ -42,7 +42,7 @@ describe('getUsersPage', () => {
     expect(v.users[1]!.email).toBe('—');
     expect(v.users[1]!.lastVisit).toBe('Nunca');
     expect(v.users[1]!.credentialLabel).toBe('Sin email');
-    expect(v.users[1]!.statusLabel).toBe('Dormido');
+    expect(v.users[1]!.statusLabel).toBe('Inactivo');
     // u3: zona intermedia → sin etiqueta; con email y sin credencial → Pendiente
     expect(v.users[2]!.statusLabel).toBe('');
     expect(v.users[2]!.credentialLabel).toBe('Pendiente');
