@@ -13,25 +13,41 @@ import { Skeleton } from './Skeleton';
 afterEach(cleanup);
 
 describe('Button', () => {
-  it('primary: brand-strong + foco visible + type button + 44px', () => {
+  it('primary: data-variant=primary + foco visible + type button + 44px target', () => {
     render(<Button>Guardar</Button>);
     const b = screen.getByRole('button', { name: 'Guardar' });
-    expect(b).toHaveClass('bg-brand-strong', 'min-h-11', 'focus-visible:ring-focus');
+    expect(b).toHaveAttribute('data-variant', 'primary');
+    expect(b).toHaveClass('focus-visible:ring-focus');
     expect(b).toHaveAttribute('type', 'button');
+    // md size includes min-h-11
+    expect(b).toHaveClass('min-h-11');
   });
 
   it('secondary + disabled', () => {
     render(<Button variant="secondary" disabled>X</Button>);
     const b = screen.getByRole('button', { name: 'X' });
+    expect(b).toHaveAttribute('data-variant', 'secondary');
     expect(b).toHaveClass('border', 'bg-surface', 'disabled:opacity-50');
     expect(b).toBeDisabled();
   });
 
-  it('pill: rounded-full + aria-pressed según selected', () => {
+  it('pill: rounded-pill + aria-pressed según selected + data-selected', () => {
     render(<Button variant="pill" selected>Todos</Button>);
     const b = screen.getByRole('button', { name: 'Todos' });
-    expect(b).toHaveClass('rounded-full', 'bg-brand-strong');
+    expect(b).toHaveClass('rounded-pill');
+    expect(b).toHaveAttribute('data-variant', 'pill');
+    expect(b).toHaveAttribute('data-selected', 'true');
     expect(b).toHaveAttribute('aria-pressed', 'true');
+    // selected pill uses bg-ink
+    expect(b).toHaveClass('bg-ink');
+  });
+
+  it('pill not-selected: no bg-ink', () => {
+    render(<Button variant="pill">Activos</Button>);
+    const b = screen.getByRole('button', { name: 'Activos' });
+    expect(b).toHaveAttribute('aria-pressed', 'false');
+    expect(b).toHaveAttribute('data-selected', 'false');
+    expect(b).not.toHaveClass('bg-ink');
   });
 });
 
@@ -48,24 +64,42 @@ describe('Field', () => {
     render(<Field label="Nombre visible" defaultValue="CCB" />);
     expect(screen.getByText('Nombre visible')).toBeInTheDocument();
     const input = screen.getByDisplayValue('CCB');
-    expect(input).toHaveClass('focus-visible:ring-focus', 'min-h-11');
+    expect(input).toBeInTheDocument();
+    // Contenedor: anillo de foco y altura táctil mínima
+    const wrapper = input.closest('div');
+    expect(wrapper).toHaveClass('focus-within:ring-focus');
+    expect(wrapper).toHaveClass('min-h-11');
+  });
+
+  it('getByLabelText funciona para asociar input al label', () => {
+    render(<Field label="Correo electrónico" placeholder="email@ccb.do" />);
+    const input = screen.getByLabelText('Correo electrónico');
+    expect(input).toBeInTheDocument();
   });
 });
 
 describe('Chip', () => {
-  it('aplica el tono y el dot', () => {
+  it('aplica el tono y el dot con tokens semánticos (sin hex)', () => {
     render(<Chip tone="success" dot>Activo</Chip>);
     const chip = screen.getByText('Activo');
     expect(chip).toHaveClass('bg-success-bg', 'text-success-fg');
   });
+
+  it('warning usa tokens warning sin hex fijo', () => {
+    render(<Chip tone="warning">Pendiente</Chip>);
+    const chip = screen.getByText('Pendiente');
+    expect(chip).toHaveClass('bg-warning-bg', 'text-warning-fg');
+    // Verify no hex color classes
+    expect(chip.className).not.toMatch(/#[0-9a-f]{3,6}/i);
+  });
 });
 
 describe('Card', () => {
-  it('superficie estándar y `as` semántico', () => {
+  it('superficie estándar rounded-card y `as` semántico', () => {
     render(<Card as="article" aria-label="tarjeta">contenido</Card>);
     const card = screen.getByLabelText('tarjeta');
     expect(card.tagName).toBe('ARTICLE');
-    expect(card).toHaveClass('rounded-2xl', 'border-line', 'bg-surface');
+    expect(card).toHaveClass('rounded-card', 'border-line', 'bg-surface');
   });
 
   it('default NO es interactiva (sin hover/transition)', () => {
@@ -73,9 +107,10 @@ describe('Card', () => {
     expect(screen.getByLabelText('estática')).not.toHaveClass('hover:shadow-md');
   });
 
-  it('interactive → hover sutil con lift sólo en motion-safe', () => {
+  it('interactive → data-interactive + hover shadow + motion-safe lift', () => {
     render(<Card interactive aria-label="accionable">x</Card>);
     const card = screen.getByLabelText('accionable');
+    expect(card).toHaveAttribute('data-interactive', 'true');
     expect(card).toHaveClass('hover:shadow-md', 'motion-safe:hover:-translate-y-0.5');
   });
 });

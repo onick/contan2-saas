@@ -3,23 +3,20 @@ import { cn } from './cn';
 
 export type ChipTone = 'neutral' | 'success' | 'danger' | 'warning' | 'brand';
 
-// Tonos = los que ya usan las pantallas (status/rol/badge). warning conserva el
-// #b35400 sobre accent-soft de v1. Presentacional (span); para filtros
-// interactivos usar <Button> pill, no Chip.
 const TONES: Record<ChipTone, string> = {
   neutral: 'bg-surface-container text-muted',
   success: 'bg-success-bg text-success-fg',
-  danger: 'bg-danger-bg text-danger-fg',
-  warning: 'bg-accent-soft text-[#b35400]',
-  brand: 'bg-primary-container text-on-primary-container',
+  danger:  'bg-danger-bg text-danger-fg',
+  warning: 'bg-warning-bg text-warning-fg',
+  brand:   'bg-brand-soft text-brand-text',
 };
 
 const DOTS: Record<ChipTone, string> = {
-  neutral: 'bg-[#9aa0ad]',
+  neutral: 'bg-muted',
   success: 'bg-success-fg',
-  danger: 'bg-danger-fg',
-  warning: 'bg-brand-accent',
-  brand: 'bg-brand',
+  danger:  'bg-danger-fg',
+  warning: 'bg-warning-fg',
+  brand:   'bg-brand',
 };
 
 export interface ChipProps extends ComponentProps<'span'> {
@@ -31,7 +28,7 @@ export function Chip({ tone = 'neutral', dot = false, className, children, ...re
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill px-2.5 py-1 text-[11px] font-semibold',
         TONES[tone],
         className,
       )}

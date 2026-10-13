@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 /* Tokens centralizados de v2 (provisional dentro de apps/web; se extraen a
    packages/ui cuando haya un segundo consumidor). Estos valores son los

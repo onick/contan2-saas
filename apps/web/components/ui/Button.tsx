@@ -1,66 +1,97 @@
 import type { ComponentProps } from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { Loader2, type LucideIcon } from 'lucide-react';
 import { cn, focusRing } from './cn';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'pill';
-export type ButtonSize = 'md' | 'sm' | 'lg';
+export const buttonVariants = cva(
+  [
+    'inline-flex items-center justify-center font-semibold transition-colors',
+    'disabled:pointer-events-none disabled:opacity-50',
+    focusRing,
+  ],
+  {
+    variants: {
+      variant: {
+        primary: 'rounded-pill bg-brand text-brand-fg shadow-sm hover:brightness-95 active:brightness-90',
+        secondary: 'rounded-pill border border-line bg-surface text-ink hover:bg-subtle',
+        ghost: 'rounded-pill text-muted hover:bg-surface-container hover:text-ink',
+        destructive: 'rounded-pill bg-danger-fg text-white hover:brightness-95 active:brightness-90',
+        link: 'rounded-pill text-brand-text underline-offset-4 hover:underline',
+        // pill = botón de alternancia: seleccionado → bg-ink text-white; no seleccionado → como secondary
+        pill: 'rounded-pill border border-line bg-surface text-ink hover:bg-subtle',
+      },
+      size: {
+        sm: 'min-h-8 gap-1.5 px-3 text-[13px]',
+        md: 'min-h-11 md:min-h-10 gap-1.5 px-4 text-sm',
+        lg: 'min-h-12 gap-1.5 px-5 text-sm',
+        icon: 'h-10 w-10',
+      },
+      fullWidth: {
+        true: 'w-full',
+        false: '',
+      },
+    },
+    defaultVariants: {
+      variant: 'primary',
+      size: 'md',
+      fullWidth: false,
+    },
+  },
+);
 
-// primary usa brand-strong (#c44400) para que el texto blanco cumpla WCAG AA en
-// TODOS los tamaños: blanco/#c44400 = 5.03:1 (≥4.5:1, texto normal). El naranja
-// de marca #e65100 NO se usa de relleno con texto blanco (3.79:1 < 4.5:1; 14px
-// bold NO es "texto grande" — WCAG exige ~18.66px bold). El hover OSCURECE
-// (brightness-95 = 4.88:1) en vez de bajar opacidad (opacity-90 componía sobre la
-// página y caía a 4.31:1 < 4.5). active = brightness-90 (4.79:1). secondary y
-// ghost para menor jerarquía. `pill` (filtros toggle) mantiene brand-strong.
-const VARIANTS: Record<Exclude<ButtonVariant, 'pill'>, string> = {
-  primary: 'bg-brand-strong text-white shadow-sm hover:brightness-95 active:brightness-90',
-  secondary: 'border border-line bg-surface text-muted hover:bg-page hover:text-ink',
-  ghost: 'text-muted hover:bg-surface-container hover:text-ink',
-};
+export type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>['variant']>;
+export type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>['size']>;
 
-// md = 44px de alto (touch target). sm (36px) es para toolbars densas de
-// DESKTOP (pointer primario); no usar en superficies táctiles. lg (48px) para
-// acciones principales en superficies táctiles (check-in/kiosko, tablet-first).
-const SIZES: Record<ButtonSize, string> = {
-  md: 'min-h-11 gap-2 px-4 text-sm',
-  sm: 'min-h-9 gap-1.5 px-3 text-[13px]',
-  lg: 'min-h-12 gap-2 px-5 text-sm',
-};
-
-export interface ButtonProps extends ComponentProps<'button'> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  // Solo para variant="pill": estado activo del filtro (fija aria-pressed).
+export interface ButtonProps
+  extends Omit<ComponentProps<'button'>, 'children'>,
+    VariantProps<typeof buttonVariants> {
+  icon?: LucideIcon;
+  iconRight?: LucideIcon;
+  loading?: boolean;
+  fullWidth?: boolean;
+  // Only for variant="pill": active toggle state.
   selected?: boolean;
+  children?: React.ReactNode;
 }
 
 export function Button({
   variant = 'primary',
   size = 'md',
+  fullWidth = false,
+  icon: Icon,
+  iconRight: IconRight,
+  loading = false,
   selected = false,
   className,
   type = 'button',
+  children,
   ...rest
 }: ButtonProps) {
   const isPill = variant === 'pill';
-  const variantCls = isPill
-    ? selected
-      ? 'bg-brand-strong text-white'
-      : 'bg-surface-container text-muted hover:text-ink'
-    : VARIANTS[variant];
+  const pillSelected = isPill && selected;
+  const iconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
+
   return (
     <button
       type={type}
       aria-pressed={isPill ? selected : undefined}
+      data-variant={variant}
+      data-size={size ?? 'md'}
+      data-selected={isPill ? String(selected) : undefined}
       className={cn(
-        'inline-flex items-center justify-center font-semibold transition-colors',
-        isPill ? 'rounded-full' : 'rounded-[10px]',
-        'disabled:pointer-events-none disabled:opacity-50',
-        focusRing,
-        SIZES[size],
-        variantCls,
+        buttonVariants({ variant, size, fullWidth }),
+        pillSelected && 'bg-ink text-white border-ink hover:bg-ink',
         className,
       )}
       {...rest}
-    />
+    >
+      {loading
+        ? <Loader2 size={iconSize} className="animate-spin" aria-hidden="true" />
+        : Icon
+          ? <Icon size={iconSize} aria-hidden="true" />
+          : null}
+      {children}
+      {!loading && IconRight ? <IconRight size={iconSize} aria-hidden="true" /> : null}
+    </button>
   );
 }
