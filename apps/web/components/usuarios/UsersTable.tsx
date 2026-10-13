@@ -60,7 +60,7 @@ export function UsersTable({ users, canWrite = false }: UsersTableProps) {
           </span>
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-1.5">
-              <p className="min-w-0 break-words text-[14px] font-semibold text-ink">{u.name}</p>
+              <p className="flex-1 min-w-0 break-words text-[14px] font-semibold text-ink">{u.name}</p>
               <ProfileLink code={u.code} />
             </div>
             <p className="truncate text-[12px] text-muted">{u.email}</p>
