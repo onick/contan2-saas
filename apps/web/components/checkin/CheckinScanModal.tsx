@@ -107,7 +107,7 @@ export function CheckinScanModal({ open, onClose, onDetect }: Props) {
           <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
           <canvas ref={canvasRef} className="hidden" />
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-2/3 w-2/3 rounded-2xl border-2 border-[#ff6f00]/70 shadow-[0_0_0_999px_rgba(0,0,0,0.35)]" />
+            <div className="h-2/3 w-2/3 rounded-2xl border-2 border-brand/70 shadow-[0_0_0_999px_rgba(0,0,0,0.35)]" />
           </div>
           {cameraError ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/75 px-6 text-center">

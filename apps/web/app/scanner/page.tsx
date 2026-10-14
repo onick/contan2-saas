@@ -25,6 +25,7 @@ export default async function ScannerPage() {
       initialAuthed={session !== null}
       activities={activities ?? []}
       brandName={pub?.name ?? local.name}
+      logoUrl={pub?.logoUrl ?? null}
     />
   );
 }

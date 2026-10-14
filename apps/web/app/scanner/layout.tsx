@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { getPublicBranding } from '../../lib/api/kiosko';
+import { getLocalBranding } from '../../lib/branding/config';
+import { brandingToCssVars } from '../../lib/branding/theme';
+import type { CSSProperties } from 'react';
 
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getPublicBranding();
@@ -16,13 +19,24 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1, // evita zoom accidental mientras se escanea
-  themeColor: '#0b0e14',
+  themeColor: '#fafaf9',
 };
 
-export default function ScannerLayout({ children }: { children: ReactNode }) {
+export default async function ScannerLayout({ children }: { children: ReactNode }) {
+  const local = getLocalBranding();
+  const pub = await getPublicBranding();
+  const base = pub
+    ? { ...local, primaryColor: pub.primaryColor, secondaryColor: pub.secondaryColor }
+    : local;
+  const cssVars = brandingToCssVars(base) as CSSProperties;
+
   return (
     <main
-      className="relative min-h-dvh bg-[#0b0e14] text-[#f4f5f8] antialiased"
+      style={{
+        ...cssVars,
+        background: 'linear-gradient(180deg, var(--color-brand-soft), var(--color-page) 55%)',
+      }}
+      className="relative min-h-dvh text-ink antialiased"
     >
       {children}
     </main>

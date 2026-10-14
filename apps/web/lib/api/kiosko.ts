@@ -4,6 +4,7 @@
 // next/headers). Si el fetch falla, el server wrapper cae a demoData → el
 // kiosko nunca queda en blanco. Cero escrituras.
 
+import { cache } from 'react';
 import {
   PublicActivitiesResponseSchema,
   PublicBrandingResponseSchema,
@@ -70,14 +71,14 @@ export function toKioskVisitor(v: PublicVisitor): KioskVisitor {
 // Branding público del tenant (por host, sin cookie). null si falla → la página
 // cae al branding local. El kiosko usa el logo VERTICAL (verticalLogoUrl) y, si
 // no hay, el horizontal.
-export async function getPublicBranding(): Promise<PublicBrandingResponse['organization'] | null> {
+export const getPublicBranding = cache(async function getPublicBranding(): Promise<PublicBrandingResponse['organization'] | null> {
   try {
     const { organization } = await apiGet('/api/v2/public/branding', PublicBrandingResponseSchema);
     return organization;
   } catch {
     return null;
   }
-}
+});
 
 // Actividades públicas del tenant. null si falla (api caído / sin host / dev sin
 // api) → el server wrapper cae a demoData con source='demo'.

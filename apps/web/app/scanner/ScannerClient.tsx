@@ -13,7 +13,7 @@
 // se usa el código y el número de visita que devuelve la respuesta.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Check, LogOut, ScanLine, TriangleAlert, X } from 'lucide-react';
+import { Camera, CircleCheck, CircleX, Lock, LogOut, ScanLine, TriangleAlert } from 'lucide-react';
 import { isValidCode, normalizeScannedCode } from '../../lib/scanner/code';
 import { useQrCamera } from '../../lib/scanner/useQrCamera';
 import { classifyCheckin, type CheckinOutcome } from '../../lib/scanner/checkin';
@@ -25,6 +25,7 @@ interface Props {
   initialAuthed: boolean;
   activities: ScannerActivity[];
   brandName: string;
+  logoUrl?: string | null;
 }
 
 function pinErrorFor(status: number): string {
@@ -41,7 +42,7 @@ function buzz(kind: 'ok' | 'bad'): void {
   }
 }
 
-export function ScannerClient({ initialAuthed, activities, brandName }: Props) {
+export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }: Props) {
   const [screen, setScreen] = useState<Screen>(initialAuthed ? 'select' : 'pin');
   const [selected, setSelected] = useState<ScannerActivity | null>(null);
 
@@ -142,7 +143,6 @@ export function ScannerClient({ initialAuthed, activities, brandName }: Props) {
   }
 
   // ── Cámara: getUserMedia + loop jsQR (sólo en pantalla de escaneo) ───────
-  // Motor compartido con la consola de check-in admin (lib/scanner/useQrCamera).
   const { cameraError } = useQrCamera({
     enabled: screen === 'scan',
     videoRef,
@@ -161,17 +161,38 @@ export function ScannerClient({ initialAuthed, activities, brandName }: Props) {
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (screen === 'pin') {
+    const slotCount = Math.max(4, pin.length);
     return (
       <div className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6 py-12">
-        <div className="mb-10 text-center">
-          <ScanLine className="mx-auto mb-4 h-10 w-10 text-[#ff6f00]" aria-hidden="true" />
-          <p className="font-mono text-xs uppercase tracking-[0.2em] text-[#ff6f00]">Acceso de staff</p>
-          <h1 className="mt-2 text-2xl font-semibold">Scanner</h1>
-          <p className="mt-1 text-sm text-white/55">{brandName}</p>
-        </div>
-        <form onSubmit={submitPin} className="space-y-4">
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-white/80">PIN del centro</span>
+        <div className="rounded-card border border-line bg-surface p-6 shadow-sm">
+          {/* Lock icon */}
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft text-brand-text">
+            <Lock className="h-7 w-7" aria-hidden="true" />
+          </div>
+          <p className="mb-1 text-center text-xs font-semibold uppercase tracking-[0.15em] text-muted">{brandName}</p>
+          <h1 className="mb-1 text-center text-2xl font-semibold text-ink">Ingresa el PIN de puerta</h1>
+          <p className="mb-5 text-center text-sm text-muted">Pídele el PIN a tu coordinador.</p>
+
+          {/* Casillas visuales dinámicas (aria-hidden): una por dígito tecleado, mínimo 4 */}
+          <div className="mb-4 flex justify-center gap-2" aria-hidden="true">
+            {Array.from({ length: slotCount }, (_, i) => (
+              <span
+                key={i}
+                className={
+                  'flex h-12 w-10 items-center justify-center rounded-lg border text-lg font-bold ' +
+                  (i < pin.length
+                    ? 'border-brand-text bg-brand-soft text-brand-text'
+                    : i === pin.length
+                    ? 'border-brand bg-surface text-transparent'
+                    : 'border-line bg-subtle text-transparent')
+                }
+              >
+                {i < pin.length ? '•' : ''}
+              </span>
+            ))}
+          </div>
+
+          <form onSubmit={submitPin} className="space-y-4">
             <input
               autoFocus
               inputMode="numeric"
@@ -181,22 +202,22 @@ export function ScannerClient({ initialAuthed, activities, brandName }: Props) {
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
               placeholder="••••"
               aria-label="PIN del centro"
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3.5 text-center font-mono text-2xl tracking-[0.4em] text-white outline-none focus:border-[#ff6f00] focus:ring-2 focus:ring-[#ff6f00]/40"
+              className="w-full rounded-xl border border-line bg-subtle px-4 py-3 text-center font-mono text-xl tracking-[0.4em] text-ink outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             />
-          </label>
-          {pinError && (
-            <p role="alert" className="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-200">
-              {pinError}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={pin.length < 4 || pinBusy}
-            className="w-full rounded-xl bg-[#e65100] px-4 py-3.5 font-semibold text-white transition enabled:hover:bg-[#c44400] disabled:opacity-40"
-          >
-            {pinBusy ? 'Verificando…' : 'Entrar'}
-          </button>
-        </form>
+            {pinError && (
+              <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger-fg">
+                {pinError}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={pin.length < 4 || pinBusy}
+              className="w-full rounded-pill bg-brand px-4 py-3.5 font-semibold text-brand-fg shadow-sm transition hover:brightness-95 disabled:opacity-50"
+            >
+              {pinBusy ? 'Verificando…' : 'Entrar'}
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -206,19 +227,19 @@ export function ScannerClient({ initialAuthed, activities, brandName }: Props) {
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8">
         <header className="mb-6 flex items-center justify-between">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.2em] text-[#ff6f00]">Elige actividad</p>
-            <h1 className="mt-1 text-xl font-semibold">¿Qué vas a escanear?</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-muted">Elige actividad</p>
+            <h1 className="mt-1 text-xl font-semibold text-ink">¿Qué vas a escanear?</h1>
           </div>
           <button
             onClick={logout}
-            className="flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-sm text-white/70 transition hover:bg-white/5"
+            className="flex items-center gap-1.5 rounded-pill border border-line px-3 py-2 text-sm text-muted transition hover:bg-subtle hover:text-ink"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" /> Salir
           </button>
         </header>
 
         {activities.length === 0 ? (
-          <div className="mt-10 rounded-xl border border-white/10 bg-white/5 px-5 py-8 text-center text-sm text-white/60">
+          <div className="mt-10 rounded-card border border-line bg-surface px-5 py-8 text-center text-sm text-muted">
             No hay actividades con cupo disponible ahora mismo.
           </div>
         ) : (
@@ -231,15 +252,15 @@ export function ScannerClient({ initialAuthed, activities, brandName }: Props) {
                     setOutcome(null);
                     setScreen('scan');
                   }}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-left transition hover:border-[#ff6f00]/50 hover:bg-white/10"
+                  className="flex w-full items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-4 text-left shadow-sm transition hover:border-brand/40 hover:shadow-md"
                 >
                   <span className="min-w-0">
-                    <span className="block truncate font-medium text-white">{a.name}</span>
-                    <span className="mt-0.5 block truncate text-xs text-white/55">
+                    <span className="block truncate font-semibold text-ink">{a.name}</span>
+                    <span className="mt-0.5 block truncate text-xs text-muted">
                       {a.dateLabel} · {a.location}
                     </span>
                   </span>
-                  <span className="shrink-0 font-mono text-xs text-white/45">
+                  <span className="num shrink-0 text-xs text-muted">
                     {a.enrolledCount}/{a.capacity}
                   </span>
                 </button>
@@ -254,68 +275,75 @@ export function ScannerClient({ initialAuthed, activities, brandName }: Props) {
   // screen === 'scan'
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-6">
-      <header className="mb-4 flex items-center justify-between gap-3">
+      {/* Cabecera: logo + actividad + fecha */}
+      <header className="mb-4 flex items-center gap-3">
         <button
           onClick={() => {
             setScreen('select');
             setOutcome(null);
           }}
-          className="rounded-lg border border-white/15 px-3 py-2 text-sm text-white/70 transition hover:bg-white/5"
+          className="shrink-0 rounded-lg border border-line px-3 py-2 text-sm text-muted transition hover:bg-subtle"
         >
           ← Actividad
         </button>
-        <span className="min-w-0 flex-1 truncate text-center text-sm font-medium text-white/85">
-          {selected?.name}
-        </span>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {logoUrl ? (
+            <img src={logoUrl} alt={brandName} className="h-8 w-auto shrink-0 object-contain" />
+          ) : null}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink leading-tight">{selected?.name}</p>
+            <p className="truncate text-xs text-muted">{selected?.dateLabel}</p>
+          </div>
+        </div>
         <button
           onClick={logout}
           aria-label="Cerrar sesión"
-          className="rounded-lg border border-white/15 px-3 py-2 text-sm text-white/70 transition hover:bg-white/5"
+          className="shrink-0 rounded-lg border border-line px-3 py-2 text-sm text-muted transition hover:bg-subtle"
         >
           <LogOut className="h-4 w-4" aria-hidden="true" />
         </button>
       </header>
 
       {/* Visor de cámara */}
-      <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
+      <div className="relative aspect-square w-full overflow-hidden rounded-card bg-ink">
         <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
         <canvas ref={canvasRef} className="hidden" />
-        {/* Marco guía */}
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-2/3 w-2/3 rounded-2xl border-2 border-[#ff6f00]/70 shadow-[0_0_0_999px_rgba(0,0,0,0.35)]" />
+        {/* Marco guía + texto de ayuda */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3">
+          <div className="h-2/3 w-2/3 rounded-[20px] border-[3px] border-brand shadow-[0_0_0_999px_rgba(0,0,0,0.3)]" />
+          <span className="rounded-full bg-ink/80 px-3 py-1 text-xs text-white">
+            Apunta la cámara al código QR del pase
+          </span>
         </div>
         {cameraError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-6 text-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-ink/70 px-6 text-center">
             <Camera className="h-8 w-8 text-white/60" aria-hidden="true" />
             <p className="text-sm text-white/80">{cameraError}</p>
           </div>
         )}
       </div>
 
-      <p className="mt-3 flex items-center justify-center gap-2 text-center text-xs text-white/45">
-        <ScanLine className="h-3.5 w-3.5" aria-hidden="true" />
-        Apunta al código QR del visitante
-      </p>
-
       {/* Resultado */}
       {outcome && <OutcomeBanner outcome={outcome} />}
 
       {/* Entrada manual de respaldo */}
       <form onSubmit={onManualSubmit} className="mt-auto pt-6">
-        <label className="mb-2 block text-xs uppercase tracking-wide text-white/45">Entrada manual</label>
+        <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-muted">
+          Entrada manual
+        </label>
         <div className="flex gap-2">
           <input
             value={manual}
             onChange={(e) => setManual(e.target.value.toUpperCase())}
-            placeholder="CCB-XXXXXX"
+            placeholder="Escribe el código del pase"
             aria-label="Código manual"
             autoComplete="off"
-            className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/5 px-3 py-3 font-mono text-sm tracking-wider text-white outline-none focus:border-[#ff6f00] focus:ring-2 focus:ring-[#ff6f00]/40"
+            className="min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 py-3 font-mono text-sm tracking-wider text-ink outline-none placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           />
           <button
             type="submit"
             disabled={submitting || !manual.trim()}
-            className="rounded-xl bg-[#e65100] px-4 py-3 text-sm font-semibold text-white transition enabled:hover:bg-[#c44400] disabled:opacity-40"
+            className="rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-brand-fg shadow-sm transition hover:brightness-95 disabled:opacity-50"
           >
             Registrar
           </button>
@@ -330,31 +358,55 @@ const PROTOCOL_CATEGORY: Record<string, string> = {
   patrocinador: 'Patrocinador', directivo: 'Directivo', artista: 'Artista', otro: 'Invitado especial',
 };
 
-// Banner de resultado con color fuerte por estado.
 function OutcomeBanner({ outcome }: { outcome: CheckinOutcome }) {
-  const styles: Record<CheckinOutcome['kind'], { box: string; Icon: typeof Check }> = {
-    success: { box: 'bg-emerald-500/20 border-emerald-400/40 text-emerald-100', Icon: Check },
-    already: { box: 'bg-amber-500/20 border-amber-400/40 text-amber-100', Icon: TriangleAlert },
-    full: { box: 'bg-red-500/20 border-red-400/40 text-red-100', Icon: X },
-    'not-found': { box: 'bg-red-500/20 border-red-400/40 text-red-100', Icon: X },
-    invalid: { box: 'bg-red-500/20 border-red-400/40 text-red-100', Icon: X },
-    error: { box: 'bg-red-500/20 border-red-400/40 text-red-100', Icon: X },
+  type StyleEntry = { box: string; icon: string; Icon: typeof CircleCheck };
+  const styles: Record<CheckinOutcome['kind'], StyleEntry> = {
+    success: {
+      box: 'bg-success-bg border-[3px] border-success-fg/30 text-success-fg',
+      icon: 'text-success-fg',
+      Icon: CircleCheck,
+    },
+    already: {
+      box: 'bg-warning-bg border-[3px] border-warning-fg/30 text-warning-fg',
+      icon: 'text-warning-fg',
+      Icon: TriangleAlert,
+    },
+    full: {
+      box: 'bg-danger-bg border-[3px] border-danger-fg/30 text-danger-fg',
+      icon: 'text-danger-fg',
+      Icon: CircleX,
+    },
+    'not-found': {
+      box: 'bg-danger-bg border-[3px] border-danger-fg/30 text-danger-fg',
+      icon: 'text-danger-fg',
+      Icon: CircleX,
+    },
+    invalid: {
+      box: 'bg-danger-bg border-[3px] border-danger-fg/30 text-danger-fg',
+      icon: 'text-danger-fg',
+      Icon: CircleX,
+    },
+    error: {
+      box: 'bg-danger-bg border-[3px] border-danger-fg/30 text-danger-fg',
+      icon: 'text-danger-fg',
+      Icon: CircleX,
+    },
   };
-  const { box, Icon } = styles[outcome.kind];
+  const { box, icon, Icon } = styles[outcome.kind];
   return (
-    <div role="status" className={`mt-4 flex items-start gap-3 rounded-xl border px-4 py-3 ${box}`}>
-      <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+    <div role="status" className={`mt-4 flex items-start gap-3 rounded-xl px-4 py-3 ${box}`}>
+      <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${icon}`} aria-hidden="true" />
       <div className="min-w-0">
         {/* PROTOCOLO (PR-5): recibimiento distinguido, antes que el resto. */}
         {outcome.kind === 'success' && outcome.data?.protocol ? (
-          <p className="mb-1 inline-flex items-center gap-1.5 rounded-md bg-amber-400/90 px-2 py-0.5 text-[12px] font-bold uppercase tracking-wide text-amber-950">
+          <p className="mb-1 inline-flex items-center gap-1.5 rounded-md bg-warning-bg px-2 py-0.5 text-[12px] font-bold uppercase tracking-wide text-warning-fg">
             ★ Protocolo · {outcome.data.protocol.honorific ?? PROTOCOL_CATEGORY[outcome.data.protocol.category] ?? outcome.data.protocol.category}
             {outcome.data.protocol.plusOnes > 0 ? ` · +${outcome.data.protocol.plusOnes} acompañantes` : ''}
           </p>
         ) : null}
         <p className={outcome.kind === 'success' ? 'text-[17px] font-bold leading-snug' : 'font-semibold'}>{outcome.title}</p>
         {outcome.kind === 'success' && outcome.data ? (
-          <p className="font-mono text-sm">
+          <p className="num text-sm">
             {outcome.data.code} · visita N.º {outcome.data.visitCount}
             {outcome.data.partySize > 1 ? ` · ${outcome.data.partySize} personas` : ''}
           </p>
