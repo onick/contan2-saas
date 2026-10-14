@@ -47,7 +47,7 @@ export function LoanStatusChip({ loan }: { loan: BiblioLoan }) {
 }
 
 const CIRC_TABS = [
-  { value: 'activos', label: 'Préstamos' },
+  { value: 'activos', label: 'Activos' },
   { value: 'devueltos', label: 'Devoluciones' },
   { value: 'renovados', label: 'Renovaciones' },
   { value: 'todos', label: 'Historial' },
