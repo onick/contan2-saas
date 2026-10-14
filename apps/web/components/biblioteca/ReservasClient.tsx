@@ -105,7 +105,7 @@ export function ReservasClient({ initial, initialSummary }: {
       const loan = j.loan as BiblioLoan;
       setFlash(`Entregado: «${r.title}» a ${r.userFirstName} ${r.userLastName} — vence el ${fmtDate(loan.dueAt)}.`);
       void refresh();
-    } catch { setRowError('Problema de red. Reintentá.'); }
+    } catch { setRowError('Problema de red. Reintenta.'); }
     finally { setBusyRow(null); }
   }
 
@@ -117,7 +117,7 @@ export function ReservasClient({ initial, initialSummary }: {
       if (!res.ok || !j?.reservation) { setRowError(j.error ?? 'No se pudo cancelar.'); return; }
       setFlash(`Cancelada la reserva de «${r.title}» (${r.code}).`);
       void refresh();
-    } catch { setRowError('Problema de red. Reintentá.'); }
+    } catch { setRowError('Problema de red. Reintenta.'); }
     finally { setBusyRow(null); }
   }
 
@@ -175,7 +175,7 @@ export function ReservasClient({ initial, initialSummary }: {
             <Card padding="lg">
               <EmptyState icon={Bookmark}
                 title={q ? 'Sin resultados' : 'No hay reservas por acá'}
-                description={q ? 'Probá con otro título, lector o código.' : 'Cuando una obra esté toda prestada, reservala: al volver una copia se aparta sola.'}
+                description={q ? 'Prueba con otro título, lector o código.' : 'Cuando una obra esté toda prestada, resérvala: al volver una copia se aparta sola.'}
                 action={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={15} /> Nueva reserva</Button>} />
             </Card>
           ) : (
@@ -401,14 +401,14 @@ function NewReservationDrawer({ open, onClose, onDone }: {
       onDone(r.status === 'lista'
         ? `«${r.title}» quedó LISTA PARA RETIRAR (${r.inventoryCode}) — vence el ${r.expiresAt ? fmtDate(r.expiresAt) : ''}.`
         : `«${r.title}» reservada para ${r.userFirstName} ${r.userLastName} — posición ${r.position ?? '…'} en la fila.`);
-    } catch { setError('Problema de red. Reintentá.'); setBusy(false); }
+    } catch { setError('Problema de red. Reintenta.'); setBusy(false); }
   }
 
   if (!mounted || typeof document === 'undefined') return null;
   return createPortal(
     <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => { if (!busy) onClose(); }}
-        className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
+      {/* Formulario no se cierra con clic fuera; escape sí funciona vía useDrawerLifecycle */}
+      <div aria-hidden="true" className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
       <div ref={panelRef} className={cn(
         'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
         'md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
@@ -424,7 +424,7 @@ function NewReservationDrawer({ open, onClose, onDone }: {
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
           <label className="block">
             <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><QrCode size={12} /> Carné del lector</span>
-            <input value={readerCode} onChange={(e) => setReaderCode(e.target.value)} placeholder="Escaneá o escribí el código — CCB-…" autoFocus
+            <input value={readerCode} onChange={(e) => setReaderCode(e.target.value)} placeholder="Escanea o escribe el código — CCB-…" autoFocus
               className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
           </label>
 
@@ -443,7 +443,7 @@ function NewReservationDrawer({ open, onClose, onDone }: {
             ) : (
               <>
                 <span className="relative mt-1 block">
-                  <input value={titleQ} onChange={(e) => setTitleQ(e.target.value)} placeholder="Buscá por título, autor o ISBN…"
+                  <input value={titleQ} onChange={(e) => setTitleQ(e.target.value)} placeholder="Busca por título, autor o ISBN…"
                     className={cn('min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-ink', focusRing)} />
                   {searching ? <Loader2 size={15} className="absolute right-3 top-3.5 animate-spin text-faint" /> : null}
                 </span>

@@ -25,7 +25,7 @@ import type {
 } from '@contan2/contracts';
 import { LoanStatusChip } from './CirculacionClient';
 import { ReservationStatusChip } from './ReservasClient';
-import { Card, Button, IconButton, Field, Chip, EmptyState, SectionHeader, cn, focusRing, useDrawerLifecycle } from '../ui';
+import { Card, Button, IconButton, Field, Chip, EmptyState, SectionHeader, Tabs, TabsContent, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
@@ -191,8 +191,8 @@ export function LectoresClient({ initial, initialStats }: {
               <EmptyState icon={Users}
                 title={data.total === 0 && !hasFilters ? 'Todavía no hay lectores' : 'Sin resultados'}
                 description={data.total === 0 && !hasFilters
-                  ? 'El padrón del centro aparece acá. También podés dar de alta un lector nuevo.'
-                  : 'Probá con otra parte del nombre, la cédula, el correo o el carné.'}
+                  ? 'El padrón del centro aparece acá. También puedes dar de alta un lector nuevo.'
+                  : 'Prueba con otra parte del nombre, la cédula, el correo o el carné.'}
                 action={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={15} /> Nuevo lector</Button>} />
             </Card>
           ) : (
@@ -300,7 +300,7 @@ export function LectoresClient({ initial, initialStats }: {
           <Card padding="lg" className="app-reveal text-center" style={{ animationDelay: '110ms' }}>
             <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-surface-container text-faint"><IdCard size={22} strokeWidth={1.7} /></span>
             <p className="mt-3 text-[13.5px] font-bold text-ink">Detalles del lector</p>
-            <p className="mt-1 text-[12.5px] leading-relaxed text-muted">Seleccioná una fila para ver el perfil, editar lo bibliotecario o suspender el servicio.</p>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-muted">Selecciona una fila para ver el perfil, editar lo bibliotecario o suspender el servicio.</p>
           </Card>
         )}
       </aside>
@@ -388,7 +388,7 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
       if (!res.ok || !j?.reader) { setError(j.error ?? 'No se pudo actualizar.'); return; }
       onUpdated(j.reader as BiblioReader);
       setSuspending(false);
-    } catch { setError('Problema de red. Reintentá.'); }
+    } catch { setError('Problema de red. Reintenta.'); }
     finally { setBusy(false); }
   }
 
@@ -417,26 +417,28 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
         </span>
       </div>
 
-      {/* tabs: Información / Préstamos (F2) / Reservas (F5) — todas reales */}
-      <div className="mt-3.5 flex gap-1 border-b border-line text-[12.5px]" role="tablist" aria-label="Secciones del lector">
-        {(['informacion', 'prestamos', 'reservas'] as const).map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={cn('px-2.5 py-1.5', focusRing, tab === t ? 'border-b-2 border-brand font-bold text-brand' : 'font-medium text-muted hover:text-ink')}>
-            {t === 'informacion' ? 'Información' : t === 'prestamos' ? 'Préstamos' : 'Reservas'}
-          </button>
-        ))}
-      </div>
+      {/* tabs: Información / Préstamos (F2) / Reservas (F5) — Tabs del kit */}
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}
+        tabs={[
+          { value: 'informacion', label: 'Información' },
+          { value: 'prestamos', label: 'Préstamos' },
+          { value: 'reservas', label: 'Reservas' },
+        ]}
+        className="mt-3.5 gap-2">
 
-      {tab === 'prestamos' ? (
-        <ReaderLoans loans={loans} />
-      ) : tab === 'reservas' ? (
-        <ReaderReservations reservations={reservations} />
-      ) : editing ? (
-        <ProfileEditForm reader={reader} busy={busy} setBusy={setBusy} setError={setError}
-          onSaved={(r) => { onUpdated(r); setEditing(false); }} onCancel={() => setEditing(false)} />
-      ) : (
-        <>
-          <h3 className="mt-4 text-[12px] font-bold uppercase tracking-[0.05em] text-faint">Datos personales</h3>
+        <TabsContent value="prestamos">
+          <ReaderLoans loans={loans} />
+        </TabsContent>
+        <TabsContent value="reservas">
+          <ReaderReservations reservations={reservations} />
+        </TabsContent>
+        <TabsContent value="informacion">
+          {editing ? (
+            <ProfileEditForm reader={reader} busy={busy} setBusy={setBusy} setError={setError}
+              onSaved={(r) => { onUpdated(r); setEditing(false); }} onCancel={() => setEditing(false)} />
+          ) : (
+            <>
+              <h3 className="mt-4 text-[12px] font-bold uppercase tracking-[0.05em] text-faint">Datos personales</h3>
           <dl className="mt-1 divide-y divide-line/60">
             {row('Cédula', reader.document, true)}
             {row('Correo electrónico', reader.email)}
@@ -477,7 +479,9 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
             </div>
           )}
         </>
-      )}
+          )}
+        </TabsContent>
+      </Tabs>
     </Card>
   );
 }
@@ -588,7 +592,7 @@ function ProfileEditForm({ reader, busy, setBusy, setError, onSaved, onCancel }:
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j?.reader) { setLocalError(j.error ?? 'No se pudo guardar el perfil.'); return; }
       onSaved(j.reader as BiblioReader);
-    } catch { setLocalError('Problema de red. Reintentá.'); }
+    } catch { setLocalError('Problema de red. Reintenta.'); }
     finally { setBusy(false); }
   }
 
@@ -653,14 +657,14 @@ function NewReaderDrawer({ open, onClose, onCreated }: {
       if (!res.ok || !j?.reader) { setError(j.error ?? 'No se pudo crear el lector.'); setBusy(false); return; }
       setBusy(false);
       onCreated(j.reader as BiblioReader);
-    } catch { setError('Problema de red. Reintentá.'); setBusy(false); }
+    } catch { setError('Problema de red. Reintenta.'); setBusy(false); }
   }
 
   if (!mounted || typeof document === 'undefined') return null;
   return createPortal(
     <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => { if (!busy) onClose(); }}
-        className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
+      {/* Formulario no se cierra con clic fuera; escape sí funciona vía useDrawerLifecycle */}
+      <div aria-hidden="true" className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
       <div ref={panelRef} className={cn(
         'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
         'md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',

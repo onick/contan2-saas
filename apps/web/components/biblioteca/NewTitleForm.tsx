@@ -179,20 +179,20 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
         fd.append('cover', coverFile, coverFile.name);
         const up = await fetch(`/app/biblioteca/api/titles/${id}/cover`, { method: 'POST', body: fd });
         if (!up.ok) {
-          setError('El título se creó, pero la portada no se pudo subir — podés reintentarlo desde la ficha.');
+          setError('El título se creó, pero la portada no se pudo subir — puedes reintentarlo desde la ficha.');
         }
       }
 
       if (andNew) {
         const t = f.title.trim();
         resetAll();
-        setSaved(`«${t}» quedó catalogado. Seguí con el próximo.`);
+        setSaved(`«${t}» quedó catalogado. Sigue con el próximo.`);
         setBusy(false);
         window.scrollTo({ top: 0 });
       } else {
         router.push(`/app/biblioteca/titulos/${id}`);
       }
-    } catch { setError('Problema de red. Reintentá.'); setBusy(false); }
+    } catch { setError('Problema de red. Reintenta.'); setBusy(false); }
   }
 
   const canSave = !!f.title.trim() && !busy;
@@ -276,7 +276,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
                     <X size={12} /> Quitar archivo
                   </button>
                 ) : autofillCoverUrl ? (
-                  <p className="mt-1.5 w-36 text-[10.5px] leading-tight text-faint">Portada del ISBN — podés reemplazarla con un archivo propio.</p>
+                  <p className="mt-1.5 w-36 text-[10.5px] leading-tight text-faint">Portada del ISBN — puedes reemplazarla con un archivo propio.</p>
                 ) : null}
               </div>
 
@@ -306,7 +306,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
                   </label>
                   <Field label="ISSN (opcional)" value={f.issn} onChange={set('issn')} mono placeholder="0000-0000" />
                 </div>
-                {autofill ? <p className="mt-2 text-[12px] font-semibold text-success-fg">✓ Ficha completada desde {autofill.source} — revisá y ajustá lo que haga falta.</p> : null}
+                {autofill ? <p className="mt-2 text-[12px] font-semibold text-success-fg">✓ Ficha completada desde {autofill.source} — revisa y ajusta lo que haga falta.</p> : null}
                 {lookMsg ? <p className="mt-2 text-[12px] text-muted">{lookMsg}</p> : null}
 
                 <div className="mt-3 flex flex-col gap-3">
@@ -341,7 +341,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
             <h2 className="text-[14.5px] font-bold tracking-tight text-ink">Clasificación</h2>
             <div className="mt-3 flex flex-col gap-3">
               <ChipsField label="Materia(s) / Temas" values={subjects} onChange={setSubjects}
-                suggestions={subjectSuggestions} placeholder="Escribí y Enter — ej. Novela, Arte dominicano" max={15} />
+                suggestions={subjectSuggestions} placeholder="Escribe y Enter — ej. Novela, Arte dominicano" max={15} />
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Clasificación (Dewey)" value={f.dewey} onChange={set('dewey')} mono placeholder="863.7" />
                 <Field label="Signatura topográfica" value={f.callNumber} onChange={set('callNumber')} mono placeholder="863.7 GAR ci" />
@@ -360,7 +360,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
                   className={cn('mt-1 w-full resize-y rounded-lg border border-line bg-surface px-3 py-2.5 text-[14px] leading-relaxed text-ink', focusRing)} />
               </label>
               <ChipsField label="Palabras clave" values={keywords} onChange={setKeywords}
-                placeholder="Escribí y Enter — ej. Macondo, realismo mágico" max={15} />
+                placeholder="Escribe y Enter — ej. Macondo, realismo mágico" max={15} />
             </div>
           </Card>
 
@@ -461,7 +461,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
 
           <Card padding="md" className="app-reveal mt-4 border-brand/25 bg-brand/[0.04]" style={{ animationDelay: '140ms' }}>
             <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><ScanBarcode size={15} className="text-brand" /> ¿Necesitás ayuda?</h2>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">Escaneá o escribí el ISBN y completamos la ficha automáticamente (título, autores, editorial, año y portada).</p>
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">Escanea o escribe el ISBN y completamos la ficha automáticamente (título, autores, editorial, año y portada).</p>
             <Button variant="secondary" size="sm" className="mt-2.5 w-full" type="button"
               onClick={() => { isbnRef.current?.focus(); isbnRef.current?.select(); }}>
               <ScanBarcode size={14} strokeWidth={2} /> Buscar por ISBN
@@ -469,7 +469,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
           </Card>
 
           <Card padding="md" className="app-reveal mt-4" style={{ animationDelay: '170ms' }}>
-            <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><Lightbulb size={15} className="text-[#b45309]" /> Consejo</h2>
+            <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><Lightbulb size={15} className="text-warning-fg" /> Consejo</h2>
             <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">
               Solo el título es obligatorio (<span className="text-danger-fg">*</span>) — el checklist te marca qué falta para una ficha completa.
               {sitesCount === 0 ? ' Creá los sitios físicos para poder ubicar los ejemplares.' : ' Después de guardar vas directo a la ficha para agregar los ejemplares.'}

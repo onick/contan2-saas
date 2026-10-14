@@ -1,18 +1,12 @@
 'use client';
 
-// components/biblioteca/CirculacionClient.tsx · CIRCULACIÓN (F2, el corazón)
-// — modelo aprobado por el usuario (captura "Circulación"):
-//   · tabs: Préstamos / Devoluciones / Renovaciones / Reservas (Pronto) / Historial
-//   · búsqueda por lector (nombre/cédula/carné/correo) o ejemplar/título
-//   · tabla: lector, ejemplar (portada + inv.), fechas, estado DERIVADO
-//     (A tiempo / Vence pronto / Vencido / En sala), acciones devolver+renovar
-//   · carril: acciones rápidas (préstamo/devolución/sala), resumen de HOY,
-//     alertas (vencidos / vencen ≤3 días)
-//   · Nuevo préstamo = flujo de 2 ESCANEOS (carné → ejemplar) con precheck
-//     en vivo; Devolución = 1 escaneo del ejemplar.
-// El "vencido" nunca es flag: lo deriva la API del ledger (mig 053).
+// components/biblioteca/CirculacionClient.tsx · PRÉSTAMOS / CIRCULACIÓN (F2)
+// D6: visible label «Préstamos». Tabla ordenada por vencimiento (API ya lo hace).
+// Vencidos: badge + texto rojo en celda de fecha. «Devolver» con texto por fila.
+// Drawer: muestra fecha estimada de vencimiento + aviso de reserva.
+// Formularios no se cierran con clic fuera (backdrop no-op).
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import {
@@ -102,7 +96,7 @@ export function CirculacionClient({ initial, initialSummary }: {
       if (!res.ok || !j?.loan) { setRowError(j.error ?? 'No se pudo renovar.'); return; }
       setFlash(`Renovado: «${loan.title}» ahora vence el ${fmtDate((j.loan as BiblioLoan).dueAt)}.`);
       void refresh();
-    } catch { setRowError('Problema de red. Reintentá.'); }
+    } catch { setRowError('Problema de red. Reintenta.'); }
     finally { setBusyRow(null); }
   }
 
@@ -117,6 +111,7 @@ export function CirculacionClient({ initial, initialSummary }: {
 
   const pages = Math.max(1, Math.ceil(data.total / data.pageSize));
   const showDue = tab !== 'devueltos';
+  const loanDays = summary?.policy.loanDays ?? 14;
 
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_290px] xl:items-start xl:gap-5">
@@ -124,8 +119,8 @@ export function CirculacionClient({ initial, initialSummary }: {
         <div className="app-reveal">
           <SectionHeader
             level={1}
-            title="Circulación"
-            subtitle="Prestá y devolvé en dos escaneos: el carné del lector y el código del ejemplar."
+            title="Préstamos"
+            subtitle="Presta y devuelve en dos escaneos: el carné del lector y el código del ejemplar."
             actions={
               <div className="flex items-center gap-2">
                 <Button variant="secondary" onClick={() => setDrawer({ mode: 'devolver' })}><ScanBarcode size={15} strokeWidth={2} /> Devolución</Button>
@@ -173,13 +168,13 @@ export function CirculacionClient({ initial, initialSummary }: {
             <Card padding="lg">
               <EmptyState icon={ArrowLeftRight}
                 title={q ? 'Sin resultados' : tab === 'activos' ? 'No hay préstamos activos' : 'Nada por acá todavía'}
-                description={q ? 'Probá con otro nombre, carné o código de ejemplar.' : 'Registrá el primer préstamo con los dos escaneos: carné y ejemplar.'}
+                description={q ? 'Prueba con otro nombre, carné o código de ejemplar.' : 'Registra el primer préstamo con los dos escaneos: carné y ejemplar.'}
                 action={<Button variant="primary" onClick={() => setDrawer({ mode: 'prestar', kind: 'domicilio' })}><Plus size={15} /> Nuevo préstamo</Button>} />
             </Card>
           ) : (
             <Card padding="none" className="overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] border-collapse text-left">
+                <table className="w-full min-w-[800px] border-collapse text-left">
                   <thead>
                     <tr className="border-b border-line bg-surface-container/60 text-[11px] font-bold uppercase tracking-[0.05em] text-faint">
                       <th className="px-4 py-2.5">Lector</th>
@@ -222,8 +217,12 @@ export function CirculacionClient({ initial, initialSummary }: {
                           {l.kind === 'sala' ? <span className="block text-[10.5px] font-semibold text-faint">Consulta en sala</span> : null}
                           {l.renewals > 0 ? <span className="block text-[10.5px] text-faint">{l.renewals} renov.</span> : null}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-[12.5px] tabular-nums text-muted">
+                        <td className={cn('whitespace-nowrap px-3 py-2.5 text-[12.5px] tabular-nums',
+                          l.status === 'vencido' ? 'font-bold text-danger-fg' : 'text-muted')}>
                           {showDue ? fmtDate(l.dueAt) : (l.returnedAt ? fmtDate(l.returnedAt) : '—')}
+                          {l.status === 'vencido' && showDue ? (
+                            <span className="block text-[10.5px] font-bold text-danger-fg">Vencido</span>
+                          ) : null}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2.5"><LoanStatusChip loan={l} /></td>
                         <td className="px-3 py-2.5">
@@ -233,12 +232,12 @@ export function CirculacionClient({ initial, initialSummary }: {
                               <Eye size={15} strokeWidth={1.9} />
                             </Link>
                           ) : (
-                            <span className="flex items-center justify-end gap-1">
-                              <button type="button" disabled={busyRow === l.id} onClick={() => devolver(l)}
-                                title="Registrar devolución" aria-label={`Devolver ${l.title}`}
-                                className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-success-fg hover:bg-success-bg', focusRing)}>
-                                {busyRow === l.id ? <Loader2 size={15} className="animate-spin" /> : <Check size={16} strokeWidth={2.2} />}
-                              </button>
+                            <span className="flex items-center justify-end gap-1.5">
+                              <Button variant="secondary" size="sm" disabled={busyRow === l.id} onClick={() => devolver(l)}
+                                aria-label={`Devolver ${l.title}`}>
+                                {busyRow === l.id ? <Loader2 size={13} className="animate-spin" /> : null}
+                                Devolver
+                              </Button>
                               {l.kind === 'domicilio' ? (
                                 <button type="button" disabled={busyRow === l.id} onClick={() => renew(l)}
                                   title="Renovar (+14 días)" aria-label={`Renovar ${l.title}`}
@@ -313,9 +312,9 @@ export function CirculacionClient({ initial, initialSummary }: {
                   <span className={cn('rounded-full px-2 py-0.5 text-[11.5px] font-extrabold tabular-nums', summary.alerts.overdue > 0 ? 'bg-danger-bg text-danger-fg' : 'bg-surface-container text-faint')}>{summary.alerts.overdue}</span>
                 </button>
                 <div className="flex items-center gap-2 rounded-xl px-2.5 py-2">
-                  <Clock3 size={15} className="flex-none text-[#b45309]" aria-hidden="true" />
+                  <Clock3 size={15} className="flex-none text-warning-fg" aria-hidden="true" />
                   <span className="flex-1 text-[12.5px] font-semibold text-ink">Vencen en 3 días o menos</span>
-                  <span className={cn('rounded-full px-2 py-0.5 text-[11.5px] font-extrabold tabular-nums', summary.alerts.dueSoon > 0 ? 'bg-[#fdf3e7] text-[#b45309]' : 'bg-surface-container text-faint')}>{summary.alerts.dueSoon}</span>
+                  <span className={cn('rounded-full px-2 py-0.5 text-[11.5px] font-extrabold tabular-nums', summary.alerts.dueSoon > 0 ? 'bg-warning-bg text-warning-fg' : 'bg-surface-container text-faint')}>{summary.alerts.dueSoon}</span>
                 </div>
               </div>
               <p className="mt-2 text-[11.5px] leading-relaxed text-faint">Política: {summary.policy.loanDays} días · máx. {summary.policy.maxRenewals} renovaciones · {summary.policy.maxOpenLoans} préstamos por lector.</p>
@@ -324,7 +323,7 @@ export function CirculacionClient({ initial, initialSummary }: {
         ) : null}
       </aside>
 
-      <CirculacionDrawer state={drawer} onClose={() => setDrawer(null)}
+      <CirculacionDrawer state={drawer} loanDays={loanDays} onClose={() => setDrawer(null)}
         onDone={(msg) => { setDrawer(null); setFlash(msg); void refresh(); }} />
     </div>
   );
@@ -352,9 +351,9 @@ function SummaryRow({ label, value }: { label: string; value: number }) {
 }
 
 // ── Drawer de prestar (2 escaneos con precheck) / devolver (1 escaneo) ───────
-function CirculacionDrawer({ state, onClose, onDone }: {
+function CirculacionDrawer({ state, loanDays, onClose, onDone }: {
   state: null | { mode: 'prestar'; kind: 'domicilio' | 'sala' } | { mode: 'devolver' };
-  onClose: () => void; onDone: (msg: string) => void;
+  loanDays: number; onClose: () => void; onDone: (msg: string) => void;
 }) {
   const titleId = useId();
   const open = state !== null;
@@ -400,6 +399,19 @@ function CirculacionDrawer({ state, onClose, onDone }: {
   const itemOk = pre.item && !pre.item.retired && !pre.item.onLoan && (kind === 'sala' || pre.item.loanable);
   const canConfirm = prestar ? (!!readerOk && !!itemOk && !busy) : (!!invCode.trim() && !busy);
 
+  // Aviso de reserva: el ejemplar está apartado para otra persona.
+  const reservationWarning = pre.item?.reservedForUserId && pre.reader
+    ? pre.item.reservedForUserId !== pre.reader.userId
+    : !!pre.item?.reservedForUserId;
+
+  // Fecha estimada de devolución (informativa, no editable).
+  const estimatedDueDate = useMemo(() => {
+    if (kind !== 'domicilio') return null;
+    const d = new Date();
+    d.setDate(d.getDate() + loanDays);
+    return fmtDate(d.toISOString());
+  }, [kind, loanDays]);
+
   async function confirm(e: React.FormEvent) {
     e.preventDefault();
     if (!canConfirm) return;
@@ -428,20 +440,20 @@ function CirculacionDrawer({ state, onClose, onDone }: {
         setBusy(false);
         onDone(`Devuelto: «${loan.title}» (${loan.inventoryCode}) de ${loan.userFirstName} ${loan.userLastName}.`);
       }
-    } catch { setError('Problema de red. Reintentá.'); setBusy(false); }
+    } catch { setError('Problema de red. Reintenta.'); setBusy(false); }
   }
 
   return createPortal(
     <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => { if (!busy) onClose(); }}
-        className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
+      {/* Formularios no se cierran con clic fuera */}
+      <div aria-hidden="true" className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
       <div ref={panelRef} className={cn(
         'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
         'md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
         'flex flex-col', closing && 'drawer-panel--closing')}>
         <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Circulación</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Préstamos</p>
             <h2 id={titleId} className="mt-1 text-lg font-bold leading-tight tracking-tight text-ink">
               {prestar ? (kind === 'sala' ? 'Consulta en sala' : 'Nuevo préstamo') : 'Devolución'}
             </h2>
@@ -453,14 +465,14 @@ function CirculacionDrawer({ state, onClose, onDone }: {
           {prestar ? (
             <>
               <div className="flex gap-1.5">
-                <Button type="button" variant="pill" size="sm" selected={kind === 'domicilio'} onClick={() => setKind('domicilio')}>A domicilio · 14 días</Button>
+                <Button type="button" variant="pill" size="sm" selected={kind === 'domicilio'} onClick={() => setKind('domicilio')}>A domicilio · {loanDays} días</Button>
                 <Button type="button" variant="pill" size="sm" selected={kind === 'sala'} onClick={() => setKind('sala')}>En sala · hoy</Button>
               </div>
 
               {/* Paso 1: carné */}
               <label className="mt-4 block">
                 <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><QrCode size={12} /> 1 · Carné del lector</span>
-                <input value={readerCode} onChange={(e) => setReaderCode(e.target.value)} placeholder="Escaneá o escribí el código — CCB-…"
+                <input value={readerCode} onChange={(e) => setReaderCode(e.target.value)} placeholder="Escanea o escribe el código — CCB-…"
                   autoFocus onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); invRef.current?.focus(); } }}
                   className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
               </label>
@@ -477,7 +489,7 @@ function CirculacionDrawer({ state, onClose, onDone }: {
               {/* Paso 2: ejemplar */}
               <label className="mt-4 block">
                 <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><ScanBarcode size={12} /> 2 · Código del ejemplar</span>
-                <input ref={invRef} value={invCode} onChange={(e) => setInvCode(e.target.value)} placeholder="Escaneá o escribí el inventario — BIB-…"
+                <input ref={invRef} value={invCode} onChange={(e) => setInvCode(e.target.value)} placeholder="Escanea o escribe el inventario — BIB-…"
                   className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
               </label>
               {pre.item ? (
@@ -491,7 +503,7 @@ function CirculacionDrawer({ state, onClose, onDone }: {
                   </span>
                   <span className="min-w-0">
                     <b className="block truncate">{pre.item.title}</b>
-                    {pre.item.onLoan ? 'Ya está prestado — devolvelo primero'
+                    {pre.item.onLoan ? 'Ya está prestado — devuélvelo primero'
                       : pre.item.retired ? 'Dado de baja'
                       : (kind === 'domicilio' && !pre.item.loanable) ? 'Solo consulta en sala'
                       : `${pre.item.inventoryCode} ✓`}
@@ -500,11 +512,25 @@ function CirculacionDrawer({ state, onClose, onDone }: {
               ) : invCode.trim() && !checking ? (
                 <p className="mt-2 text-[12px] text-muted">Ese código de ejemplar no existe.</p>
               ) : null}
+
+              {/* Aviso de reserva (informativo, no bloquea) */}
+              {reservationWarning ? (
+                <p className="mt-2 rounded-xl bg-warning-bg px-3.5 py-2.5 text-[12.5px] font-semibold text-warning-fg">
+                  ⚠ Este libro tiene una reserva de otra persona.
+                </p>
+              ) : null}
+
+              {/* Fecha estimada de vencimiento (solo domicilio, cuando todo OK) */}
+              {kind === 'domicilio' && readerOk && itemOk && estimatedDueDate ? (
+                <p className="mt-2 text-[12px] font-semibold text-muted">
+                  Vencimiento: <span className="font-bold text-ink">{estimatedDueDate}</span> ({loanDays} días)
+                </p>
+              ) : null}
             </>
           ) : (
             <label className="block">
               <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><ScanBarcode size={12} /> Código del ejemplar</span>
-              <input value={invCode} onChange={(e) => setInvCode(e.target.value)} placeholder="Escaneá o escribí el inventario — BIB-…" autoFocus
+              <input value={invCode} onChange={(e) => setInvCode(e.target.value)} placeholder="Escanea o escribe el inventario — BIB-…" autoFocus
                 className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
               <span className="mt-2 block text-[12px] leading-relaxed text-muted">Un solo escaneo: buscamos el préstamo abierto de ese ejemplar y lo cerramos.</span>
             </label>

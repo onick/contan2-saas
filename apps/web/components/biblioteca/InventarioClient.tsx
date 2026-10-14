@@ -137,7 +137,7 @@ export function InventarioClient({ initial, sites }: {
         void refreshSessions();
         void refreshItems();
       }
-    } catch { setScanMsg({ kind: 'err', text: 'Problema de red. Reintentá.' }); }
+    } catch { setScanMsg({ kind: 'err', text: 'Problema de red. Reintenta.' }); }
     finally {
       setScanning(false);
       setScanCode('');
@@ -177,7 +177,7 @@ export function InventarioClient({ initial, sites }: {
     const f = (viewing.found / total) * 360;
     const m = (viewing.misplaced / total) * 360;
     const l = (viewing.onLoan / total) * 360;
-    return `conic-gradient(#137333 0deg ${f}deg, #b45309 ${f}deg ${f + m}deg, #1d7aa7 ${f + m}deg ${f + m + l}deg, #e5e7eb ${f + m + l}deg 360deg)`;
+    return `conic-gradient(var(--color-success-fg) 0deg ${f}deg, var(--color-warning-fg) ${f}deg ${f + m}deg, var(--color-info-text) ${f + m}deg ${f + m + l}deg, var(--color-surface-container) ${f + m + l}deg 360deg)`;
   })() : null;
 
   return (
@@ -235,8 +235,8 @@ export function InventarioClient({ initial, sites }: {
               </div>
             </div>
             {finishing && active ? (
-              <p className="mt-3 rounded-xl bg-[#fdf3e7] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[#7c4a11]">
-                Al cerrar, los {fmt(active.missing)} sin escanear (y sin préstamo) quedan como <b>FALTANTES</b> en el resumen. Podés seguir escaneando si todavía falta recorrer estantes.
+              <p className="mt-3 rounded-xl bg-warning-bg px-3.5 py-2.5 text-[12.5px] leading-relaxed text-warning-fg">
+                Al cerrar, los {fmt(active.missing)} sin escanear (y sin préstamo) quedan como <b>FALTANTES</b> en el resumen. Puedes seguir escaneando si todavía falta recorrer estantes.
               </p>
             ) : null}
 
@@ -246,7 +246,7 @@ export function InventarioClient({ initial, sites }: {
                 <label className={cn('flex items-center gap-2.5 rounded-xl border-2 border-brand/40 bg-surface px-3.5 py-3', focusRing)}>
                   <ScanBarcode size={19} className="flex-none text-brand" aria-hidden="true" />
                   <input ref={scanRef} value={scanCode} onChange={(e) => setScanCode(e.target.value)} autoFocus
-                    placeholder="Escaneá el código de barras del ejemplar (o escribilo y Enter)…" aria-label="Escanear ejemplar"
+                    placeholder="Escanea el código de barras del ejemplar (o escríbelo y Enter)…" aria-label="Escanear ejemplar"
                     className="w-full bg-transparent font-mono text-[15px] text-ink outline-none placeholder:font-sans placeholder:text-faint" />
                   {scanning ? <Loader2 size={16} className="animate-spin text-faint" /> : null}
                 </label>
@@ -254,7 +254,7 @@ export function InventarioClient({ initial, sites }: {
             ) : null}
             {scanMsg ? (
               <p role="status" className={cn('mt-2.5 rounded-xl px-3.5 py-2.5 text-[13px] font-semibold',
-                scanMsg.kind === 'ok' ? 'bg-success-bg text-success-fg' : scanMsg.kind === 'warn' ? 'bg-[#fdf3e7] text-[#7c4a11]' : 'bg-danger-bg text-danger-fg')}>
+                scanMsg.kind === 'ok' ? 'bg-success-bg text-success-fg' : scanMsg.kind === 'warn' ? 'bg-warning-bg text-warning-fg' : 'bg-danger-bg text-danger-fg')}>
                 {scanMsg.text}
               </p>
             ) : null}
@@ -263,7 +263,7 @@ export function InventarioClient({ initial, sites }: {
           <Card padding="lg" className="app-reveal mt-5" style={{ animationDelay: '40ms' }}>
             <EmptyState icon={ClipboardList}
               title="Sin inventarios todavía"
-              description="Abrí una sesión (todo el acervo o un sitio) y escaneá los ejemplares uno a uno — el resultado se registra solo."
+              description="Abre una sesión (todo el acervo o un sitio) y escanea los ejemplares uno a uno — el resultado se registra solo."
               action={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={15} /> Nuevo inventario</Button>} />
           </Card>
         )}
@@ -325,7 +325,7 @@ export function InventarioClient({ initial, sites }: {
               {!items || items.items.length === 0 ? (
                 <Card padding="lg">
                   <p className="text-[13.5px] text-muted">
-                    {tab === 'bajas' ? 'No hay ejemplares dados de baja.' : !viewing ? 'Abrí un inventario para ver los ejemplares.' : q ? 'Sin resultados con esa búsqueda.' : 'Nada en esta vista.'}
+                    {tab === 'bajas' ? 'No hay ejemplares dados de baja.' : !viewing ? 'Abre un inventario para ver los ejemplares.' : q ? 'Sin resultados con esa búsqueda.' : 'Nada en esta vista.'}
                   </p>
                 </Card>
               ) : (
@@ -365,7 +365,7 @@ export function InventarioClient({ initial, sites }: {
                             <td className="px-3 py-2.5 text-[12px] text-muted">
                               {it.siteName ? <>{it.siteName}{it.shelf ? <span className="block text-[11px] text-faint">{it.shelf}</span> : null}</> : '—'}
                               {it.foundSiteName && it.resultado === 'fuera_ubicacion' ? (
-                                <span className="block text-[10.5px] font-bold text-[#b45309]">apareció en {it.foundSiteName}</span>
+                                <span className="block text-[10.5px] font-bold text-warning-fg">apareció en {it.foundSiteName}</span>
                               ) : null}
                             </td>
                             <td className="whitespace-nowrap px-3 py-2.5">
@@ -426,7 +426,7 @@ export function InventarioClient({ initial, sites }: {
                 <SummaryRow label="Total de ejemplares" value={viewing.expected} tone="text-ink" />
                 <SummaryRow label="Escaneados" value={viewing.scanned} tone="text-ink" />
                 <SummaryRow label="Encontrados" value={viewing.found} tone="text-success-fg" />
-                <SummaryRow label="Fuera de ubicación" value={viewing.misplaced} tone={viewing.misplaced > 0 ? 'text-[#b45309]' : 'text-ink'} />
+                <SummaryRow label="Fuera de ubicación" value={viewing.misplaced} tone={viewing.misplaced > 0 ? 'text-warning-fg' : 'text-ink'} />
                 <SummaryRow label="Prestados (en la calle)" value={viewing.onLoan} tone="text-info-text" />
                 <SummaryRow label={viewing.status === 'finalizado' ? 'Faltantes' : 'Pendientes por escanear'} value={viewing.missing} tone={viewing.status === 'finalizado' && viewing.missing > 0 ? 'text-danger-fg' : 'text-ink'} />
               </dl>
@@ -444,10 +444,10 @@ export function InventarioClient({ initial, sites }: {
                     <span className="grid h-14 w-14 place-items-center rounded-full bg-surface text-[13px] font-extrabold tabular-nums text-ink">{pct}%</span>
                   </span>
                   <ul className="flex flex-col gap-1.5 text-[11.5px]">
-                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#137333]" /> Encontrados <b className="tabular-nums">{fmt(viewing.found)}</b></li>
-                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#b45309]" /> Fuera de ubicación <b className="tabular-nums">{fmt(viewing.misplaced)}</b></li>
+                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-success-fg" /> Encontrados <b className="tabular-nums">{fmt(viewing.found)}</b></li>
+                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-warning-fg" /> Fuera de ubicación <b className="tabular-nums">{fmt(viewing.misplaced)}</b></li>
                     <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-info-text" /> Prestados <b className="tabular-nums">{fmt(viewing.onLoan)}</b></li>
-                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#e5e7eb]" /> {viewing.status === 'finalizado' ? 'Faltantes' : 'Pendientes'} <b className="tabular-nums">{fmt(viewing.missing)}</b></li>
+                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-surface-container" /> {viewing.status === 'finalizado' ? 'Faltantes' : 'Pendientes'} <b className="tabular-nums">{fmt(viewing.missing)}</b></li>
                   </ul>
                 </div>
               </Card>
@@ -475,7 +475,7 @@ export function InventarioClient({ initial, sites }: {
         <Card padding="md" className="app-reveal mt-4 border-brand/25 bg-brand/[0.04]" style={{ animationDelay: '150ms' }}>
           <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><CircleCheck size={14} className="text-brand" /> Consejo</h2>
           <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
-            Escaneá los códigos de los ejemplares uno por uno para verificar su existencia y ubicación.
+            Escanea los códigos de los ejemplares uno por uno para verificar su existencia y ubicación.
             Lo que figura prestado no cuenta como faltante: está en la calle, no perdido.
           </p>
         </Card>
@@ -523,13 +523,13 @@ function NewInventoryDrawer({ open, sites, onClose, onCreated }: {
       if (!res.ok || !j?.inventory) { setError(j.error ?? 'No se pudo abrir el inventario.'); setBusy(false); return; }
       setBusy(false);
       onCreated();
-    } catch { setError('Problema de red. Reintentá.'); setBusy(false); }
+    } catch { setError('Problema de red. Reintenta.'); setBusy(false); }
   }
 
   if (!mounted || typeof document === 'undefined') return null;
   return createPortal(
     <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => { if (!busy) onClose(); }}
+      <div aria-hidden="true"
         className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
       <div ref={panelRef} className={cn(
         'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
