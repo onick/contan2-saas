@@ -1,21 +1,10 @@
 'use client';
 
-// components/biblioteca/ReservasClient.tsx · RESERVAS (F5) — modelo aprobado
-// por el usuario (captura "Reservas"):
-//   · tabs con contadores: Reservas activas / Lista de espera / Historial
-//   · búsqueda por título, lector, carné o código de reserva (R-000123)
-//   · tabla: reserva + fecha, lector, material (portada + inv. si hay copia
-//     apartada), ubicación, estado (Lista para retirar / En espera · posición /
-//     Cumplida / Cancelada / Vencida), fecha lista + vence
-//   · acciones: ENTREGAR (presta el ejemplar apartado y cumple la reserva) y
-//     cancelar; carril con resumen + próximas para retirar
-//   · Nueva reserva: carné + búsqueda de título (typeahead del catálogo);
-//     si hay copia libre queda 'Lista para retirar' AL INSTANTE
-// La promoción de la cola es del backend (perezosa); acá solo se refleja.
+// components/biblioteca/ReservasClient.tsx · RESERVAS (F5)
+// F8b: tabla → DataTableClient; tabs → Tabs del kit; drawer → Sheet.
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { createPortal } from 'react-dom';
 import {
   Bookmark, History, Search, Loader2, Check, X, ChevronLeft, ChevronRight,
   BookOpen, Clock3, Plus, QrCode, MapPin, HandHelping, Ban, ListOrdered,
@@ -24,7 +13,11 @@ import type {
   BiblioReservationsListResponse, BiblioReservation, BiblioReservationsSummary,
   BiblioTitlesListResponse, BiblioLoan,
 } from '@contan2/contracts';
-import { Card, Button, IconButton, Chip, EmptyState, SectionHeader, cn, focusRing, useDrawerLifecycle } from '../ui';
+import {
+  Card, Button, IconButton, Chip, EmptyState, SectionHeader, Sheet,
+  Tabs, DataTableClient, cn, focusRing,
+} from '../ui';
+import type { DataTableColumn } from '../ui';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
@@ -39,7 +32,6 @@ function pageWindow(current: number, total: number): (number | '…')[] {
   return out;
 }
 
-// Días restantes de la ventana de retiro (para "Hoy" / "2 días").
 function pickupLabel(expiresAt: string): { text: string; urgent: boolean } {
   const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000);
   if (days <= 1) return { text: 'Hoy', urgent: true };
@@ -56,6 +48,12 @@ export function ReservationStatusChip({ r }: { r: BiblioReservation }) {
   }
 }
 
+const RESERVAS_TABS = [
+  { value: 'activas', label: 'Reservas activas' },
+  { value: 'espera', label: 'Lista de espera' },
+  { value: 'historial', label: 'Historial' },
+];
+
 export function ReservasClient({ initial, initialSummary }: {
   initial: BiblioReservationsListResponse; initialSummary: BiblioReservationsSummary | null;
 }) {
@@ -71,6 +69,7 @@ export function ReservasClient({ initial, initialSummary }: {
   const [busyRow, setBusyRow] = useState<string | null>(null);
   const first = useRef(true);
   const pageSize = 20;
+  const nuevaReservaBtnRef = useRef<HTMLButtonElement>(null);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -91,7 +90,6 @@ export function ReservasClient({ initial, initialSummary }: {
     return () => { clearTimeout(t); ctl.abort(); };
   }, [refresh, q]);
 
-  // ENTREGAR: presta el ejemplar apartado al reservante → la reserva se cumple.
   async function entregar(r: BiblioReservation) {
     if (!r.inventoryCode) return;
     setBusyRow(r.id); setRowError(null);
@@ -105,7 +103,7 @@ export function ReservasClient({ initial, initialSummary }: {
       const loan = j.loan as BiblioLoan;
       setFlash(`Entregado: «${r.title}» a ${r.userFirstName} ${r.userLastName} — vence el ${fmtDate(loan.dueAt)}.`);
       void refresh();
-    } catch { setRowError('Problema de red. Reintenta.'); }
+    } catch { setRowError('Problema de red. Intenta de nuevo.'); }
     finally { setBusyRow(null); }
   }
 
@@ -117,16 +115,107 @@ export function ReservasClient({ initial, initialSummary }: {
       if (!res.ok || !j?.reservation) { setRowError(j.error ?? 'No se pudo cancelar.'); return; }
       setFlash(`Cancelada la reserva de «${r.title}» (${r.code}).`);
       void refresh();
-    } catch { setRowError('Problema de red. Reintenta.'); }
+    } catch { setRowError('Problema de red. Intenta de nuevo.'); }
     finally { setBusyRow(null); }
   }
 
   const pages = Math.max(1, Math.ceil(data.total / data.pageSize));
 
-  const TABS = [
-    { key: 'activas', label: 'Reservas activas', Icon: Bookmark, count: summary?.activas },
-    { key: 'espera', label: 'Lista de espera', Icon: ListOrdered, count: summary?.enEspera },
-    { key: 'historial', label: 'Historial', Icon: History, count: undefined },
+  const columns: DataTableColumn<BiblioReservation>[] = [
+    {
+      id: 'reserva',
+      header: 'Reserva',
+      cell: (r) => (
+        <span>
+          <span className="flex items-center gap-1.5 font-mono text-[12px] font-bold tabular-nums text-ink"><Bookmark size={12} className="text-brand" aria-hidden="true" /> {r.code}</span>
+          <span className="block pl-[18px] text-[11px] tabular-nums text-faint">{fmtDate(r.createdAt)}</span>
+        </span>
+      ),
+    },
+    {
+      id: 'lector',
+      header: 'Lector',
+      cell: (r) => (
+        <span>
+          <span className="block max-w-[150px] truncate text-[13px] font-bold leading-tight text-ink">{r.userFirstName} {r.userLastName}</span>
+          <span className="block font-mono text-[10.5px] text-faint tabular-nums">{r.userCode}</span>
+        </span>
+      ),
+    },
+    {
+      id: 'material',
+      header: 'Material',
+      cell: (r) => (
+        <Link href={`/app/biblioteca/titulos/${r.titleId}`} className={cn('flex items-center gap-2.5 rounded-lg', focusRing)}>
+          <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
+            {r.coverUrl
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={r.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+              : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
+          </span>
+          <span className="min-w-0">
+            <span className="block max-w-[180px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand">{r.title}</span>
+            <span className="block max-w-[180px] truncate text-[11px] text-muted">{r.authors[0] ?? ''}</span>
+            {r.inventoryCode ? <span className="block font-mono text-[10.5px] text-faint tabular-nums">Inv. {r.inventoryCode}</span> : null}
+          </span>
+        </Link>
+      ),
+    },
+    {
+      id: 'ubicacion',
+      header: 'Ubicación',
+      priority: 'lg',
+      cell: (r) => (
+        r.siteName ? (
+          <span className="inline-flex items-center gap-1 text-[12px] text-muted">
+            <MapPin size={12} className="flex-none text-faint" aria-hidden="true" /> {r.siteName}{r.shelf ? ` · ${r.shelf}` : ''}
+          </span>
+        ) : <span className="text-[12px] text-faint">—</span>
+      ),
+    },
+    {
+      id: 'estado',
+      header: 'Estado',
+      priority: 'md',
+      cell: (r) => <ReservationStatusChip r={r} />,
+    },
+    {
+      id: 'retiro',
+      header: 'Retiro',
+      priority: 'md',
+      cell: (r) => (
+        r.status === 'lista' && r.expiresAt ? (
+          <span className="text-[12.5px] tabular-nums text-muted">
+            {fmtDate(r.expiresAt)}
+            {(() => { const p = pickupLabel(r.expiresAt); return <span className={cn('block text-[10.5px] font-bold', p.urgent ? 'text-danger-fg' : 'text-faint')}>{p.text}</span>; })()}
+          </span>
+        ) : <span className="text-[12.5px] text-faint">—</span>
+      ),
+    },
+    {
+      id: 'acciones',
+      header: '',
+      align: 'right',
+      width: 80,
+      cell: (r) => (
+        (r.status === 'lista' || r.status === 'espera') ? (
+          <span className="flex items-center justify-end gap-1">
+            {r.status === 'lista' && r.inventoryCode ? (
+              <button type="button" disabled={busyRow === r.id} onClick={() => entregar(r)}
+                title="Entregar (prestar el ejemplar apartado)" aria-label={`Entregar ${r.title}`}
+                className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-success-fg hover:bg-success-bg', focusRing)}>
+                {busyRow === r.id ? <Loader2 size={15} className="animate-spin" /> : <HandHelping size={16} strokeWidth={2} />}
+              </button>
+            ) : null}
+            <button type="button" disabled={busyRow === r.id} onClick={() => cancelar(r)}
+              title="Cancelar reserva" aria-label={`Cancelar reserva de ${r.title}`}
+              className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-danger-bg hover:text-danger-fg', focusRing)}>
+              <Ban size={14} strokeWidth={2} />
+            </button>
+          </span>
+        ) : null
+      ),
+    },
   ];
 
   return (
@@ -137,147 +226,106 @@ export function ReservasClient({ initial, initialSummary }: {
             level={1}
             title="Reservas"
             subtitle="Cola de espera por título: al liberarse una copia, se aparta sola para el primero de la fila."
-            actions={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nueva reserva</Button>}
+            actions={<Button ref={nuevaReservaBtnRef} variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nueva reserva</Button>}
           />
         </div>
 
-        {/* ── Tabs con contadores ── */}
-        <div className="app-reveal mt-4 flex gap-1 overflow-x-auto border-b border-line" style={{ animationDelay: '30ms' }} role="tablist" aria-label="Vistas de reservas">
-          {TABS.map((t) => (
-            <button key={t.key} type="button" role="tab" aria-selected={tab === t.key}
-              onClick={() => { setTab(t.key); setPage(1); }}
-              className={cn('flex flex-none items-center gap-1.5 px-3.5 py-2 text-[13.5px]', focusRing,
-                tab === t.key ? 'border-b-2 border-brand font-bold text-brand' : 'font-medium text-muted hover:text-ink')}>
-              <t.Icon size={15} strokeWidth={1.9} /> {t.label}
-              {typeof t.count === 'number' ? <span className={cn('rounded-full px-1.5 py-0.5 text-[10.5px] font-extrabold tabular-nums', tab === t.key ? 'bg-brand/10 text-brand' : 'bg-surface-container text-faint')}>{fmt(t.count)}</span> : null}
-            </button>
-          ))}
-        </div>
+        {/* ── Tabs del kit ── */}
+        <div className="app-reveal mt-4" style={{ animationDelay: '30ms' }}>
+          <Tabs
+            value={tab}
+            onValueChange={(v) => { setTab(v); setPage(1); }}
+            tabs={RESERVAS_TABS}
+          >
+            {/* ── Búsqueda ── */}
+            <label className={cn('flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-2.5', focusRing)}>
+              <Search size={16} className="text-faint" aria-hidden="true" />
+              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                placeholder="Buscar por título, lector, carné o código de reserva (R-000123)…" aria-label="Buscar reservas"
+                className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
+              {loading ? <Loader2 size={15} className="animate-spin text-faint" /> : null}
+            </label>
 
-        {/* ── Búsqueda ── */}
-        <label className={cn('app-reveal mt-4 flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-2.5', focusRing)} style={{ animationDelay: '50ms' }}>
-          <Search size={16} className="text-faint" aria-hidden="true" />
-          <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }}
-            placeholder="Buscar por título, lector, carné o código de reserva (R-000123)…" aria-label="Buscar reservas"
-            className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
-          {loading ? <Loader2 size={15} className="animate-spin text-faint" /> : null}
-        </label>
+            {flash ? <p role="status" className="rounded-xl bg-success-bg px-4 py-2.5 text-[13px] font-semibold text-success-fg">✓ {flash}</p> : null}
+            {rowError ? <p role="status" className="rounded-xl bg-danger-bg px-4 py-2.5 text-[13px] font-semibold text-danger-fg">{rowError}</p> : null}
 
-        {flash ? <p role="status" className="mt-3 rounded-xl bg-success-bg px-4 py-2.5 text-[13px] font-semibold text-success-fg">✓ {flash}</p> : null}
-        {rowError ? <p role="status" className="mt-3 rounded-xl bg-danger-bg px-4 py-2.5 text-[13px] font-semibold text-danger-fg">{rowError}</p> : null}
+            <p className="text-[14px] font-bold text-ink" aria-live="polite">
+              {fmt(data.total)} {data.total === 1 ? 'reserva' : 'reservas'}{tab === 'activas' ? ' activas' : tab === 'espera' ? ' en espera' : ''}
+            </p>
 
-        {/* ── Tabla ── */}
-        <p className="mt-4 text-[14px] font-bold text-ink" aria-live="polite">
-          {fmt(data.total)} {data.total === 1 ? 'reserva' : 'reservas'}{tab === 'activas' ? ' activas' : tab === 'espera' ? ' en espera' : ''}
-        </p>
-        <div className={cn('mt-2.5 transition-opacity', loading && 'opacity-50')}>
-          {data.reservations.length === 0 ? (
-            <Card padding="lg">
-              <EmptyState icon={Bookmark}
-                title={q ? 'Sin resultados' : 'No hay reservas por acá'}
-                description={q ? 'Prueba con otro título, lector o código.' : 'Cuando una obra esté toda prestada, resérvala: al volver una copia se aparta sola.'}
-                action={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={15} /> Nueva reserva</Button>} />
-            </Card>
-          ) : (
-            <Card padding="none" className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[780px] border-collapse text-left">
-                  <thead>
-                    <tr className="border-b border-line bg-surface-container/60 text-[11px] font-bold uppercase tracking-[0.05em] text-faint">
-                      <th className="px-4 py-2.5">Reserva</th>
-                      <th className="px-3 py-2.5">Lector</th>
-                      <th className="px-3 py-2.5">Material</th>
-                      <th className="px-3 py-2.5">Ubicación</th>
-                      <th className="px-3 py-2.5">Estado</th>
-                      <th className="px-3 py-2.5">Retiro</th>
-                      <th className="px-3 py-2.5"><span className="sr-only">Acciones</span></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line/70">
-                    {data.reservations.map((r) => (
-                      <tr key={r.id} className="transition-colors hover:bg-surface-container/40">
-                        <td className="whitespace-nowrap px-4 py-2.5">
-                          <span className="flex items-center gap-1.5 font-mono text-[12px] font-bold tabular-nums text-ink"><Bookmark size={12} className="text-brand" aria-hidden="true" /> {r.code}</span>
-                          <span className="block pl-[18px] text-[11px] tabular-nums text-faint">{fmtDate(r.createdAt)}</span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <span className="block max-w-[150px] truncate text-[13px] font-bold leading-tight text-ink">{r.userFirstName} {r.userLastName}</span>
-                          <span className="block font-mono text-[10.5px] text-faint tabular-nums">{r.userCode}</span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <Link href={`/app/biblioteca/titulos/${r.titleId}`} className={cn('flex items-center gap-2.5 rounded-lg', focusRing)}>
-                            <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
-                              {r.coverUrl
-                                // eslint-disable-next-line @next/next/no-img-element
-                                ? <img src={r.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                                : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block max-w-[190px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand">{r.title}</span>
-                              <span className="block max-w-[190px] truncate text-[11px] text-muted">{r.authors[0] ?? ''}</span>
-                              {r.inventoryCode ? <span className="block font-mono text-[10.5px] text-faint tabular-nums">Inv. {r.inventoryCode}</span> : null}
-                            </span>
-                          </Link>
-                        </td>
-                        <td className="px-3 py-2.5 text-[12px] text-muted">
-                          {r.siteName ? (
-                            <span className="inline-flex items-center gap-1"><MapPin size={12} className="flex-none text-faint" aria-hidden="true" /> {r.siteName}{r.shelf ? ` · ${r.shelf}` : ''}</span>
-                          ) : '—'}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2.5"><ReservationStatusChip r={r} /></td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-[12.5px] tabular-nums text-muted">
-                          {r.status === 'lista' && r.expiresAt ? (
-                            <>
-                              {fmtDate(r.expiresAt)}
-                              {(() => { const p = pickupLabel(r.expiresAt); return <span className={cn('block text-[10.5px] font-bold', p.urgent ? 'text-danger-fg' : 'text-faint')}>{p.text}</span>; })()}
-                            </>
-                          ) : '—'}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {r.status === 'lista' || r.status === 'espera' ? (
-                            <span className="flex items-center justify-end gap-1">
-                              {r.status === 'lista' && r.inventoryCode ? (
-                                <button type="button" disabled={busyRow === r.id} onClick={() => entregar(r)}
-                                  title="Entregar (prestar el ejemplar apartado)" aria-label={`Entregar ${r.title}`}
-                                  className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-success-fg hover:bg-success-bg', focusRing)}>
-                                  {busyRow === r.id ? <Loader2 size={15} className="animate-spin" /> : <HandHelping size={16} strokeWidth={2} />}
-                                </button>
-                              ) : null}
-                              <button type="button" disabled={busyRow === r.id} onClick={() => cancelar(r)}
-                                title="Cancelar reserva" aria-label={`Cancelar reserva de ${r.title}`}
-                                className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-danger-bg hover:text-danger-fg', focusRing)}>
-                                <Ban size={14} strokeWidth={2} />
-                              </button>
-                            </span>
-                          ) : null}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
+            <div className={cn('transition-opacity', loading && 'opacity-50')}>
+              <DataTableClient
+                data={data.reservations}
+                columns={columns}
+                getRowId={(r) => r.id}
+                ariaLabel="Lista de reservas"
+                empty={
+                  <EmptyState icon={Bookmark}
+                    title={q ? 'Sin resultados' : 'No hay reservas por acá'}
+                    description={q ? 'Prueba con otro título, lector o código.' : 'Cuando una obra esté toda prestada, resérvala: al volver una copia se aparta sola.'}
+                    action={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={15} /> Nueva reserva</Button>} />
+                }
+                mobileCard={(r) => (
+                  <div className="flex items-center gap-3 p-4">
+                    <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
+                      {r.coverUrl
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={r.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        : <BookOpen size={12} className="text-white/85" aria-hidden="true" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-bold text-ink">{r.title}</p>
+                      <p className="truncate text-[11px] text-muted">{r.userFirstName} {r.userLastName} · {r.code}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <ReservationStatusChip r={r} />
+                        {r.status === 'lista' && r.expiresAt ? (
+                          <span className={cn('text-[10.5px] font-bold', pickupLabel(r.expiresAt).urgent ? 'text-danger-fg' : 'text-faint')}>
+                            {pickupLabel(r.expiresAt).text}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    {(r.status === 'lista' || r.status === 'espera') ? (
+                      <span className="flex flex-col gap-1">
+                        {r.status === 'lista' && r.inventoryCode ? (
+                          <button type="button" disabled={busyRow === r.id} onClick={() => entregar(r)}
+                            aria-label={`Entregar ${r.title}`}
+                            className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-success-fg hover:bg-success-bg', focusRing)}>
+                            <HandHelping size={15} strokeWidth={2} />
+                          </button>
+                        ) : null}
+                        <button type="button" disabled={busyRow === r.id} onClick={() => cancelar(r)}
+                          aria-label={`Cancelar reserva de ${r.title}`}
+                          className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-danger-bg hover:text-danger-fg', focusRing)}>
+                          <Ban size={13} strokeWidth={2} />
+                        </button>
+                      </span>
+                    ) : null}
+                  </div>
+                )}
+              />
 
-          {pages > 1 ? (
-            <nav className="mt-3.5 flex items-center justify-center gap-1" aria-label="Paginación">
-              <IconButton label="Página anterior" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                <ChevronLeft size={15} />
-              </IconButton>
-              {pageWindow(data.page, pages).map((p, i) => p === '…' ? (
-                <span key={`e${i}`} className="px-1 text-faint">…</span>
-              ) : (
-                <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === data.page ? 'page' : undefined}
-                  className={cn('grid h-8 min-w-8 place-items-center rounded-lg px-1 text-[12.5px] font-bold tabular-nums', focusRing,
-                    p === data.page ? 'bg-brand text-white' : 'text-muted hover:bg-surface-container')}>
-                  {p}
-                </button>
-              ))}
-              <IconButton label="Página siguiente" variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
-                <ChevronRight size={15} />
-              </IconButton>
-            </nav>
-          ) : null}
+              {pages > 1 ? (
+                <nav className="mt-3.5 flex items-center justify-center gap-1" aria-label="Paginación">
+                  <IconButton label="Página anterior" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                    <ChevronLeft size={15} />
+                  </IconButton>
+                  {pageWindow(data.page, pages).map((p, i) => p === '…' ? (
+                    <span key={`e${i}`} className="px-1 text-faint">…</span>
+                  ) : (
+                    <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === data.page ? 'page' : undefined}
+                      className={cn('grid h-8 min-w-8 place-items-center rounded-lg px-1 text-[12.5px] font-bold tabular-nums', focusRing,
+                        p === data.page ? 'bg-brand text-brand-fg' : 'text-muted hover:bg-surface-container')}>
+                      {p}
+                    </button>
+                  ))}
+                  <IconButton label="Página siguiente" variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+                    <ChevronRight size={15} />
+                  </IconButton>
+                </nav>
+              ) : null}
+            </div>
+          </Tabs>
         </div>
       </div>
 
@@ -333,8 +381,12 @@ export function ReservasClient({ initial, initialSummary }: {
         ) : null}
       </aside>
 
-      <NewReservationDrawer open={drawer} onClose={() => setDrawer(false)}
-        onDone={(msg) => { setDrawer(false); setFlash(msg); void refresh(); }} />
+      <NewReservationDrawer
+        open={drawer}
+        returnFocusRef={nuevaReservaBtnRef}
+        onClose={() => setDrawer(false)}
+        onDone={(msg) => { setDrawer(false); setFlash(msg); void refresh(); }}
+      />
     </div>
   );
 }
@@ -348,11 +400,11 @@ function SummaryRow({ label, value, tone }: { label: string; value: number; tone
   );
 }
 
-// ── Nueva reserva: carné + typeahead de títulos del catálogo ─────────────────
-function NewReservationDrawer({ open, onClose, onDone }: {
+// ── Nueva reserva → Sheet del kit ────────────────────────────────────────────
+function NewReservationDrawer({ open, onClose, onDone, returnFocusRef }: {
   open: boolean; onClose: () => void; onDone: (msg: string) => void;
+  returnFocusRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const titleId = useId();
   const [readerCode, setReaderCode] = useState('');
   const [titleQ, setTitleQ] = useState('');
   const [options, setOptions] = useState<{ id: string; title: string; authors: string[]; coverUrl: string | null; libres: number }[]>([]);
@@ -361,11 +413,12 @@ function NewReservationDrawer({ open, onClose, onDone }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const busyRef = useRef(busy); busyRef.current = busy;
-  const reset = () => { setReaderCode(''); setTitleQ(''); setOptions([]); setPicked(null); setError(null); };
-  const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: () => { if (!busyRef.current) onClose(); }, onClosed: reset });
+  useEffect(() => {
+    if (!open) {
+      setReaderCode(''); setTitleQ(''); setOptions([]); setPicked(null); setError(null);
+    }
+  }, [open]);
 
-  // Typeahead de títulos (usa la búsqueda real del catálogo).
   useEffect(() => {
     if (!open || picked || titleQ.trim().length < 2) { setOptions([]); return; }
     const ctl = new AbortController();
@@ -401,89 +454,78 @@ function NewReservationDrawer({ open, onClose, onDone }: {
       onDone(r.status === 'lista'
         ? `«${r.title}» quedó LISTA PARA RETIRAR (${r.inventoryCode}) — vence el ${r.expiresAt ? fmtDate(r.expiresAt) : ''}.`
         : `«${r.title}» reservada para ${r.userFirstName} ${r.userLastName} — posición ${r.position ?? '…'} en la fila.`);
-    } catch { setError('Problema de red. Reintenta.'); setBusy(false); }
+    } catch { setError('Problema de red. Intenta de nuevo.'); setBusy(false); }
   }
 
-  if (!mounted || typeof document === 'undefined') return null;
-  return createPortal(
-    <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      {/* Formulario no se cierra con clic fuera; escape sí funciona vía useDrawerLifecycle */}
-      <div aria-hidden="true" className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
-      <div ref={panelRef} className={cn(
-        'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
-        'md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
-        'flex flex-col', closing && 'drawer-panel--closing')}>
-        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Reservas</p>
-            <h2 id={titleId} className="mt-1 text-lg font-bold leading-tight tracking-tight text-ink">Nueva reserva</h2>
-          </div>
-          <IconButton label="Cerrar" variant="outline" size="sm" onClick={onClose} disabled={busy}><X size={18} /></IconButton>
-        </header>
+  return (
+    <Sheet
+      open={open}
+      onClose={() => { if (!busy) onClose(); }}
+      title="Nueva reserva"
+      dismissOnOverlay={false}
+      returnFocusRef={returnFocusRef as React.RefObject<HTMLElement | null>}
+    >
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <label className="block">
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><QrCode size={12} /> Carné del lector</span>
+          <input value={readerCode} onChange={(e) => setReaderCode(e.target.value)} placeholder="Escanea o escribe el código — CCB-…" autoFocus
+            className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
+        </label>
 
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
-          <label className="block">
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><QrCode size={12} /> Carné del lector</span>
-            <input value={readerCode} onChange={(e) => setReaderCode(e.target.value)} placeholder="Escanea o escribe el código — CCB-…" autoFocus
-              className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
-          </label>
-
-          <label className="mt-4 block">
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><Search size={12} /> Obra a reservar</span>
-            {picked ? (
-              <span className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-container/50 px-3 py-2.5">
-                <span className="min-w-0">
-                  <span className="block truncate text-[13.5px] font-bold text-ink">{picked.title}</span>
-                  <span className={cn('block text-[11.5px] font-semibold', picked.libres > 0 ? 'text-success-fg' : 'text-muted')}>
-                    {picked.libres > 0 ? `${picked.libres} copia(s) libre(s) — quedará lista al instante` : 'Todo prestado — entra a la fila de espera'}
-                  </span>
+        <label className="block">
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><Search size={12} /> Obra a reservar</span>
+          {picked ? (
+            <span className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-container/50 px-3 py-2.5">
+              <span className="min-w-0">
+                <span className="block truncate text-[13.5px] font-bold text-ink">{picked.title}</span>
+                <span className={cn('block text-[11.5px] font-semibold', picked.libres > 0 ? 'text-success-fg' : 'text-muted')}>
+                  {picked.libres > 0 ? `${picked.libres} copia(s) libre(s) — quedará lista al instante` : 'Todo prestado — entra a la fila de espera'}
                 </span>
-                <IconButton label="Quitar título" variant="outline" size="sm" onClick={() => { setPicked(null); setTitleQ(''); }}><X size={14} /></IconButton>
               </span>
-            ) : (
-              <>
-                <span className="relative mt-1 block">
-                  <input value={titleQ} onChange={(e) => setTitleQ(e.target.value)} placeholder="Busca por título, autor o ISBN…"
-                    className={cn('min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-ink', focusRing)} />
-                  {searching ? <Loader2 size={15} className="absolute right-3 top-3.5 animate-spin text-faint" /> : null}
-                </span>
-                {options.length > 0 ? (
-                  <ul className="mt-1.5 overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
-                    {options.map((o) => (
-                      <li key={o.id}>
-                        <button type="button" onClick={() => setPicked({ id: o.id, title: o.title, libres: o.libres })}
-                          className={cn('flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-surface-container', focusRing)}>
-                          <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
-                            {o.coverUrl
-                              // eslint-disable-next-line @next/next/no-img-element
-                              ? <img src={o.coverUrl} alt="" className="h-full w-full object-cover" />
-                              : <BookOpen size={12} className="text-white/85" aria-hidden="true" />}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-bold text-ink">{o.title}</span>
-                            <span className="block truncate text-[11px] text-muted">{o.authors[0] ?? ''}</span>
-                          </span>
-                          <span className={cn('flex-none text-[10.5px] font-bold', o.libres > 0 ? 'text-success-fg' : 'text-[#b45309]')}>
-                            {o.libres > 0 ? `${o.libres} libre(s)` : 'Todo prestado'}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </>
-            )}
-          </label>
+              <IconButton label="Quitar título" variant="outline" size="sm" onClick={() => { setPicked(null); setTitleQ(''); }}><X size={14} /></IconButton>
+            </span>
+          ) : (
+            <>
+              <span className="relative mt-1 block">
+                <input value={titleQ} onChange={(e) => setTitleQ(e.target.value)} placeholder="Busca por título, autor o ISBN…"
+                  className={cn('min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-ink', focusRing)} />
+                {searching ? <Loader2 size={15} className="absolute right-3 top-3.5 animate-spin text-faint" /> : null}
+              </span>
+              {options.length > 0 ? (
+                <ul className="mt-1.5 overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
+                  {options.map((o) => (
+                    <li key={o.id}>
+                      <button type="button" onClick={() => setPicked({ id: o.id, title: o.title, libres: o.libres })}
+                        className={cn('flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-surface-container', focusRing)}>
+                        <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
+                          {o.coverUrl
+                            // eslint-disable-next-line @next/next/no-img-element
+                            ? <img src={o.coverUrl} alt="" className="h-full w-full object-cover" />
+                            : <BookOpen size={12} className="text-white/85" aria-hidden="true" />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-bold text-ink">{o.title}</span>
+                          <span className="block truncate text-[11px] text-muted">{o.authors[0] ?? ''}</span>
+                        </span>
+                        <span className={cn('flex-none text-[10.5px] font-bold', o.libres > 0 ? 'text-success-fg' : 'text-warning-fg')}>
+                          {o.libres > 0 ? `${o.libres} libre(s)` : 'Todo prestado'}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          )}
+        </label>
 
-          {error ? <p role="status" className="mt-3 rounded-lg bg-danger-bg px-3 py-2 text-[13px] font-semibold text-danger-fg">{error}</p> : null}
+        {error ? <p role="status" className="rounded-lg bg-danger-bg px-3 py-2 text-[13px] font-semibold text-danger-fg">{error}</p> : null}
 
-          <Button type="submit" variant="primary" size="lg" className="mt-5 w-full" disabled={busy || !picked || !readerCode.trim()}>
-            {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} strokeWidth={2.2} />} Crear reserva
-          </Button>
-          <p className="mb-1 mt-2 text-center text-[12px] text-muted">Si hay copia libre, queda apartada al instante con su ventana de retiro.</p>
-        </form>
-      </div>
-    </div>,
-    document.body,
+        <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy || !picked || !readerCode.trim()}>
+          {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} strokeWidth={2.2} />} Crear reserva
+        </Button>
+        <p className="text-center text-[12px] text-muted">Si hay copia libre, queda apartada al instante con su ventana de retiro.</p>
+      </form>
+    </Sheet>
   );
 }

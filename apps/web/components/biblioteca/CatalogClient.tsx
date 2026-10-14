@@ -22,6 +22,7 @@ import {
 } from '../ui';
 import type { DataTableColumn } from '../ui';
 import { numero } from '../../lib/format';
+import { spineColor } from '../../lib/biblioteca/spine';
 
 const KIND_META: Record<BiblioKind, { label: string; Icon: typeof BookOpen }> = {
   libro:       { label: 'Libro',       Icon: BookOpen    },
@@ -44,13 +45,6 @@ function pageWindow(current: number, total: number): (number | '…')[] {
   return out;
 }
 
-// Paleta determinística para portadas sin imagen.
-const SPINE_COLORS = ['#1d7aa7', '#7c3aed', '#0f766e', '#b45309', '#be185d', '#4d7c0f', '#1d4ed8', '#a21caf'];
-function spineColor(s: string): string {
-  let h = 0;
-  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return SPINE_COLORS[h % SPINE_COLORS.length]!;
-}
 
 function CoverThumb({ t, className }: { t: BiblioTitle; className?: string }) {
   const { Icon } = KIND_META[t.kind] ?? KIND_META.libro;
@@ -302,8 +296,8 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
                 title={data.total === 0 && !hasFilters ? 'El catálogo está vacío' : 'Sin resultados'}
                 description={
                   data.total === 0 && !hasFilters
-                    ? 'Registrá el primer título — con el ISBN, la ficha se completa sola.'
-                    : 'Probá con otra parte del título, el autor o el ISBN, o quitá filtros.'
+                    ? 'Registra el primer título — con el ISBN, la ficha se completa sola.'
+                    : 'Prueba con otra parte del título, el autor o el ISBN, o quita filtros.'
                 }
                 action={
                   <Button variant="primary" onClick={() => router.push('/app/biblioteca/titulos/nuevo')}>
@@ -333,7 +327,7 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
               <Card padding="lg" className="col-span-full">
                 <EmptyState icon={Library}
                   title={hasFilters ? 'Sin resultados' : 'El catálogo está vacío'}
-                  description={hasFilters ? 'Quitá los filtros para ver más resultados.' : 'Registrá el primer título.'}
+                  description={hasFilters ? 'Quita los filtros para ver más resultados.' : 'Registra el primer título.'}
                   action={<Button variant="primary" onClick={() => router.push('/app/biblioteca/titulos/nuevo')}><BookPlus size={15} /> Agregar libro</Button>} />
               </Card>
             ) : data.titles.map((t) => <TitleCoverCard key={t.id} t={t} />)}
@@ -394,9 +388,9 @@ function TitleCoverCard({ t }: { t: BiblioTitle }) {
         {t.itemsTotal === 0 ? (
           <span className="absolute left-1.5 top-1.5 rounded-md bg-ink/70 px-1.5 py-0.5 text-[10px] font-bold text-white">Sin ejemplares</span>
         ) : libres === 0 ? (
-          <span className="absolute left-1.5 top-1.5 rounded-md bg-[#b45309] px-1.5 py-0.5 text-[10px] font-bold text-white">Agotado</span>
+          <span className="absolute left-1.5 top-1.5 rounded-md bg-danger-fg px-1.5 py-0.5 text-[10px] font-bold text-white">Agotado</span>
         ) : (
-          <span className="absolute left-1.5 top-1.5 rounded-md bg-[#137333] px-1.5 py-0.5 text-[10px] font-bold text-white tabular-nums">{numero(libres)} disp.</span>
+          <span className="absolute left-1.5 top-1.5 rounded-md bg-success-fg px-1.5 py-0.5 text-[10px] font-bold text-white tabular-nums">{numero(libres)} disp.</span>
         )}
       </span>
       <span className="mt-1.5 block truncate text-[12.5px] font-bold leading-tight text-ink" title={t.title}>{t.title}</span>

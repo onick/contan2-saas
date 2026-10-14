@@ -1,20 +1,9 @@
 'use client';
 
 // components/biblioteca/LectoresClient.tsx · LECTORES de la Biblioteca
-// (modelo aprobado por el usuario — captura "Usuarios / Lectores"):
-//   · KPIs: totales / activos (% del total) / nuevos este mes / suspendidos
-//   · búsqueda (nombre, cédula, correo, carné, código RRHH, teléfono) +
-//     filtros tipo/estado + limpiar
-//   · tabla: lector (iniciales + carné + cédula), tipo, contacto, estado,
-//     registro, acciones · paginación numerada
-//   · panel "Detalles del lector": información + editar perfil bibliotecario
-//     (tipo empleado/no empleado + código RRHH + cédula + observaciones) +
-//     suspender/reactivar; tabs Préstamos/Reservas/Historial "Pronto" (F2)
-//   · alta al padrón (drawer): carné REAL generado — el mismo QR del centro
-// El lector ES el padrón; acá nunca se toca el carné ni se regeneran códigos.
+// F8b: tabla → DataTableClient; drawer → Sheet (foco atrapado, no cierra con clic fuera).
 
-import { useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import {
   Users, UserCheck, UserPlus, UserX, Search, Loader2, Check, X, Eye,
   ChevronLeft, ChevronRight, Upload, Plus, Pencil, IdCard, QrCode,
@@ -25,7 +14,11 @@ import type {
 } from '@contan2/contracts';
 import { LoanStatusChip } from './CirculacionClient';
 import { ReservationStatusChip } from './ReservasClient';
-import { Card, Button, IconButton, Field, Chip, EmptyState, SectionHeader, Tabs, TabsContent, cn, focusRing, useDrawerLifecycle } from '../ui';
+import {
+  Card, Button, IconButton, Field, Chip, EmptyState, SectionHeader, Sheet,
+  Tabs, TabsContent, DataTableClient, cn, focusRing,
+} from '../ui';
+import type { DataTableColumn } from '../ui';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
@@ -61,6 +54,7 @@ export function LectoresClient({ initial, initialStats }: {
   const [selected, setSelected] = useState<BiblioReader | null>(null);
   const [drawer, setDrawer] = useState(false);
   const first = useRef(true);
+  const newLectorBtnRef = useRef<HTMLButtonElement>(null);
 
   async function refreshStats() {
     try {
@@ -86,7 +80,6 @@ export function LectoresClient({ initial, initialStats }: {
     return () => { clearTimeout(t); ctl.abort(); };
   }, [q, type, estado, page, pageSize]);
 
-  // El panel refleja siempre la fila fresca de la lista (tras editar/suspender).
   function applyUpdated(reader: BiblioReader) {
     setSelected(reader);
     setData((d) => ({ ...d, readers: d.readers.map((x) => x.userId === reader.userId ? reader : x) }));
@@ -109,6 +102,71 @@ export function LectoresClient({ initial, initialStats }: {
 
   const selectCls = cn('min-h-10 w-full rounded-lg border border-line bg-surface px-2.5 text-[13px] text-ink', focusRing);
 
+  const columns: DataTableColumn<BiblioReader>[] = [
+    {
+      id: 'lector',
+      header: 'Lector',
+      cell: (r) => (
+        <span className="flex items-center gap-3">
+          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(r.firstName, r.lastName)}</span>
+          <span className="min-w-0">
+            <span className="block max-w-[220px] truncate text-[13.5px] font-bold leading-tight text-ink">{r.firstName} {r.lastName}</span>
+            <span className="block font-mono text-[11px] text-faint tabular-nums">
+              {r.code}{r.document ? ` · Céd. ${r.document}` : ''}
+            </span>
+          </span>
+        </span>
+      ),
+    },
+    {
+      id: 'tipo',
+      header: 'Tipo',
+      priority: 'md',
+      cell: (r) => (
+        r.readerType === 'empleado'
+          ? <Chip tone="brand">Empleado{r.employeeCode ? ` · ${r.employeeCode}` : ''}</Chip>
+          : <Chip tone="neutral">No empleado</Chip>
+      ),
+    },
+    {
+      id: 'contacto',
+      header: 'Contacto',
+      priority: 'lg',
+      cell: (r) => (
+        <span className="text-[12.5px] leading-snug text-muted">
+          {r.email ? <span className="block max-w-[180px] truncate">{r.email}</span> : null}
+          {r.phone ? <span className="block tabular-nums">{r.phone}</span> : null}
+          {!r.email && !r.phone ? '—' : null}
+        </span>
+      ),
+    },
+    {
+      id: 'estado',
+      header: 'Estado',
+      priority: 'md',
+      cell: (r) => { const est = estadoDe(r); return <Chip tone={est.tone} dot>{est.label}</Chip>; },
+    },
+    {
+      id: 'registro',
+      header: 'Registro',
+      priority: 'lg',
+      cell: (r) => <span className="tabular-nums text-[13px] text-muted">{fmtDate(r.registeredAt)}</span>,
+    },
+    {
+      id: 'acciones',
+      header: '',
+      align: 'right',
+      width: 44,
+      cell: (r) => (
+        <button type="button" aria-label={`Ver detalles de ${r.firstName} ${r.lastName}`}
+          onClick={(e) => { e.stopPropagation(); setSelected(r); }}
+          className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
+          <Eye size={15} strokeWidth={1.9} />
+        </button>
+      ),
+    },
+  ];
+
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-5">
       <div className="min-w-0">
@@ -122,7 +180,7 @@ export function LectoresClient({ initial, initialStats }: {
                 <span className="hidden cursor-default items-center gap-1.5 rounded-xl border border-dashed border-line px-3 py-2 text-[13px] font-bold text-faint sm:flex" title="Llega con el import por lotes">
                   <Upload size={15} strokeWidth={2} /> Importar <Chip tone="neutral">Pronto</Chip>
                 </span>
-                <Button variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nuevo lector</Button>
+                <Button ref={newLectorBtnRef} variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nuevo lector</Button>
               </div>
             }
           />
@@ -186,74 +244,42 @@ export function LectoresClient({ initial, initialStats }: {
           {fmt(data.total)} {data.total === 1 ? 'lector encontrado' : 'lectores encontrados'}
         </p>
         <div className={cn('mt-2.5 transition-opacity', loading && 'opacity-50')}>
-          {data.readers.length === 0 ? (
-            <Card padding="lg">
+          <DataTableClient
+            data={data.readers}
+            columns={columns}
+            getRowId={(r) => r.userId}
+            ariaLabel="Lista de lectores"
+            onRowClick={(r) => setSelected(r)}
+            empty={
               <EmptyState icon={Users}
                 title={data.total === 0 && !hasFilters ? 'Todavía no hay lectores' : 'Sin resultados'}
                 description={data.total === 0 && !hasFilters
                   ? 'El padrón del centro aparece acá. También puedes dar de alta un lector nuevo.'
                   : 'Prueba con otra parte del nombre, la cédula, el correo o el carné.'}
                 action={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={15} /> Nuevo lector</Button>} />
-            </Card>
-          ) : (
-            <Card padding="none" className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] border-collapse text-left">
-                  <thead>
-                    <tr className="border-b border-line bg-surface-container/60 text-[11px] font-bold uppercase tracking-[0.05em] text-faint">
-                      <th className="px-4 py-2.5">Lector</th>
-                      <th className="px-3 py-2.5">Tipo</th>
-                      <th className="px-3 py-2.5">Contacto</th>
-                      <th className="px-3 py-2.5">Estado</th>
-                      <th className="px-3 py-2.5">Registro</th>
-                      <th className="px-3 py-2.5"><span className="sr-only">Acciones</span></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line/70">
-                    {data.readers.map((r) => {
-                      const est = estadoDe(r);
-                      const sel = selected?.userId === r.userId;
-                      return (
-                        <tr key={r.userId} className={cn('cursor-pointer transition-colors hover:bg-surface-container/40', sel && 'bg-brand/[0.05]')}
-                          onClick={() => setSelected(r)}>
-                          <td className="px-4 py-2.5">
-                            <span className="flex items-center gap-3">
-                              <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(r.firstName, r.lastName)}</span>
-                              <span className="min-w-0">
-                                <span className="block max-w-[240px] truncate text-[13.5px] font-bold leading-tight text-ink">{r.firstName} {r.lastName}</span>
-                                <span className="block font-mono text-[11px] text-faint tabular-nums">
-                                  {r.code}{r.document ? ` · Céd. ${r.document}` : ''}
-                                </span>
-                              </span>
-                            </span>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2.5">
-                            {r.readerType === 'empleado'
-                              ? <Chip tone="brand">Empleado{r.employeeCode ? ` · ${r.employeeCode}` : ''}</Chip>
-                              : <Chip tone="neutral">No empleado</Chip>}
-                          </td>
-                          <td className="px-3 py-2.5 text-[12.5px] leading-snug text-muted">
-                            {r.email ? <span className="block max-w-[190px] truncate">{r.email}</span> : null}
-                            {r.phone ? <span className="block tabular-nums">{r.phone}</span> : null}
-                            {!r.email && !r.phone ? '—' : null}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2.5"><Chip tone={est.tone} dot>{est.label}</Chip></td>
-                          <td className="whitespace-nowrap px-3 py-2.5 text-[13px] tabular-nums text-muted">{fmtDate(r.registeredAt)}</td>
-                          <td className="px-3 py-2.5 text-right">
-                            <button type="button" aria-label={`Ver detalles de ${r.firstName} ${r.lastName}`}
-                              onClick={(e) => { e.stopPropagation(); setSelected(r); }}
-                              className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
-                              <Eye size={15} strokeWidth={1.9} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
+            }
+            mobileCard={(r) => {
+              const est = estadoDe(r);
+              return (
+                <div className="flex items-center gap-3 p-4">
+                  <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(r.firstName, r.lastName)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13.5px] font-bold text-ink">{r.firstName} {r.lastName}</p>
+                    <p className="truncate font-mono text-[10.5px] text-faint tabular-nums">{r.code}{r.document ? ` · Céd. ${r.document}` : ''}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <Chip tone={est.tone} dot>{est.label}</Chip>
+                      {r.readerType === 'empleado' ? <Chip tone="brand">Empleado</Chip> : null}
+                    </div>
+                  </div>
+                  <button type="button" aria-label={`Ver detalles de ${r.firstName} ${r.lastName}`}
+                    onClick={(e) => { e.stopPropagation(); setSelected(r); }}
+                    className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
+                    <Eye size={15} strokeWidth={1.9} />
+                  </button>
+                </div>
+              );
+            }}
+          />
 
           {/* ── Paginación ── */}
           {data.total > 0 ? (
@@ -313,13 +339,17 @@ export function LectoresClient({ initial, initialStats }: {
         </div>
       ) : null}
 
-      <NewReaderDrawer open={drawer} onClose={() => setDrawer(false)}
+      <NewReaderDrawer
+        open={drawer}
+        returnFocusRef={newLectorBtnRef}
+        onClose={() => setDrawer(false)}
         onCreated={(reader) => {
           setDrawer(false);
           setData((d) => ({ ...d, readers: [reader, ...d.readers], total: d.total + 1 }));
           setSelected(reader);
           void refreshStats();
-        }} />
+        }}
+      />
     </div>
   );
 }
@@ -337,7 +367,6 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
   const [reservations, setReservations] = useState<BiblioReservation[] | null>(null);
   const est = estadoDe(reader);
 
-  // Al cambiar de lector, el panel vuelve al modo lectura.
   const lastId = useRef(reader.userId);
   if (lastId.current !== reader.userId) {
     lastId.current = reader.userId;
@@ -349,7 +378,6 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
     setReservations(null);
   }
 
-  // Préstamos del lector: fetch perezoso al abrir la tab (F2).
   useEffect(() => {
     if (tab !== 'prestamos' || loans !== null) return;
     const ctl = new AbortController();
@@ -363,7 +391,6 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
     return () => ctl.abort();
   }, [tab, loans, reader.userId]);
 
-  // Reservas del lector: fetch perezoso al abrir la tab (F5).
   useEffect(() => {
     if (tab !== 'reservas' || reservations !== null) return;
     const ctl = new AbortController();
@@ -388,7 +415,7 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
       if (!res.ok || !j?.reader) { setError(j.error ?? 'No se pudo actualizar.'); return; }
       onUpdated(j.reader as BiblioReader);
       setSuspending(false);
-    } catch { setError('Problema de red. Reintenta.'); }
+    } catch { setError('Problema de red. Intenta de nuevo.'); }
     finally { setBusy(false); }
   }
 
@@ -417,7 +444,6 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
         </span>
       </div>
 
-      {/* tabs: Información / Préstamos (F2) / Reservas (F5) — Tabs del kit */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}
         tabs={[
           { value: 'informacion', label: 'Información' },
@@ -439,46 +465,46 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
           ) : (
             <>
               <h3 className="mt-4 text-[12px] font-bold uppercase tracking-[0.05em] text-faint">Datos personales</h3>
-          <dl className="mt-1 divide-y divide-line/60">
-            {row('Cédula', reader.document, true)}
-            {row('Correo electrónico', reader.email)}
-            {row('Teléfono', reader.phone, true)}
-            {row('Visitas al centro', String(reader.visitCount), true)}
-          </dl>
+              <dl className="mt-1 divide-y divide-line/60">
+                {row('Cédula', reader.document, true)}
+                {row('Correo electrónico', reader.email)}
+                {row('Teléfono', reader.phone, true)}
+                {row('Visitas al centro', String(reader.visitCount), true)}
+              </dl>
 
-          <h3 className="mt-4 text-[12px] font-bold uppercase tracking-[0.05em] text-faint">Información del lector</h3>
-          <dl className="mt-1 divide-y divide-line/60">
-            {row('Tipo', reader.readerType === 'empleado' ? 'Empleado' : 'No empleado')}
-            {reader.readerType === 'empleado' ? row('Código de empleado', reader.employeeCode, true) : null}
-            {row('Fecha de registro', fmtDate(reader.registeredAt))}
-            {row('Observaciones', reader.notes)}
-            {reader.suspendedAt ? row('Suspendido desde', fmtDate(reader.suspendedAt)) : null}
-            {reader.suspendedReason ? row('Motivo', reader.suspendedReason) : null}
-          </dl>
-          <p className="mt-3 text-[11.5px] leading-relaxed text-faint">Máx. préstamos y préstamos actuales llegan con Circulación (F2).</p>
+              <h3 className="mt-4 text-[12px] font-bold uppercase tracking-[0.05em] text-faint">Información del lector</h3>
+              <dl className="mt-1 divide-y divide-line/60">
+                {row('Tipo', reader.readerType === 'empleado' ? 'Empleado' : 'No empleado')}
+                {reader.readerType === 'empleado' ? row('Código de empleado', reader.employeeCode, true) : null}
+                {row('Fecha de registro', fmtDate(reader.registeredAt))}
+                {row('Observaciones', reader.notes)}
+                {reader.suspendedAt ? row('Suspendido desde', fmtDate(reader.suspendedAt)) : null}
+                {reader.suspendedReason ? row('Motivo', reader.suspendedReason) : null}
+              </dl>
+              <p className="mt-3 text-[11.5px] leading-relaxed text-faint">Máx. préstamos y préstamos actuales llegan con Circulación (F2).</p>
 
-          {error ? <p role="status" className="mt-3 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-semibold text-danger-fg">{error}</p> : null}
+              {error ? <p role="status" className="mt-3 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-semibold text-danger-fg">{error}</p> : null}
 
-          {suspending ? (
-            <SuspendForm busy={busy} onConfirm={(reason) => suspend(true, reason)} onCancel={() => setSuspending(false)} />
-          ) : (
-            <div className="mt-4 flex flex-col gap-2">
-              <Button variant="secondary" className="w-full" onClick={() => { setError(null); setEditing(true); }}>
-                <Pencil size={14} strokeWidth={2} /> Editar perfil de lector
-              </Button>
-              {reader.suspendedAt ? (
-                <Button variant="secondary" className="w-full" disabled={busy} onClick={() => suspend(false, '')}>
-                  {busy ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} strokeWidth={2} />} Reactivar servicio
-                </Button>
+              {suspending ? (
+                <SuspendForm busy={busy} onConfirm={(reason) => suspend(true, reason)} onCancel={() => setSuspending(false)} />
               ) : (
-                <button type="button" disabled={busy} onClick={() => { setError(null); setSuspending(true); }}
-                  className={cn('flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-danger-fg/30 px-3 text-[13px] font-bold text-danger-fg hover:bg-danger-bg', focusRing)}>
-                  <UserX size={14} strokeWidth={2} /> Suspender servicio
-                </button>
+                <div className="mt-4 flex flex-col gap-2">
+                  <Button variant="secondary" className="w-full" onClick={() => { setError(null); setEditing(true); }}>
+                    <Pencil size={14} strokeWidth={2} /> Editar perfil de lector
+                  </Button>
+                  {reader.suspendedAt ? (
+                    <Button variant="secondary" className="w-full" disabled={busy} onClick={() => suspend(false, '')}>
+                      {busy ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} strokeWidth={2} />} Reactivar servicio
+                    </Button>
+                  ) : (
+                    <button type="button" disabled={busy} onClick={() => { setError(null); setSuspending(true); }}
+                      className={cn('flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-danger-fg/30 px-3 text-[13px] font-bold text-danger-fg hover:bg-danger-bg', focusRing)}>
+                      <UserX size={14} strokeWidth={2} /> Suspender servicio
+                    </button>
+                  )}
+                </div>
               )}
-            </div>
-          )}
-        </>
+            </>
           )}
         </TabsContent>
       </Tabs>
@@ -592,7 +618,7 @@ function ProfileEditForm({ reader, busy, setBusy, setError, onSaved, onCancel }:
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j?.reader) { setLocalError(j.error ?? 'No se pudo guardar el perfil.'); return; }
       onSaved(j.reader as BiblioReader);
-    } catch { setLocalError('Problema de red. Reintenta.'); }
+    } catch { setLocalError('Problema de red. Intenta de nuevo.'); }
     finally { setBusy(false); }
   }
 
@@ -625,19 +651,23 @@ function ProfileEditForm({ reader, busy, setBusy, setError, onSaved, onCancel }:
   );
 }
 
-// ── Alta al padrón (carné real, el mismo QR del centro) ──────────────────────
-function NewReaderDrawer({ open, onClose, onCreated }: {
+// ── Alta al padrón (carné real) → Sheet del kit ──────────────────────────────
+function NewReaderDrawer({ open, onClose, onCreated, returnFocusRef }: {
   open: boolean; onClose: () => void; onCreated: (r: BiblioReader) => void;
+  returnFocusRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const titleId = useId();
   const [f, setF] = useState({ firstName: '', lastName: '', document: '', email: '', phone: '', employeeCode: '' });
   const [readerType, setReaderType] = useState<BiblioReaderType>('no_empleado');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const busyRef = useRef(busy); busyRef.current = busy;
-  const reset = () => { setF({ firstName: '', lastName: '', document: '', email: '', phone: '', employeeCode: '' }); setReaderType('no_empleado'); setError(null); };
-  const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: () => { if (!busyRef.current) onClose(); }, onClosed: reset });
+  useEffect(() => {
+    if (!open) {
+      setF({ firstName: '', lastName: '', document: '', email: '', phone: '', employeeCode: '' });
+      setReaderType('no_empleado');
+      setError(null);
+    }
+  }, [open]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -657,61 +687,46 @@ function NewReaderDrawer({ open, onClose, onCreated }: {
       if (!res.ok || !j?.reader) { setError(j.error ?? 'No se pudo crear el lector.'); setBusy(false); return; }
       setBusy(false);
       onCreated(j.reader as BiblioReader);
-    } catch { setError('Problema de red. Reintenta.'); setBusy(false); }
+    } catch { setError('Problema de red. Intenta de nuevo.'); setBusy(false); }
   }
 
-  if (!mounted || typeof document === 'undefined') return null;
-  return createPortal(
-    <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      {/* Formulario no se cierra con clic fuera; escape sí funciona vía useDrawerLifecycle */}
-      <div aria-hidden="true" className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
-      <div ref={panelRef} className={cn(
-        'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
-        'md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
-        'flex flex-col', closing && 'drawer-panel--closing')}>
-        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Lectores</p>
-            <h2 id={titleId} className="mt-1 text-lg font-bold leading-tight tracking-tight text-ink">Nuevo lector</h2>
+  return (
+    <Sheet
+      open={open}
+      onClose={() => { if (!busy) onClose(); }}
+      title="Nuevo lector"
+      dismissOnOverlay={false}
+      returnFocusRef={returnFocusRef as React.RefObject<HTMLElement | null>}
+    >
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <p className="rounded-xl bg-surface-container/60 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-muted">
+          Entra al <b className="text-ink">padrón del centro</b> con un carné QR real — el mismo que usa el kiosko y la puerta. Sin correo de credencial automático.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Nombre" required value={f.firstName} onChange={(e) => setF({ ...f, firstName: e.target.value })} />
+          <Field label="Apellido" required value={f.lastName} onChange={(e) => setF({ ...f, lastName: e.target.value })} />
+        </div>
+        <Field label="Cédula / documento (opcional)" value={f.document} onChange={(e) => setF({ ...f, document: e.target.value })} mono placeholder="001-0000000-0" />
+        <Field label="Correo (opcional)" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+        <Field label="Teléfono (opcional)" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} inputMode="tel" />
+        <div>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Tipo de lector</span>
+          <div className="mt-1 flex gap-1.5">
+            <Button type="button" variant="pill" size="sm" selected={readerType === 'no_empleado'} onClick={() => setReaderType('no_empleado')}>No empleado</Button>
+            <Button type="button" variant="pill" size="sm" selected={readerType === 'empleado'} onClick={() => setReaderType('empleado')}>Empleado</Button>
           </div>
-          <IconButton label="Cerrar" variant="outline" size="sm" onClick={onClose} disabled={busy}><X size={18} /></IconButton>
-        </header>
+        </div>
+        {readerType === 'empleado' ? (
+          <Field label="Código de empleado (RRHH)" value={f.employeeCode} onChange={(e) => setF({ ...f, employeeCode: e.target.value })} mono placeholder="EMP-0042" />
+        ) : null}
 
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
-          <p className="rounded-xl bg-surface-container/60 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-muted">
-            Entra al <b className="text-ink">padrón del centro</b> con un carné QR real — el mismo que usa el kiosko y la puerta. Sin correo de credencial automático.
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <Field label="Nombre" required value={f.firstName} onChange={(e) => setF({ ...f, firstName: e.target.value })} />
-            <Field label="Apellido" required value={f.lastName} onChange={(e) => setF({ ...f, lastName: e.target.value })} />
-          </div>
-          <div className="mt-3 flex flex-col gap-3">
-            <Field label="Cédula / documento (opcional)" value={f.document} onChange={(e) => setF({ ...f, document: e.target.value })} mono placeholder="001-0000000-0" />
-            <Field label="Correo (opcional)" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
-            <Field label="Teléfono (opcional)" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} inputMode="tel" />
-          </div>
-          <div className="mt-3">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Tipo de lector</span>
-            <div className="mt-1 flex gap-1.5">
-              <Button type="button" variant="pill" size="sm" selected={readerType === 'no_empleado'} onClick={() => setReaderType('no_empleado')}>No empleado</Button>
-              <Button type="button" variant="pill" size="sm" selected={readerType === 'empleado'} onClick={() => setReaderType('empleado')}>Empleado</Button>
-            </div>
-          </div>
-          {readerType === 'empleado' ? (
-            <div className="mt-3">
-              <Field label="Código de empleado (RRHH)" value={f.employeeCode} onChange={(e) => setF({ ...f, employeeCode: e.target.value })} mono placeholder="EMP-0042" />
-            </div>
-          ) : null}
+        {error ? <p role="status" className="rounded-lg bg-danger-bg px-3 py-2 text-[13px] font-semibold text-danger-fg">{error}</p> : null}
 
-          {error ? <p role="status" className="mt-3 rounded-lg bg-danger-bg px-3 py-2 text-[13px] font-semibold text-danger-fg">{error}</p> : null}
-
-          <Button type="submit" variant="primary" size="lg" className="mt-4 w-full" disabled={busy || !f.firstName.trim() || !f.lastName.trim()}>
-            {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} strokeWidth={2.2} />} Crear lector
-          </Button>
-          <p className="mb-1 mt-2 text-center text-[12px] text-muted">El carné se genera al crear — quedará visible en sus detalles.</p>
-        </form>
-      </div>
-    </div>,
-    document.body,
+        <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy || !f.firstName.trim() || !f.lastName.trim()}>
+          {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} strokeWidth={2.2} />} Crear lector
+        </Button>
+        <p className="text-center text-[12px] text-muted">El carné se genera al crear — quedará visible en sus detalles.</p>
+      </form>
+    </Sheet>
   );
 }

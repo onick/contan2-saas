@@ -1,14 +1,11 @@
 'use client';
 
 // components/biblioteca/CirculacionClient.tsx · PRÉSTAMOS / CIRCULACIÓN (F2)
-// D6: visible label «Préstamos». Tabla ordenada por vencimiento (API ya lo hace).
-// Vencidos: badge + texto rojo en celda de fecha. «Devolver» con texto por fila.
-// Drawer: muestra fecha estimada de vencimiento + aviso de reserva.
-// Formularios no se cierran con clic fuera (backdrop no-op).
+// F8b: tabla → DataTableClient (sin scroll horizontal); tabs → Tabs kit;
+// drawers → Sheet (foco atrapado, no cierra con clic fuera).
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useId, useRef, useState } from 'react';
 import Link from 'next/link';
-import { createPortal } from 'react-dom';
 import {
   ArrowLeftRight, RotateCcw, Bookmark, History, Search, Loader2, Check, X,
   ChevronLeft, ChevronRight, BookOpen, Armchair, AlertTriangle, Clock3, Eye,
@@ -18,7 +15,12 @@ import type {
   BiblioLoansListResponse, BiblioLoan, BiblioCirculationSummary, BiblioLoanPrecheckResponse,
 } from '@contan2/contracts';
 import { devolverLoan } from '../../lib/api/biblio-client';
-import { Card, Button, IconButton, Chip, EmptyState, SectionHeader, cn, focusRing, useDrawerLifecycle } from '../ui';
+import {
+  Card, Button, IconButton, Chip, EmptyState, SectionHeader, Sheet,
+  Tabs, TabsContent, DataTableClient,
+  cn, focusRing,
+} from '../ui';
+import type { DataTableColumn } from '../ui';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
@@ -44,13 +46,11 @@ export function LoanStatusChip({ loan }: { loan: BiblioLoan }) {
   }
 }
 
-interface CircTab { key: string; label: string; Icon: typeof BookOpen; soon?: boolean }
-const TABS: CircTab[] = [
-  { key: 'activos', label: 'Préstamos', Icon: BookOpen },
-  { key: 'devueltos', label: 'Devoluciones', Icon: RotateCcw },
-  { key: 'renovados', label: 'Renovaciones', Icon: RefreshCw },
-  { key: 'reservas', label: 'Reservas', Icon: Bookmark, soon: true },
-  { key: 'todos', label: 'Historial', Icon: History },
+const CIRC_TABS = [
+  { value: 'activos', label: 'Préstamos' },
+  { value: 'devueltos', label: 'Devoluciones' },
+  { value: 'renovados', label: 'Renovaciones' },
+  { value: 'todos', label: 'Historial' },
 ];
 
 export function CirculacionClient({ initial, initialSummary }: {
@@ -68,6 +68,10 @@ export function CirculacionClient({ initial, initialSummary }: {
   const [busyRow, setBusyRow] = useState<string | null>(null);
   const first = useRef(true);
   const pageSize = 20;
+  // refs para returnFocus del Sheet al trigger que abrió el drawer
+  const newLoanBtnRef = useRef<HTMLButtonElement>(null);
+  const devolverBtnRef = useRef<HTMLButtonElement>(null);
+  const drawerReturnRef = drawer?.mode === 'devolver' ? devolverBtnRef : newLoanBtnRef;
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -96,7 +100,7 @@ export function CirculacionClient({ initial, initialSummary }: {
       if (!res.ok || !j?.loan) { setRowError(j.error ?? 'No se pudo renovar.'); return; }
       setFlash(`Renovado: «${loan.title}» ahora vence el ${fmtDate((j.loan as BiblioLoan).dueAt)}.`);
       void refresh();
-    } catch { setRowError('Problema de red. Reintenta.'); }
+    } catch { setRowError('Problema de red. Intenta de nuevo.'); }
     finally { setBusyRow(null); }
   }
 
@@ -109,9 +113,104 @@ export function CirculacionClient({ initial, initialSummary }: {
     setBusyRow(null);
   }
 
-  const pages = Math.max(1, Math.ceil(data.total / data.pageSize));
   const showDue = tab !== 'devueltos';
   const loanDays = summary?.policy.loanDays ?? 14;
+  const pages = Math.max(1, Math.ceil(data.total / data.pageSize));
+
+  // Columnas para DataTableClient — se redefinen en cada render para capturar el estado actual.
+  const columns: DataTableColumn<BiblioLoan>[] = useMemo(() => [
+    {
+      id: 'lector',
+      header: 'Lector',
+      cell: (l) => (
+        <span className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(l.userFirstName, l.userLastName)}</span>
+          <span className="min-w-0">
+            <span className="block max-w-[170px] truncate text-[13px] font-bold leading-tight text-ink">{l.userFirstName} {l.userLastName}</span>
+            <span className="block font-mono text-[10.5px] text-faint tabular-nums">{l.userCode}</span>
+          </span>
+        </span>
+      ),
+    },
+    {
+      id: 'ejemplar',
+      header: 'Ejemplar',
+      cell: (l) => (
+        <Link href={`/app/biblioteca/titulos/${l.titleId}`} className={cn('flex items-center gap-2.5 rounded-lg', focusRing)}>
+          <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
+            {l.coverUrl
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={l.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+              : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
+          </span>
+          <span className="min-w-0">
+            <span className="block max-w-[200px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand">{l.title}</span>
+            <span className="block max-w-[200px] truncate text-[11px] text-muted">{l.authors[0] ?? ''}</span>
+            <span className="block font-mono text-[10.5px] text-faint tabular-nums">Inv. {l.inventoryCode}</span>
+          </span>
+        </Link>
+      ),
+    },
+    {
+      id: 'prestamo',
+      header: 'Préstamo',
+      priority: 'md',
+      cell: (l) => (
+        <span className="text-[12.5px] tabular-nums text-muted">
+          {fmtDate(l.loanedAt)}
+          {l.kind === 'sala' ? <span className="block text-[10.5px] font-semibold text-faint">En sala</span> : null}
+          {l.renewals > 0 ? <span className="block text-[10.5px] text-faint">{l.renewals} renov.</span> : null}
+        </span>
+      ),
+    },
+    {
+      id: 'fecha',
+      header: showDue ? 'Fecha límite' : 'Devolución',
+      priority: 'md',
+      cell: (l) => (
+        <span className={cn('text-[12.5px] tabular-nums', l.status === 'vencido' ? 'font-bold text-danger-fg' : 'text-muted')}>
+          {showDue ? fmtDate(l.dueAt) : (l.returnedAt ? fmtDate(l.returnedAt) : '—')}
+          {l.status === 'vencido' && showDue ? <span className="block text-[10.5px] font-bold text-danger-fg">Vencido</span> : null}
+        </span>
+      ),
+    },
+    {
+      id: 'estado',
+      header: 'Estado',
+      priority: 'md',
+      cell: (l) => <LoanStatusChip loan={l} />,
+    },
+    {
+      id: 'acciones',
+      header: '',
+      align: 'right',
+      width: 124,
+      cell: (l) => (
+        l.returnedAt ? (
+          <Link href={`/app/biblioteca/titulos/${l.titleId}`} aria-label={`Ver ficha de ${l.title}`}
+            className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
+            <Eye size={15} strokeWidth={1.9} />
+          </Link>
+        ) : (
+          <span className="flex items-center justify-end gap-1.5">
+            <Button variant="secondary" size="sm" disabled={busyRow === l.id} onClick={() => devolver(l)}
+              aria-label={`Devolver ${l.title}`}>
+              {busyRow === l.id ? <Loader2 size={13} className="animate-spin" /> : null}
+              Devolver
+            </Button>
+            {l.kind === 'domicilio' ? (
+              <button type="button" disabled={busyRow === l.id} onClick={() => renew(l)}
+                title="Renovar (+14 días)" aria-label={`Renovar ${l.title}`}
+                className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
+                <RefreshCw size={14} strokeWidth={2} />
+              </button>
+            ) : null}
+          </span>
+        )
+      ),
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [busyRow, showDue]);
 
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_290px] xl:items-start xl:gap-5">
@@ -123,158 +222,94 @@ export function CirculacionClient({ initial, initialSummary }: {
             subtitle="Presta y devuelve en dos escaneos: el carné del lector y el código del ejemplar."
             actions={
               <div className="flex items-center gap-2">
-                <Button variant="secondary" onClick={() => setDrawer({ mode: 'devolver' })}><ScanBarcode size={15} strokeWidth={2} /> Devolución</Button>
-                <Button variant="primary" onClick={() => setDrawer({ mode: 'prestar', kind: 'domicilio' })}><Plus size={16} strokeWidth={2.2} /> Nuevo préstamo</Button>
+                <Button ref={devolverBtnRef} variant="secondary" onClick={() => setDrawer({ mode: 'devolver' })}><ScanBarcode size={15} strokeWidth={2} /> Devolución</Button>
+                <Button ref={newLoanBtnRef} variant="primary" onClick={() => setDrawer({ mode: 'prestar', kind: 'domicilio' })}><Plus size={16} strokeWidth={2.2} /> Nuevo préstamo</Button>
               </div>
             }
           />
         </div>
 
-        {/* ── Tabs ── */}
-        <div className="app-reveal mt-4 flex gap-1 overflow-x-auto border-b border-line" style={{ animationDelay: '30ms' }} role="tablist" aria-label="Vistas de circulación">
-          {TABS.map((t) => t.soon ? (
-            <Link key={t.key} href="/app/biblioteca/reservas"
-              className={cn('flex flex-none items-center gap-1.5 px-3.5 py-2 text-[13.5px] font-medium text-muted hover:text-ink', focusRing)}>
-              <t.Icon size={15} strokeWidth={1.9} /> {t.label}
-            </Link>
-          ) : (
-            <button key={t.key} type="button" role="tab" aria-selected={tab === t.key}
-              onClick={() => { setTab(t.key); setPage(1); }}
-              className={cn('flex flex-none items-center gap-1.5 px-3.5 py-2 text-[13.5px]', focusRing,
-                tab === t.key ? 'border-b-2 border-brand font-bold text-brand' : 'font-medium text-muted hover:text-ink')}>
-              <t.Icon size={15} strokeWidth={1.9} /> {t.label}
-            </button>
-          ))}
-        </div>
+        {/* ── Tabs del kit ── */}
+        <div className="app-reveal mt-4" style={{ animationDelay: '30ms' }}>
+          <Tabs
+            value={tab}
+            onValueChange={(v) => { setTab(v); setPage(1); }}
+            tabs={CIRC_TABS}
+          >
+            {/* ── Búsqueda ── */}
+            <label className={cn('flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-2.5', focusRing)}>
+              <Search size={16} className="text-faint" aria-hidden="true" />
+              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                placeholder="Buscar por lector (nombre, cédula, carné, correo) o por ejemplar/título…" aria-label="Buscar préstamos"
+                className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
+              {loading ? <Loader2 size={15} className="animate-spin text-faint" /> : null}
+            </label>
 
-        {/* ── Búsqueda ── */}
-        <label className={cn('app-reveal mt-4 flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-2.5', focusRing)} style={{ animationDelay: '50ms' }}>
-          <Search size={16} className="text-faint" aria-hidden="true" />
-          <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }}
-            placeholder="Buscar por lector (nombre, cédula, carné, correo) o por ejemplar/título…" aria-label="Buscar préstamos"
-            className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
-          {loading ? <Loader2 size={15} className="animate-spin text-faint" /> : null}
-        </label>
+            {flash ? <p role="status" className="rounded-xl bg-success-bg px-4 py-2.5 text-[13px] font-semibold text-success-fg">✓ {flash}</p> : null}
+            {rowError ? <p role="status" className="rounded-xl bg-danger-bg px-4 py-2.5 text-[13px] font-semibold text-danger-fg">{rowError}</p> : null}
 
-        {flash ? <p role="status" className="mt-3 rounded-xl bg-success-bg px-4 py-2.5 text-[13px] font-semibold text-success-fg">✓ {flash}</p> : null}
-        {rowError ? <p role="status" className="mt-3 rounded-xl bg-danger-bg px-4 py-2.5 text-[13px] font-semibold text-danger-fg">{rowError}</p> : null}
-
-        {/* ── Tabla ── */}
-        <p className="mt-4 text-[14px] font-bold text-ink" aria-live="polite">
-          {fmt(data.total)} {data.total === 1 ? 'préstamo' : 'préstamos'}{tab === 'activos' ? ' activos' : tab === 'devueltos' ? ' devueltos' : tab === 'renovados' ? ' renovados' : tab === 'vencidos' ? ' vencidos' : ''}
-        </p>
-        <div className={cn('mt-2.5 transition-opacity', loading && 'opacity-50')}>
-          {data.loans.length === 0 ? (
-            <Card padding="lg">
-              <EmptyState icon={ArrowLeftRight}
-                title={q ? 'Sin resultados' : tab === 'activos' ? 'No hay préstamos activos' : 'Nada por acá todavía'}
-                description={q ? 'Prueba con otro nombre, carné o código de ejemplar.' : 'Registra el primer préstamo con los dos escaneos: carné y ejemplar.'}
-                action={<Button variant="primary" onClick={() => setDrawer({ mode: 'prestar', kind: 'domicilio' })}><Plus size={15} /> Nuevo préstamo</Button>} />
-            </Card>
-          ) : (
-            <Card padding="none" className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[800px] border-collapse text-left">
-                  <thead>
-                    <tr className="border-b border-line bg-surface-container/60 text-[11px] font-bold uppercase tracking-[0.05em] text-faint">
-                      <th className="px-4 py-2.5">Lector</th>
-                      <th className="px-3 py-2.5">Ejemplar</th>
-                      <th className="px-3 py-2.5">Préstamo</th>
-                      <th className="px-3 py-2.5">{showDue ? 'Fecha límite' : 'Devolución'}</th>
-                      <th className="px-3 py-2.5">Estado</th>
-                      <th className="px-3 py-2.5"><span className="sr-only">Acciones</span></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line/70">
-                    {data.loans.map((l) => (
-                      <tr key={l.id} className="transition-colors hover:bg-surface-container/40">
-                        <td className="px-4 py-2.5">
-                          <span className="flex items-center gap-2.5">
-                            <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(l.userFirstName, l.userLastName)}</span>
-                            <span className="min-w-0">
-                              <span className="block max-w-[170px] truncate text-[13px] font-bold leading-tight text-ink">{l.userFirstName} {l.userLastName}</span>
-                              <span className="block font-mono text-[10.5px] text-faint tabular-nums">{l.userCode}</span>
-                            </span>
+            {/* ── Tabla ── */}
+            <p className="text-[14px] font-bold text-ink" aria-live="polite">
+              {fmt(data.total)} {data.total === 1 ? 'préstamo' : 'préstamos'}{tab === 'activos' ? ' activos' : tab === 'devueltos' ? ' devueltos' : tab === 'renovados' ? ' renovados' : ''}
+            </p>
+            <div className={cn('transition-opacity', loading && 'opacity-50')}>
+              <DataTableClient
+                data={data.loans}
+                columns={columns}
+                getRowId={(l) => l.id}
+                ariaLabel="Lista de préstamos"
+                empty={
+                  <EmptyState icon={ArrowLeftRight}
+                    title={q ? 'Sin resultados' : tab === 'activos' ? 'No hay préstamos activos' : 'Nada por acá todavía'}
+                    description={q ? 'Prueba con otro nombre, carné o código de ejemplar.' : 'Registra el primer préstamo con los dos escaneos: carné y ejemplar.'}
+                    action={<Button variant="primary" onClick={() => setDrawer({ mode: 'prestar', kind: 'domicilio' })}><Plus size={15} /> Nuevo préstamo</Button>} />
+                }
+                mobileCard={(l) => (
+                  <div className="flex items-center gap-3 p-4">
+                    <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(l.userFirstName, l.userLastName)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-bold text-ink">{l.userFirstName} {l.userLastName}</p>
+                      <p className="truncate text-[11.5px] text-muted">{l.title} · Inv. {l.inventoryCode}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <LoanStatusChip loan={l} />
+                        {showDue && !l.returnedAt ? (
+                          <span className={cn('text-[11px] tabular-nums', l.status === 'vencido' ? 'font-bold text-danger-fg' : 'text-faint')}>
+                            vence {fmtDate(l.dueAt)}
                           </span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <Link href={`/app/biblioteca/titulos/${l.titleId}`} className={cn('flex items-center gap-2.5 rounded-lg', focusRing)}>
-                            <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
-                              {l.coverUrl
-                                // eslint-disable-next-line @next/next/no-img-element
-                                ? <img src={l.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                                : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block max-w-[200px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand">{l.title}</span>
-                              <span className="block max-w-[200px] truncate text-[11px] text-muted">{l.authors[0] ?? ''}</span>
-                              <span className="block font-mono text-[10.5px] text-faint tabular-nums">Inv. {l.inventoryCode}</span>
-                            </span>
-                          </Link>
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-[12.5px] tabular-nums text-muted">
-                          {fmtDate(l.loanedAt)}
-                          {l.kind === 'sala' ? <span className="block text-[10.5px] font-semibold text-faint">Consulta en sala</span> : null}
-                          {l.renewals > 0 ? <span className="block text-[10.5px] text-faint">{l.renewals} renov.</span> : null}
-                        </td>
-                        <td className={cn('whitespace-nowrap px-3 py-2.5 text-[12.5px] tabular-nums',
-                          l.status === 'vencido' ? 'font-bold text-danger-fg' : 'text-muted')}>
-                          {showDue ? fmtDate(l.dueAt) : (l.returnedAt ? fmtDate(l.returnedAt) : '—')}
-                          {l.status === 'vencido' && showDue ? (
-                            <span className="block text-[10.5px] font-bold text-danger-fg">Vencido</span>
-                          ) : null}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2.5"><LoanStatusChip loan={l} /></td>
-                        <td className="px-3 py-2.5">
-                          {l.returnedAt ? (
-                            <Link href={`/app/biblioteca/titulos/${l.titleId}`} aria-label={`Ver ficha de ${l.title}`}
-                              className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
-                              <Eye size={15} strokeWidth={1.9} />
-                            </Link>
-                          ) : (
-                            <span className="flex items-center justify-end gap-1.5">
-                              <Button variant="secondary" size="sm" disabled={busyRow === l.id} onClick={() => devolver(l)}
-                                aria-label={`Devolver ${l.title}`}>
-                                {busyRow === l.id ? <Loader2 size={13} className="animate-spin" /> : null}
-                                Devolver
-                              </Button>
-                              {l.kind === 'domicilio' ? (
-                                <button type="button" disabled={busyRow === l.id} onClick={() => renew(l)}
-                                  title="Renovar (+14 días)" aria-label={`Renovar ${l.title}`}
-                                  className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
-                                  <RefreshCw size={14} strokeWidth={2} />
-                                </button>
-                              ) : null}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
+                        ) : null}
+                      </div>
+                    </div>
+                    {!l.returnedAt ? (
+                      <Button variant="secondary" size="sm" disabled={busyRow === l.id} onClick={() => devolver(l)}>
+                        {busyRow === l.id ? <Loader2 size={13} className="animate-spin" /> : null}
+                        Devolver
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
+              />
 
-          {pages > 1 ? (
-            <nav className="mt-3.5 flex items-center justify-center gap-1" aria-label="Paginación">
-              <IconButton label="Página anterior" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                <ChevronLeft size={15} />
-              </IconButton>
-              {pageWindow(data.page, pages).map((p, i) => p === '…' ? (
-                <span key={`e${i}`} className="px-1 text-faint">…</span>
-              ) : (
-                <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === data.page ? 'page' : undefined}
-                  className={cn('grid h-8 min-w-8 place-items-center rounded-lg px-1 text-[12.5px] font-bold tabular-nums', focusRing,
-                    p === data.page ? 'bg-brand text-brand-fg' : 'text-muted hover:bg-surface-container')}>
-                  {p}
-                </button>
-              ))}
-              <IconButton label="Página siguiente" variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
-                <ChevronRight size={15} />
-              </IconButton>
-            </nav>
-          ) : null}
+              {pages > 1 ? (
+                <nav className="mt-3.5 flex items-center justify-center gap-1" aria-label="Paginación">
+                  <IconButton label="Página anterior" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                    <ChevronLeft size={15} />
+                  </IconButton>
+                  {pageWindow(data.page, pages).map((p, i) => p === '…' ? (
+                    <span key={`e${i}`} className="px-1 text-faint">…</span>
+                  ) : (
+                    <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === data.page ? 'page' : undefined}
+                      className={cn('grid h-8 min-w-8 place-items-center rounded-lg px-1 text-[12.5px] font-bold tabular-nums', focusRing,
+                        p === data.page ? 'bg-brand text-brand-fg' : 'text-muted hover:bg-surface-container')}>
+                      {p}
+                    </button>
+                  ))}
+                  <IconButton label="Página siguiente" variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+                    <ChevronRight size={15} />
+                  </IconButton>
+                </nav>
+              ) : null}
+            </div>
+          </Tabs>
         </div>
       </div>
 
@@ -323,8 +358,13 @@ export function CirculacionClient({ initial, initialSummary }: {
         ) : null}
       </aside>
 
-      <CirculacionDrawer state={drawer} loanDays={loanDays} onClose={() => setDrawer(null)}
-        onDone={(msg) => { setDrawer(null); setFlash(msg); void refresh(); }} />
+      <CirculacionDrawer
+        state={drawer}
+        loanDays={loanDays}
+        onClose={() => setDrawer(null)}
+        onDone={(msg) => { setDrawer(null); setFlash(msg); void refresh(); }}
+        returnFocusRef={drawerReturnRef}
+      />
     </div>
   );
 }
@@ -350,13 +390,14 @@ function SummaryRow({ label, value }: { label: string; value: number }) {
   );
 }
 
-// ── Drawer de prestar (2 escaneos con precheck) / devolver (1 escaneo) ───────
-function CirculacionDrawer({ state, loanDays, onClose, onDone }: {
+// ── Drawer de prestar / devolver → Sheet del kit ─────────────────────────────
+function CirculacionDrawer({ state, loanDays, onClose, onDone, returnFocusRef }: {
   state: null | { mode: 'prestar'; kind: 'domicilio' | 'sala' } | { mode: 'devolver' };
-  loanDays: number; onClose: () => void; onDone: (msg: string) => void;
+  loanDays: number;
+  onClose: () => void;
+  onDone: (msg: string) => void;
+  returnFocusRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const titleId = useId();
-  const open = state !== null;
   const [readerCode, setReaderCode] = useState('');
   const [invCode, setInvCode] = useState('');
   const [kind, setKind] = useState<'domicilio' | 'sala'>('domicilio');
@@ -366,9 +407,15 @@ function CirculacionDrawer({ state, loanDays, onClose, onDone }: {
   const [error, setError] = useState<string | null>(null);
   const invRef = useRef<HTMLInputElement>(null);
 
-  const busyRef = useRef(busy); busyRef.current = busy;
-  const reset = () => { setReaderCode(''); setInvCode(''); setPre({ reader: null, item: null }); setError(null); };
-  const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: () => { if (!busyRef.current) onClose(); }, onClosed: reset });
+  const open = state !== null;
+  const prestar = state?.mode === 'prestar';
+
+  // Reset al cerrar
+  useEffect(() => {
+    if (!open) {
+      setReaderCode(''); setInvCode(''); setPre({ reader: null, item: null }); setError(null);
+    }
+  }, [open]);
 
   // Al abrir en modo sala, preseleccionar el tipo.
   useEffect(() => { if (state?.mode === 'prestar') setKind(state.kind); }, [state]);
@@ -391,20 +438,15 @@ function CirculacionDrawer({ state, loanDays, onClose, onDone }: {
     return () => { clearTimeout(t); ctl.abort(); };
   }, [open, state?.mode, readerCode, invCode]);
 
-  if (!mounted || typeof document === 'undefined' || !state) return null;
-  const prestar = state.mode === 'prestar';
-
   const readerOk = pre.reader && !pre.reader.suspended && !pre.reader.archived
     && (kind === 'sala' || pre.reader.openLoans < pre.reader.maxOpenLoans);
   const itemOk = pre.item && !pre.item.retired && !pre.item.onLoan && (kind === 'sala' || pre.item.loanable);
   const canConfirm = prestar ? (!!readerOk && !!itemOk && !busy) : (!!invCode.trim() && !busy);
 
-  // Aviso de reserva: el ejemplar está apartado para otra persona.
   const reservationWarning = pre.item?.reservedForUserId && pre.reader
     ? pre.item.reservedForUserId !== pre.reader.userId
     : !!pre.item?.reservedForUserId;
 
-  // Fecha estimada de devolución (informativa, no editable).
   const estimatedDueDate = useMemo(() => {
     if (kind !== 'domicilio') return null;
     const d = new Date();
@@ -440,111 +482,99 @@ function CirculacionDrawer({ state, loanDays, onClose, onDone }: {
         setBusy(false);
         onDone(`Devuelto: «${loan.title}» (${loan.inventoryCode}) de ${loan.userFirstName} ${loan.userLastName}.`);
       }
-    } catch { setError('Problema de red. Reintenta.'); setBusy(false); }
+    } catch { setError('Problema de red. Intenta de nuevo.'); setBusy(false); }
   }
 
-  return createPortal(
-    <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      {/* Formularios no se cierran con clic fuera */}
-      <div aria-hidden="true" className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
-      <div ref={panelRef} className={cn(
-        'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
-        'md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
-        'flex flex-col', closing && 'drawer-panel--closing')}>
-        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Préstamos</p>
-            <h2 id={titleId} className="mt-1 text-lg font-bold leading-tight tracking-tight text-ink">
-              {prestar ? (kind === 'sala' ? 'Consulta en sala' : 'Nuevo préstamo') : 'Devolución'}
-            </h2>
-          </div>
-          <IconButton label="Cerrar" variant="outline" size="sm" onClick={onClose} disabled={busy}><X size={18} /></IconButton>
-        </header>
+  const title = state?.mode === 'devolver' ? 'Devolución' : kind === 'sala' ? 'Consulta en sala' : 'Nuevo préstamo';
 
-        <form onSubmit={confirm} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
-          {prestar ? (
-            <>
-              <div className="flex gap-1.5">
-                <Button type="button" variant="pill" size="sm" selected={kind === 'domicilio'} onClick={() => setKind('domicilio')}>A domicilio · {loanDays} días</Button>
-                <Button type="button" variant="pill" size="sm" selected={kind === 'sala'} onClick={() => setKind('sala')}>En sala · hoy</Button>
-              </div>
+  return (
+    <Sheet
+      open={open}
+      onClose={() => { if (!busy) onClose(); }}
+      title={title}
+      dismissOnOverlay={false}
+      returnFocusRef={returnFocusRef as React.RefObject<HTMLElement | null>}
+    >
+      <form onSubmit={confirm} className="flex flex-col gap-4">
+        {prestar ? (
+          <>
+            <div className="flex gap-1.5">
+              <Button type="button" variant="pill" size="sm" selected={kind === 'domicilio'} onClick={() => setKind('domicilio')}>A domicilio · {loanDays} días</Button>
+              <Button type="button" variant="pill" size="sm" selected={kind === 'sala'} onClick={() => setKind('sala')}>En sala · hoy</Button>
+            </div>
 
-              {/* Paso 1: carné */}
-              <label className="mt-4 block">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><QrCode size={12} /> 1 · Carné del lector</span>
-                <input value={readerCode} onChange={(e) => setReaderCode(e.target.value)} placeholder="Escanea o escribe el código — CCB-…"
-                  autoFocus onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); invRef.current?.focus(); } }}
-                  className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
-              </label>
-              {pre.reader ? (
-                <div className={cn('mt-2 rounded-xl px-3.5 py-2.5 text-[12.5px] leading-snug',
-                  pre.reader.suspended || pre.reader.archived || (kind === 'domicilio' && pre.reader.openLoans >= pre.reader.maxOpenLoans) ? 'bg-danger-bg text-danger-fg' : 'bg-success-bg text-success-fg')}>
-                  <b>{pre.reader.firstName} {pre.reader.lastName}</b> · {pre.reader.readerType === 'empleado' ? 'Empleado' : 'No empleado'} · {pre.reader.openLoans}/{pre.reader.maxOpenLoans} préstamos
-                  {pre.reader.suspended ? ' — servicio SUSPENDIDO' : pre.reader.archived ? ' — archivado en el padrón' : (kind === 'domicilio' && pre.reader.openLoans >= pre.reader.maxOpenLoans) ? ' — límite alcanzado' : ' ✓'}
-                </div>
-              ) : readerCode.trim() && !checking ? (
-                <p className="mt-2 text-[12px] text-muted">Ese carné no aparece en el padrón.</p>
-              ) : null}
-
-              {/* Paso 2: ejemplar */}
-              <label className="mt-4 block">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><ScanBarcode size={12} /> 2 · Código del ejemplar</span>
-                <input ref={invRef} value={invCode} onChange={(e) => setInvCode(e.target.value)} placeholder="Escanea o escribe el inventario — BIB-…"
-                  className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
-              </label>
-              {pre.item ? (
-                <div className={cn('mt-2 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[12.5px] leading-snug',
-                  pre.item.retired || pre.item.onLoan || (kind === 'domicilio' && !pre.item.loanable) ? 'bg-danger-bg text-danger-fg' : 'bg-success-bg text-success-fg')}>
-                  <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/50 bg-brand-accent">
-                    {pre.item.coverUrl
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={pre.item.coverUrl} alt="" className="h-full w-full object-cover" />
-                      : <BookOpen size={12} className="text-white/85" aria-hidden="true" />}
-                  </span>
-                  <span className="min-w-0">
-                    <b className="block truncate">{pre.item.title}</b>
-                    {pre.item.onLoan ? 'Ya está prestado — devuélvelo primero'
-                      : pre.item.retired ? 'Dado de baja'
-                      : (kind === 'domicilio' && !pre.item.loanable) ? 'Solo consulta en sala'
-                      : `${pre.item.inventoryCode} ✓`}
-                  </span>
-                </div>
-              ) : invCode.trim() && !checking ? (
-                <p className="mt-2 text-[12px] text-muted">Ese código de ejemplar no existe.</p>
-              ) : null}
-
-              {/* Aviso de reserva (informativo, no bloquea) */}
-              {reservationWarning ? (
-                <p className="mt-2 rounded-xl bg-warning-bg px-3.5 py-2.5 text-[12.5px] font-semibold text-warning-fg">
-                  ⚠ Este libro tiene una reserva de otra persona.
-                </p>
-              ) : null}
-
-              {/* Fecha estimada de vencimiento (solo domicilio, cuando todo OK) */}
-              {kind === 'domicilio' && readerOk && itemOk && estimatedDueDate ? (
-                <p className="mt-2 text-[12px] font-semibold text-muted">
-                  Vencimiento: <span className="font-bold text-ink">{estimatedDueDate}</span> ({loanDays} días)
-                </p>
-              ) : null}
-            </>
-          ) : (
+            {/* Paso 1: carné */}
             <label className="block">
-              <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><ScanBarcode size={12} /> Código del ejemplar</span>
-              <input value={invCode} onChange={(e) => setInvCode(e.target.value)} placeholder="Escanea o escribe el inventario — BIB-…" autoFocus
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><QrCode size={12} /> 1 · Carné del lector</span>
+              <input value={readerCode} onChange={(e) => setReaderCode(e.target.value)} placeholder="Escanea o escribe el código — CCB-…"
+                autoFocus onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); invRef.current?.focus(); } }}
                 className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
-              <span className="mt-2 block text-[12px] leading-relaxed text-muted">Un solo escaneo: buscamos el préstamo abierto de ese ejemplar y lo cerramos.</span>
             </label>
-          )}
+            {pre.reader ? (
+              <div className={cn('rounded-xl px-3.5 py-2.5 text-[12.5px] leading-snug',
+                pre.reader.suspended || pre.reader.archived || (kind === 'domicilio' && pre.reader.openLoans >= pre.reader.maxOpenLoans) ? 'bg-danger-bg text-danger-fg' : 'bg-success-bg text-success-fg')}>
+                <b>{pre.reader.firstName} {pre.reader.lastName}</b> · {pre.reader.readerType === 'empleado' ? 'Empleado' : 'No empleado'} · {pre.reader.openLoans}/{pre.reader.maxOpenLoans} préstamos
+                {pre.reader.suspended ? ' — servicio SUSPENDIDO' : pre.reader.archived ? ' — archivado en el padrón' : (kind === 'domicilio' && pre.reader.openLoans >= pre.reader.maxOpenLoans) ? ' — límite alcanzado' : ' ✓'}
+              </div>
+            ) : readerCode.trim() && !checking ? (
+              <p className="text-[12px] text-muted">Ese carné no aparece en el padrón.</p>
+            ) : null}
 
-          {error ? <p role="status" className="mt-3 rounded-lg bg-danger-bg px-3 py-2 text-[13px] font-semibold text-danger-fg">{error}</p> : null}
+            {/* Paso 2: ejemplar */}
+            <label className="block">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><ScanBarcode size={12} /> 2 · Código del ejemplar</span>
+              <input ref={invRef} value={invCode} onChange={(e) => setInvCode(e.target.value)} placeholder="Escanea o escribe el inventario — BIB-…"
+                className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
+            </label>
+            {pre.item ? (
+              <div className={cn('flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[12.5px] leading-snug',
+                pre.item.retired || pre.item.onLoan || (kind === 'domicilio' && !pre.item.loanable) ? 'bg-danger-bg text-danger-fg' : 'bg-success-bg text-success-fg')}>
+                <span className="grid h-10 w-7 flex-none place-items-center overflow-hidden rounded border border-line/50 bg-brand-accent">
+                  {pre.item.coverUrl
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={pre.item.coverUrl} alt="" className="h-full w-full object-cover" />
+                    : <BookOpen size={12} className="text-white/85" aria-hidden="true" />}
+                </span>
+                <span className="min-w-0">
+                  <b className="block truncate">{pre.item.title}</b>
+                  {pre.item.onLoan ? 'Ya está prestado — devuélvelo primero'
+                    : pre.item.retired ? 'Dado de baja'
+                    : (kind === 'domicilio' && !pre.item.loanable) ? 'Solo consulta en sala'
+                    : `${pre.item.inventoryCode} ✓`}
+                </span>
+              </div>
+            ) : invCode.trim() && !checking ? (
+              <p className="text-[12px] text-muted">Ese código de ejemplar no existe.</p>
+            ) : null}
 
-          <Button type="submit" variant="primary" size="lg" className="mt-5 w-full" disabled={!canConfirm}>
-            {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} strokeWidth={2.2} />}
-            {prestar ? (kind === 'sala' ? 'Registrar consulta' : 'Confirmar préstamo') : 'Registrar devolución'}
-          </Button>
-        </form>
-      </div>
-    </div>,
-    document.body,
+            {reservationWarning ? (
+              <p className="rounded-xl bg-warning-bg px-3.5 py-2.5 text-[12.5px] font-semibold text-warning-fg">
+                ⚠ Este libro tiene una reserva de otra persona.
+              </p>
+            ) : null}
+
+            {kind === 'domicilio' && readerOk && itemOk && estimatedDueDate ? (
+              <p className="text-[12px] font-semibold text-muted">
+                Vencimiento: <span className="font-bold text-ink">{estimatedDueDate}</span> ({loanDays} días)
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <label className="block">
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><ScanBarcode size={12} /> Código del ejemplar</span>
+            <input value={invCode} onChange={(e) => setInvCode(e.target.value)} placeholder="Escanea o escribe el inventario — BIB-…" autoFocus
+              className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 font-mono text-[14px] text-ink', focusRing)} />
+            <span className="mt-2 block text-[12px] leading-relaxed text-muted">Un solo escaneo: buscamos el préstamo abierto de ese ejemplar y lo cerramos.</span>
+          </label>
+        )}
+
+        {error ? <p role="status" className="rounded-lg bg-danger-bg px-3 py-2 text-[13px] font-semibold text-danger-fg">{error}</p> : null}
+
+        <Button type="submit" variant="primary" size="lg" className="w-full" disabled={!canConfirm}>
+          {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} strokeWidth={2.2} />}
+          {prestar ? (kind === 'sala' ? 'Registrar consulta' : 'Confirmar préstamo') : 'Registrar devolución'}
+        </Button>
+      </form>
+    </Sheet>
   );
 }

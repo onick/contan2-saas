@@ -40,7 +40,7 @@ export function BibliotecaTabsNav() {
               'border-b-2',
               focusRing,
               t.key === activeKey
-                ? 'border-brand text-ink'
+                ? 'border-brand-text text-ink'
                 : 'border-transparent text-muted hover:text-ink',
             )}
           >

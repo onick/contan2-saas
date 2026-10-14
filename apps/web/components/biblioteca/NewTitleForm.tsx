@@ -192,7 +192,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
       } else {
         router.push(`/app/biblioteca/titulos/${id}`);
       }
-    } catch { setError('Problema de red. Reintenta.'); setBusy(false); }
+    } catch { setError('Problema de red. Intenta de nuevo.'); setBusy(false); }
   }
 
   const canSave = !!f.title.trim() && !busy;

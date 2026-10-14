@@ -215,7 +215,7 @@ function AddItemDrawer({ open, onClose, titleId, titleName, sites, onCreated }: 
       await onCreated();
       setBusy(false);
       onClose();
-    } catch { setError('Problema de red. Reintentá.'); setBusy(false); }
+    } catch { setError('Problema de red. Intenta de nuevo.'); setBusy(false); }
   }
 
   if (!mounted || typeof document === 'undefined') return null;

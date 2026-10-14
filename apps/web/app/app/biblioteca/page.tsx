@@ -25,7 +25,7 @@ export default async function BibliotecaInicioPage() {
   ]);
 
   if (!facets) {
-    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar el resumen. Reintentá en unos segundos." />;
+    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar el resumen. Intenta de nuevo en unos segundos." />;
   }
 
   // Préstamos activos ordenados por vencimiento (más urgentes primero: vencidos y vence_pronto).
@@ -71,7 +71,7 @@ export default async function BibliotecaInicioPage() {
 
       {/* Tarjetas principales */}
       <div className="app-reveal mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2" style={{ animationDelay: '80ms' }}>
-        <PrestamosVencerCard loans={prestamosVencer} />
+        <PrestamosVencerCard loans={prestamosVencer} serverNow={Date.now()} />
 
         {activities.length > 0 ? (
           <Card padding="lg">

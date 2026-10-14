@@ -1,30 +1,25 @@
 'use client';
 
-// components/biblioteca/InventarioClient.tsx · INVENTARIO físico (F6) — modelo
-// aprobado por el usuario (captura "Inventario"):
-//   · sesión activa: tarjeta con progreso (escaneados/esperados) + Finalizar
-//   · CAJA DE ESCANEO grande (autofocus): cada código responde al instante
-//     (Encontrado ✓ / Fuera de ubicación / Prestado / Ya escaneado / no existe)
-//   · tabs: Ejemplares / Faltantes / Fuera de ubicación / Prestados /
-//     Anteriores / Bajas — resultado SIEMPRE derivado
-//   · carril: resumen con % + donut CSS de resultados + herramientas
-//     (exportar Excel real; etiquetas "Pronto")
-//   · Nuevo inventario: nombre + alcance (todo el acervo o un sitio)
-// Un inventario en progreso por organización (lo garantiza la DB).
+// components/biblioteca/InventarioClient.tsx · INVENTARIO físico (F6)
+// F8b: tabla → DataTableClient; tabs → Tabs del kit; drawer → Sheet.
+// PROHIBIDO: no tocar lógica de escaneo (input, autofocus, Enter, scan()).
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { createPortal } from 'react-dom';
 import {
   ClipboardList, History, Search, Loader2, Check, X, ChevronLeft, ChevronRight,
   BookOpen, Plus, ScanBarcode, Download, Printer, MapPin, Trash2, AlertTriangle,
   CircleCheck, Eye,
 } from 'lucide-react';
 import type {
-  BiblioInventoriesListResponse, BiblioInventory, BiblioInventoryItemsResponse,
+  BiblioInventoriesListResponse, BiblioInventoryItemsResponse,
   BiblioInventoryItem, BiblioInventoryScanResponse, BiblioSite,
 } from '@contan2/contracts';
-import { Card, Button, IconButton, Chip, EmptyState, SectionHeader, cn, focusRing, useDrawerLifecycle } from '../ui';
+import {
+  Card, Button, IconButton, Chip, EmptyState, SectionHeader, Sheet,
+  Tabs, DataTableClient, cn, focusRing,
+} from '../ui';
+import type { DataTableColumn } from '../ui';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
@@ -63,7 +58,7 @@ export function InventarioClient({ initial, sites }: {
   initial: BiblioInventoriesListResponse; sites: BiblioSite[];
 }) {
   const [sessions, setSessions] = useState(initial);
-  const [tab, setTab] = useState<string>('todos'); // todos|faltantes|fuera|prestados|anteriores|bajas
+  const [tab, setTab] = useState<string>('todos');
   const [items, setItems] = useState<BiblioInventoryItemsResponse | null>(null);
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
@@ -76,9 +71,9 @@ export function InventarioClient({ initial, sites }: {
   const scanRef = useRef<HTMLInputElement>(null);
   const [scanCode, setScanCode] = useState('');
   const pageSize = 20;
+  const nuevoInventarioBtnRef = useRef<HTMLButtonElement>(null);
 
   const active = sessions.active;
-  // La sesión que alimenta la tabla: la activa, o la última finalizada.
   const viewing = active ?? sessions.previous[0] ?? null;
 
   const refreshSessions = useCallback(async () => {
@@ -114,6 +109,7 @@ export function InventarioClient({ initial, sites }: {
     return () => { clearTimeout(t); ctl.abort(); };
   }, [refreshItems, q]);
 
+  // ── Escaneo: NO TOCAR esta lógica ──
   async function scan(code: string) {
     if (!active || !code.trim() || scanning) return;
     setScanning(true);
@@ -137,7 +133,7 @@ export function InventarioClient({ initial, sites }: {
         void refreshSessions();
         void refreshItems();
       }
-    } catch { setScanMsg({ kind: 'err', text: 'Problema de red. Reintenta.' }); }
+    } catch { setScanMsg({ kind: 'err', text: 'Problema de red. Intenta de nuevo.' }); }
     finally {
       setScanning(false);
       setScanCode('');
@@ -162,16 +158,15 @@ export function InventarioClient({ initial, sites }: {
   const pct = viewing && viewing.expected > 0 ? Math.round((viewing.scanned / viewing.expected) * 100) : 0;
   const pages = items ? Math.max(1, Math.ceil(items.total / items.pageSize)) : 1;
 
-  const TABS = [
-    { key: 'todos', label: 'Ejemplares', Icon: ClipboardList },
-    { key: 'faltantes', label: viewing?.status === 'finalizado' ? 'Faltantes' : 'Pendientes', Icon: AlertTriangle },
-    { key: 'fuera', label: 'Fuera de ubicación', Icon: MapPin },
-    { key: 'prestados', label: 'Prestados', Icon: BookOpen },
-    { key: 'anteriores', label: 'Anteriores', Icon: History },
-    { key: 'bajas', label: 'Bajas', Icon: Trash2 },
+  const TABS_ITEMS = [
+    { value: 'todos', label: 'Ejemplares' },
+    { value: 'faltantes', label: viewing?.status === 'finalizado' ? 'Faltantes' : 'Pendientes' },
+    { value: 'fuera', label: 'Fuera de ubicación' },
+    { value: 'prestados', label: 'Prestados' },
+    { value: 'anteriores', label: 'Anteriores' },
+    { value: 'bajas', label: 'Bajas' },
   ];
 
-  // Donut CSS (conic-gradient) con los resultados de la sesión visible.
   const donut = viewing && viewing.scanned + viewing.missing + viewing.onLoan > 0 ? (() => {
     const total = viewing.expected || 1;
     const f = (viewing.found / total) * 360;
@@ -180,6 +175,83 @@ export function InventarioClient({ initial, sites }: {
     return `conic-gradient(var(--color-success-fg) 0deg ${f}deg, var(--color-warning-fg) ${f}deg ${f + m}deg, var(--color-info-text) ${f + m}deg ${f + m + l}deg, var(--color-surface-container) ${f + m + l}deg 360deg)`;
   })() : null;
 
+  const itemColumns: DataTableColumn<BiblioInventoryItem>[] = [
+    {
+      id: 'codigo',
+      header: 'Código de barras',
+      cell: (it) => <span className="font-mono text-[12.5px] font-bold tabular-nums text-ink">{it.inventoryCode}</span>,
+    },
+    {
+      id: 'titulo',
+      header: 'Título / Autor',
+      cell: (it) => (
+        <Link href={`/app/biblioteca/titulos/${it.titleId}`} className={cn('flex items-center gap-2.5 rounded-lg', focusRing)}>
+          <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
+            {it.coverUrl
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={it.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+              : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
+          </span>
+          <span className="min-w-0">
+            <span className="block max-w-[200px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand">{it.title}</span>
+            <span className="block max-w-[200px] truncate text-[11px] text-muted">{it.authors[0] ?? ''}</span>
+          </span>
+        </Link>
+      ),
+    },
+    {
+      id: 'signatura',
+      header: 'Signatura',
+      priority: 'lg',
+      cell: (it) => <span className="font-mono text-[12px] tabular-nums text-muted">{it.callNumber ?? '—'}</span>,
+    },
+    {
+      id: 'ubicacion',
+      header: 'Ubicación',
+      priority: 'md',
+      cell: (it) => (
+        <span className="text-[12px] text-muted">
+          {it.siteName ? <>{it.siteName}{it.shelf ? <span className="block text-[11px] text-faint">{it.shelf}</span> : null}</> : '—'}
+          {it.foundSiteName && it.resultado === 'fuera_ubicacion' ? (
+            <span className="block text-[10.5px] font-bold text-warning-fg">apareció en {it.foundSiteName}</span>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      id: 'estado_resultado',
+      header: tab === 'bajas' ? 'Motivo de baja' : 'Estado',
+      priority: 'md',
+      cell: (it) => (
+        tab === 'bajas'
+          ? <span className="text-[12px] text-muted">{it.retiredReason ?? '—'}</span>
+          : <Chip tone={ESTADO_META[it.estado].tone} dot>{ESTADO_META[it.estado].label}</Chip>
+      ),
+    },
+    {
+      id: 'resultado',
+      header: tab === 'bajas' ? 'Fecha' : 'Resultado',
+      priority: 'md',
+      cell: (it) => (
+        tab === 'bajas'
+          ? <span className="text-[12px] tabular-nums text-muted">{it.scannedAt ? fmtDate(it.scannedAt) : '—'}</span>
+          : <ResultChip r={it.resultado} />
+      ),
+    },
+    {
+      id: 'acciones',
+      header: '',
+      align: 'right',
+      width: 44,
+      cell: (it) => (
+        <Link href={`/app/biblioteca/titulos/${it.titleId}`} aria-label={`Ver ficha de ${it.title}`}
+          className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
+          <Eye size={15} strokeWidth={1.9} />
+        </Link>
+      ),
+    },
+  ];
+
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_290px] xl:items-start xl:gap-5">
       <div className="min-w-0">
@@ -187,8 +259,8 @@ export function InventarioClient({ initial, sites }: {
           <SectionHeader
             level={1}
             title="Inventario"
-            subtitle="Controlá y verificá los ejemplares físicos: escaneá uno a uno y el resultado se registra solo."
-            actions={!active ? <Button variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nuevo inventario</Button> : undefined}
+            subtitle="Controla y verifica los ejemplares físicos: escanea uno a uno y el resultado se registra solo."
+            actions={!active ? <Button ref={nuevoInventarioBtnRef} variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nuevo inventario</Button> : undefined}
           />
         </div>
 
@@ -240,7 +312,7 @@ export function InventarioClient({ initial, sites }: {
               </p>
             ) : null}
 
-            {/* Caja de escaneo */}
+            {/* Caja de escaneo — lógica INTOCABLE */}
             {active ? (
               <form className="mt-4" onSubmit={(e) => { e.preventDefault(); void scan(scanCode); }}>
                 <label className={cn('flex items-center gap-2.5 rounded-xl border-2 border-brand/40 bg-surface px-3.5 py-3', focusRing)}>
@@ -268,152 +340,114 @@ export function InventarioClient({ initial, sites }: {
           </Card>
         )}
 
-        {/* ── Tabs ── */}
-        <div className="app-reveal mt-4 flex gap-1 overflow-x-auto border-b border-line" style={{ animationDelay: '70ms' }} role="tablist" aria-label="Vistas del inventario">
-          {TABS.map((t) => (
-            <button key={t.key} type="button" role="tab" aria-selected={tab === t.key}
-              onClick={() => { setTab(t.key); setPage(1); }}
-              className={cn('flex flex-none items-center gap-1.5 px-3 py-2 text-[13px]', focusRing,
-                tab === t.key ? 'border-b-2 border-brand font-bold text-brand' : 'font-medium text-muted hover:text-ink')}>
-              <t.Icon size={14} strokeWidth={1.9} /> {t.label}
-            </button>
-          ))}
-        </div>
-
-        {tab === 'anteriores' ? (
-          /* ── Inventarios anteriores ── */
-          <div className="mt-4">
-            {sessions.previous.length === 0 ? (
-              <Card padding="lg"><p className="text-[13.5px] text-muted">Todavía no hay inventarios finalizados.</p></Card>
+        {/* ── Tabs del kit ── */}
+        <div className="app-reveal mt-4" style={{ animationDelay: '70ms' }}>
+          <Tabs
+            value={tab}
+            onValueChange={(v) => { setTab(v); setPage(1); }}
+            tabs={TABS_ITEMS}
+          >
+            {tab === 'anteriores' ? (
+              <div>
+                {sessions.previous.length === 0 ? (
+                  <Card padding="lg"><p className="text-[13.5px] text-muted">Todavía no hay inventarios finalizados.</p></Card>
+                ) : (
+                  <Card padding="none" className="overflow-hidden">
+                    <ul className="divide-y divide-line/70">
+                      {sessions.previous.map((v) => (
+                        <li key={v.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13.5px] font-bold text-ink">{v.name}</span>
+                            <span className="block text-[11.5px] text-faint">{fmtDate(v.startedAt)}{v.finishedAt ? ` → ${fmtDate(v.finishedAt)}` : ''} · {v.siteName ?? 'Todo el acervo'}{v.startedByName ? ` · ${v.startedByName}` : ''}</span>
+                          </span>
+                          <span className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
+                            <Chip tone="success">✓ {fmt(v.found)}</Chip>
+                            {v.misplaced > 0 ? <Chip tone="warning">{fmt(v.misplaced)} fuera</Chip> : null}
+                            {v.onLoan > 0 ? <Chip tone="brand">{fmt(v.onLoan)} prestados</Chip> : null}
+                            <Chip tone={v.missing > 0 ? 'danger' : 'neutral'}>{fmt(v.missing)} faltantes</Chip>
+                          </span>
+                          <a href={`/app/biblioteca/api/inventories/${v.id}/export`} download
+                            className={cn('flex h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[12px] font-bold text-muted hover:bg-surface-container hover:text-ink', focusRing)}>
+                            <Download size={13} strokeWidth={2} /> Excel
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+                )}
+              </div>
             ) : (
-              <Card padding="none" className="overflow-hidden">
-                <ul className="divide-y divide-line/70">
-                  {sessions.previous.map((v) => (
-                    <li key={v.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[13.5px] font-bold text-ink">{v.name}</span>
-                        <span className="block text-[11.5px] text-faint">{fmtDate(v.startedAt)}{v.finishedAt ? ` → ${fmtDate(v.finishedAt)}` : ''} · {v.siteName ?? 'Todo el acervo'}{v.startedByName ? ` · ${v.startedByName}` : ''}</span>
-                      </span>
-                      <span className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
-                        <Chip tone="success">✓ {fmt(v.found)}</Chip>
-                        {v.misplaced > 0 ? <Chip tone="warning">{fmt(v.misplaced)} fuera</Chip> : null}
-                        {v.onLoan > 0 ? <Chip tone="brand">{fmt(v.onLoan)} prestados</Chip> : null}
-                        <Chip tone={v.missing > 0 ? 'danger' : 'neutral'}>{fmt(v.missing)} faltantes</Chip>
-                      </span>
-                      <a href={`/app/biblioteca/api/inventories/${v.id}/export`} download
-                        className={cn('flex h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[12px] font-bold text-muted hover:bg-surface-container hover:text-ink', focusRing)}>
-                        <Download size={13} strokeWidth={2} /> Excel
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            )}
-          </div>
-        ) : (
-          /* ── Tabla de ejemplares ── */
-          <>
-            <label className={cn('app-reveal mt-4 flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-2.5', focusRing)} style={{ animationDelay: '90ms' }}>
-              <Search size={16} className="text-faint" aria-hidden="true" />
-              <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }}
-                placeholder="Buscar por título, autor, ISBN, código de barras o signatura…" aria-label="Buscar ejemplares"
-                className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
-              {loading ? <Loader2 size={15} className="animate-spin text-faint" /> : null}
-            </label>
+              <>
+                <label className={cn('flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-2.5', focusRing)}>
+                  <Search size={16} className="text-faint" aria-hidden="true" />
+                  <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                    placeholder="Buscar por título, autor, ISBN, código de barras o signatura…" aria-label="Buscar ejemplares"
+                    className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
+                  {loading ? <Loader2 size={15} className="animate-spin text-faint" /> : null}
+                </label>
 
-            <div className={cn('mt-3 transition-opacity', loading && 'opacity-50')}>
-              {!items || items.items.length === 0 ? (
-                <Card padding="lg">
-                  <p className="text-[13.5px] text-muted">
-                    {tab === 'bajas' ? 'No hay ejemplares dados de baja.' : !viewing ? 'Abre un inventario para ver los ejemplares.' : q ? 'Sin resultados con esa búsqueda.' : 'Nada en esta vista.'}
-                  </p>
-                </Card>
-              ) : (
-                <Card padding="none" className="overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[780px] border-collapse text-left">
-                      <thead>
-                        <tr className="border-b border-line bg-surface-container/60 text-[11px] font-bold uppercase tracking-[0.05em] text-faint">
-                          <th className="px-4 py-2.5">Código de barras</th>
-                          <th className="px-3 py-2.5">Título / Autor</th>
-                          <th className="px-3 py-2.5">Signatura</th>
-                          <th className="px-3 py-2.5">Ubicación registrada</th>
-                          <th className="px-3 py-2.5">{tab === 'bajas' ? 'Motivo de baja' : 'Estado'}</th>
-                          <th className="px-3 py-2.5">{tab === 'bajas' ? 'Fecha' : 'Resultado'}</th>
-                          <th className="px-3 py-2.5"><span className="sr-only">Acciones</span></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-line/70">
-                        {items.items.map((it) => (
-                          <tr key={it.itemId} className="transition-colors hover:bg-surface-container/40">
-                            <td className="whitespace-nowrap px-4 py-2.5 font-mono text-[12.5px] font-bold tabular-nums text-ink">{it.inventoryCode}</td>
-                            <td className="px-3 py-2.5">
-                              <Link href={`/app/biblioteca/titulos/${it.titleId}`} className={cn('flex items-center gap-2.5 rounded-lg', focusRing)}>
-                                <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
-                                  {it.coverUrl
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    ? <img src={it.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                                    : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
-                                </span>
-                                <span className="min-w-0">
-                                  <span className="block max-w-[210px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand">{it.title}</span>
-                                  <span className="block max-w-[210px] truncate text-[11px] text-muted">{it.authors[0] ?? ''}</span>
-                                </span>
-                              </Link>
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-2.5 font-mono text-[12px] tabular-nums text-muted">{it.callNumber ?? '—'}</td>
-                            <td className="px-3 py-2.5 text-[12px] text-muted">
-                              {it.siteName ? <>{it.siteName}{it.shelf ? <span className="block text-[11px] text-faint">{it.shelf}</span> : null}</> : '—'}
-                              {it.foundSiteName && it.resultado === 'fuera_ubicacion' ? (
-                                <span className="block text-[10.5px] font-bold text-warning-fg">apareció en {it.foundSiteName}</span>
-                              ) : null}
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-2.5">
-                              {tab === 'bajas'
-                                ? <span className="text-[12px] text-muted">{it.retiredReason ?? '—'}</span>
-                                : <Chip tone={ESTADO_META[it.estado].tone} dot>{ESTADO_META[it.estado].label}</Chip>}
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-2.5">
-                              {tab === 'bajas'
-                                ? <span className="text-[12px] tabular-nums text-muted">{it.scannedAt ? fmtDate(it.scannedAt) : '—'}</span>
-                                : <ResultChip r={it.resultado} />}
-                            </td>
-                            <td className="px-3 py-2.5 text-right">
-                              <Link href={`/app/biblioteca/titulos/${it.titleId}`} aria-label={`Ver ficha de ${it.title}`}
-                                className={cn('inline-grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
-                                <Eye size={15} strokeWidth={1.9} />
-                              </Link>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-              )}
-
-              {items && pages > 1 ? (
-                <nav className="mt-3.5 flex items-center justify-center gap-1" aria-label="Paginación">
-                  <IconButton label="Página anterior" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                    <ChevronLeft size={15} />
-                  </IconButton>
-                  {pageWindow(items.page, pages).map((p, i) => p === '…' ? (
-                    <span key={`e${i}`} className="px-1 text-faint">…</span>
+                <div className={cn('transition-opacity', loading && 'opacity-50')}>
+                  {!items || items.items.length === 0 ? (
+                    <Card padding="lg">
+                      <p className="text-[13.5px] text-muted">
+                        {tab === 'bajas' ? 'No hay ejemplares dados de baja.' : !viewing ? 'Abre un inventario para ver los ejemplares.' : q ? 'Sin resultados con esa búsqueda.' : 'Nada en esta vista.'}
+                      </p>
+                    </Card>
                   ) : (
-                    <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === items.page ? 'page' : undefined}
-                      className={cn('grid h-8 min-w-8 place-items-center rounded-lg px-1 text-[12.5px] font-bold tabular-nums', focusRing,
-                        p === items.page ? 'bg-brand text-white' : 'text-muted hover:bg-surface-container')}>
-                      {p}
-                    </button>
-                  ))}
-                  <IconButton label="Página siguiente" variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
-                    <ChevronRight size={15} />
-                  </IconButton>
-                </nav>
-              ) : null}
-            </div>
-          </>
-        )}
+                    <DataTableClient
+                      data={items.items}
+                      columns={itemColumns}
+                      getRowId={(it) => it.itemId}
+                      ariaLabel="Ejemplares del inventario"
+                      mobileCard={(it) => (
+                        <div className="flex items-center gap-3 p-4">
+                          <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
+                            {it.coverUrl
+                              // eslint-disable-next-line @next/next/no-img-element
+                              ? <img src={it.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                              : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[13px] font-bold text-ink">{it.title}</p>
+                            <p className="font-mono text-[10.5px] text-faint tabular-nums">{it.inventoryCode}</p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {tab !== 'bajas' ? <Chip tone={ESTADO_META[it.estado].tone} dot>{ESTADO_META[it.estado].label}</Chip> : null}
+                              <ResultChip r={it.resultado} />
+                            </div>
+                          </div>
+                          <Link href={`/app/biblioteca/titulos/${it.titleId}`} aria-label={`Ver ficha de ${it.title}`}
+                            className={cn('inline-grid h-8 w-8 flex-none place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
+                            <Eye size={15} strokeWidth={1.9} />
+                          </Link>
+                        </div>
+                      )}
+                    />
+                  )}
+
+                  {items && pages > 1 ? (
+                    <nav className="mt-3.5 flex items-center justify-center gap-1" aria-label="Paginación">
+                      <IconButton label="Página anterior" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                        <ChevronLeft size={15} />
+                      </IconButton>
+                      {pageWindow(items.page, pages).map((p, i) => p === '…' ? (
+                        <span key={`e${i}`} className="px-1 text-faint">…</span>
+                      ) : (
+                        <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === items.page ? 'page' : undefined}
+                          className={cn('grid h-8 min-w-8 place-items-center rounded-lg px-1 text-[12.5px] font-bold tabular-nums', focusRing,
+                            p === items.page ? 'bg-brand text-brand-fg' : 'text-muted hover:bg-surface-container')}>
+                          {p}
+                        </button>
+                      ))}
+                      <IconButton label="Página siguiente" variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+                        <ChevronRight size={15} />
+                      </IconButton>
+                    </nav>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </Tabs>
+        </div>
       </div>
 
       {/* ── Carril derecho ── */}
@@ -481,8 +515,13 @@ export function InventarioClient({ initial, sites }: {
         </Card>
       </aside>
 
-      <NewInventoryDrawer open={drawer} sites={sites} onClose={() => setDrawer(false)}
-        onCreated={() => { setDrawer(false); void refreshSessions(); setTab('todos'); setPage(1); }} />
+      <NewInventoryDrawer
+        open={drawer}
+        sites={sites}
+        returnFocusRef={nuevoInventarioBtnRef}
+        onClose={() => setDrawer(false)}
+        onCreated={() => { setDrawer(false); void refreshSessions(); setTab('todos'); setPage(1); }}
+      />
     </div>
   );
 }
@@ -496,19 +535,19 @@ function SummaryRow({ label, value, tone }: { label: string; value: number; tone
   );
 }
 
-// ── Nuevo inventario: nombre + alcance ───────────────────────────────────────
-function NewInventoryDrawer({ open, sites, onClose, onCreated }: {
+// ── Nuevo inventario → Sheet del kit ─────────────────────────────────────────
+function NewInventoryDrawer({ open, sites, onClose, onCreated, returnFocusRef }: {
   open: boolean; sites: BiblioSite[]; onClose: () => void; onCreated: () => void;
+  returnFocusRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const titleId = useId();
   const [name, setName] = useState('');
   const [siteId, setSiteId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const busyRef = useRef(busy); busyRef.current = busy;
-  const reset = () => { setName(''); setSiteId(''); setError(null); };
-  const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: () => { if (!busyRef.current) onClose(); }, onClosed: reset });
+  useEffect(() => {
+    if (!open) { setName(''); setSiteId(''); setError(null); }
+  }, [open]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -523,54 +562,43 @@ function NewInventoryDrawer({ open, sites, onClose, onCreated }: {
       if (!res.ok || !j?.inventory) { setError(j.error ?? 'No se pudo abrir el inventario.'); setBusy(false); return; }
       setBusy(false);
       onCreated();
-    } catch { setError('Problema de red. Reintenta.'); setBusy(false); }
+    } catch { setError('Problema de red. Intenta de nuevo.'); setBusy(false); }
   }
 
-  if (!mounted || typeof document === 'undefined') return null;
-  return createPortal(
-    <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <div aria-hidden="true"
-        className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
-      <div ref={panelRef} className={cn(
-        'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] rounded-t-2xl border-t border-line bg-surface shadow-xl',
-        'md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
-        'flex flex-col', closing && 'drawer-panel--closing')}>
-        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Inventario</p>
-            <h2 id={titleId} className="mt-1 text-lg font-bold leading-tight tracking-tight text-ink">Nuevo inventario</h2>
-          </div>
-          <IconButton label="Cerrar" variant="outline" size="sm" onClick={onClose} disabled={busy}><X size={18} /></IconButton>
-        </header>
+  return (
+    <Sheet
+      open={open}
+      onClose={() => { if (!busy) onClose(); }}
+      title="Nuevo inventario"
+      dismissOnOverlay={false}
+      returnFocusRef={returnFocusRef as React.RefObject<HTMLElement | null>}
+    >
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <label className="block">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Nombre</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus
+            placeholder="Ej. Inventario anual 2026 — Sala General"
+            className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-ink', focusRing)} />
+        </label>
+        <label className="block">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Alcance</span>
+          <select value={siteId} onChange={(e) => setSiteId(e.target.value)}
+            className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-ink', focusRing)}>
+            <option value="">Todo el acervo</option>
+            {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <span className="mt-1.5 block text-[12px] leading-relaxed text-muted">
+            Con un sitio elegido, un ejemplar de OTRO sitio que aparezca acá se marca «fuera de ubicación».
+          </span>
+        </label>
 
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
-          <label className="block">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Nombre</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus
-              placeholder="Ej. Inventario anual 2026 — Sala General"
-              className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-ink', focusRing)} />
-          </label>
-          <label className="mt-4 block">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Alcance</span>
-            <select value={siteId} onChange={(e) => setSiteId(e.target.value)}
-              className={cn('mt-1 min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-[14px] text-ink', focusRing)}>
-              <option value="">Todo el acervo</option>
-              {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <span className="mt-1.5 block text-[12px] leading-relaxed text-muted">
-              Con un sitio elegido, un ejemplar de OTRO sitio que aparezca acá se marca «fuera de ubicación».
-            </span>
-          </label>
+        {error ? <p role="status" className="rounded-lg bg-danger-bg px-3 py-2 text-[13px] font-semibold text-danger-fg">{error}</p> : null}
 
-          {error ? <p role="status" className="mt-3 rounded-lg bg-danger-bg px-3 py-2 text-[13px] font-semibold text-danger-fg">{error}</p> : null}
-
-          <Button type="submit" variant="primary" size="lg" className="mt-5 w-full" disabled={busy || !name.trim()}>
-            {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} strokeWidth={2.2} />} Abrir inventario
-          </Button>
-          <p className="mb-1 mt-2 text-center text-[12px] text-muted">Solo puede haber un inventario en progreso a la vez.</p>
-        </form>
-      </div>
-    </div>,
-    document.body,
+        <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy || !name.trim()}>
+          {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} strokeWidth={2.2} />} Abrir inventario
+        </Button>
+        <p className="text-center text-[12px] text-muted">Solo puede haber un inventario en progreso a la vez.</p>
+      </form>
+    </Sheet>
   );
 }
