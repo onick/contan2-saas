@@ -1,11 +1,9 @@
 import type { Metadata, Viewport } from 'next';
-import type { ReactNode } from 'react';
+import type { ReactNode, CSSProperties } from 'react';
 import { getPublicBranding } from '../../lib/api/kiosko';
+import { getLocalBranding } from '../../lib/branding/config';
+import { brandingToCssVars } from '../../lib/branding/theme';
 
-// Layout del KIOSKO · superficie pública del visitante, separada del shell
-// admin (sin sidebar ni rutas internas). Tema OSCURO institucional, full-screen,
-// tablet-first. Fondo profundo con glows radiales cálidos (marca) + film grain
-// sutil, igualando el nivel del kiosko v1.
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getPublicBranding();
   return {
@@ -18,32 +16,27 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1, // kiosko: evita zoom accidental en tablet
-  themeColor: '#0b0e14',
+  maximumScale: 1,
+  themeColor: '#fafaf9',
 };
 
-// Film grain decorativo (data-URI, sin red). Igual al de v1: fractalNoise tenue.
-const GRAIN =
-  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.5'/></svg>\")";
+export default async function KioskLayout({ children }: { children: ReactNode }) {
+  const local = getLocalBranding();
+  const pub = await getPublicBranding();
+  const base = pub
+    ? { ...local, primaryColor: pub.primaryColor, secondaryColor: pub.secondaryColor }
+    : local;
+  const cssVars = brandingToCssVars(base) as CSSProperties;
 
-export default function KioskLayout({ children }: { children: ReactNode }) {
   return (
     <main
-      className="relative min-h-dvh overflow-hidden text-[#f4f5f8] antialiased"
       style={{
-        background:
-          'radial-gradient(ellipse at 50% 0%, rgba(255,111,0,0.07), transparent 55%),' +
-          'radial-gradient(ellipse at 50% 100%, rgba(230,81,0,0.13), transparent 60%),' +
-          '#0b0e14',
+        ...cssVars,
+        background: 'linear-gradient(180deg, var(--color-brand-soft), var(--color-page) 55%)',
       }}
+      className="relative min-h-dvh overflow-x-hidden text-ink antialiased bg-brand-soft"
     >
-      {/* Grain overlay (decorativo, no interactivo) */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-0 opacity-[0.05] mix-blend-overlay"
-        style={{ backgroundImage: GRAIN, backgroundSize: '200px 200px' }}
-      />
-      <div className="relative z-10 min-h-dvh">{children}</div>
+      {children}
     </main>
   );
 }

@@ -1,49 +1,36 @@
-// Primitivas visuales del kiosko · tema OSCURO institucional, tablet-first,
-// touch targets grandes (≥56px). Separadas de components/ui (que son claras y
-// para el admin). Aquí no se usa el shell admin ni sus tokens de superficie.
+// Primitivas visuales del kiosko · tema claro institucional, tablet-first,
+// touch targets grandes (≥56 px). Separadas de components/ui (admin).
+// Usa tokens del sistema (--color-brand, --color-ink, etc.) — sin hex hardcoded.
 
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
-import { Ticket, ArrowLeft } from 'lucide-react';
-
-// Paleta oscura del kiosko (constante local; no contamina @theme). El naranja
-// de marca (#e65100/#ff6f00) se mantiene como único acento.
-export const KIOSK = {
-  bg: '#0e0f14',
-  surface: '#191b22',
-  surfaceHi: '#22242e',
-  line: 'rgba(255,255,255,0.10)',
-  ink: '#f4f5f8',
-  muted: '#a2a5b4',
-  faint: '#71748a',
-  brand: '#ff6f00',
-  brandFill: '#e65100',
-};
+import { Hand, ArrowLeft, ArrowRight } from 'lucide-react';
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
 }
 
-// Estilo mono (eyebrows/fechas/etiquetas). La var la inyecta el layout del kiosko.
+// Conservado para compatibilidad con cualquier consumidor externo; screens.tsx
+// ya no lo usa — aplica `font-mono` o `.num` según el contexto.
 export const kioskMono: CSSProperties = {
   fontFamily: 'var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace',
 };
 
-// Anillo de foco visible sobre fondo oscuro (WCAG 1.4.11).
+// Anillo de foco sobre fondo claro (page). Token --color-focus cumple 3:1 WCAG.
 export const kioskFocus =
-  'outline-none focus-visible:ring-2 focus-visible:ring-[#ff6f00] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0e0f14]';
+  'outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-page';
 
 type KioskButtonVariant = 'primary' | 'secondary' | 'ghost';
 type KioskButtonSize = 'lg' | 'xl';
 
 const VARIANT: Record<KioskButtonVariant, string> = {
-  // Texto blanco grande+bold sobre #e65100 = 3.79:1 → cumple el 3:1 de texto grande.
-  primary: 'bg-[#e65100] text-white hover:bg-[#ff6f00] active:bg-[#cc4800]',
-  secondary: 'bg-[#22242e] text-[#f4f5f8] border border-white/12 hover:bg-[#2b2e3a]',
-  ghost: 'bg-transparent text-[#a2a5b4] hover:text-[#f4f5f8] hover:bg-white/5',
+  // bg-brand (#f39228) + text-brand-fg (#1f2326 oscuro) → contraste 6.75:1 (AAA).
+  primary: 'bg-brand text-brand-fg hover:brightness-[1.05] active:brightness-95',
+  secondary: 'bg-surface text-ink border border-line hover:bg-subtle',
+  ghost: 'bg-transparent text-muted hover:text-ink hover:bg-subtle',
 };
 
 const SIZE: Record<KioskButtonSize, string> = {
-  lg: 'min-h-[56px] px-7 text-lg',
+  lg: 'min-h-14 px-7 text-lg',
   xl: 'min-h-[72px] px-9 text-xl',
 };
 
@@ -63,7 +50,7 @@ export function KioskButton({
   return (
     <button
       className={cx(
-        'inline-flex items-center justify-center gap-3 rounded-2xl font-semibold tracking-tight transition-colors',
+        'inline-flex items-center justify-center gap-3 rounded-full font-semibold tracking-tight motion-safe:transition-colors',
         'disabled:cursor-not-allowed disabled:opacity-50',
         VARIANT[variant],
         SIZE[size],
@@ -77,46 +64,35 @@ export function KioskButton({
   );
 }
 
-// CTA "ticket" del welcome (stub perforado + cuerpo + flecha), en naranja de
-// marca, con muescas laterales (círculos del color del fondo) y pulso suave.
-// Es la pieza de mayor "nivel" del kiosko, inspirada en el ticket de v1.
-export function TicketButton({ label, eyebrow = 'Admit one', onClick }: { label: string; eyebrow?: string; onClick?: () => void }) {
+// CTA "ticket" del welcome: banda ancha naranja con Hand + título + subtítulo + flecha.
+// Nombre accesible = prop `label` (aria-label). Prop `eyebrow` conservada pero no renderizada.
+export function TicketButton({ label, eyebrow: _eyebrow, onClick }: { label: string; eyebrow?: string; onClick?: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
       className={cx(
-        'kiosk-pulse group relative inline-flex h-[96px] w-full max-w-[520px] items-stretch overflow-hidden rounded-xl',
-        'bg-[linear-gradient(180deg,#ff6f00_0%,#e65100_100%)] text-white',
-        'ring-1 ring-inset ring-white/15 transition-transform active:scale-[0.99]',
+        'kiosk-pulse group relative inline-flex w-full max-w-[540px] items-center overflow-hidden rounded-[20px]',
+        'bg-brand text-brand-fg shadow-lg motion-safe:transition-transform active:scale-[0.99]',
         kioskFocus,
       )}
     >
-      {/* Muescas laterales (color del fondo) — efecto ticket recortado */}
-      <span aria-hidden="true" className="absolute -left-[11px] top-1/2 h-[22px] w-[22px] -translate-y-1/2 rounded-full bg-[#0b0e14]" />
-      <span aria-hidden="true" className="absolute -right-[11px] top-1/2 h-[22px] w-[22px] -translate-y-1/2 rounded-full bg-[#0b0e14]" />
-
-      {/* Stub: ícono + número, con perforación dashed a la derecha */}
-      <span className="relative flex w-[96px] flex-none flex-col items-center justify-center gap-1 bg-white/10">
-        <Ticket size={34} strokeWidth={1.6} aria-hidden="true" className="text-white/90" />
-        <span style={kioskMono} className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/60">01</span>
-        <span aria-hidden="true" className="absolute right-0 top-4 bottom-4 border-r-2 border-dashed border-white/30" />
+      <span aria-hidden="true" className="flex flex-none items-center justify-center py-5 pl-6 pr-4">
+        <Hand size={28} strokeWidth={1.8} aria-hidden="true" />
       </span>
-
-      {/* Cuerpo: eyebrow + label */}
-      <span className="flex flex-1 flex-col items-start justify-center gap-1 px-7 text-left">
-        <span style={kioskMono} className="text-[10px] font-semibold uppercase tracking-[0.32em] text-white/60">{eyebrow}</span>
-        <span className="text-lg font-extrabold uppercase tracking-[0.06em] sm:text-xl">{label}</span>
+      <span className="flex flex-1 flex-col items-start justify-center gap-0.5 py-5 text-left">
+        <span className="text-3xl font-bold leading-tight">{label}</span>
+        <span className="text-sm font-normal text-brand-fg">Te toma menos de un minuto</span>
       </span>
-
-      {/* Flecha */}
-      <span aria-hidden="true" className="flex flex-none items-center pr-7 text-3xl font-light text-white/90 transition-transform group-hover:translate-x-1">→</span>
+      <span aria-hidden="true" className="flex flex-none items-center pl-2 pr-6 motion-safe:transition-transform motion-safe:duration-200 group-hover:translate-x-1">
+        <ArrowRight size={24} strokeWidth={2} aria-hidden="true" />
+      </span>
     </button>
   );
 }
 
-// Pill de "volver atrás" (centrado, abajo de las pantallas). Touch-friendly.
+// Pill de "volver atrás". Touch target ≥44 px (min-h-11).
 export function KioskBackPill({ label = 'Atrás', onClick }: { label?: string; onClick?: () => void }) {
   return (
     <div className="mt-10 flex justify-center">
@@ -124,8 +100,8 @@ export function KioskBackPill({ label = 'Atrás', onClick }: { label?: string; o
         type="button"
         onClick={onClick}
         className={cx(
-          'inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-[#191b22]/80 px-7 py-3.5',
-          'text-sm font-medium text-[#a2a5b4] transition-colors hover:border-white/20 hover:bg-[#22242e] hover:text-[#f4f5f8]',
+          'inline-flex min-h-11 items-center gap-2.5 rounded-full border border-line bg-surface px-7',
+          'text-sm font-medium text-muted motion-safe:transition-colors hover:bg-subtle hover:text-ink',
           kioskFocus,
         )}
       >
@@ -135,12 +111,10 @@ export function KioskBackPill({ label = 'Atrás', onClick }: { label?: string; o
   );
 }
 
-// QR DEMO (placeholder honesto). Patrón determinista derivado del código —
-// parece un QR para el mockup pero NO codifica nada real. El QR real se genera
-// server-side (sharp + qrcode, codifica user.code) en el PR de escrituras.
+// QR DEMO (placeholder honesto). Negro (--color-ink) sobre blanco con margen de
+// silencio (p-3). El QR real lo genera el servidor (RealQr en screens.tsx).
 export function FauxQr({ code, size = 196 }: { code: string; size?: number }) {
-  const N = 21; // módulos por lado (como un QR v1)
-  // Hash determinista → bits de relleno.
+  const N = 21;
   let h = 2166136261;
   for (let i = 0; i < code.length; i += 1) {
     h ^= code.charCodeAt(i);
@@ -185,11 +159,11 @@ export function FauxQr({ code, size = 196 }: { code: string; size?: number }) {
           <span
             key={idx}
             className="aspect-square"
-            style={{ backgroundColor: fill ? '#0e0f14' : 'transparent' }}
+            style={{ backgroundColor: fill ? 'var(--color-ink)' : 'transparent' }}
           />
         );
       })}
-      <span className="absolute -bottom-2 -right-2 rounded-md bg-[#e65100] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+      <span className="absolute -bottom-2 -right-2 rounded-md bg-brand px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-fg">
         Demo
       </span>
     </div>

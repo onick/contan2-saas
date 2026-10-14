@@ -18,7 +18,7 @@ export default async function KioskPage() {
 
   // El kiosko usa el logo VERTICAL del tenant; si no hay, el horizontal; si el
   // branding público falla, el local. Último recurso: el asset estático.
-  const logoUrl = pub?.verticalLogoUrl ?? pub?.logoUrl ?? local.logoUrl ?? '/kiosko/logo.png';
+  const logoUrl = pub?.verticalLogoUrl ?? pub?.logoUrl ?? local.logoUrl ?? '';
 
   return (
     <KioskClient

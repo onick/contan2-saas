@@ -94,10 +94,10 @@ body {
   color: var(--color-ink);
 }
 
-/* Kiosko · pulso suave del CTA (respira el glow). Scope: .kiosk-pulse. */
+/* Kiosko · pulso suave del CTA en tema claro (sombra naranja de marca). */
 @keyframes kiosk-pulse {
-  0%, 100% { box-shadow: 0 18px 40px -16px rgba(230, 81, 0, 0.55), 0 0 0 0 rgba(255, 111, 0, 0.28); }
-  50%      { box-shadow: 0 18px 40px -16px rgba(230, 81, 0, 0.55), 0 0 0 14px rgba(255, 111, 0, 0); }
+  0%, 100% { box-shadow: 0 8px 24px -8px rgba(243, 146, 40, 0.45), 0 0 0 0 rgba(243, 146, 40, 0.18); }
+  50%      { box-shadow: 0 8px 24px -8px rgba(243, 146, 40, 0.45), 0 0 0 12px rgba(243, 146, 40, 0); }
 }
 .kiosk-pulse { animation: kiosk-pulse 2.6s ease-out infinite; }
 
