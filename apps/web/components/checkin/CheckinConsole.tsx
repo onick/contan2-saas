@@ -437,53 +437,6 @@ export function CheckinConsole() {
             </div>
           ) : null}
 
-          {/* Listas de invitados · solo actividades activas con lista (guestList) */}
-          {activities.data && activities.data.some((a) => a.guestList) ? (
-            <Card padding="none">
-              <div className="flex items-center gap-2 px-5 py-4 md:px-6">
-                <ListChecks size={16} strokeWidth={2} className="text-brand" aria-hidden="true" />
-                <h3 className="text-[15px] font-semibold tracking-tight text-ink">Listas de invitados</h3>
-              </div>
-              <ul>
-                {activities.data.filter((a) => a.guestList).map((a) => {
-                  const gl = a.guestList!;
-                  const pct = gl.total > 0 ? Math.round((gl.arrived / gl.total) * 100) : 0;
-                  return (
-                    <li key={a.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-5 py-4 md:px-6', isToday(a.date) && 'bg-accent-soft')}>
-                      <span className="block h-11 w-[72px] flex-none overflow-hidden rounded-lg bg-surface-container">
-                        <CoverThumb
-                          src={a.imageUrl ?? null}
-                          posY={a.imagePosY}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          fallback={<span className="grid h-full w-full place-items-center text-faint"><ImageIcon size={16} strokeWidth={1.75} aria-hidden="true" /></span>}
-                        />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-2 truncate text-sm font-medium tracking-tight text-ink">
-                          <span className="truncate">{a.name}</span>
-                          {isToday(a.date) ? (
-                            <span className="flex-none rounded-md bg-brand-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
-                          ) : null}
-                        </p>
-                        <p className="mt-0.5 text-xs text-faint">{a.location} · <span className="tabular-nums">{fmtHour(a.date)}</span></p>
-                      </div>
-                      <div className="w-full sm:w-auto sm:min-w-[180px] sm:flex-none">
-                        <div className="h-1.5 overflow-hidden rounded-full bg-surface-container" aria-hidden="true">
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, var(--color-brand), var(--color-brand-accent))' }} />
-                        </div>
-                        <p className="mt-1.5 text-xs text-faint"><span className="font-semibold text-ink tabular-nums">{gl.arrived}</span> de {gl.total} llegaron · {Math.max(0, gl.total - gl.arrived)} pendientes</p>
-                      </div>
-                      <Button size="sm" variant="secondary" className="flex-none" onClick={() => setGuestListAct(a)}>
-                        <ListChecks size={15} strokeWidth={2} aria-hidden="true" /> Abrir lista
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-          ) : null}
-
           {/* Actividades activas (reales) */}
           <Card padding="none">
             <div className="flex items-center justify-between px-5 py-4 md:px-6">
@@ -503,22 +456,50 @@ export function CheckinConsole() {
               <ul>
                 {activities.data?.map((a) => (
                   <li key={a.id} className={cn('flex flex-col gap-3 border-t border-line px-5 py-4 md:px-6 transition-opacity sm:flex-row sm:flex-wrap sm:items-center', isToday(a.date) && 'bg-accent-soft', focusedActivity?.id === a.id && 'opacity-45')}>
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-2 truncate text-sm font-medium tracking-tight text-ink">
-                        <span className="truncate">{a.name}</span>
-                        {isToday(a.date) ? (
-                          <span className="flex-none rounded-md bg-brand-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
-                        ) : null}
-                      </p>
-                      <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-faint">
-                        <span className="min-w-0 max-w-full truncate">{a.location}</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="whitespace-nowrap tabular-nums">{fmtHour(a.date)}</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="whitespace-nowrap tabular-nums">{a.enrolledCount}/{a.capacity} ({a.occupancyPct}%)</span>
-                        {a.recentMovement > 0 ? <span className="whitespace-nowrap text-success-fg">+{a.recentMovement} en 10 min</span> : null}
-                        {a.full ? <span className="font-semibold text-danger-fg">Lleno</span> : null}
-                      </p>
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <span className="hidden h-11 w-[72px] flex-none overflow-hidden rounded-lg bg-surface-container sm:block">
+                        <CoverThumb
+                          src={a.imageUrl ?? null}
+                          posY={a.imagePosY}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          fallback={<span className="grid h-full w-full place-items-center text-faint"><ImageIcon size={16} strokeWidth={1.75} aria-hidden="true" /></span>}
+                        />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-2 truncate text-sm font-medium tracking-tight text-ink">
+                          <span className="truncate">{a.name}</span>
+                          {isToday(a.date) ? (
+                            <span className="flex-none rounded-md bg-brand-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
+                          ) : null}
+                        </p>
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-faint">
+                          <span className="min-w-0 max-w-full truncate">{a.location}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="whitespace-nowrap tabular-nums">{fmtHour(a.date)}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="whitespace-nowrap tabular-nums" title="Personas en sala (con acompañantes) sobre el aforo">{a.enrolledCount}/{a.capacity} en sala ({a.occupancyPct}%)</span>
+                          {a.recentMovement > 0 ? <span className="whitespace-nowrap text-success-fg">+{a.recentMovement} en 10 min</span> : null}
+                          {a.full ? <span className="font-semibold text-danger-fg">Lleno</span> : null}
+                        </p>
+                        {/* Lista de invitados INTEGRADA en la misma tarjeta (antes era una
+                            sección aparte con la misma actividad y otro número → confundía). */}
+                        {a.guestList ? (() => {
+                          const gl = a.guestList;
+                          const pct = gl.total > 0 ? Math.round((gl.arrived / gl.total) * 100) : 0;
+                          return (
+                            <div className="mt-2 max-w-md">
+                              <div className="h-1.5 overflow-hidden rounded-full bg-surface-container" aria-hidden="true">
+                                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, var(--color-brand), var(--color-brand-accent))' }} />
+                              </div>
+                              <p className="mt-1 text-xs text-faint">
+                                <ListChecks size={12} strokeWidth={2} aria-hidden="true" className="mr-1 inline-block align-[-2px] text-brand" />
+                                Lista de invitados: <span className="font-semibold text-ink tabular-nums">{gl.arrived}</span> de {gl.total} llegaron · {Math.max(0, gl.total - gl.arrived)} pendientes
+                              </p>
+                            </div>
+                          );
+                        })() : null}
+                      </div>
                     </div>
                     {/* Móvil: la info queda arriba a ancho completo y los botones
                         bajan en grilla 2-col (con "+1 sin credencial" full-width),
@@ -527,7 +508,8 @@ export function CheckinConsole() {
                       {/* Gateway al modal de lista de invitados · disponible en toda
                           actividad activa (también vacía: ahí se empieza la lista). */}
                       <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={() => setGuestListAct(a)}>
-                        <ListChecks size={15} strokeWidth={2} aria-hidden="true" /> Lista
+                        <ListChecks size={15} strokeWidth={2} aria-hidden="true" />
+                        {a.guestList ? <>Invitados <span className="tabular-nums">{a.guestList.arrived}/{a.guestList.total}</span></> : 'Lista'}
                       </Button>
                       {/* Armado → naranja ACENTO. style inline: cn no hace
                           tailwind-merge y el bg del variant ganaba por orden CSS. */}
