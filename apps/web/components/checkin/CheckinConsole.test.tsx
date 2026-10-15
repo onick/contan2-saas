@@ -53,20 +53,24 @@ describe('CheckinConsole', () => {
     expect(screen.getByText('Evento de hoy').closest('li')!.className).toContain('bg-accent-soft');
   });
 
-  it('sección "Listas de invitados" aparece solo si una actividad tiene lista', async () => {
+  it('actividad con lista: el progreso de invitados vive EN la misma tarjeta (sin sección duplicada) y el botón dice "Invitados 2/5"', async () => {
     const conLista = { ...act1, guestList: { total: 5, arrived: 2 }, imageUrl: null, imagePosY: null };
     installFetch({ metrics: okMetrics, activities: okActs([conLista]) });
     render(<CheckinConsole />);
-    await waitFor(() => expect(screen.getByText('Listas de invitados')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Concierto')).toBeInTheDocument());
+    expect(screen.queryByText('Listas de invitados')).not.toBeInTheDocument(); // ya no hay tarjeta aparte
     expect(screen.getByText((_, el) => el?.tagName === 'P' && /2 de 5 llegaron · 3 pendientes/.test(el.textContent ?? ''))).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Abrir lista/ })).toBeInTheDocument();
+    expect(screen.getAllByText('Concierto')).toHaveLength(1); // UNA sola tarjeta para la actividad
+    expect(screen.getByRole('button', { name: /Invitados 2\/5/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Abrir lista/ })).not.toBeInTheDocument();
   });
 
-  it('sin lista en ninguna actividad → no se muestra la sección', async () => {
+  it('sin lista en ninguna actividad → sin progreso de invitados y el botón dice "Lista"', async () => {
     installFetch({ metrics: okMetrics, activities: okActs() }); // act1 sin guestList
     render(<CheckinConsole />);
     await waitFor(() => expect(screen.getByText('Concierto')).toBeInTheDocument());
-    expect(screen.queryByText('Listas de invitados')).not.toBeInTheDocument();
+    expect(screen.queryByText(/llegaron/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Lista$/ })).toBeInTheDocument();
   });
 
   it('botón "Lista" en una actividad activa (aunque vacía) abre el modal con estado para empezar la lista', async () => {
