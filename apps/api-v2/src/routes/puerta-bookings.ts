@@ -17,7 +17,8 @@ import {
   type PuertaBookingFull,
   type PuertaBookingsResponse,
 } from '@contan2/contracts';
-import { requireTenantStaff } from '../guard.js';
+import { requireRole, requireTenantStaff } from '../guard.js';
+import { DOOR_WRITE_ROLES, PADRON_READ_ROLES } from '../rbac-roles.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { confirmBookingEmail } from '../services/booking-email.js';
 
@@ -66,7 +67,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
   // ── GET /puerta/bookings ────────────────────────────────────────────────────
   app.get('/puerta/bookings', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para ver las reservas de la puerta.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
@@ -95,7 +96,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
   // ── POST /puerta/bookings ───────────────────────────────────────────────────
   app.post('/puerta/bookings', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para crear reservas en la puerta.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
@@ -139,7 +140,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
   // ── PATCH /puerta/bookings/:id · confirmar/cancelar/no-vino/reprogramar ──────
   app.patch('/puerta/bookings/:id', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para modificar reservas de la puerta.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
@@ -182,7 +183,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
   // ── POST /puerta/bookings/:id/checkin · check-in desde la reserva ────────────
   app.post('/puerta/bookings/:id/checkin', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para registrar entradas en la puerta.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {

@@ -13,6 +13,7 @@ import {
   type AdminAnonymousCheckinResponse,
 } from '@contan2/contracts';
 import { requireRole, requireTenantStaff } from '../guard.js';
+import { DOOR_WRITE_ROLES, PADRON_READ_ROLES, VISITOR_SEARCH_ROLES } from '../rbac-roles.js';
 import { protocolBadgeFor, protocolMarksFor } from '../services/protocol-info.js';
 import { invitedActivitiesFor, guestListStatsFor } from '../services/checkin-invites.js';
 import { parseSearch, likeContains } from '../query.js';
@@ -63,7 +64,6 @@ async function ensureInvitationOnAdmit(tx: DbClient, orgId: string, activityId: 
 // futura). Los "últimos 10 min" son absolutos (now() - interval), tz-independientes.
 // Las métricas/movimiento cuentan check-ins REALES (checked_in_at IS NOT NULL).
 // Escrituras de puerta (check-in). protocolo/consulta/biblioteca no registran entradas.
-const DOOR_WRITE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'operator', 'puerta']);
 const DEFAULT_CHECKIN_TZ = 'America/Santo_Domingo';
 
 // Valida CHECKIN_TZ contra las zonas IANA del runtime. Un valor inválido NO
@@ -219,9 +219,13 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
   // sin resultados si está vacío/corto (evita dumps). Respuesta mínima (sin teléfono).
   app.get('/checkin/visitors', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), VISITOR_SEARCH_ROLES, 'No tienes permiso para buscar personas del padrón.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
+    // Protocolo busca a quién designar, pero NO es lector del padrón: recibe una
+    // proyección SIN PII sensible (sin correo, código enmascarado) y la búsqueda
+    // solo matchea por nombre (no por código/correo/teléfono → sin sondeo de PII).
+    const restricted = !PADRON_READ_ROLES.has(guard.ctx.staff.role);
     return withTenant(db, orgId, async (db) => {
 
     const query = (req.query ?? {}) as Record<string, unknown>;
@@ -256,11 +260,13 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
           .where('organization_id', '=', orgId)
           .where((eb) =>
             eb.or([
-              eb('code', 'ilike', likeContains(search.q!)),
+              ...(restricted ? [] : [
+                eb('code', 'ilike', likeContains(search.q!)),
+                eb('email', 'ilike', likeContains(search.q!)),
+                eb('phone', 'ilike', likeContains(search.q!)),
+              ]),
               eb('first_name', 'ilike', likeContains(search.q!)),
               eb('last_name', 'ilike', likeContains(search.q!)),
-              eb('email', 'ilike', likeContains(search.q!)),
-              eb('phone', 'ilike', likeContains(search.q!)),
               // Nombre COMPLETO, sin acentos en ambos lados (frases multi-palabra).
               sql<boolean>`lower(translate(first_name || ' ' || last_name, 'áéíóúüÁÉÍÓÚÜ', 'aeiouuAEIOUU')) like '%' || lower(translate(${search.q}, 'áéíóúüÁÉÍÓÚÜ', 'aeiouuAEIOUU')) || '%'`,
             ]),
@@ -281,10 +287,10 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     ]);
     const items: CheckinVisitorItem[] = rows.map((r) => ({
       id: r.id,
-      code: r.code,
+      code: restricted ? `•••${r.code.slice(-3)}` : r.code,
       firstName: r.first_name,
       lastName: r.last_name,
-      email: r.email,
+      email: restricted ? null : r.email,
       visitCount: Number(r.visit_count),
       protocol: marks.get(r.id) ?? null,
       invitedTo: invites.get(r.id) ?? [],

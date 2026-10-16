@@ -2,7 +2,8 @@ import type { FastifyPluginAsync } from 'fastify';
 import { getDb, sql, withTenant } from '@contan2/db';
 import type { AttendanceListResponse, AttendanceListItem } from '@contan2/contracts';
 import { AttendanceCompanionsUpdateRequestSchema } from '@contan2/contracts';
-import { requireTenantStaff } from '../guard.js';
+import { requireRole, requireTenantStaff } from '../guard.js';
+import { PADRON_READ_ROLES } from '../rbac-roles.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { parsePage, parseSearch, likeContains, parseIsoDate } from '../query.js';
 
@@ -17,7 +18,7 @@ const editLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpo
 export const attendanceRoute: FastifyPluginAsync = async (app) => {
   app.get('/attendance', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para ver los registros de asistencia.');
     if (!guard.ok) {
       reply.code(guard.status);
       return { error: guard.error };
