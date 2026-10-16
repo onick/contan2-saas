@@ -274,35 +274,6 @@ test.describe('con sesión de escáner', () => {
     expect(await enrolledOf(api, FULLS.id)).toBe(1);
   });
 
-  test('SCN-09 salir limpia la sesión; una cookie inválida o vencida vuelve al PIN', async ({ page, context, baseURL: base }) => {
-    const errs = trackPageErrors(page);
-    await page.goto('/scanner');
-    await expect(page.getByRole('heading', { name: '¿Qué vas a escanear?' })).toBeVisible();
-    const before = (await context.cookies()).find((k) => k.name === 'scanner_session');
-    expect(before, 'hay sesion cargada').toBeTruthy();
-    const old = before!.value;
-    await page.getByRole('button', { name: 'Salir' }).click();
-    await expect(page.getByRole('heading', { name: 'Ingresa el PIN de puerta' })).toBeVisible();
-    const after = (await context.cookies()).find((k) => k.name === 'scanner_session');
-    expect(after, 'cookie borrada al salir').toBeFalsy();
-    await page.reload();
-    await expect(page.getByRole('heading', { name: 'Ingresa el PIN de puerta' })).toBeVisible();
-
-    // Cookie basura: el gate del servidor no la acepta.
-    await context.addCookies([{ name: 'scanner_session', value: 'x.y.z', url: base! }]);
-    await page.reload();
-    await expect(page.getByRole('heading', { name: 'Ingresa el PIN de puerta' })).toBeVisible();
-    const me = await context.request.get('/scanner/api/me');
-    expect(me.status()).toBe(401);
-
-    // Reuso del token tras "Salir": el servidor lo revoca (Q8-59). No se imprime el valor.
-    const ctx = await request.newContext({ baseURL: base!, extraHTTPHeaders: { cookie: `scanner_session=${old}` } });
-    const replay = await ctx.get('/scanner/api/me');
-    await ctx.dispose();
-    expect(replay.status(), 'token del escaner revocado tras Salir').toBe(401);
-    expect(errs).toEqual([]);
-  });
-
   test('SCN-10 invitado de protocolo con asiento reservado: banner "★ Protocolo" y +acompañantes @write', { tag: '@write' }, async ({ page }) => {
     const guest = await V(6);
     // Designar y reservar asiento (owner, API): categoria directivo, +1.
@@ -373,5 +344,51 @@ test.describe('con sesión de escáner', () => {
     await measure('← Actividad', page.getByRole('button', { name: /Actividad/ }));
     if (violators.length) note(testInfo, 'SCN-T', 'S3', `targets < 44 px: ${violators.join(', ')} (app/scanner/ScannerClient.tsx)`);
     expect(violators, 'targets tactiles bajo 44 px').toEqual([]);
+  });
+});
+
+// ===================================================================================================
+// SCN-09 · Salir revoca el token en el servidor. VA AL FINAL del archivo y con SU PROPIA sesion:
+// jamas se hace logout con el storageState compartido (.auth/scanner.json), porque revocaria el token
+// de SCN-10 / SCN-R / SCN-T y de las corridas siguientes. Consume 1 intento del limite de PIN (8/min).
+// ===================================================================================================
+test.describe('salir del escáner (sesión propia)', () => {
+  test.use({ storageState: NO_STATE });
+
+  test('SCN-09 salir limpia la sesión; una cookie inválida o vencida vuelve al PIN', async ({ page, context, baseURL: base }, testInfo) => {
+    test.skip(process.env.Q2_RUN_PIN !== '1', 'PIN propio: solo con Q2_RUN_PIN=1 (consume un intento del limite del PIN)');
+    const pin = env('E2E_SCANNER_PIN');
+    test.skip(!pin, 'sin E2E_SCANNER_PIN');
+    expect(PROJECTS).toContain(testInfo.project.name);
+    const errs = trackPageErrors(page);
+    // Sesion propia: el POST deja la cookie scanner_session solo en ESTE contexto (no toca .auth/scanner.json).
+    await spend('pin');
+    const login = await context.request.post('/scanner/api/pin', { data: { pin }, timeout: 30_000 });
+    expect(login.ok(), `PIN propio de SCN-09: HTTP ${login.status()}`).toBe(true);
+    await page.goto('/scanner');
+    await expect(page.getByRole('heading', { name: '¿Qué vas a escanear?' })).toBeVisible();
+    const before = (await context.cookies()).find((k) => k.name === 'scanner_session');
+    expect(before, 'hay sesion propia').toBeTruthy();
+    const old = before!.value;
+    await page.getByRole('button', { name: 'Salir' }).click();
+    await expect(page.getByRole('heading', { name: 'Ingresa el PIN de puerta' })).toBeVisible();
+    const after = (await context.cookies()).find((k) => k.name === 'scanner_session');
+    expect(after, 'cookie borrada al salir').toBeFalsy();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Ingresa el PIN de puerta' })).toBeVisible();
+
+    // Cookie basura: el gate del servidor no la acepta.
+    await context.addCookies([{ name: 'scanner_session', value: 'x.y.z', url: base! }]);
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Ingresa el PIN de puerta' })).toBeVisible();
+    const me = await context.request.get('/scanner/api/me');
+    expect(me.status()).toBe(401);
+
+    // Reuso del token tras "Salir": el servidor lo revoca (Q8-59). No se imprime el valor.
+    const ctx = await request.newContext({ baseURL: base!, extraHTTPHeaders: { cookie: `scanner_session=${old}` } });
+    const replay = await ctx.get('/scanner/api/me');
+    await ctx.dispose();
+    expect(replay.status(), 'token del escaner revocado tras Salir').toBe(401);
+    expect(errs).toEqual([]);
   });
 });
