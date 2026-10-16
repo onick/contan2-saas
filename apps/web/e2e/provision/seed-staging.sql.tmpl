@@ -59,6 +59,11 @@ do update set used_at = null, expires_at = now() + interval '30 days';
 -- 3) Invitacion de staff con token conocido (AUTH-11/12) ---------------------
 --    Email e2e-invitado@test.local, rol operator. Aceptarla crea ese staff; para repetir el flujo,
 --    ejecutar purge-staging.sql (seccion invitado) o archivar la cuenta y re-sembrar.
+-- Re-armado idempotente: si la invitación anterior (mismo token) ya no está pendiente,
+-- se elimina para que el INSERT no choque con el UNIQUE de token_hash.
+delete from staff_invitations si using org
+ where si.organization_id = org.id and si.email = 'e2e-invitado@test.local'
+   and si.token_hash = '{{INVITE_TOKEN_HASH}}' and si.status <> 'pending';
 with org as (select id from organizations where slug = 'ccb'),
      inviter as (
        select sm.id from staff_members sm, org
