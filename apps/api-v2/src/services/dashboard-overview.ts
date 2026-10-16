@@ -6,7 +6,7 @@
 //     no tiene tz por org). Período actual [hoy-(days-1), mañana); anterior
 //     [start-days, start).
 //   · deltaPct(curr, prev): prev=0 → (curr=0 ? 0 : 100); si no round(Δ/prev·100).
-//   · Serie: asistencias por día local (registered_at), huecos en 0.
+//   · Serie: asistencias (solo check-ins, checked_in_at) por día local, huecos en 0.
 //   · Visitantes nuevos: users.created_at en el período (activos).
 //   · Ocupación promedio: AVG(enrolled/capacity·100) de las actividades CON
 //     fecha en el período (capacity>0).
@@ -71,20 +71,20 @@ export async function dashboardOverview(
     // Serie diaria (día LOCAL) de asistencias del período.
     db.selectFrom('attendance')
       .select([
-        sql<string>`to_char(registered_at AT TIME ZONE ${sql.lit(tz)}, 'YYYY-MM-DD')`.as('d'),
+        sql<string>`to_char(checked_in_at AT TIME ZONE ${sql.lit(tz)}, 'YYYY-MM-DD')`.as('d'),
         db.fn.countAll<string>().as('n'),
       ])
       .where('organization_id', '=', orgId)
-      .where('registered_at', '>=', start)
-      .where('registered_at', '<', end)
+      .where('checked_in_at', '>=', start)
+      .where('checked_in_at', '<', end)
       .groupBy('d')
       .execute(),
     // Conteos curr/prev de asistencias y visitantes nuevos en una pasada.
     db.selectNoFrom((eb) => [
       eb.selectFrom('attendance').select(eb.fn.countAll<string>().as('n'))
-        .where('organization_id', '=', orgId).where('registered_at', '>=', start).where('registered_at', '<', end).as('att_curr'),
+        .where('organization_id', '=', orgId).where('checked_in_at', '>=', start).where('checked_in_at', '<', end).as('att_curr'),
       eb.selectFrom('attendance').select(eb.fn.countAll<string>().as('n'))
-        .where('organization_id', '=', orgId).where('registered_at', '>=', prevStart).where('registered_at', '<', start).as('att_prev'),
+        .where('organization_id', '=', orgId).where('checked_in_at', '>=', prevStart).where('checked_in_at', '<', start).as('att_prev'),
       newVisitorCountQuery(db, orgId, start, end).as('new_curr'),
       newVisitorCountQuery(db, orgId, prevStart, start).as('new_prev'),
     ]).executeTakeFirstOrThrow(),
@@ -105,13 +105,13 @@ export async function dashboardOverview(
         .innerJoin('users', 'users.id', 'attendance.user_id')
         .select(eb.fn.countAll<string>().as('n'))
         .where('attendance.organization_id', '=', orgId)
-        .where('attendance.registered_at', '>=', start).where('attendance.registered_at', '<', end)
+        .where('attendance.checked_in_at', '>=', start).where('attendance.checked_in_at', '<', end)
         .where('users.visit_count', '>', 1).as('ret_curr'),
       eb.selectFrom('attendance')
         .innerJoin('users', 'users.id', 'attendance.user_id')
         .select(eb.fn.countAll<string>().as('n'))
         .where('attendance.organization_id', '=', orgId)
-        .where('attendance.registered_at', '>=', prevStart).where('attendance.registered_at', '<', start)
+        .where('attendance.checked_in_at', '>=', prevStart).where('attendance.checked_in_at', '<', start)
         .where('users.visit_count', '>', 1).as('ret_prev'),
     ]).executeTakeFirstOrThrow(),
     // Próxima actividad activa futura.
@@ -124,8 +124,8 @@ export async function dashboardOverview(
     db.selectFrom('activities as a')
       .innerJoin('attendance as att', (j) => j
         .onRef('att.activity_id', '=', 'a.id')
-        .on('att.registered_at', '>=', start)
-        .on('att.registered_at', '<', end))
+        .on('att.checked_in_at', '>=', start)
+        .on('att.checked_in_at', '<', end))
       .select(['a.id', 'a.name', 'a.type', 'a.category', 'a.location', 'a.date', 'a.capacity', 'a.enrolled_count', 'a.image_url', 'a.image_pos_y'])
       .select((eb) => eb.fn.count('att.id').as('n'))
       .where('a.organization_id', '=', orgId)

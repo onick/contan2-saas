@@ -62,6 +62,22 @@ run('puerta · salas permanentes', () => {
     expect(sala.visitorsToday).toBe(0);
   });
 
+  it('una reserva (checked_in_at NULL) en la sala no suma a visitantes hoy/semana', async () => {
+    const before = (await get('/api/v2/puerta/salas')).json().salas.find((s: { id: string }) => s.id === salaId);
+    const holdId = randomUUID();
+    await db.insertInto('attendance').values({
+      id: holdId, organization_id: orgId, activity_id: salaId, activity_name: 'x', user_id: null, user_code: null,
+      anonymous: true, companions_children: 5, checked_in_at: null,
+    } as never).execute();
+    try {
+      const after = (await get('/api/v2/puerta/salas')).json().salas.find((s: { id: string }) => s.id === salaId);
+      expect(after.visitorsToday).toBe(before.visitorsToday);
+      expect(after.visitorsWeek).toBe(before.visitorsWeek);
+    } finally {
+      await db.deleteFrom('attendance').where('id', '=', holdId).execute();
+    }
+  });
+
   it('registrar identificado / anónimo / grupo · cada entrada cuenta', async () => {
     // identificado por código
     const r1 = await post('/api/v2/puerta/registrar', { salaIds: [salaId], mode: 'identified', code: userCode });

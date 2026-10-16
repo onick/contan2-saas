@@ -55,11 +55,11 @@ run('GET /dashboard/overview', () => {
   };
   const mkActivity = async (orgId: string, name: string, dateIso: string, capacity: number, enrolled: number, status: 'activa' | 'finalizada' = 'activa') =>
     (await db.insertInto('activities').values({ id: randomUUID(), organization_id: orgId, name, type: 'concierto', location: 'Sala', date: dateIso, capacity, enrolled_count: enrolled, status }).returning('id').executeTakeFirstOrThrow()).id;
-  const mkAtt = async (orgId: string, activityId: string, userId: string | null, registeredAt: string) =>
+  const mkAtt = async (orgId: string, activityId: string, userId: string | null, registeredAt: string, hold = false) =>
     db.insertInto('attendance').values({
       id: randomUUID(), organization_id: orgId, activity_id: activityId, activity_name: 'x',
       user_id: userId, user_code: userId ? 'TST-XXXXXX' : null, anonymous: userId === null,
-      companions_children: 0, checked_in_at: registeredAt, registered_at: registeredAt,
+      companions_children: 0, checked_in_at: hold ? null : registeredAt, registered_at: registeredAt,
     }).execute();
 
   beforeAll(async () => {
@@ -81,6 +81,9 @@ run('GET /dashboard/overview', () => {
     await mkAtt(orgAId, actNow, u1, ago(0));
     await mkAtt(orgAId, actNow, null, ago(0));
     await mkAtt(orgAId, actNow, u2, ago(2));
+    // Reserva (hold de protocolo/RSVP, checked_in_at NULL) en el período: NO cuenta.
+    const uHold = await mkUser(orgAId, 5, ago(60));
+    await mkAtt(orgAId, actNow, uHold, ago(0), true);
     // Período anterior (7-14d): 1 asistencia returning (otra actividad: unique org+user+act).
     await mkAtt(orgAId, actPrev, u1, ago(9));
     // Tenant B: ruido que NO debe aparecer.

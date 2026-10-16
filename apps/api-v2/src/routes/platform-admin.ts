@@ -67,10 +67,10 @@ async function loadTenantSummary(db: DbClient, orgId: string): Promise<PlatformT
   const [users, staff, a7, a30, act, last] = await Promise.all([
     db.selectFrom('users').select(db.fn.countAll<number>().as('n')).where('deleted_at', 'is', null).where('organization_id', '=', orgId).executeTakeFirst(),
     db.selectFrom('staff_members').select(db.fn.countAll<number>().as('n')).where('status', '=', 'active').where('organization_id', '=', orgId).executeTakeFirst(),
-    db.selectFrom('attendance').select(db.fn.countAll<number>().as('n')).where('registered_at', '>=', since7).where('organization_id', '=', orgId).executeTakeFirst(),
-    db.selectFrom('attendance').select(db.fn.countAll<number>().as('n')).where('registered_at', '>=', since30).where('organization_id', '=', orgId).executeTakeFirst(),
+    db.selectFrom('attendance').select(db.fn.countAll<number>().as('n')).where('checked_in_at', '>=', since7).where('organization_id', '=', orgId).executeTakeFirst(),
+    db.selectFrom('attendance').select(db.fn.countAll<number>().as('n')).where('checked_in_at', '>=', since30).where('organization_id', '=', orgId).executeTakeFirst(),
     db.selectFrom('activities').select(db.fn.countAll<number>().as('n')).where('status', '=', 'activa').where('organization_id', '=', orgId).executeTakeFirst(),
-    db.selectFrom('attendance').select(db.fn.max('registered_at').as('last')).where('organization_id', '=', orgId).executeTakeFirst(),
+    db.selectFrom('attendance').select(db.fn.max('checked_in_at').as('last')).where('organization_id', '=', orgId).executeTakeFirst(),
   ]);
   const lastActivityAt = last?.last ? new Date(last.last as unknown as string).toISOString() : null;
   const attendances30d = Number(a30?.n ?? 0);
@@ -150,9 +150,9 @@ export const platformAdminRoute: FastifyPluginAsync = async (app) => {
       db.selectFrom('users').select(db.fn.countAll<number>().as('n')).where('deleted_at', 'is', null).executeTakeFirst(),
       db.selectFrom('staff_members').select(db.fn.countAll<number>().as('n')).where('status', '=', 'active').executeTakeFirst(),
       db.selectFrom('activities').select(db.fn.countAll<number>().as('n')).where('status', '=', 'activa').executeTakeFirst(),
-      db.selectFrom('attendance').select(db.fn.countAll<number>().as('n')).where('registered_at', '>=', since30).executeTakeFirst(),
+      db.selectFrom('attendance').select(db.fn.countAll<number>().as('n')).where('checked_in_at', '>=', since30).executeTakeFirst(),
       // tenants con actividad en 30d → para el conteo de "en riesgo".
-      db.selectFrom('attendance').select('organization_id').where('registered_at', '>=', since30).groupBy('organization_id').execute(),
+      db.selectFrom('attendance').select('organization_id').where('checked_in_at', '>=', since30).groupBy('organization_id').execute(),
       recentAudit(db, 8),
     ]);
 
@@ -218,12 +218,12 @@ export const platformAdminRoute: FastifyPluginAsync = async (app) => {
       db.selectFrom('staff_members').select(['organization_id', db.fn.countAll<number>().as('n')])
         .where('status', '=', 'active').where('organization_id', 'in', ids).groupBy('organization_id').execute(),
       db.selectFrom('attendance').select(['organization_id', db.fn.countAll<number>().as('n')])
-        .where('registered_at', '>=', since7).where('organization_id', 'in', ids).groupBy('organization_id').execute(),
+        .where('checked_in_at', '>=', since7).where('organization_id', 'in', ids).groupBy('organization_id').execute(),
       db.selectFrom('attendance').select(['organization_id', db.fn.countAll<number>().as('n')])
-        .where('registered_at', '>=', since30).where('organization_id', 'in', ids).groupBy('organization_id').execute(),
+        .where('checked_in_at', '>=', since30).where('organization_id', 'in', ids).groupBy('organization_id').execute(),
       db.selectFrom('activities').select(['organization_id', db.fn.countAll<number>().as('n')])
         .where('status', '=', 'activa').where('organization_id', 'in', ids).groupBy('organization_id').execute(),
-      db.selectFrom('attendance').select(['organization_id', db.fn.max('registered_at').as('last')])
+      db.selectFrom('attendance').select(['organization_id', db.fn.max('checked_in_at').as('last')])
         .where('organization_id', 'in', ids).groupBy('organization_id').execute(),
     ]) : [[], [], [], [], [], []];
 

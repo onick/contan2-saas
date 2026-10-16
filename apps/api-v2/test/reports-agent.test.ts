@@ -103,8 +103,8 @@ run('POST /reports/agent · integración', () => {
     const code = `AGT-${randomUUID().slice(0, 6).toUpperCase()}`;
     return (await db.insertInto('users').values({ id: randomUUID(), organization_id: orgId, code, first_name: 'V', last_name: 'T', email: `${code.toLowerCase()}@agt.do`, phone: null, visit_count: 1 }).returning('id').executeTakeFirstOrThrow()).id;
   };
-  const mkAtt = async (activityId: string, userId: string, companions = 0) =>
-    db.insertInto('attendance').values({ id: randomUUID(), organization_id: orgId, activity_id: activityId, activity_name: 'x', user_id: userId, anonymous: false, companions_children: companions, checked_in_at: new Date().toISOString() }).execute();
+  const mkAtt = async (activityId: string, userId: string, companions = 0, hold = false) =>
+    db.insertInto('attendance').values({ id: randomUUID(), organization_id: orgId, activity_id: activityId, activity_name: 'x', user_id: userId, anonymous: false, companions_children: companions, checked_in_at: hold ? null : new Date().toISOString() }).execute();
 
   beforeAll(async () => {
     db = createDb(DATABASE_URL as string);
@@ -126,6 +126,9 @@ run('POST /reports/agent · integración', () => {
     await mkAtt(luna, u3);
     await mkAtt(b1, u4, 1); await mkAtt(b2, u5); // Bolero Viejo: 2 check-ins · 3 personas
     await mkAtt(r1, u6); // Rock Andino: 1 check-in · 1 persona
+    // Reservas (holds de protocolo/RSVP, checked_in_at NULL): NO deben cambiar ningún número.
+    const u7 = await mkUser(); const u8 = await mkUser(); const u9 = await mkUser();
+    await mkAtt(estrella, u7, 3, true); await mkAtt(b1, u8, 2, true); await mkAtt(r1, u9, 0, true);
 
     app = buildApp(); await app.ready();
   });

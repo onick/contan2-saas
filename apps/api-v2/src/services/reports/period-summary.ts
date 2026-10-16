@@ -66,7 +66,8 @@ export async function periodSummary(
   async function totals(r: ReportRange) {
     const rows = await db
       .selectFrom('activities as a')
-      .leftJoin('attendance as att', (j) => j.onRef('att.activity_id', '=', 'a.id').onRef('att.organization_id', '=', 'a.organization_id'))
+      // Asistencia = check-in real: las reservas (checked_in_at NULL) no cuentan; el filtro va en el ON para no perder actividades.
+      .leftJoin('attendance as att', (j) => j.onRef('att.activity_id', '=', 'a.id').onRef('att.organization_id', '=', 'a.organization_id').on('att.checked_in_at', 'is not', null))
       .where('a.organization_id', '=', orgId)
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
@@ -89,6 +90,7 @@ export async function periodSummary(
       .innerJoin('activities as a', 'a.id', 'att.activity_id')
       .where('att.organization_id', '=', orgId)
       .where('att.user_id', 'is not', null)
+      .where('att.checked_in_at', 'is not', null)
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
@@ -104,6 +106,7 @@ export async function periodSummary(
       .selectFrom('attendance as att')
       .innerJoin('activities as a', 'a.id', 'att.activity_id')
       .where('att.organization_id', '=', orgId)
+      .where('att.checked_in_at', 'is not', null)
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
@@ -163,7 +166,7 @@ export async function periodSummary(
                bool_or(a.date >= ${r.fromDate} and a.date < ${r.toExclusive}) as in_period
         from attendance att
         join activities a on a.id = att.activity_id
-        where att.organization_id = ${orgId} and att.user_id is not null ${typeClause} ${catClause}
+        where att.organization_id = ${orgId} and att.user_id is not null and att.checked_in_at is not null ${typeClause} ${catClause}
         group by att.user_id
       ) u
       where u.in_period

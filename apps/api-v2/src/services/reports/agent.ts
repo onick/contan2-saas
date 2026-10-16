@@ -262,6 +262,8 @@ async function activityStats(db: DbClient, orgId: string, a: ActivityRow): Promi
       sql<string>`coalesce(sum(1 + companions_children + companions_adults), 0)`.as('people'),
     ])
     .where('organization_id', '=', orgId).where('activity_id', '=', a.id)
+    // Solo check-ins: las reservas (checked_in_at NULL) no son asistencia.
+    .where('checked_in_at', 'is not', null)
     .executeTakeFirst();
   const people = Number(agg?.people ?? 0);
   return {

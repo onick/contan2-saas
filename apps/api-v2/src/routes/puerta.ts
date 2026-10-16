@@ -67,11 +67,13 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
       const vt = await db.selectFrom('attendance')
         .select(sql<number>`coalesce(sum(1 + companions_children + companions_adults), 0)`.as('n'))
         .where('organization_id', '=', orgId).where('activity_id', '=', s.id)
+        .where('checked_in_at', 'is not', null)
         .where(sql<boolean>`registered_at >= ${todaySql}`)
         .executeTakeFirst();
       const vw = await db.selectFrom('attendance')
         .select(sql<number>`coalesce(sum(1 + companions_children + companions_adults), 0)`.as('n'))
         .where('organization_id', '=', orgId).where('activity_id', '=', s.id)
+        .where('checked_in_at', 'is not', null)
         .where(sql<boolean>`registered_at >= ${todaySql} - interval '6 days'`)
         .executeTakeFirst();
       const bks = await db.selectFrom('space_bookings')
