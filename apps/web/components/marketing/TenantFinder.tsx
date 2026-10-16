@@ -27,7 +27,7 @@ export function TenantFinder({ rootDomain }: { rootDomain: string }) {
         body: JSON.stringify({ email: email.trim() }),
       });
       const b = (await res.json().catch(() => null)) as { tenants?: Array<{ slug: string; name: string }>; error?: string } | null;
-      if (!res.ok) { setError(b?.error ?? 'No pudimos buscar tu centro. Intentá de nuevo.'); return; }
+      if (!res.ok) { setError(b?.error ?? 'No pudimos buscar tu centro. Inténtalo de nuevo.'); return; }
       const list = b?.tenants ?? [];
       if (list.length === 1 && list[0]) {
         window.location.assign(loginUrl(list[0].slug));
@@ -35,7 +35,7 @@ export function TenantFinder({ rootDomain }: { rootDomain: string }) {
       }
       setTenants(list);
     } catch {
-      setError('Problema de red. Intentá de nuevo.');
+      setError('Problema de red. Inténtalo de nuevo.');
     } finally {
       setBusy(false);
     }
@@ -65,13 +65,13 @@ export function TenantFinder({ rootDomain }: { rootDomain: string }) {
       {tenants && tenants.length === 0 ? (
         <p className="mt-4 rounded-xl bg-white px-4 py-3 text-[13.5px] leading-relaxed text-[#6b7077]">
           No encontramos una cuenta de equipo con ese correo. Si tu institución aún no usa
-          Contan2, <a className="font-semibold text-[#e65100]" href="mailto:soporte@contan2.com?subject=Quiero%20una%20demo%20de%20Contan2">solicitá una demo</a>.
+          Contan2, <a className="font-semibold text-[#e65100]" href="mailto:soporte@contan2.com?subject=Quiero%20una%20demo%20de%20Contan2">solicita una demo</a>.
         </p>
       ) : null}
 
       {tenants && tenants.length > 1 ? (
         <div className="mt-4">
-          <p className="text-[13px] font-semibold text-[#3d4148]">Estás en varios centros — elegí:</p>
+          <p className="text-[13px] font-semibold text-[#3d4148]">Estás en varios centros — elige:</p>
           <ul className="mt-2 overflow-hidden rounded-xl border border-[#e6e3dd] bg-white">
             {tenants.map((t) => (
               <li key={t.slug} className="border-b border-[#e6e3dd] last:border-b-0">

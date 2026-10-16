@@ -161,10 +161,10 @@ export function SignupModal({ open, onClose }: Props) {
         setTimeout(() => digitRefs.current[0]?.focus(), 100);
         return;
       }
-      setErrorMsg(data.error ?? 'Algo salió mal. Intentá de nuevo.');
+      setErrorMsg(data.error ?? 'Algo salió mal. Inténtalo de nuevo.');
       setStatus('error');
     } catch {
-      setErrorMsg('No pudimos conectar con el servidor. Intentá de nuevo.');
+      setErrorMsg('No pudimos conectar con el servidor. Inténtalo de nuevo.');
       setStatus('error');
     }
   }
@@ -173,7 +173,7 @@ export function SignupModal({ open, onClose }: Props) {
   async function onVerify(codeStr?: string) {
     const code = codeStr ?? digits.join('');
     if (code.length !== 6) {
-      setErrorMsg('Ingresá el código completo de 6 dígitos.');
+      setErrorMsg('Ingresa el código completo de 6 dígitos.');
       setStatus('error');
       return;
     }
@@ -192,10 +192,10 @@ export function SignupModal({ open, onClose }: Props) {
         window.location.href = data.redirectUrl;
         return;
       }
-      setErrorMsg(data.error ?? 'Código inválido. Intentá de nuevo.');
+      setErrorMsg(data.error ?? 'Código inválido. Inténtalo de nuevo.');
       setStatus('error');
     } catch {
-      setErrorMsg('No pudimos conectar con el servidor. Intentá de nuevo.');
+      setErrorMsg('No pudimos conectar con el servidor. Inténtalo de nuevo.');
       setStatus('error');
     }
   }
