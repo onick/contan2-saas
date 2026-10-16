@@ -1,0 +1,34 @@
+/* components/ui/arc/arc.css · tokens de movimiento y hojas por pieza del porte de
+   Arc Library (ver ATTRIBUTION.md). Solo curvas y duraciones: los colores salen
+   de los tokens de marca de app/globals.css. Cada pieza edita SOLO su archivo.
+   Los @import van primero (la especificación CSS lo exige; Turbopack falla si no). */
+@import "./date-range-picker/date-range-picker.css" layer(components);
+@import "./otp-input/otp-input.css" layer(components);
+@import "./number-field/number-field.css" layer(components);
+@import "./split-button/split-button.css" layer(components);
+@import "./dropdown-menu/dropdown-menu.css" layer(components);
+
+:root {
+  --arc-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --arc-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Resorte: fallback cubic-bezier y, si el navegador lo soporta, linear(). */
+  --arc-ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --arc-ease-spring: linear(0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017, 1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%, 1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%, 0.997 69.8%, 1.003 76.9%, 1.004 83.8%, 1);
+  --arc-dur-instant: 120ms;
+  --arc-dur-fast: 160ms;
+  --arc-dur-standard: 240ms;
+  --arc-dur-exit: 130ms;
+}
+
+/* Keyframe no-op: Radix espera a que termine la "animación" de salida antes de
+   desmontar; la transición hace el trabajo visual. */
+@keyframes arc-exit { to { --arc-exit-done: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --arc-dur-instant: 0ms;
+    --arc-dur-fast: 0ms;
+    --arc-dur-standard: 0ms;
+    --arc-dur-exit: 0ms;
+  }
+}
