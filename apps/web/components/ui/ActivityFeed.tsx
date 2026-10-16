@@ -31,24 +31,24 @@ const TONE_CLS: Record<string, string> = {
 
 export function ActivityFeed({ items, verTodoHref, className }: ActivityFeedProps) {
   return (
-    <div className={cn('flex flex-col', className)}>
+    <div className={cn('flex min-w-0 flex-col', className)}>
       {verTodoHref ? (
         <div className="mb-1 flex items-center justify-between">
           <Link
             href={verTodoHref}
-            className="text-[12px] font-semibold text-brand-text hover:underline"
+            className="-mx-1 inline-flex min-h-6 items-center rounded px-1 text-[12px] font-semibold text-brand-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             Ver todo
           </Link>
         </div>
       ) : null}
-      <ul className="divide-y divide-line">
+      <ul className="min-w-0 divide-y divide-line">
         {items.map((item) => {
           const meta = actionMeta(item.action);
           const Icon = meta.icono;
           const toneCls = TONE_CLS[meta.tono] ?? TONE_CLS.neutral;
           return (
-            <li key={item.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+            <li key={item.id} className="flex min-w-0 items-start gap-3 py-3 first:pt-0 last:pb-0">
               <span
                 aria-hidden="true"
                 className={cn('grid h-8 w-8 flex-none place-items-center rounded-full', toneCls)}
@@ -56,7 +56,7 @@ export function ActivityFeed({ items, verTodoHref, className }: ActivityFeedProp
                 <Icon size={15} strokeWidth={1.9} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] leading-snug text-ink">
+                <p className="text-[13px] leading-snug text-ink [overflow-wrap:anywhere]">
                   {item.sujeto ? <>{item.sujeto} </> : null}
                   <span className="font-semibold">{meta.frase}</span>
                   {item.detalle ? <> · <span className="text-muted">{item.detalle}</span></> : null}

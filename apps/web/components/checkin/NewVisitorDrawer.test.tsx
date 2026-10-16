@@ -3,7 +3,7 @@
 // = apellido. Sin texto → vacío.
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { NewVisitorDrawer } from './NewVisitorDrawer';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -34,5 +34,30 @@ describe('NewVisitorDrawer · prefill desde el buscador', () => {
     render(<NewVisitorDrawer open activities={[]} onClose={noop} onDone={noop} />);
     expect(inputs()[0]!.value).toBe('');
     expect(inputs()[1]!.value).toBe('');
+  });
+});
+
+describe('NewVisitorDrawer · foco (usa useDrawerLifecycle)', () => {
+  it('Tab/Shift+Tab ciclan dentro del diálogo, Esc cierra y el resto queda inerte', () => {
+    const onClose = vi.fn();
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+    outside.focus();
+    render(<NewVisitorDrawer open activities={[]} onClose={onClose} onDone={noop} />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(outside.hasAttribute('inert') || outside.getAttribute('aria-hidden') === 'true').toBe(true);
+    // Shift+Tab desde el primer control salta al último focusable del diálogo.
+    const first = screen.getAllByRole('button', { name: 'Cerrar' }).find((b) => b.tabIndex !== -1)!;
+    first.focus();
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
+    const last = screen.getByRole('button', { name: /Crear y registrar/ });
+    expect(document.activeElement).toBe(last);
+    // Tab desde el último vuelve al primero.
+    fireEvent.keyDown(last, { key: 'Tab' });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    outside.remove();
   });
 });

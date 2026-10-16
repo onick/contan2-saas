@@ -30,3 +30,14 @@ describe('CirculacionClient · subpestaña de préstamos activos', () => {
     expect(tab).toHaveAttribute('data-state', 'active');
   });
 });
+
+describe('CirculacionClient · a11y de pestañas (Q8-23)', () => {
+  it('el aria-controls del tab activo apunta a un tabpanel que existe', () => {
+    render(<CirculacionClient initial={initial} initialSummary={null} />);
+    const active = screen.getByRole('tab', { selected: true });
+    const panel = document.getElementById(active.getAttribute('aria-controls')!);
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute('role', 'tabpanel');
+    expect(panel).toContainElement(screen.getByRole('textbox', { name: 'Buscar préstamos' }));
+  });
+});

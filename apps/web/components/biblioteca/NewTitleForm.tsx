@@ -268,7 +268,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
                     <span className="absolute inset-x-0 bottom-0 bg-ink/60 py-1 text-center text-[10.5px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100">Cambiar</span>
                   ) : null}
                 </button>
-                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Subir imagen de portada" className="sr-only"
                   onChange={(e) => pickCover(e.target.files?.[0] ?? null)} />
                 {coverFile ? (
                   <button type="button" onClick={() => pickCover(null)}

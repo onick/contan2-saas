@@ -126,7 +126,7 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar actividad…"
                 aria-label="Buscar actividad"
-                className={cn('w-full bg-transparent text-[13px] text-ink placeholder:text-faint focus:outline-none sm:w-48', focusRing)}
+                className={cn('min-h-6 w-full bg-transparent text-[13px] text-ink placeholder:text-faint focus:outline-none sm:w-48', focusRing)}
               />
             </div>
             <div className="flex items-center rounded-lg border border-line bg-surface p-0.5">

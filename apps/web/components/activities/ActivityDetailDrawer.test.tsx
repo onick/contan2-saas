@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { ActivityDetailDrawer } from './ActivityDetailDrawer';
 import type { Activity } from '../../lib/activities/demoData';
 
@@ -118,5 +118,30 @@ describe('ActivityDetailDrawer · resumen post-evento', () => {
     await waitFor(() => expect(screen.getByText('Resumen post-evento')).toBeInTheDocument());
     expect(screen.getByText('80% en sala · 1 sin credencial')).toBeInTheDocument();
     expect(screen.queryByText('Reservados (en lista)')).toBeNull();
+  });
+});
+
+describe('ActivityDetailDrawer · a11y (Q8-22/27)', () => {
+  it('cada <dt>/<dd> cuelga de un <dl> (directo o vía <div> de grupo) y el foco queda en el diálogo', async () => {
+    mockFetch({ status: 200, body: { summary: SUMMARY } });
+    render(<ActivityDetailDrawer activity={ACT} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Resumen post-evento')).toBeInTheDocument());
+    const terms = document.querySelectorAll('dt, dd');
+    expect(terms.length).toBeGreaterThan(0);
+    terms.forEach((el) => {
+      const p = el.parentElement!;
+      const ok = p.tagName === 'DL' || (p.tagName === 'DIV' && p.parentElement?.tagName === 'DL');
+      expect(ok).toBe(true);
+    });
+    // Un grupo <div> sólo contiene dt/dd (sin íconos ni spans sueltos).
+    document.querySelectorAll('dl > div').forEach((g) => {
+      Array.from(g.children).forEach((c) => expect(['DT', 'DD']).toContain(c.tagName));
+    });
+    // Trampa de foco: Tab desde el último control vuelve dentro del diálogo.
+    const dialog = screen.getByRole('dialog');
+    const items = Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]):not([tabindex="-1"]), a[href], input, select, textarea, [tabindex="0"]'));
+    items[items.length - 1]!.focus();
+    fireEvent.keyDown(document.activeElement!, { key: 'Tab' });
+    expect(document.activeElement).toBe(items[0]);
   });
 });

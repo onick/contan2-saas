@@ -390,14 +390,16 @@ function StatTile({ icon: Icon, label, value, extra }: { icon: typeof CalendarDa
 
 function Row({ icon: Icon, label, hint, children }: { icon: typeof CalendarDays; label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3">
-      <span className={cn('mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg bg-surface-container text-faint', focusRing)}>
-        <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
-      </span>
-      <div className="min-w-0">
-        <dt title={hint} className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</dt>
-        <dd className="mt-0.5 text-sm text-ink">{children}</dd>
-      </div>
+    // <dl> > <div> > <dt>+<dd> (HTML válido): el ícono decorativo vive dentro del
+    // <dt> y se posiciona en la columna izquierda del grupo.
+    <div className="relative min-w-0 pl-11">
+      <dt title={hint} className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
+        <span className={cn('absolute left-0 top-0.5 grid h-8 w-8 place-items-center rounded-lg bg-surface-container text-faint', focusRing)} aria-hidden="true">
+          <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
+        </span>
+        {label}
+      </dt>
+      <dd className="mt-0.5 text-sm text-ink">{children}</dd>
     </div>
   );
 }

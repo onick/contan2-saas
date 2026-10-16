@@ -13,7 +13,10 @@ describe('Sidebar', () => {
   it('renderiza todos los nav items, incluido "Mi equipo" (no "Staff")', () => {
     render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" role="owner" />);
     for (const item of NAV_ITEMS) {
-      expect(screen.getByRole('link', { name: item.label })).toBeInTheDocument();
+      // Sin aria-label: el nombre es el texto visible (label + badge estático si lo hay).
+      const link = screen.getByRole('link', { name: new RegExp(`^${item.label}`) });
+      expect(link).toBeInTheDocument();
+      expect(link).not.toHaveAttribute('aria-label');
     }
     expect(screen.getByRole('link', { name: 'Mi equipo' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Staff' })).not.toBeInTheDocument();

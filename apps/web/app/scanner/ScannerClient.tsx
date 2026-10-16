@@ -232,7 +232,7 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
           </div>
           <button
             onClick={logout}
-            className="flex items-center gap-1.5 rounded-pill border border-line px-3 py-2 text-sm text-muted transition hover:bg-subtle hover:text-ink"
+            className="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-pill border border-line px-3 py-2 text-sm text-muted transition hover:bg-subtle hover:text-ink"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" /> Salir
           </button>
@@ -282,7 +282,7 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
             setScreen('select');
             setOutcome(null);
           }}
-          className="shrink-0 rounded-lg border border-line px-3 py-2 text-sm text-muted transition hover:bg-subtle"
+          className="min-h-11 min-w-11 shrink-0 rounded-lg border border-line px-3 py-2 text-sm text-muted transition hover:bg-subtle"
         >
           ← Actividad
         </button>
@@ -298,7 +298,7 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
         <button
           onClick={logout}
           aria-label="Cerrar sesión"
-          className="shrink-0 rounded-lg border border-line px-3 py-2 text-sm text-muted transition hover:bg-subtle"
+          className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-lg border border-line px-3 py-2 text-sm text-muted transition hover:bg-subtle"
         >
           <LogOut className="h-4 w-4" aria-hidden="true" />
         </button>

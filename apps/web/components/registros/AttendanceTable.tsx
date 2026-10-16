@@ -69,7 +69,12 @@ export function AttendanceTable({ records }: AttendanceTableProps) {
       </ul>
 
       {/* Tablet/desktop (md+): tabla. */}
-      <div className="hidden overflow-x-auto md:block">
+      <div
+        role="region"
+        aria-label="Tabla de asistencias (desplazable)"
+        tabIndex={0}
+        className="hidden overflow-x-auto rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:block"
+      >
         <table className="w-full min-w-[820px] border-collapse">
           <thead>
             <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">

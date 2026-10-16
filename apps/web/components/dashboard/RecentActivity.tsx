@@ -92,7 +92,7 @@ export function RecentActivity({ demoAllowed, period }: Props) {
   }
 
   return (
-    <Card padding="lg">
+    <Card padding="lg" className="min-w-0">
       <h3 className="mb-3 text-[15px] font-semibold tracking-tight text-ink">
         Actividad reciente
       </h3>

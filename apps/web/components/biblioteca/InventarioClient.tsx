@@ -17,7 +17,7 @@ import type {
 } from '@contan2/contracts';
 import {
   Card, Button, IconButton, Chip, EmptyState, SectionHeader, Sheet,
-  Tabs, DataTableClient, cn, focusRing,
+  Tabs, TabsContent, DataTableClient, cn, focusRing,
 } from '../ui';
 import type { DataTableColumn } from '../ui';
 
@@ -347,6 +347,7 @@ export function InventarioClient({ initial, sites }: {
             onValueChange={(v) => { setTab(v); setPage(1); }}
             tabs={TABS_ITEMS}
           >
+            <TabsContent value={tab} className="flex flex-col gap-4 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
             {tab === 'anteriores' ? (
               <div>
                 {sessions.previous.length === 0 ? (
@@ -446,6 +447,7 @@ export function InventarioClient({ initial, sites }: {
                 </div>
               </>
             )}
+            </TabsContent>
           </Tabs>
         </div>
       </div>

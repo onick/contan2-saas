@@ -6,7 +6,7 @@
 //   · Teclado: ↑/↓ mueven, ↵ navega, Esc cierra. Portal a body (escapa
 //     containing-blocks con transform/filter). Marca del tenant vía tokens.
 
-import { useEffect, useMemo, useRef, useState, type ElementType, type KeyboardEvent as RKE } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementType, type KeyboardEvent as RKE } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, CalendarDays, UserRound, CornerDownLeft, ArrowUp, ArrowDown } from 'lucide-react';
 import { NAV_ITEMS, filterNavByRole } from '../../lib/shell/nav';
@@ -34,13 +34,17 @@ export function CommandPalette() {
   const triggerRef = useRef<Element | null>(null);
 
   // Guarda el trigger al abrir; devuelve el foco al cerrarse.
-  useEffect(() => {
+  // Se captura en un layout effect (antes de que nada mueva el foco) el
+  // `document.activeElement` real y se restaura al cerrar por cualquier vía (Esc,
+  // clic fuera, navegar). Si el elemento ya no existe, cae a <body> sin romper.
+  useLayoutEffect(() => {
     if (paletteOpen) {
       triggerRef.current = document.activeElement;
-    } else if (triggerRef.current instanceof HTMLElement) {
-      triggerRef.current.focus();
-      triggerRef.current = null;
+      return;
     }
+    const prev = triggerRef.current;
+    triggerRef.current = null;
+    if (prev instanceof HTMLElement && prev !== document.body && prev.isConnected) prev.focus();
   }, [paletteOpen]);
 
   // Al abrir: reset + foco. Al cerrar: limpia. Bloqueo de scroll del body.

@@ -61,7 +61,7 @@ export function ProfileLink({ code }: { code: string }) {
   return (
     <button type="button" data-ver-btn onClick={() => open(code)}
       aria-label={`Ver perfil ${code}`}
-      className={cn('rounded px-1 text-[13px] font-semibold text-brand-text', focusRing)}>
+      className={cn('inline-flex min-h-6 min-w-8 items-center justify-center rounded px-1.5 text-[13px] font-semibold text-brand-text', focusRing)}>
       Ver
     </button>
   );
