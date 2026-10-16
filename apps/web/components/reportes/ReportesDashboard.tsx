@@ -17,6 +17,8 @@ import { Card, cn, focusRing } from '../ui';
 import { DeltaPct, buildSlices, Donut, Bars, LineChart } from '../charts/primitives';
 import { useDataAnim } from '../charts/useDataAnim';
 import { ReportsAgent } from './ReportsAgent';
+import { DateRangePicker } from '../ui/arc/date-range-picker/DateRangePicker';
+import { MAX_RANGE_DAYS, REPORT_TYPE_OPTIONS as TYPE_OPTIONS, filtersToSearch } from './filters';
 
 // Querystring del período (client-safe; el server usa el de lib/api/reports).
 function reportsQuery(from: string, to: string, types?: string[], categories?: string[]): string {
@@ -27,15 +29,7 @@ function reportsQuery(from: string, to: string, types?: string[], categories?: s
 }
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
-const pad = (n: number) => String(n).padStart(2, '0');
-const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-const TYPE_OPTIONS: Array<{ v: string; l: string }> = [
-  { v: 'concierto', l: 'Concierto' }, { v: 'cine', l: 'Cine' }, { v: 'taller', l: 'Taller' },
-  { v: 'exposicion', l: 'Exposición' }, { v: 'teatro', l: 'Teatro' }, { v: 'conferencia', l: 'Conferencia' },
-  { v: 'tertulia', l: 'Tertulia' }, { v: 'visita_guiada', l: 'Visita guiada' }, { v: 'cuentacuentos', l: 'Cuenta cuentos' },
-  { v: 'otro', l: 'Otro' },
-];
 const TYPE_COLOR: Record<string, string> = {
   cine: '#e65100', concierto: '#14b8a6', taller: '#8b5cf6', exposicion: '#10b981', teatro: '#ec4899', conferencia: '#3b6fe0',
   tertulia: '#0ea5e9', visita_guiada: '#eab308', cuentacuentos: '#f43f5e', otro: '#94a3b8',
@@ -45,23 +39,6 @@ const TYPE_ICON: Record<string, LucideIcon> = {
   tertulia: MessagesSquare, visita_guiada: Footprints, cuentacuentos: BookOpen,
 };
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-
-type Preset = { key: string; label: string };
-const PRESETS: Preset[] = [
-  { key: 'mes', label: 'Este mes' }, { key: 'mesPasado', label: 'Mes pasado' },
-  { key: '30d', label: 'Últimos 30 días' }, { key: '90d', label: 'Últimos 90 días' }, { key: 'anio', label: 'Este año' },
-];
-function presetRange(key: string): { from: string; to: string } {
-  const now = new Date(); const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
-  const today = new Date(y, m, d);
-  switch (key) {
-    case 'mesPasado': return { from: ymd(new Date(y, m - 1, 1)), to: ymd(new Date(y, m, 0)) };
-    case '30d': return { from: ymd(new Date(y, m, d - 29)), to: ymd(today) };
-    case '90d': return { from: ymd(new Date(y, m, d - 89)), to: ymd(today) };
-    case 'anio': return { from: ymd(new Date(y, 0, 1)), to: ymd(today) };
-    default: return { from: ymd(new Date(y, m, 1)), to: ymd(today) };
-  }
-}
 
 const PALETTE = ['#e65100', '#14b8a6', '#8b5cf6', '#10b981', '#3b6fe0', '#ec4899', '#94a3b8'];
 
@@ -73,21 +50,25 @@ export interface ReportesDashboardProps {
   // Excel/PDF/CSV ni Asistente, porque generar/exportar es 403 para él en
   // api-v2. La página ya filtra a los roles sin acceso. Por defecto true.
   canExport?: boolean;
+  // Filtros que vinieron en la URL (?preset&types&categories), ya validados por la página.
+  initialFilters?: { preset: string | null; types: string[]; categories: string[] };
 }
 
-export function ReportesDashboard({ initial, initialRange, canExport = true }: ReportesDashboardProps) {
+export function ReportesDashboard({ initial, initialRange, canExport = true, initialFilters }: ReportesDashboardProps) {
   const [data, setData] = useState(initial);
-  const [periodKey, setPeriodKey] = useState('mes');
+  const [periodKey, setPeriodKey] = useState<string | null>(initialFilters ? initialFilters.preset : 'mes');
   const [range, setRange] = useState(initialRange);
-  const [types, setTypes] = useState<string[]>([]);
-  const [cats, setCats] = useState<string[]>([]);
+  const [types, setTypes] = useState<string[]>(initialFilters?.types ?? []);
+  const [cats, setCats] = useState<string[]>(initialFilters?.categories ?? []);
   const [catList, setCatList] = useState<CatItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [summaryErr, setSummaryErr] = useState(false);
   const [ddOpen, setDdOpen] = useState(false);
   const [ddCatOpen, setDdCatOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const first = useRef(true);
+  // La página trae el resumen con rango y tipos; los ciclos (categories) solo se aplican acá, así que con ciclos en la URL se pide al montar.
+  const first = useRef((initialFilters?.categories.length ?? 0) === 0);
+  const urlFirst = useRef(true);
 
   // Re-fetch al cambiar filtros (salta el primer render: ya tenemos `initial`).
   useEffect(() => {
@@ -102,6 +83,13 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
       .finally(() => { if (!cancel) setLoading(false); });
     return () => { cancel = true; };
   }, [range, types, cats]);
+
+  // Filtros en la URL (compartible y sobrevive al refresco). replaceState: no apila historial ni dispara navegación.
+  useEffect(() => {
+    if (urlFirst.current) { urlFirst.current = false; return; }
+    const qs = filtersToSearch({ range, preset: periodKey, types, categories: cats });
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}?${qs}`);
+  }, [range, periodKey, types, cats]);
 
   // Ciclos/categorías del tenant (una vez) para el filtro del dashboard.
   useEffect(() => {
@@ -121,8 +109,7 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
     return () => document.removeEventListener('click', h);
   }, [ddOpen, ddCatOpen]);
 
-  function pickPreset(key: string) { setPeriodKey(key); setRange(presetRange(key)); }
-  function setDate(which: 'from' | 'to', v: string) { if (v) { setPeriodKey('custom'); setRange((r) => ({ ...r, [which]: v })); } }
+  function pickRange(r: { from: string; to: string }, key: string | null) { setPeriodKey(key); setRange(r); }
   function toggleType(v: string) { setTypes((t) => (t.includes(v) ? t.filter((x) => x !== v) : [...t, v])); }
   function toggleCat(v: string) { setCats((c) => (c.includes(v) ? c.filter((x) => x !== v) : [...c, v])); }
 
@@ -186,12 +173,7 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
 
       {/* filtros */}
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
-        {PRESETS.map((p) => (
-          <button key={p.key} type="button" onClick={() => pickPreset(p.key)}
-            className={cn('min-h-8 rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors', focusRing, periodKey === p.key ? 'bg-brand text-brand-fg' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
-            {p.label}
-          </button>
-        ))}
+        <DateRangePicker label="Período" value={range} presetKey={periodKey} onChange={pickRange} max="today" maxDays={MAX_RANGE_DAYS} />
         {/* dropdown de tipos, alineado con los períodos */}
         <div className="relative" onClick={(e) => e.stopPropagation()}>
           <button type="button" onClick={() => setDdOpen((v) => !v)}
@@ -241,17 +223,6 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
             )}
           </div>
         ) : null}
-        {/* rango de fechas */}
-        <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Desde</span>
-            <input type="date" value={range.from} onChange={(e) => setDate('from', e.target.value)} className={cn('rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-ink', focusRing)} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Hasta</span>
-            <input type="date" value={range.to} onChange={(e) => setDate('to', e.target.value)} className={cn('rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-ink', focusRing)} />
-          </label>
-        </div>
       </div>
 
       {/* reporte por ciclo / categoría — usa el período seleccionado arriba */}
