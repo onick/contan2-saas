@@ -117,7 +117,7 @@ export function TitleDetail({ initial, sites }: { initial: BiblioTitleDetailResp
         </div>
         {detail.items.length === 0 ? (
           <p className="px-5 pb-5 pt-3 text-[13.5px] text-muted">
-            Este título todavía no tiene ejemplares. Agregá la primera copia con su código de inventario.
+            Este título todavía no tiene ejemplares. Agrega la primera copia con su código de inventario.
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-line/70">

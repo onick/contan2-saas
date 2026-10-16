@@ -7,7 +7,7 @@ import { Unavailable } from '../../../components/shell/Unavailable';
 import { PrestamosVencerCard } from '../../../components/biblioteca/PrestamosVencerCard';
 import { numero } from '../../../lib/format';
 import {
-  getBiblioFacets, getBiblioSites, getBiblioOverview, getBiblioLoans,
+  getBiblioFacetsResult, getBiblioSites, getBiblioOverview, getBiblioLoans,
 } from '../../../lib/api/biblio';
 
 export const metadata: Metadata = {
@@ -17,16 +17,20 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function BibliotecaInicioPage() {
-  const [facets, sites, overview, loansResp] = await Promise.all([
-    getBiblioFacets(),
+  const [facetsResult, sites, overview, loansResp] = await Promise.all([
+    getBiblioFacetsResult(),
     getBiblioSites(),
     getBiblioOverview(),
     getBiblioLoans('activos'),
   ]);
 
-  if (!facets) {
-    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar el resumen. Intenta de nuevo en unos segundos." />;
+  if (!facetsResult.ok) {
+    if (facetsResult.reason === 'forbidden') {
+      return <Unavailable inline hideRetry title="No tienes permiso para ver Biblioteca" description="Tu rol no incluye este módulo. Si lo necesitas, pídele acceso a un administrador." />;
+    }
+    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar el resumen. Inténtalo de nuevo en unos segundos." />;
   }
+  const facets = facetsResult.data;
 
   // Préstamos activos ordenados por vencimiento (más urgentes primero: vencidos y vence_pronto).
   const prestamosVencer = (loansResp?.loans ?? [])

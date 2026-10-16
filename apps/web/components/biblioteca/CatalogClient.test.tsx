@@ -38,10 +38,10 @@ describe('CatalogClient · título en tarjeta móvil', () => {
     expect(mobileTitleEl!.className).not.toContain('truncate');
   });
 
-  it('aplica line-clamp-3 y break-words para permitir wrap en la tarjeta móvil', () => {
+  it('sin line-clamp (título completo) y con break-words en la tarjeta móvil', () => {
     render(<CatalogClient initial={initial} sites={[]} facets={null} />);
     const mobileTitleEl = screen.getAllByText(LONG_TITLE).find((el) => el.tagName === 'P');
-    expect(mobileTitleEl!.className).toContain('line-clamp-3');
+    expect(mobileTitleEl!.className).not.toMatch(/line-clamp/);
     expect(mobileTitleEl!.className).toContain('break-words');
   });
 
@@ -53,6 +53,16 @@ describe('CatalogClient · título en tarjeta móvil', () => {
     const coverCardTitle = allTitleEls.find((el) => el.tagName === 'SPAN' && el.className.includes('mt-1.5'));
     expect(coverCardTitle).toBeTruthy();
     expect(coverCardTitle!.className).not.toContain('truncate');
-    expect(coverCardTitle!.className).toContain('line-clamp-3');
+    expect(coverCardTitle!.className).not.toMatch(/line-clamp/);
+    expect(coverCardTitle!.className).toContain('break-words');
+  });
+});
+
+describe('CatalogClient · botón Importar', () => {
+  it('está deshabilitado y rotulado "Pronto" (igual que Lectores) hasta que exista la importación', () => {
+    render(<CatalogClient initial={initial} sites={[]} facets={null} />);
+    const imp = screen.getByRole('button', { name: /Importar/ });
+    expect(imp).toBeDisabled();
+    expect(imp).toHaveTextContent(/Pronto/);
   });
 });

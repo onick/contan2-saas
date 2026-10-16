@@ -97,7 +97,9 @@ run('biblioteca · catálogo F1', () => {
     const byTitle = (await req('GET', '/api/v2/biblio/titles?q=cien%20a', TOK.admin)).json();
     expect(byTitle.titles.map((x: { title: string }) => x.title)).toEqual(['Cien años de soledad']);
     const byAuthor = (await req('GET', '/api/v2/biblio/titles?q=garcia%20marquez', TOK.admin)).json();
-    expect(byAuthor.total).toBe(0); // sin acentos NO matchea el jsonb crudo (v1: acentos exactos)
+    expect(byAuthor.total).toBe(1); // BIB-02d: la búsqueda ignora acentos (translate, igual que categorías)
+    const byTitleNoAccent = (await req('GET', '/api/v2/biblio/titles?q=cien%20anos', TOK.admin)).json();
+    expect(byTitleNoAccent.total).toBe(1); // 'Cien años de soledad' con ñ→n
     const byAuthorAcc = (await req('GET', `/api/v2/biblio/titles?q=${encodeURIComponent('García Márquez')}`, TOK.admin)).json();
     expect(byAuthorAcc.total).toBe(1);
     const byIsbn = (await req('GET', `/api/v2/biblio/titles?q=${encodeURIComponent('978-9945-000-01-2')}`, TOK.admin)).json();
@@ -215,6 +217,43 @@ run('biblioteca · catálogo F1', () => {
     // Solo disponibles: 'Cien años' (reparación) y la revista (0 ejemplares) quedan afuera.
     const disp = (await req('GET', '/api/v2/biblio/titles?disponible=1', TOK.admin)).json();
     expect(disp.titles.map((t: { title: string }) => t.title)).toEqual(['Otra novela']);
+  });
+
+  it('BIB-02b: "Solo disponibles" descarta títulos con todas sus copias prestadas o no prestables', async () => {
+    const otra = (await req('GET', `/api/v2/biblio/titles?q=${encodeURIComponent('otra novela')}`, TOK.admin)).json().titles[0];
+    const item = await db.selectFrom('biblio_items').select('id').where('organization_id', '=', orgId).where('inventory_code', '=', 'OTR-000001').executeTakeFirstOrThrow();
+    const names = async (qs: string) => (await req('GET', `/api/v2/biblio/titles?${qs}`, TOK.admin)).json().titles.map((t: { title: string }) => t.title);
+    expect(await names('disponible=1')).toEqual(['Otra novela']);
+
+    // Préstamo abierto de la única copia → ya no está disponible (y el export tampoco la lista).
+    const uid = randomUUID();
+    await db.insertInto('users').values({ id: uid, organization_id: orgId, code: `BIB-D${stamp % 100000}`, first_name: 'Lector', last_name: 'Disp' } as never).execute();
+    const loan = await db.insertInto('biblio_loans').values({ organization_id: orgId, item_id: item.id, user_id: uid, due_at: new Date(Date.now() + 86_400_000).toISOString() } as never).returning('id').executeTakeFirstOrThrow();
+    expect(await names('disponible=1')).toEqual([]);
+    expect(await names('')).toContain('Otra novela'); // sin el filtro sigue en el catálogo
+    const x = await req('GET', '/api/v2/biblio/export.xlsx?disponible=1', TOK.biblio);
+    expect(x.statusCode).toBe(200);
+
+    // BIB-04b: no se puede dar de baja con el préstamo abierto.
+    const baja = await req('PATCH', `/api/v2/biblio/items/${item.id}`, TOK.admin, { retiredReason: 'Extraviado' });
+    expect(baja.statusCode).toBe(409);
+    expect(baja.json().error).toMatch(/préstamo sin devolver/);
+    const still = await db.selectFrom('biblio_items').select(['retired_at', 'physical_status']).where('id', '=', item.id).executeTakeFirstOrThrow();
+    expect(still.retired_at).toBeNull();
+    expect(still.physical_status).toBe('bueno');
+    // Otros cambios del ejemplar (sin baja) siguen permitidos con préstamo abierto.
+    expect((await req('PATCH', `/api/v2/biblio/items/${item.id}`, TOK.admin, { shelf: 'Estante Z' })).statusCode).toBe(200);
+
+    // Devuelto → vuelve a estar disponible; copia no prestable → no.
+    await db.updateTable('biblio_loans').set({ returned_at: new Date().toISOString() } as never).where('id', '=', loan.id).execute();
+    expect(await names('disponible=1')).toEqual(['Otra novela']);
+    await db.updateTable('biblio_items').set({ loanable: false } as never).where('id', '=', item.id).execute();
+    expect(await names('disponible=1')).toEqual([]);
+    await db.updateTable('biblio_items').set({ loanable: true } as never).where('id', '=', item.id).execute();
+
+    await db.deleteFrom('biblio_loans').where('organization_id', '=', orgId).execute();
+    await db.deleteFrom('users').where('id', '=', uid).execute();
+    expect(otra.id).toBeTruthy();
   });
 
   it('overview: alertas reales del acervo + actividad reciente', async () => {

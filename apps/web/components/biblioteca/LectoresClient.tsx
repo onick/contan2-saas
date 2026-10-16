@@ -481,7 +481,6 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
                 {reader.suspendedAt ? row('Suspendido desde', fmtDate(reader.suspendedAt)) : null}
                 {reader.suspendedReason ? row('Motivo', reader.suspendedReason) : null}
               </dl>
-              <p className="mt-3 text-[11.5px] leading-relaxed text-faint">Máx. préstamos y préstamos actuales llegan con Circulación (F2).</p>
 
               {error ? <p role="status" className="mt-3 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-semibold text-danger-fg">{error}</p> : null}
 

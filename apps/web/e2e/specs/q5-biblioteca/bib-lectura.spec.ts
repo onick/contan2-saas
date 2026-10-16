@@ -119,8 +119,13 @@ test.describe('BIB-02 catalogo (lectura)', () => {
   test('"Importar" del catalogo tiene accion real (no boton muerto)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop-1440', 'solo desktop');
     await page.goto('/app/biblioteca/catalogo');
-    const imp = page.getByRole('button', { name: 'Importar' });
+    const imp = page.getByRole('button', { name: /Importar/ });
     await expect(imp).toBeVisible();
+    // BIB-02e: hasta que exista la importación, el botón queda deshabilitado y rotulado "Pronto".
+    if (await imp.isDisabled()) {
+      await expect(imp).toContainText(/pronto/i);
+      return;
+    }
     const before = page.url();
     await imp.click();
     await page.waitForTimeout(600);

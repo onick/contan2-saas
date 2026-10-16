@@ -281,7 +281,10 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
   }
   type TitleFilters = ReturnType<typeof parseTitleFilters>;
   function filteredTitles(db: DbClient, orgId: string, f: TitleFilters) {
-    const searchable = sql`lower(t.title || ' ' || coalesce(t.subtitle, ''))`; // matchea el índice trgm
+    // Búsqueda sin acentos: se normaliza la columna con translate() (misma regla
+    // que normCategory) y el término en Node. No usa unaccent: no está creada
+    // en las migraciones y no se pueden agregar migraciones en este PR.
+    const searchable = normCategorySql(sql`t.title || ' ' || coalesce(t.subtitle, '')`);
     let base = db.selectFrom('biblio_titles as t')
       .where('t.organization_id', '=', orgId)
       .where('t.deleted_at', 'is', null);
@@ -295,7 +298,9 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
     if (f.disponible) {
       base = base.where(sql<boolean>`exists (
         select 1 from biblio_items i
-        where i.title_id = t.id and i.retired_at is null and i.physical_status in (${sql.join(ACTIVE_STATUSES)})
+        where i.title_id = t.id and i.retired_at is null and i.loanable
+          and i.physical_status in (${sql.join(ACTIVE_STATUSES)})
+          and not exists (select 1 from biblio_loans l where l.item_id = i.id and l.returned_at is null)
       )`);
     }
     if (f.subject) {
@@ -306,11 +311,11 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
       )`);
     }
     if (f.term) {
-      const like = `%${f.term.toLowerCase()}%`;
+      const like = `%${normCategory(f.term)}%`;
       const digits = f.term.replace(/[^0-9Xx]/g, '');
       base = base.where((eb) => eb.or([
         sql<boolean>`${searchable} like ${like}`,
-        sql<boolean>`t.authors::text ilike ${like}`,
+        sql<boolean>`${normCategorySql(sql`t.authors::text`)} like ${like}`,
         ...(digits.length >= 8 ? [sql<boolean>`replace(coalesce(t.isbn,''), '-', '') = ${digits}`] : []),
       ]));
     }
@@ -575,6 +580,9 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
       if (p.notes !== undefined) cols.notes = p.notes?.trim() || null;
       // Baja lógica: conserva el historial; el estado físico queda 'baja'.
       if (p.retiredReason !== undefined) {
+        const open = await db.selectFrom('biblio_loans')
+          .select('id').where('item_id', '=', id).where('returned_at', 'is', null).limit(1).executeTakeFirst();
+        if (open) { reply.code(409); return { error: 'Este ejemplar tiene un préstamo sin devolver. Registra la devolución antes de darlo de baja.' }; }
         cols.retired_at = new Date().toISOString();
         cols.retired_reason = p.retiredReason;
         cols.physical_status = 'baja';

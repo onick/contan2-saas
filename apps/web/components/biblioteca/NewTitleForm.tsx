@@ -119,9 +119,9 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
         setAutofill({ source: j.source === 'googlebooks' ? 'Google Books' : j.source === 'cache' ? 'el catálogo global' : 'OpenLibrary' });
       } else {
         setAutofill(null);
-        setLookMsg('No encontramos ese ISBN — completá la ficha a mano.');
+        setLookMsg('No encontramos ese ISBN — completa la ficha a mano.');
       }
-    } catch { setLookMsg('No pudimos consultar el ISBN. Completá la ficha a mano.'); }
+    } catch { setLookMsg('No pudimos consultar el ISBN. Completa la ficha a mano.'); }
     finally { setLooking(false); }
   }
 
@@ -460,7 +460,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
           </Card>
 
           <Card padding="md" className="app-reveal mt-4 border-brand/25 bg-brand/[0.04]" style={{ animationDelay: '140ms' }}>
-            <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><ScanBarcode size={15} className="text-brand" /> ¿Necesitás ayuda?</h2>
+            <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><ScanBarcode size={15} className="text-brand" /> ¿Necesitas ayuda?</h2>
             <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">Escanea o escribe el ISBN y completamos la ficha automáticamente (título, autores, editorial, año y portada).</p>
             <Button variant="secondary" size="sm" className="mt-2.5 w-full" type="button"
               onClick={() => { isbnRef.current?.focus(); isbnRef.current?.select(); }}>
@@ -472,7 +472,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
             <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><Lightbulb size={15} className="text-warning-fg" /> Consejo</h2>
             <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">
               Solo el título es obligatorio (<span className="text-danger-fg">*</span>) — el checklist te marca qué falta para una ficha completa.
-              {sitesCount === 0 ? ' Creá los sitios físicos para poder ubicar los ejemplares.' : ' Después de guardar vas directo a la ficha para agregar los ejemplares.'}
+              {sitesCount === 0 ? ' Crea los sitios físicos para poder ubicar los ejemplares.' : ' Después de guardar vas directo a la ficha para agregar los ejemplares.'}
             </p>
           </Card>
         </aside>

@@ -7,6 +7,8 @@ export interface UnavailableProps {
   inline?: boolean;
   title?: string;
   description?: string;
+  // Sin botón «Reintentar» (p. ej. 403: reintentar no cambia nada).
+  hideRetry?: boolean;
 }
 
 // Estado honesto de indisponibilidad. Se muestra cuando api-v2 no responde:
@@ -15,6 +17,7 @@ export function Unavailable({
   inline = false,
   title = 'Servicio no disponible',
   description = 'No pudimos cargar los datos en este momento. Volvé a intentarlo en unos segundos.',
+  hideRetry = false,
 }: UnavailableProps) {
   const card = (
     <div className="mx-auto flex max-w-md flex-col items-center rounded-2xl border border-line bg-surface px-6 py-10 text-center shadow-sm">
@@ -23,6 +26,7 @@ export function Unavailable({
       </span>
       <h2 className="mt-4 text-[17px] font-semibold text-ink">{title}</h2>
       <p className="mt-1.5 text-[13px] text-muted">{description}</p>
+      {hideRetry ? null : (
       <a
         href=""
         className={cn(
@@ -33,6 +37,7 @@ export function Unavailable({
         <RefreshCw size={16} strokeWidth={2.25} aria-hidden="true" />
         Reintentar
       </a>
+      )}
     </div>
   );
 
