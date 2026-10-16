@@ -13,7 +13,7 @@ import {
   Clock, Layers, type LucideIcon,
 } from 'lucide-react';
 import type { PeriodSummaryResponse } from '@contan2/contracts';
-import { Card, ErrorState, cn, focusRing } from '../ui';
+import { Card, cn, focusRing } from '../ui';
 import { DeltaPct, buildSlices, Donut, Bars, LineChart } from '../charts/primitives';
 import { useDataAnim } from '../charts/useDataAnim';
 import { ReportsAgent } from './ReportsAgent';
@@ -68,8 +68,10 @@ const PALETTE = ['#e65100', '#14b8a6', '#8b5cf6', '#10b981', '#3b6fe0', '#ec4899
 export interface ReportesDashboardProps {
   initial: PeriodSummaryResponse;
   initialRange: { from: string; to: string };
-  // false → el rol no puede generar/exportar reportes (api-v2 da 403): sin botones
-  // de export ni KPIs, un estado de «sin permiso» honesto. Por defecto true.
+  // false → el rol solo LEE reportes (operator/consulta): ve KPIs y gráficas del
+  // dashboard (period-summary lo permite a todo staff) pero sin botones de
+  // Excel/PDF/CSV ni Asistente, porque generar/exportar es 403 para él en
+  // api-v2. La página ya filtra a los roles sin acceso. Por defecto true.
   canExport?: boolean;
 }
 
@@ -90,7 +92,6 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
   // Re-fetch al cambiar filtros (salta el primer render: ya tenemos `initial`).
   useEffect(() => {
     if (first.current) { first.current = false; return; }
-    if (!canExport) return;
     let cancel = false;
     setLoading(true);
     setSummaryErr(false);
@@ -104,14 +105,13 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
 
   // Ciclos/categorías del tenant (una vez) para el filtro del dashboard.
   useEffect(() => {
-    if (!canExport) return;
     let cancel = false;
     fetch('/app/reportes/api/categories', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => { if (!cancel && j && Array.isArray(j.categories)) setCatList(j.categories as CatItem[]); })
       .catch(() => {});
     return () => { cancel = true; };
-  }, [canExport]);
+  }, []);
 
   // Cerrar dropdowns al click afuera.
   useEffect(() => {
@@ -139,7 +139,7 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
     { label: 'Actividades', value: k.activities, prev: pr.activities, delta: dl.activities, tint: 'bg-info-soft text-info-text', Icon: Calendar },
     { label: 'Asistencias', value: k.attendances, prev: pr.attendances, delta: dl.attendances, tint: 'bg-success-bg text-success-fg', Icon: Users },
     { label: 'Visitantes únicos', value: k.uniqueVisitors, prev: pr.uniqueVisitors, delta: dl.uniqueVisitors, tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: User },
-    { label: 'Ocupación promedio', value: k.occupancyPct, prev: pr.occupancyPct, suffix: '%', delta: dl.occupancyPct, tint: 'bg-brand/10 text-brand', Icon: TrendingUp },
+    { label: 'Ocupación promedio', value: k.occupancyPct, prev: pr.occupancyPct, suffix: '%', delta: dl.occupancyPct, tint: 'bg-brand/10 text-brand-text', Icon: TrendingUp },
   ];
   // donut por tipo
   const typeSlices = buildSlices(data.byType.map((t) => ({ label: t.label, count: t.attendances, color: TYPE_COLOR[t.type] ?? '#94a3b8' })));
@@ -161,16 +161,6 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
   const wdItems = data.byWeekday.map((w) => ({ label: WEEKDAYS[w.weekday] ?? '', value: w.count }));
   const wdMax = Math.max(1, ...wdItems.map((w) => w.value));
 
-  if (!canExport) {
-    return (
-      <ErrorState
-        kind="forbidden"
-        title="No tienes permiso para ver Reportes"
-        description="Los reportes y su exportación son para propietarios, administradores y el equipo de Puerta. Si crees que es un error, habla con un administrador."
-      />
-    );
-  }
-
   return (
     <div ref={rootRef}>
       {/* header */}
@@ -180,13 +170,17 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
           <p className="mt-1 text-[14px] text-muted">Resumen ejecutivo con comparación contra el período anterior.</p>
         </div>
         <div className="flex min-w-0 flex-wrap gap-2.5 sm:ml-auto sm:justify-end">
-          <ReportsAgent />
-          <a href={`/app/reportes/api/period?kind=xlsx&${reportsQuery(range.from, range.to, types, cats)}`} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
-            <Download size={16} strokeWidth={1.9} /> Exportar Excel
-          </a>
-          <a href={`/app/reportes/api/period?kind=pdf&${reportsQuery(range.from, range.to, types, cats)}`} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
-            <FileText size={16} strokeWidth={1.9} /> Descargar PDF
-          </a>
+          {canExport ? <ReportsAgent /> : null}
+          {canExport ? (
+            <>
+              <a href={`/app/reportes/api/period?kind=xlsx&${reportsQuery(range.from, range.to, types, cats)}`} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+                <Download size={16} strokeWidth={1.9} /> Exportar Excel
+              </a>
+              <a href={`/app/reportes/api/period?kind=pdf&${reportsQuery(range.from, range.to, types, cats)}`} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-brand-fg hover:brightness-95', focusRing)}>
+                <FileText size={16} strokeWidth={1.9} /> Descargar PDF
+              </a>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -194,16 +188,16 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
         {PRESETS.map((p) => (
           <button key={p.key} type="button" onClick={() => pickPreset(p.key)}
-            className={cn('rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors', focusRing, periodKey === p.key ? 'bg-brand text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
+            className={cn('min-h-8 rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors', focusRing, periodKey === p.key ? 'bg-brand text-brand-fg' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
             {p.label}
           </button>
         ))}
         {/* dropdown de tipos, alineado con los períodos */}
         <div className="relative" onClick={(e) => e.stopPropagation()}>
           <button type="button" onClick={() => setDdOpen((v) => !v)}
-            className={cn('inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[12.5px] font-semibold', focusRing, ddOpen || types.length ? 'border-brand text-brand' : 'border-line bg-surface text-muted hover:bg-surface-container')}>
+            className={cn('inline-flex min-h-8 items-center gap-2 rounded-full border px-4 py-2 text-[12.5px] font-semibold', focusRing, ddOpen || types.length ? 'border-brand text-brand-text' : 'border-line bg-surface text-muted hover:bg-surface-container')}>
             <Filter size={14} strokeWidth={1.9} /> {typeLabel}
-            {types.length > 0 && <span className="rounded-full bg-brand px-1.5 text-[10px] font-extrabold text-white">{types.length}</span>}
+            {types.length > 0 && <span className="rounded-full bg-brand px-1.5 min-w-5 text-center text-[10px] font-extrabold text-brand-fg">{types.length}</span>}
             <ChevronDown size={14} strokeWidth={2.25} className={cn('transition-transform', ddOpen && 'rotate-180')} />
           </button>
           {ddOpen && (
@@ -225,9 +219,9 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
         {catList.length > 0 ? (
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button type="button" onClick={() => { setDdCatOpen((v) => !v); setDdOpen(false); }}
-              className={cn('inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[12.5px] font-semibold', focusRing, ddCatOpen || cats.length ? 'border-brand text-brand' : 'border-line bg-surface text-muted hover:bg-surface-container')}>
+              className={cn('inline-flex min-h-8 items-center gap-2 rounded-full border px-4 py-2 text-[12.5px] font-semibold', focusRing, ddCatOpen || cats.length ? 'border-brand text-brand-text' : 'border-line bg-surface text-muted hover:bg-surface-container')}>
               <Layers size={14} strokeWidth={1.9} /> <span className="max-w-[180px] truncate">{catLabel}</span>
-              {cats.length > 0 && <span className="rounded-full bg-brand px-1.5 text-[10px] font-extrabold text-white">{cats.length}</span>}
+              {cats.length > 0 && <span className="rounded-full bg-brand px-1.5 min-w-5 text-center text-[10px] font-extrabold text-brand-fg">{cats.length}</span>}
               <ChevronDown size={14} strokeWidth={2.25} className={cn('transition-transform', ddCatOpen && 'rotate-180')} />
             </button>
             {ddCatOpen && (
@@ -261,10 +255,10 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
       </div>
 
       {/* reporte por ciclo / categoría — usa el período seleccionado arriba */}
-      <CategoryReport range={range} />
+      {canExport ? <CategoryReport range={range} /> : null}
 
       {/* registro mensual tabulado en el formato del departamento */}
-      <MonthlyRegisterCard />
+      {canExport ? <MonthlyRegisterCard /> : null}
 
       {summaryErr ? (
         <p role="alert" className="mt-5 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-medium text-danger-fg">
@@ -325,7 +319,7 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
                   const Ic = TYPE_ICON[a.type] ?? Film;
                   return (
                     <div key={a.id} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
-                      <span className="grid h-5 w-5 flex-none place-items-center rounded-md bg-brand/10 text-[11px] font-extrabold text-brand">{i + 1}</span>
+                      <span className="grid h-5 w-5 flex-none place-items-center rounded-md bg-brand/10 text-[11px] font-extrabold text-brand-text">{i + 1}</span>
                       {/* miniatura: portada de la actividad o fallback al ícono del tipo */}
                       <span className="grid h-9 w-9 flex-none place-items-center overflow-hidden rounded-lg" style={{ background: `${color}1f` }}>
                         {a.imageUrl
@@ -359,7 +353,7 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
             <p className="text-[12px] text-muted">Elegí una actividad para ver su desempeño en el período.</p>
             {data.topActivities.length === 0 ? <p className="mt-5 text-[13px] text-muted">Sin actividades.</p> : (
               <>
-                <select value={selAct} onChange={(e) => setSelAct(Number(e.target.value))} className={cn('mt-3 w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink', focusRing)}>
+                <select aria-label="Actividad a analizar" value={selAct} onChange={(e) => setSelAct(Number(e.target.value))} className={cn('mt-3 w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink', focusRing)}>
                   {data.topActivities.map((a, i) => <option key={a.id} value={i}>{a.name}</option>)}
                 </select>
                 <div className="mt-3.5 grid grid-cols-2 gap-3">
@@ -371,7 +365,7 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
                     </div>
                   </div>
                   <div className="flex items-center gap-3 rounded-xl border border-line p-3.5">
-                    <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-brand/10 text-brand"><TrendingUp size={17} strokeWidth={1.9} /></span>
+                    <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-brand/10 text-brand-text"><TrendingUp size={17} strokeWidth={1.9} /></span>
                     <div className="min-w-0">
                       <p className="text-[11px] text-muted">Ocupación</p>
                       <p className="text-[22px] font-extrabold leading-tight tabular-nums text-ink">{sel?.occupancyPct ?? 0}%</p>
@@ -433,7 +427,7 @@ export function CategoryReport({ range }: { range: { from: string; to: string } 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
         <div className="min-w-0 flex-1">
           <h2 className="flex items-center gap-2 text-[15.5px] font-bold tracking-tight text-ink">
-            <Layers size={16} strokeWidth={2} className="text-brand" /> Reporte por ciclo o categoría
+            <Layers size={16} strokeWidth={2} className="text-brand-text" /> Reporte por ciclo o categoría
           </h2>
           <p className="mt-1 text-[13px] text-muted">
             Descargá el detalle de un ciclo (ej.{' '}
@@ -472,7 +466,7 @@ export function CategoryReport({ range }: { range: { from: string; to: string } 
           <a href={href('csv')} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <Download size={16} strokeWidth={1.9} /> CSV
           </a>
-          <a href={href('pdf')} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
+          <a href={href('pdf')} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-brand-fg hover:brightness-95', focusRing)}>
             <FileText size={16} strokeWidth={1.9} /> PDF
           </a>
         </div>
@@ -504,7 +498,7 @@ function MonthlyRegisterCard() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
         <div className="min-w-0 flex-1">
           <h2 className="flex items-center gap-2 text-[15.5px] font-bold tracking-tight text-ink">
-            <Calendar size={16} strokeWidth={2} className="text-brand" /> Reporte mensual (formato registro)
+            <Calendar size={16} strokeWidth={2} className="text-brand-text" /> Reporte mensual (formato registro)
           </h2>
           <p className="mt-1 text-[13px] text-muted">
             Descargá el mes tabulado con las mismas columnas del registro del departamento (No., Fecha, Mes, Semana, Tipo, Programa, Nombre y Asistencia), con Total y resumen. Fechas y asistencia reales del sistema.
@@ -525,7 +519,7 @@ function MonthlyRegisterCard() {
               {years.map((y) => (<option key={y} value={y}>{y}</option>))}
             </select>
           </label>
-          <a href={href} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
+          <a href={href} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-brand-fg hover:brightness-95', focusRing)}>
             <Download size={16} strokeWidth={1.9} /> Descargar Excel
           </a>
         </div>

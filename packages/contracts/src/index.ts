@@ -1277,6 +1277,7 @@ export const ReportAttendanceByActivityResponseSchema = z.object({
     anonymous: z.number().int(),
     capacity: z.number().int(),
     occupancyPct: z.number().int(),
+    reserved: z.number().int().optional(), // reservas sin check-in (suma de filas)
   }),
   rows: z.array(ReportAttendanceRowSchema),
 });

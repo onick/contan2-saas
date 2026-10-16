@@ -6,6 +6,7 @@
 
 import { sql, type DbClient } from '@contan2/db';
 import { normCategory, normCategorySql } from '../category-norm.js';
+import { occupancyPct } from './metrics.js';
 import { monthKeyInTz, ymdAddDays, ymdInTz, zonedMidnight } from './fmt.js';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -31,6 +32,7 @@ function daysBetween(fromIso: string, toIso: string): string[] {
 export interface PeriodActivityRow {
   id: string; name: string; type: string; typeLabel: string; date: string;
   location: string; capacity: number; status: string; attendances: number;
+  people: number; // personas en sala (check-ins + acompañantes)
   occupancyPct: number; enrolledCount: number;
 }
 export interface PeriodSummary {
@@ -77,7 +79,7 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
 
   // 2) Asistencias de esas actividades, en UN query (vs N+1 de v1).
   const atts = actIds.length === 0 ? [] : await db.selectFrom('attendance')
-    .select(['activity_id', 'user_id', 'checked_in_at'])
+    .select(['activity_id', 'user_id', 'checked_in_at', 'companions_children', 'companions_adults'])
     .where('organization_id', '=', orgId)
     .where('activity_id', 'in', actIds)
     // Asistencia = check-in real; las reservas (checked_in_at NULL) no cuentan.
@@ -85,11 +87,13 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
     .execute();
 
   const attsByActivity = new Map<string, number>();
+  const peopleByActivity = new Map<string, number>();
   const byDayMap = new Map<string, number>();
   const visitsPerUser = new Map<string, number>();
   const uniqueUserIds = new Set<string>();
   for (const att of atts) {
     attsByActivity.set(att.activity_id, (attsByActivity.get(att.activity_id) ?? 0) + 1);
+    peopleByActivity.set(att.activity_id, (peopleByActivity.get(att.activity_id) ?? 0) + 1 + Number(att.companions_children ?? 0) + Number(att.companions_adults ?? 0));
     const reg = new Date(att.checked_in_at as unknown as string);
     if (!Number.isNaN(reg.getTime())) byDayMap.set(dayKey(reg), (byDayMap.get(dayKey(reg)) ?? 0) + 1);
     if (att.user_id) {
@@ -100,11 +104,12 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
 
   const activityRows: PeriodActivityRow[] = acts.map((a) => {
     const n = attsByActivity.get(a.id) ?? 0;
+    const people = peopleByActivity.get(a.id) ?? 0;
     return {
       id: a.id, name: a.name, type: a.type, typeLabel: TYPE_LABELS[a.type] ?? a.type,
       date: new Date(a.date).toISOString(), location: a.location, capacity: a.capacity,
-      status: a.status, attendances: n,
-      occupancyPct: a.capacity ? Math.round((n / a.capacity) * 100) : 0,
+      status: a.status, attendances: n, people,
+      occupancyPct: occupancyPct(people, a.capacity),
       enrolledCount: a.enrolled_count,
     };
   });
@@ -149,9 +154,11 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
     }
   }
 
-  const avgOccupancy = activityRows.length
-    ? Math.round(activityRows.reduce((s, r) => s + r.occupancyPct, 0) / activityRows.length)
-    : 0;
+  // Ocupación del período = personas en sala / aforo total (igual que el dashboard).
+  const avgOccupancy = occupancyPct(
+    activityRows.reduce((s, r) => s + r.people, 0),
+    activityRows.reduce((s, r) => s + r.capacity, 0),
+  );
 
   return {
     range: { from: q.from, to: q.to },

@@ -1,14 +1,15 @@
 // apps/api-v2/src/services/reports/monthly-register-excel.ts · genera el .xlsx
 // del "registro mensual" en el formato del departamento: las 8 columnas
 // idénticas a su plantilla (No. · Fecha · Mes · Semana · Tipo de actividad ·
-// Programa · Nombre Actividad/Observación · Asistencia), fila Total y un bloque
-// "Resumen del mes" (por Tipo y por Programa). Branded por tenant.
+// Programa · Nombre Actividad/Observación · Asistencia), fila Total; hoja
+// "Resumen Mensual" (pivote por Tipo y por Programa) y hoja oculta "Listas" que
+// alimenta los dropdowns de Tipo y Programa. Branded por tenant.
 //
 // Anti-injection: ExcelJS escribe strings como texto (ValueType String), nunca
 // como fórmula — un valor que empieza con '=' queda como texto y no se ejecuta.
 
 import ExcelJS from 'exceljs';
-import type { MonthlyRegisterReport } from './monthly-register.js';
+import { TIPO_ORDER, type MonthlyRegisterReport } from './monthly-register.js';
 import { textArgb } from '../branding-tokens.js';
 
 export interface ReportBranding { name: string; primaryColor: string }
@@ -24,6 +25,7 @@ const HEADERS = [
   'Nombre Actividad / Observación', 'Asistencia',
 ];
 const NCOLS = HEADERS.length; // 8
+const SIN_PROGRAMA = '(Sin programa)';
 
 export async function buildMonthlyRegisterWorkbook(
   report: MonthlyRegisterReport,
@@ -72,26 +74,67 @@ export async function buildMonthlyRegisterWorkbook(
   total.getCell(8).font = { bold: true };
   total.getCell(8).alignment = { horizontal: 'center' };
 
-  // ── Bloque "Resumen del mes" ────────────────────────────────────────────────
-  ws.addRow([]);
-  const resTitleRow = ws.addRow(['Resumen del mes']);
-  ws.mergeCells(resTitleRow.number, 1, resTitleRow.number, NCOLS);
-  band(resTitleRow.getCell(1));
+  // ── Hoja oculta "Listas" ────────────────────────────────────────────────────
+  // Valores válidos que alimentan los dropdowns (validación de datos) de las
+  // columnas Tipo y Programa de la hoja del mes. Tipo: las 5 etiquetas del
+  // departamento; Programa: los programas presentes en el mes.
+  const programasLista = report.porPrograma.map((p) => p.label).filter((l) => l !== SIN_PROGRAMA);
+  const tipoRef = `Listas!$A$2:$A$${TIPO_ORDER.length + 1}`;
+  const progRef = `Listas!$B$2:$B$${programasLista.length + 1}`;
 
-  const miniHead = (a: string, b: string, c: string) => {
-    const row = ws.addRow([a, '', b, c]);
-    for (const col of [1, 3, 4]) { row.getCell(col).font = { bold: true }; }
-    row.getCell(1).alignment = { horizontal: 'left' };
-    return row;
+  // Dropdowns en las filas de datos (Tipo estricto; Programa permite texto
+  // libre con aviso, porque las categorías de la actividad son abiertas).
+  const firstDataRow = 3;
+  const lastDataRow = firstDataRow + report.rows.length - 1;
+  for (let r = firstDataRow; r <= lastDataRow; r++) {
+    ws.getCell(r, 5).dataValidation = {
+      type: 'list', allowBlank: true, formulae: [tipoRef],
+      showErrorMessage: true, errorStyle: 'stop',
+      errorTitle: 'Tipo no válido', error: 'Elegí un tipo de la lista.',
+    };
+    if (programasLista.length > 0) {
+      ws.getCell(r, 6).dataValidation = {
+        type: 'list', allowBlank: true, formulae: [progRef],
+        showErrorMessage: true, errorStyle: 'warning',
+        errorTitle: 'Programa fuera de la lista', error: 'Este programa no está en la lista. ¿Querés usarlo igual?',
+      };
+    }
+  }
+
+  // ── Hoja "Resumen Mensual": pivote por Tipo (+ por Programa) ───────────────
+  const rs = wb.addWorksheet('Resumen Mensual');
+  rs.mergeCells(1, 1, 1, 3);
+  const rt = rs.getCell(1, 1);
+  rt.value = `RESUMEN MENSUAL ${report.monthName.toUpperCase()} ${report.year}`;
+  rt.font = { bold: true, size: 14, color: { argb: brandText } };
+  rt.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
+  rt.alignment = { vertical: 'middle', horizontal: 'center' };
+  rs.getRow(1).height = 26;
+
+  const pivot = (title: string, rows: { label: string; actividades: number; asistencia: number }[], totalLabel: string) => {
+    const h = rs.addRow([title, 'Actividades', 'Asistencia total']);
+    h.eachCell((c) => band(c));
+    for (const t of rows) rs.addRow([t.label, t.actividades, t.asistencia]);
+    const tot = rs.addRow([
+      totalLabel,
+      rows.reduce((n, t) => n + t.actividades, 0),
+      rows.reduce((n, t) => n + t.asistencia, 0),
+    ]);
+    tot.eachCell((c) => { c.font = { bold: true }; c.border = { top: { style: 'thin' } }; });
+    for (const col of [2, 3]) {
+      for (let r = h.number + 1; r <= tot.number; r++) rs.getCell(r, col).alignment = { horizontal: 'center' };
+    }
   };
+  pivot('Tipo de actividad', report.porTipo, 'Total general');
+  rs.addRow([]);
+  pivot('Programa', report.porPrograma, 'Total general');
+  rs.getColumn(1).width = 34; rs.getColumn(2).width = 14; rs.getColumn(3).width = 18;
 
-  // Por Tipo.
-  miniHead('Por tipo', 'Actividades', 'Asistencia');
-  for (const t of report.porTipo) ws.addRow([t.label, '', t.actividades, t.asistencia]);
-  ws.addRow([]);
-  // Por Programa.
-  miniHead('Por programa', 'Actividades', 'Asistencia');
-  for (const p of report.porPrograma) ws.addRow([p.label, '', p.actividades, p.asistencia]);
+  const listas = wb.addWorksheet('Listas', { state: 'hidden' });
+  listas.getCell(1, 1).value = 'Tipo de actividad';
+  listas.getCell(1, 2).value = 'Programa';
+  TIPO_ORDER.forEach((t, i) => { listas.getCell(i + 2, 1).value = t; });
+  programasLista.forEach((p, i) => { listas.getCell(i + 2, 2).value = p; });
 
   // Anchos legibles (No, Fecha, Mes, Semana, Tipo, Programa, Nombre, Asistencia).
   const widths = [6, 13, 12, 9, 20, 26, 46, 12];

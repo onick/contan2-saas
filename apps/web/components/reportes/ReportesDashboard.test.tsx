@@ -15,15 +15,26 @@ const EMPTY = {
   daily: [], byHour: [], byWeekday: [],
 } as unknown as PeriodSummaryResponse;
 
-describe('ReportesDashboard · permiso', () => {
-  it('canExport=false: estado «sin permiso», sin export ni KPIs y sin pedir /categories', () => {
-    const f = vi.fn();
-    vi.stubGlobal('fetch', f);
+describe('ReportesDashboard · solo lectura vs export', () => {
+  it('canExport=false: muestra KPIs y gráficas, sin export/Asistente/tarjetas de descarga', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ categories: [] }) }));
     render(<ReportesDashboard initial={EMPTY} initialRange={EMPTY.range} canExport={false} />);
-    expect(screen.getByRole('alert')).toHaveTextContent(/No tienes permiso para ver Reportes/);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getAllByText('Visitantes únicos').length).toBeGreaterThan(0);
+    expect(screen.getByText('Evolución de asistencias')).toBeInTheDocument();
     expect(screen.queryByText(/Exportar Excel/)).toBeNull();
     expect(screen.queryByText(/Descargar PDF/)).toBeNull();
-    expect(screen.queryByText('Visitantes únicos')).toBeNull();
-    expect(f).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Asistente/)).toBeNull();
+    expect(screen.queryByText(/Reporte por ciclo o categoría/)).toBeNull();
+    expect(screen.queryByText(/Reporte mensual/)).toBeNull();
+  });
+
+  it('canExport=true: export, Asistente y tarjetas de descarga', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ categories: [] }) }));
+    render(<ReportesDashboard initial={EMPTY} initialRange={EMPTY.range} canExport />);
+    expect(screen.getByText(/Exportar Excel/)).toBeInTheDocument();
+    expect(screen.getByText(/Descargar PDF/)).toBeInTheDocument();
+    expect(screen.getByText(/Asistente/)).toBeInTheDocument();
+    expect(screen.getByText(/Reporte mensual/)).toBeInTheDocument();
   });
 });

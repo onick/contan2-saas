@@ -5,7 +5,7 @@
 // actividad, composición de check-ins, asistencia por fecha) + tabla detallada.
 // Gráficos en HTML/SVG puros (sin JS): el render es determinístico.
 
-import { generatePalette, pickOn } from '../branding-tokens.js';
+import { esc, pdfCover, pdfShellCss, pdfTheme } from './pdf-shell.js';
 import { loadLogoDataUri } from '../credential.js';
 import type { AttendanceByActivityReport } from '../report-data.js';
 import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
@@ -19,9 +19,6 @@ export interface AttendancePdfOrg {
   credentialLogoUrl: string | null;
 }
 
-const esc = (s: unknown): string => String(s ?? '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 const num = (n: number): string => Math.round(n).toLocaleString('en-US');
 
@@ -74,17 +71,8 @@ export async function buildAttendancePdfHtml({ organization, report, category }:
   report: AttendanceByActivityReport;
   category: string | null;
 }): Promise<string> {
-  const palette = (generatePalette(organization.primaryColor || '#f39228') ?? {}) as Record<string, string>;
-  const primary = palette['700'] || organization.primaryColor || '#f39228';
-  const primaryLight = palette['50'] || '#fdf2e5';
-  const primary900 = palette['900'] || '#7a2e00';
-  const accent = organization.secondaryColor || '#31a3db';
-  // Color estructural: azul profundo de identidad para el CCB (ver
-  // period-pdf-template), primary derivado para el resto.
-  const structural = organization.slug === 'ccb' ? '#1a6194' : primary;
-  const onStructural = pickOn(structural);
-  const headerA = organization.primaryColor || primary;
-  const headerB = palette['800'] || primary900;
+  const theme = pdfTheme(organization);
+  const { structural, accent } = theme;
   const logo = await loadLogoDataUri(organization.credentialLogoUrl || organization.logoUrl);
 
   const t = report.totals;
@@ -149,47 +137,19 @@ export async function buildAttendancePdfHtml({ organization, report, category }:
 <meta charset="utf-8" />
 <title>${title} · ${esc(organization.name)}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
-  * { box-sizing: border-box; }
-  :root { --structural: ${structural}; --accent: ${accent}; --primary-light: ${primaryLight};
-    --text: #1f2937; --muted: #6b7280; --border: #e5e7eb; --surface-alt: #f9fafb; }
-  html, body { font-family: 'Inter', system-ui, sans-serif; color: var(--text); margin: 0; }
-  body { font-size: 11px; line-height: 1.45; }
-  h1, h2 { margin: 0; }
-
-  .cover { position: relative; padding: 26px 30px 22px; border-radius: 14px; overflow: hidden;
-    background: linear-gradient(135deg, ${headerA} 0%, ${headerB} 100%); color: #fff; }
-  .cover::after { content: ''; position: absolute; right: -80px; top: -90px; width: 300px; height: 300px;
-    background: #fff; opacity: 0.10; border-radius: 50%; }
-  .cover-head { display: flex; align-items: center; gap: 16px; position: relative; z-index: 1; }
-  .cover-logo { width: 76px; height: 56px; background: #fff; border-radius: 10px; padding: 7px;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .cover-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
-  .cover-org { font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; opacity: 0.9; }
-  .cover-eyebrow { margin-top: 8px; font-size: 9.5px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; opacity: 0.8; }
-  .cover-title { font-size: 24px; font-weight: 800; line-height: 1.15; margin-top: 2px; }
-  .cover-meta { margin-top: 12px; font-size: 11px; opacity: 0.92; position: relative; z-index: 1; }
-
-  .kpis { margin-top: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .kpi { background: var(--primary-light); border-radius: 10px; padding: 12px 14px; }
-  .kpi-label { font-size: 9.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; }
-  .kpi-value { font-size: 24px; font-weight: 800; color: var(--structural); line-height: 1.05; margin-top: 3px; }
-  .kpi.accent .kpi-value { color: var(--accent); }
-  .kpi-sub { font-size: 9.5px; color: var(--muted); margin-top: 2px; }
-
-  .section { margin-top: 20px; }
-  .section h2 { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px;
-    color: var(--structural); margin-bottom: 10px; padding-bottom: 5px; border-bottom: 2px solid var(--structural); display: inline-block; }
-
+${pdfShellCss(theme)}
+  .kpis { grid-template-columns: repeat(4, 1fr); }
+  .kpi { padding: 13px 14px 12px; }
+  .kpi-value { font-size: 24px; }
   .analysis-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; align-items: start; }
   .analysis-card { background: var(--surface-alt); border-radius: 10px; padding: 13px 15px; border: 1px solid var(--border); }
-  .analysis-card h3 { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 0 0 10px; }
+  .analysis-card h3 { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin: 0 0 10px; }
 
   .bar-row { display: grid; grid-template-columns: 185px 1fr 40px; gap: 9px; align-items: center; margin-bottom: 6px; font-size: 9.5px; }
   .bar-row:last-child { margin-bottom: 0; }
   .bar-label { color: var(--text); line-height: 1.2; }
   .bar-label strong { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bar-sub { color: var(--muted); font-size: 8.5px; }
+  .bar-sub { color: var(--text-muted); font-size: 8.5px; }
   .bar-track { height: 11px; background: #fff; border-radius: 6px; border: 1px solid var(--border); overflow: hidden; }
   .bar-fill { display: block; height: 100%; border-radius: 6px; }
   .bar-value { text-align: right; font-weight: 700; }
@@ -199,54 +159,35 @@ export async function buildAttendancePdfHtml({ organization, report, category }:
   .donut svg { width: 100%; height: 100%; }
   .donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
   .donut-value { font-size: 19px; font-weight: 800; color: var(--text); line-height: 1; }
-  .donut-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-top: 2px; }
+  .donut-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin-top: 2px; }
   .legend { flex: 1; }
   .legend-row { display: flex; align-items: center; gap: 7px; font-size: 10px; padding: 3px 0; }
   .legend-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
   .legend-label { flex: 1; }
   .legend-val { font-weight: 700; }
-  .legend-pc { color: var(--muted); }
+  .legend-pc { color: var(--text-muted); }
 
   .vchart { display: flex; align-items: flex-end; gap: 6px; height: 110px; padding-top: 4px; }
   .vcol { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
-  .vcol-value { font-size: 8.5px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+  .vcol-value { font-size: 8.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; }
   .vcol-bar { width: 100%; max-width: 26px; border-radius: 4px 4px 0 0; }
-  .vcol-label { font-size: 8px; color: var(--muted); margin-top: 3px; white-space: nowrap; }
+  .vcol-label { font-size: 8px; color: var(--text-muted); margin-top: 3px; white-space: nowrap; }
 
   table.detail { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 9.5px; }
-  table.detail thead th { background: var(--structural); color: ${onStructural}; text-align: left; padding: 7px 8px;
+  table.detail thead th { background: var(--primary); color: var(--on-primary); text-align: left; padding: 7px 8px;
     font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; }
   table.detail thead th.num { text-align: right; }
   table.detail thead th:first-child { border-radius: 6px 0 0 0; }
   table.detail thead th:last-child { border-radius: 0 6px 0 0; }
   table.detail tbody td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
   table.detail td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  table.detail .idx { color: var(--muted); text-align: center; width: 22px; }
+  table.detail .idx { color: var(--text-muted); text-align: center; width: 22px; }
   table.detail tfoot td { padding: 7px 8px; background: var(--primary-light); font-weight: 800; }
-  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 8.5px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
-  .tag--ok { background: rgba(16,185,129,0.14); color: #047857; }
-  .tag--muted { background: #e5e7eb; color: #374151; }
-  .tag--danger { background: rgba(239,68,68,0.14); color: #b91c1c; }
-
-  .empty { text-align: center; padding: 22px; color: var(--muted); font-style: italic; }
-  .footnote { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 9px; color: var(--muted); font-style: italic; }
-  .page-break { page-break-before: always; }
 </style>
 </head>
 <body>
 
-<section class="cover">
-  <div class="cover-head">
-    ${logo ? `<div class="cover-logo"><img src="${logo}" alt="" /></div>` : ''}
-    <div>
-      <div class="cover-org">${esc(organization.name)}</div>
-      <div class="cover-eyebrow">${eyebrow}</div>
-      <h1 class="cover-title">${title}</h1>
-    </div>
-  </div>
-  <div class="cover-meta">Período: ${esc(report.period.from)} a ${esc(report.period.to)} · Generado el ${esc(fmtNow())}</div>
-</section>
+${pdfCover({ logo, orgName: organization.name, title, eyebrow, range: `${report.period.from} a ${report.period.to}`, subtitle: `Generado el ${fmtNow()}` })}
 
 <section class="kpis">
   <div class="kpi"><div class="kpi-label">Actividades</div><div class="kpi-value">${num(t.activities)}</div><div class="kpi-sub">en el período</div></div>

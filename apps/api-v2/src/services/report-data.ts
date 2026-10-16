@@ -8,6 +8,7 @@
 import { sql, type DbClient } from '@contan2/db';
 import { normCategory, normCategorySql } from './category-norm.js';
 import { zonedMidnight, ymdAddDays } from './reports/fmt.js';
+import { occupancyPct } from './reports/metrics.js';
 
 export const MAX_REPORT_RANGE_DAYS = 366;
 export const MAX_REPORT_ROWS = 5000;
@@ -72,11 +73,11 @@ export interface AttendanceByActivityRow {
 
 export interface AttendanceByActivityReport {
   period: { from: string; to: string };
-  totals: { activities: number; attendances: number; people: number; anonymous: number; capacity: number; occupancyPct: number };
+  totals: { activities: number; attendances: number; people: number; anonymous: number; capacity: number; occupancyPct: number; reserved: number };
   rows: AttendanceByActivityRow[];
 }
 
-const pct = (people: number, capacity: number) => (capacity > 0 ? Math.round((people / capacity) * 100) : 0);
+const pct = occupancyPct;
 
 export async function attendanceByActivity(
   db: DbClient,
@@ -160,9 +161,10 @@ export async function attendanceByActivity(
       acc.people += r.people;
       acc.anonymous += r.anonymous;
       acc.capacity += r.capacity;
+      acc.reserved += r.reserved;
       return acc;
     },
-    { activities: 0, attendances: 0, people: 0, anonymous: 0, capacity: 0, occupancyPct: 0 },
+    { activities: 0, attendances: 0, people: 0, anonymous: 0, capacity: 0, occupancyPct: 0, reserved: 0 },
   );
   totals.occupancyPct = pct(totals.people, totals.capacity);
 

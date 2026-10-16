@@ -74,13 +74,15 @@ export const NAV_GROUPS: NavGroup[] = ['Gestión', 'Biblioteca', 'Cuenta'];
 //   puerta    → Puerta + Registros (descarga) + Protocolo (lectura) + Reportes + Mi cuenta.
 //   biblioteca → su módulo + Mi cuenta.
 //   operator  → UI = API: lo que sus guards permiten (padrón, actividades, check-in,
-//               puerta, segmentos sin export). Sin reportes/protocolo/biblioteca/
-//               equipo/historial/identidad (todos 403 para él en api-v2).
-//   consulta  → solo lectura: padrón, actividades y segmentos. Sin check-in/puerta
-//               (su escritura es 403) ni reportes/equipo/historial/identidad.
+//               puerta, segmentos sin export) + Reportes en SOLO LECTURA (dashboard
+//               sin export). Sin protocolo/biblioteca/equipo/historial/identidad
+//               (todos 403 para él en api-v2).
+//   consulta  → solo lectura: padrón, actividades, segmentos y Reportes (dashboard
+//               sin export). Sin check-in/puerta (su escritura es 403) ni
+//               equipo/historial/identidad.
 const ROLE_NAV_ALLOWLIST: Record<string, Set<string>> = {
-  operator: new Set(['dashboard', 'actividades', 'checkin', 'puerta', 'registros', 'usuarios', 'segmentos', 'modo-publico', 'cuenta']),
-  consulta: new Set(['dashboard', 'actividades', 'registros', 'usuarios', 'segmentos', 'cuenta']),
+  operator: new Set(['dashboard', 'actividades', 'checkin', 'puerta', 'registros', 'usuarios', 'segmentos', 'reportes', 'modo-publico', 'cuenta']),
+  consulta: new Set(['dashboard', 'actividades', 'registros', 'usuarios', 'segmentos', 'reportes', 'cuenta']),
   protocolo: new Set(['protocolo', 'cuenta']),
   puerta: new Set(['puerta', 'registros', 'protocolo', 'reportes', 'cuenta']),
   biblioteca: new Set(['biblioteca', 'cuenta']),
@@ -88,8 +90,13 @@ const ROLE_NAV_ALLOWLIST: Record<string, Set<string>> = {
 // Fail-closed: sin rol conocido (null/undefined, p.ej. si /shell/summary falla)
 // NUNCA se lista todo; se devuelve el mínimo seguro (solo "Mi cuenta").
 // Roles que pueden generar/exportar reportes (CAN_GENERATE_REPORTS en api-v2
-// routes/reports.ts). El resto recibe 403 en todo /reports salvo period-summary.
-export const REPORT_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'puerta']);
+// routes/reports.ts). El resto recibe 403 en todo /reports salvo period-summary
+// y categories (lectura, cualquier staff).
+export const REPORT_EXPORT_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'puerta']);
+// Roles que ENTRAN a /app/reportes (gate de página): los de export + los de solo
+// lectura del dashboard (operator, consulta). protocolo y biblioteca siguen
+// confinados a su módulo por el layout.
+export const REPORT_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'puerta', 'operator', 'consulta']);
 // Roles que ENTRAN a /app/historial en la UI. La API (CAN_READ_AUDIT) también deja
 // leer a 'puerta' (H6, decisión del owner pendiente), pero el layout la confina a su
 // superficie: la campana del Topbar sigue a la UI, no a la API, para no ofrecer un

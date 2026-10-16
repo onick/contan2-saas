@@ -11,14 +11,11 @@
 // Reusa los tokens del branding multi-tenant.
 // =============================================================================
 
-import { generatePalette, pickOn } from '../branding-tokens.js';
+import { esc, pdfCover, pdfShellCss, pdfTheme } from './pdf-shell.js';
 import { loadLogoDataUri } from '../credential.js';
 import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
 
 
-const esc = s => String(s ?? '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -40,28 +37,9 @@ const STATUS_LABELS = { activa: 'Activa', finalizada: 'Finalizada', cancelada: '
 const STATUS_CLS = { activa: 'ok', finalizada: 'muted', cancelada: 'danger', borrador: 'muted' };
 
 export async function buildPeriodPdfHtml({ organization, period }) {
-  const palette = generatePalette(organization.primaryColor || '#f39228') || {};
-  const primary = palette['700'] || organization.primaryColor || '#f39228';
-  const primaryLight = palette['50'] || '#fef4e8';
-  const primary100 = palette['100'] || '#fde6c8';
-  const primary900 = palette['900'] || '#7a3300';
-  const accent = organization.secondaryColor || '#31a3db';
-  // Color ESTRUCTURAL (títulos de sección, encabezados de tabla, barras de tipo).
-  // Para el CCB usamos el AZUL profundo de su identidad (el azul del arco del
-  // logo, #309cd8, en tono oscuro para contraste sobre blanco), que combina con
-  // el header naranja — ambos son de su línea de identidad. Otros tenants usan su
-  // primary derivado. TODO: un campo de branding para un tercer color estructural
-  // evitaría el gate por slug (ver reference_ccb_identity_palette).
-  const structural = organization.slug === 'ccb' ? '#1a6194' : primary;
-  const onPrimary = pickOn(structural);
-  const onAccent = pickOn(accent);
-  // Header de fondo de color: usa el color de marca CRUDO (naranja limpio) →
-  // tono más oscuro del MISMO matiz para dar profundidad, sin virar a marrón
-  // (el palette 700→900 muddyaba). El logo del tenant (el de kiosko/credencial,
-  // pensado para fondo claro; fallback al horizontal) va dentro de un CHIP
-  // BLANCO para que se lea sobre el color, sin necesitar una versión reverse.
-  const headerA = organization.primaryColor || primary;
-  const headerB = palette['800'] || palette['900'] || organization.primaryColor || primary900;
+  const theme = pdfTheme(organization);
+  const structural = theme.structural;
+  const accent = theme.accent;
   const logo = await loadLogoDataUri(organization.credentialLogoUrl || organization.logoUrl);
 
   const maxAtt = Math.max(1, ...period.byMonth.map(m => m.attendances));
@@ -115,81 +93,7 @@ export async function buildPeriodPdfHtml({ organization, period }) {
 <meta charset="utf-8" />
 <title>Informe de período · ${esc(organization.name)}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
-  * { box-sizing: border-box; }
-  :root {
-    --primary: ${structural};
-    --primary-light: ${primaryLight};
-    --primary-100: ${primary100};
-    --primary-900: ${primary900};
-    --accent: ${accent};
-    --header-a: ${headerA};
-    --header-b: ${headerB};
-    --on-primary: ${onPrimary};
-    --on-accent: ${onAccent};
-    --text: #1f2937;
-    --text-muted: #6b7280;
-    --border: #e5e7eb;
-    --surface: #ffffff;
-    --surface-alt: #f9fafb;
-  }
-  html, body { font-family: 'Inter', system-ui, sans-serif; color: var(--text); margin: 0; font-size: 11px; line-height: 1.45; }
-  h1, h2, h3 { margin: 0; font-weight: 700; color: var(--text); }
-  .muted { color: var(--text-muted); font-size: 9px; margin-top: 2px; }
-
-  /* Cover · banda de marca limpia (naranja), sin virar a marrón. */
-  .cover {
-    position: relative;
-    padding: 30px 34px;
-    background: linear-gradient(115deg, var(--header-a) 0%, var(--header-a) 42%, var(--header-b) 100%);
-    color: #ffffff;
-    border-radius: 16px;
-    overflow: hidden;
-  }
-  /* Brillo sutil en una esquina para profundidad (mismo matiz, más claro). */
-  .cover::after {
-    content: '';
-    position: absolute; right: -120px; top: -140px;
-    width: 360px; height: 360px;
-    background: radial-gradient(circle, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 70%);
-    border-radius: 50%;
-  }
-  .cover-head { display: flex; align-items: center; gap: 18px; position: relative; z-index: 1; }
-  /* Logo del tenant dentro de un chip BLANCO (lee sobre el header de color). */
-  .cover-logo { background: #ffffff; border-radius: 13px; padding: 9px 14px; display: flex; align-items: center; flex-shrink: 0; box-shadow: 0 3px 10px rgba(0,0,0,0.14); }
-  .cover-logo img { height: 46px; width: auto; max-width: 150px; object-fit: contain; display: block; }
-  .cover-org { font-size: 10.5px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: rgba(255,255,255,0.92); }
-  .cover-title { font-size: 27px; font-weight: 800; line-height: 1.12; margin-top: 3px; letter-spacing: -0.3px; color: #ffffff; }
-  .cover-meta { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 20px; position: relative; z-index: 1; gap: 16px; }
-  .cover-range { font-size: 15px; font-weight: 800; color: #ffffff; }
-  .cover-subtitle { font-size: 10.5px; color: rgba(255,255,255,0.82); }
-  .cover-pill { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #ffffff; background: rgba(255,255,255,0.16); padding: 5px 12px; border-radius: 999px; }
-
-  /* KPIs · tarjetas limpias (sin franja lateral), número de marca. */
-  .kpis {
-    margin-top: 16px;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 11px;
-  }
-  .kpi {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 15px 16px 14px;
-  }
-  .kpi-label { font-size: 9.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
-  .kpi-value { font-size: 27px; font-weight: 800; color: var(--text); line-height: 1; margin-top: 6px; letter-spacing: -0.5px; }
-  .kpi.accent .kpi-value { color: var(--accent); }
-  .kpi-sub { font-size: 9.5px; color: var(--text-muted); margin-top: 3px; }
-
-  /* Sections */
-  .section { margin-top: 22px; }
-  .section h2 {
-    font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px;
-    color: var(--primary); margin-bottom: 10px; padding-bottom: 6px;
-    border-bottom: 2px solid var(--primary); display: inline-block;
-  }
+${pdfShellCss(theme)}
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .card {
     background: var(--surface-alt); border-radius: 10px; padding: 14px 16px; border: 1px solid var(--border);
@@ -220,40 +124,11 @@ export async function buildPeriodPdfHtml({ organization, period }) {
   table.report .idx { color: var(--text-muted); text-align: center; width: 24px; }
   table.report .num { font-variant-numeric: tabular-nums; }
 
-  .tag {
-    display: inline-block; padding: 2px 8px; border-radius: 999px;
-    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
-  }
-  .tag--ok { background: rgba(16,185,129,0.14); color: #047857; }
-  .tag--danger { background: rgba(239,68,68,0.14); color: #b91c1c; }
-  .tag--muted { background: #e5e7eb; color: #374151; }
-
-  .page-break { page-break-before: always; }
-  .footnote {
-    margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--border);
-    font-size: 9px; color: var(--text-muted); font-style: italic;
-  }
-  .empty { text-align: center; padding: 24px; color: var(--text-muted); font-style: italic; }
 </style>
 </head>
 <body>
 
-<section class="cover">
-  <div class="cover-head">
-    ${logo ? `<div class="cover-logo"><img src="${logo}" alt="" /></div>` : ''}
-    <div>
-      <div class="cover-org">${esc(organization.name)}</div>
-      <div class="cover-title">Informe de Período</div>
-    </div>
-  </div>
-  <div class="cover-meta">
-    <div>
-      <div class="cover-range">${esc(rangeLabel(period.range.from, period.range.to))}</div>
-      <div class="cover-subtitle">Generado el ${esc(fmtDateTime(new Date()))}</div>
-    </div>
-    <div class="cover-pill">Reporte oficial</div>
-  </div>
-</section>
+${pdfCover({ logo, orgName: organization.name, title: 'Informe de Período', range: rangeLabel(period.range.from, period.range.to), subtitle: `Generado el ${fmtDateTime(new Date())}` })}
 
 <section class="kpis">
   <div class="kpi"><div class="kpi-label">Actividades</div><div class="kpi-value">${period.summary.activitiesCount}</div><div class="kpi-sub">en el período</div></div>

@@ -7,7 +7,7 @@ import { getTenantBranding } from '../../../lib/branding/tenant';
 import { getPeriodSummary } from '../../../lib/api/reports';
 import { getAdminGate } from '../../../lib/auth/session';
 import { ErrorState } from '../../../components/ui';
-import { REPORT_ROLES } from '../../../lib/shell/nav';
+import { REPORT_EXPORT_ROLES, REPORT_ROLES } from '../../../lib/shell/nav';
 
 // Reportes · dashboard ejecutivo. Resumen del período + comparación con el
 // anterior, todo desde datos REALES (period-summary). Carga inicial server-side
@@ -32,11 +32,14 @@ export default async function ReportesPage() {
   const branding = await getTenantBranding();
   const gate = await getAdminGate();
   const role = gate.status === 'ok' ? gate.staff.role : null;
-  const canExport = !!role && REPORT_ROLES.has(role);
+  const canView = !!role && REPORT_ROLES.has(role);
+  // Exportar/generar: solo owner/admin/puerta (CAN_GENERATE_REPORTS). operator y
+  // consulta ven el dashboard (period-summary es lectura para todo staff) sin botones.
+  const canExport = !!role && REPORT_EXPORT_ROLES.has(role);
   const range = thisMonthRange();
-  // Sin permiso de reportes (api-v2: 403 en todo /reports salvo el resumen): ni
-  // siquiera pedimos el período; estado honesto en vez de KPIs en 0.
-  const data = canExport ? await getPeriodSummary(range.from, range.to) : null;
+  // Rol confinado (protocolo/biblioteca) o sin sesión: ni siquiera pedimos el
+  // período; estado honesto en vez de KPIs en 0.
+  const data = canView ? await getPeriodSummary(range.from, range.to) : null;
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Reportes" activeKey="reportes">
@@ -44,12 +47,12 @@ export default async function ReportesPage() {
     </AppShell>
   );
 
-  if (!canExport) {
+  if (!canView) {
     return shell(
       <ErrorState
         kind="forbidden"
         title="No tienes permiso para ver Reportes"
-        description="Los reportes y su exportación son para propietarios, administradores y el equipo de Puerta. Si crees que es un error, habla con un administrador."
+        description="Los reportes son para propietarios, administradores, operadores, consulta y el equipo de Puerta. Si crees que es un error, habla con un administrador."
       />,
     );
   }
@@ -58,5 +61,5 @@ export default async function ReportesPage() {
     return shell(<Unavailable inline title="Reportes no disponibles" description="No pudimos calcular el resumen del período. Reintentá en unos segundos." />);
   }
 
-  return shell(<ReportesDashboard initial={data} initialRange={range} canExport />);
+  return shell(<ReportesDashboard initial={data} initialRange={range} canExport={canExport} />);
 }

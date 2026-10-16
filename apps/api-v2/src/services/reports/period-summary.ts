@@ -9,9 +9,10 @@ import { sql, type DbClient } from '@contan2/db';
 import { type ReportRange } from '../report-data.js';
 import { normCategory, normCategorySql } from '../category-norm.js';
 import { REPORT_TZ, ymdAddDays, zonedMidnight } from './fmt.js';
+import { occupancyPct } from './metrics.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const pct = (a: number, b: number): number => (b > 0 ? Math.round((a / b) * 100) : 0);
+const pct = occupancyPct; // misma fórmula que Excel/PDF/CSV (ver metrics.ts)
 const deltaPct = (cur: number, prev: number): number | null => (prev <= 0 ? null : Math.round(((cur - prev) / prev) * 100));
 
 // Período inmediatamente anterior, de la misma duración.
