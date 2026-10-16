@@ -6,7 +6,7 @@ import { getBiblioInventories, getBiblioSites } from '../../../../lib/api/biblio
 // Biblioteca · INVENTARIO (F6): sesiones de conteo físico con escaneo y
 // resultado derivado. Modelo aprobado por el usuario (captura "Inventario").
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Biblioteca · Inventario',
+  title: 'Biblioteca · Inventario',
   description: 'Inventario físico de la biblioteca: conteo por escaneo',
 };
 export const dynamic = 'force-dynamic';

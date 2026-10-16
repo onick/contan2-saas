@@ -9,7 +9,7 @@ import { PuertaBoard } from '../../../components/puerta/PuertaBoard';
 import { PUERTA_ENABLED } from '../../../lib/shell/nav';
 
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Puerta',
+  title: 'Puerta',
   description: 'Registro de entrada de las salas permanentes',
 };
 export const dynamic = 'force-dynamic';

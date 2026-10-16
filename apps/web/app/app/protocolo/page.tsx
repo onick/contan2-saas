@@ -13,7 +13,7 @@ import { getProtocolDashboard } from '../../../lib/api/protocol';
 // reales); el layout rico + animaciones GSAP viven en el client component.
 // AppShell intacto. RBAC real lo arbitra el API (operator → dashboard null).
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Protocolo',
+  title: 'Protocolo',
   description: 'Invitados especiales del centro: autoridades, prensa, patrocinadores y aliados',
 };
 

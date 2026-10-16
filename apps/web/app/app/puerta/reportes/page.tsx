@@ -12,7 +12,7 @@ import { PUERTA_ENABLED } from '../../../../lib/shell/nav';
 // Carga inicial server-side ("Este mes"); los filtros (período/sala/rango)
 // re-fetchean vía el proxy. Accesible para el rol 'puerta' (prefijo /app/puerta).
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Puerta · Reportes',
+  title: 'Puerta · Reportes',
   description: 'Estadísticas de visitantes de las salas permanentes',
 };
 export const dynamic = 'force-dynamic';

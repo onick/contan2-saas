@@ -15,7 +15,7 @@ import { SegmentExportButton } from '../../../../components/segmentos/SegmentExp
 // enlaza al padrón filtrado por el código (abre el perfil desde Usuarios).
 // Orden: más asistencias primero (lo decide la API). Tope 500.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Segmento',
+  title: 'Segmento',
   description: 'Miembros del segmento con su afinidad',
 };
 

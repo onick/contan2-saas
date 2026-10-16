@@ -11,7 +11,7 @@ import { getAuditOverview } from '../../../lib/api/audit';
 // tabs). Todo desde tenant_audit_log. El árbitro RBAC es api-v2: el overview viene
 // null si el rol no es owner/admin → estado honesto. AppShell intacto.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Historial',
+  title: 'Historial',
   description: 'Registro de actividad y auditoría de la organización',
 };
 

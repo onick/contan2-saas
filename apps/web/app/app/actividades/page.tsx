@@ -21,7 +21,7 @@ import { ACTIVITIES, ACTIVITIES_KPIS } from '../../../lib/activities/demoData';
 // interactiva (filtros/vista/detalle) vive en ActivitiesView (client), que filtra
 // EN MEMORIA el set cargado — cero escrituras. /app/actividades es Dynamic.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Actividades',
+  title: 'Actividades',
   description: 'Gestión de actividades del centro cultural',
 };
 

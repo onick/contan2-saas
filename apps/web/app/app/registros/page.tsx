@@ -26,7 +26,7 @@ import { ATTENDANCE_RECORDS } from '../../../lib/registros/demoData';
 // → Unavailable; nunca demo salvo dev. Fechas inválidas se sacan de la URL; un
 // rango invertido se ignora con aviso (no se manda al API → no rompe el render).
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Registros',
+  title: 'Registros',
   description: 'Registros de asistencia a las actividades',
 };
 

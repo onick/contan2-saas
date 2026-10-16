@@ -13,7 +13,7 @@ import { getUsersFacets } from '../../../lib/api/users';
 // Sin demo: API caída → Unavailable. El layout rico + animaciones GSAP viven en
 // el componente cliente SegmentsDashboard; el sidebar/AppShell NO se tocan.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Segmentos',
+  title: 'Segmentos',
   description: 'Audiencia por afinidad, con conteos en tiempo real',
 };
 

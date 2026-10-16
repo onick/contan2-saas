@@ -8,7 +8,7 @@ import { NewTitleForm } from '../../../../../components/biblioteca/NewTitleForm'
 // portada con upload real, materias/palabras clave como chips y carril derecho
 // con información rápida + checklist del registro en vivo + ayuda de ISBN.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Biblioteca · Nuevo título',
+  title: 'Biblioteca · Nuevo título',
   description: 'Catalogar un nuevo título en la biblioteca',
 };
 export const dynamic = 'force-dynamic';

@@ -8,7 +8,7 @@ import { getBiblioReaders, getBiblioReadersStats } from '../../../../lib/api/bib
 // El lector ES el padrón del centro (mismo carné QR); acá solo se gestiona lo
 // bibliotecario encima (tipo empleado/no empleado, cédula, suspensión).
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Biblioteca · Lectores',
+  title: 'Biblioteca · Lectores',
   description: 'Lectores de la biblioteca: padrón del centro con perfil bibliotecario',
 };
 export const dynamic = 'force-dynamic';

@@ -11,7 +11,7 @@ import {
 } from '../../../lib/api/biblio';
 
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Biblioteca',
+  title: 'Biblioteca',
   description: 'Inicio de la biblioteca: resumen del acervo, préstamos y actividad reciente',
 };
 export const dynamic = 'force-dynamic';

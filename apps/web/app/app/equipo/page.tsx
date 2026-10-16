@@ -12,7 +12,7 @@ import { getTeamOverview } from '../../../lib/api/team';
 // roles. El árbitro RBAC es api-v2: el overview viene null si el rol no es owner/
 // admin → mostramos un estado honesto. AppShell intacto.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Mi equipo',
+  title: 'Mi equipo',
   description: 'Miembros, roles y permisos de la organización',
 };
 

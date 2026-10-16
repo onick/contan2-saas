@@ -8,7 +8,7 @@ import { getTenantBranding } from '../../../lib/branding/tenant';
 // island client (CheckinConsole) que cablea métricas/búsqueda/actividades/registro a
 // api-v2 vía BFF same-origin. CERO demo.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Check-in',
+  title: 'Check-in',
   description: 'Estación de check-in · registro de asistencias en puerta',
 };
 
