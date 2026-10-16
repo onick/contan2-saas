@@ -16,7 +16,7 @@ import {
   type BiblioReservationsListResponse, type BiblioReservationsSummary,
   type BiblioInventoriesListResponse,
 } from '@contan2/contracts';
-import { apiGet } from './client';
+import { apiGet, ApiError } from './client';
 
 export async function getBiblioTitles(page = 1, q = ''): Promise<BiblioTitlesListResponse | null> {
   const p = new URLSearchParams({ page: String(page) });
@@ -32,9 +32,21 @@ export async function getBiblioSites(): Promise<BiblioSitesResponse | null> {
   try { return await apiGet('/api/v2/biblio/sites', BiblioSitesResponseSchema); }
   catch { return null; }
 }
+// Resultado que distingue "sin permiso" (403) de "no disponible" (red / 5xx),
+// para que la UI no diga "intenta de nuevo" a un rol que nunca podrá entrar.
+export type BiblioLoad<T> =
+  | { ok: true; data: T }
+  | { ok: false; reason: 'forbidden' | 'unavailable' };
+
+export async function getBiblioFacetsResult(): Promise<BiblioLoad<BiblioFacetsResponse>> {
+  try { return { ok: true, data: await apiGet('/api/v2/biblio/facets', BiblioFacetsResponseSchema) }; }
+  catch (e) {
+    return { ok: false, reason: e instanceof ApiError && e.status === 403 ? 'forbidden' : 'unavailable' };
+  }
+}
 export async function getBiblioFacets(): Promise<BiblioFacetsResponse | null> {
-  try { return await apiGet('/api/v2/biblio/facets', BiblioFacetsResponseSchema); }
-  catch { return null; }
+  const r = await getBiblioFacetsResult();
+  return r.ok ? r.data : null;
 }
 export async function getBiblioOverview(): Promise<BiblioOverviewResponse | null> {
   try { return await apiGet('/api/v2/biblio/overview', BiblioOverviewResponseSchema); }
