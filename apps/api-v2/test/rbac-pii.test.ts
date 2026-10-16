@@ -24,6 +24,7 @@ type Role = (typeof ROLES)[number];
 
 const DOOR_WRITE: ReadonlySet<Role> = new Set(['owner', 'admin', 'operator', 'puerta']);
 const PADRON_READ: ReadonlySet<Role> = new Set(['owner', 'admin', 'operator', 'consulta', 'puerta']);
+const VISITOR_SEARCH: ReadonlySet<Role> = new Set([...PADRON_READ, 'protocolo']);
 const USER_CREATE = new Set<Role>(['owner', 'admin', 'operator']);
 
 run('RBAC en la API · check-in / padrón / puerta', () => {
@@ -37,15 +38,15 @@ run('RBAC en la API · check-in / padrón / puerta', () => {
   const tok = (r: Role) => `rbacpii-${r}-${stamp}`;
   let ipSeq = 0;
 
-  const call = (method: 'GET' | 'POST', url: string, role: Role, body?: unknown) =>
+  const call = (method: 'GET' | 'POST' | 'PATCH', url: string, role: Role, body?: unknown) =>
     app.inject({
       method, url,
       headers: {
         host, cookie: `contan2_session=${tok(role)}`,
         'x-forwarded-for': `10.9.${Math.floor(ipSeq / 250)}.${(ipSeq++ % 250) + 1}`,
-        ...(method === 'POST' ? { 'content-type': 'application/json', 'idempotency-key': `k-${randomUUID()}` } : {}),
+        ...(method !== 'GET' ? { 'content-type': 'application/json', 'idempotency-key': `k-${randomUUID()}` } : {}),
       },
-      ...(method === 'POST' ? { payload: (body ?? {}) as object } : {}),
+      ...(method !== 'GET' ? { payload: (body ?? {}) as object } : {}),
     });
 
   beforeAll(async () => {
@@ -66,7 +67,7 @@ run('RBAC en la API · check-in / padrón / puerta', () => {
     userCode = `CCB-${randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()}`;
     await db.insertInto('users').values({
       id: randomUUID(), organization_id: orgId, code: userCode, first_name: 'Pii', last_name: 'Persona',
-      email: `pii-${stamp}@t.local`, phone: null, visit_count: 0,
+      email: `pii-${stamp}@t.local`, phone: '8095550123', visit_count: 0,
     } as never).execute();
     app = buildApp();
     await app.ready();
@@ -87,7 +88,7 @@ run('RBAC en la API · check-in / padrón / puerta', () => {
   // El chequeo de rol corre ANTES de validar el body: un rol permitido con body
   // vacío llega al 400 de validación (nunca 403); uno no permitido recibe 403.
   const expectGate = async (
-    method: 'GET' | 'POST', url: string, allowed: ReadonlySet<Role>,
+    method: 'GET' | 'POST' | 'PATCH', url: string, allowed: ReadonlySet<Role>,
   ) => {
     for (const role of ROLES) {
       const res = await call(method, url, role);
@@ -134,8 +135,68 @@ run('RBAC en la API · check-in / padrón / puerta', () => {
     expect(JSON.stringify(res.json())).not.toContain('Persona');
   });
 
-  it('las lecturas que Protocolo necesita siguen abiertas (visitors/activities de check-in)', async () => {
-    expect((await call('GET', '/api/v2/checkin/visitors?q=Pii', 'protocolo')).statusCode).toBe(200);
+  it('las lecturas que Protocolo necesita siguen abiertas (activities de check-in)', async () => {
     expect((await call('GET', '/api/v2/checkin/activities', 'protocolo')).statusCode).toBe(200);
+  });
+
+  it('RBAC-R01 · GET /checkin/visitors → padrón + protocolo (proyección); biblioteca 403', async () => {
+    await expectGate('GET', '/api/v2/checkin/visitors?q=Pii', VISITOR_SEARCH);
+  });
+
+  it('RBAC-R01 · protocolo recibe nombre + código enmascarado, SIN correo ni teléfono', async () => {
+    const res = await call('GET', '/api/v2/checkin/visitors?q=Pii', 'protocolo');
+    expect(res.statusCode).toBe(200);
+    const items = (res.json() as { items: { firstName: string; code: string; email: string | null }[] }).items;
+    expect(items).toHaveLength(1);
+    expect(items[0]!.firstName).toBe('Pii');
+    expect(items[0]!.email).toBeNull();
+    expect(items[0]!.code).not.toBe(userCode);
+    const raw = res.body;
+    expect(raw).not.toContain(`pii-${stamp}@t.local`);
+    expect(raw).not.toContain('8095550123');
+    expect(raw).not.toContain(userCode);
+    // y no sirve para sondear PII: buscar por correo/teléfono/código no devuelve nada
+    for (const q of [`pii-${stamp}`, '8095550123', userCode]) {
+      const r = await call('GET', `/api/v2/checkin/visitors?q=${encodeURIComponent(q)}`, 'protocolo');
+      expect((r.json() as { items: unknown[] }).items).toHaveLength(0);
+    }
+  });
+
+  it('RBAC-R01 · un lector del padrón sigue recibiendo código y correo completos', async () => {
+    const res = await call('GET', '/api/v2/checkin/visitors?q=Pii', 'puerta');
+    const it0 = (res.json() as { items: { code: string; email: string }[] }).items[0]!;
+    expect(it0.code).toBe(userCode);
+    expect(it0.email).toBe(`pii-${stamp}@t.local`);
+  });
+
+  it('RBAC-R02 · GET /attendance (feed de asistencia con nombre+código) → padrón; protocolo/biblioteca 403', async () => {
+    await expectGate('GET', '/api/v2/attendance', PADRON_READ);
+  });
+
+  it('RBAC-X02/U04 · buscador global: solo el padrón obtiene personas; protocolo/biblioteca vacío', async () => {
+    for (const role of ROLES) {
+      const res = await call('GET', '/api/v2/search?q=Pii', role);
+      expect(res.statusCode, `search como ${role}`).toBe(200);
+      const users = (res.json() as { users: unknown[] }).users;
+      if (PADRON_READ.has(role)) expect(users.length, role).toBeGreaterThan(0);
+      else expect(users, role).toHaveLength(0);
+    }
+  });
+
+  it('RBAC-R06 · GET /activities/:id/invitations → padrón; protocolo/biblioteca 403', async () => {
+    await expectGate('GET', `/api/v2/activities/${randomUUID()}/invitations`, PADRON_READ);
+  });
+
+  it('RBAC-W04..W07 · escrituras de puerta (bookings, occupancy) → owner/admin/operator/puerta', async () => {
+    await expectGate('POST', '/api/v2/puerta/bookings', DOOR_WRITE);
+    await expectGate('PATCH', `/api/v2/puerta/bookings/${randomUUID()}`, DOOR_WRITE);
+    await expectGate('POST', `/api/v2/puerta/bookings/${randomUUID()}/checkin`, DOOR_WRITE);
+    await expectGate('POST', `/api/v2/puerta/salas/${randomUUID()}/occupancy`, DOOR_WRITE);
+  });
+
+  it('RBAC-R25/R26 · lecturas de puerta (bookings, export.xlsx, stats) → padrón (incluye consulta)', async () => {
+    await expectGate('GET', '/api/v2/puerta/bookings', PADRON_READ);
+    await expectGate('GET', '/api/v2/puerta/export.xlsx', PADRON_READ);
+    await expectGate('GET', '/api/v2/puerta/stats', PADRON_READ);
   });
 });

@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { getDb, sql, withTenant } from '@contan2/db';
 import type { ShellSummaryResponse, SearchResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
+import { PADRON_READ_ROLES } from '../rbac-roles.js';
 import { parseSearch, likeContains } from '../query.js';
 import { resolveCheckinTz } from './checkin.js';
 
@@ -68,7 +69,9 @@ export const shellRoute: FastifyPluginAsync = async (app) => {
     }
     // El rol protocolo está confinado (solo su módulo); no ve el padrón ni la
     // agenda completa, así que su búsqueda de entidades es vacía.
-    if (role === 'protocolo') {
+    // Aplica a todo rol fuera de PADRON_READ_ROLES (protocolo, biblioteca…): ni
+    // personas ni agenda por el buscador global.
+    if (!PADRON_READ_ROLES.has(role)) {
       const empty: SearchResponse = { activities: [], users: [] };
       return empty;
     }

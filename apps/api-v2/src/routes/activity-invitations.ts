@@ -22,7 +22,8 @@ import {
   type ActivityInvitationsResponse,
   type ActivityInviteExistingResponse,
 } from '@contan2/contracts';
-import { requireTenantStaff } from '../guard.js';
+import { requireRole, requireTenantStaff } from '../guard.js';
+import { PADRON_READ_ROLES } from '../rbac-roles.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { resolveSegmentMembers, slugifyCategory } from './segments.js';
 import { effectiveHost } from '../tenant.js';
@@ -345,7 +346,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
 
   app.get('/activities/:id/invitations', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para ver los invitados de la actividad.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {

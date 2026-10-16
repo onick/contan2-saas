@@ -10,6 +10,7 @@ import type {
 import { AdminUserUpdateRequestSchema, AdminUserCreateRequestSchema } from '@contan2/contracts';
 import type { AdminCredentialResendResponse, AdminCredentialResendResult, AdminUserArchiveResponse, AdminUserCreateResponse } from '@contan2/contracts';
 import { requireRole, requireTenantStaff } from '../guard.js';
+import { PADRON_READ_ROLES } from '../rbac-roles.js';
 import { writeUserAudit } from '../services/user-audit.js';
 import { deliverCredential } from '../services/credential-delivery.js';
 import { cohortCondition, statusCondition } from '../services/users-query.js';
@@ -24,7 +25,6 @@ import { parsePage, parseSearch, parseCohort, parseUserStatusFilter, likeContain
 // Lecturas del padrón (datos personales). protocolo/biblioteca NO: el módulo
 // Protocolo busca candidatos por /checkin/visitors (respuesta mínima) y sus
 // propios endpoints, y Biblioteca por sus lectores; ninguno usa /users.
-const PADRON_READ_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'operator', 'consulta', 'puerta']);
 const CAN_WRITE_USER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 // Crear visitantes: paridad v1 → también operator (consola/alta manual). Puerta usa su propio flujo.
 const CAN_CREATE_USER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'operator']);
