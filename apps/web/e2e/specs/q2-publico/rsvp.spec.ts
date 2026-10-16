@@ -6,7 +6,7 @@ import { record } from '../../fixtures/data';
 import { stagingSelect, stagingSqlConfigured } from '../../fixtures/staging-sql';
 import { apiFor, jsonOf, type CreatedActivity } from '../../support/q3-api';
 import { expectNoHorizontalOverflow } from '../../support/layout';
-import { NO_STATE, note, q2Activity, q2Visitor, spend } from '../../support/q2-common';
+import { dropActivity, NO_STATE, note, q2Activity, q2Visitor, spend } from '../../support/q2-common';
 
 const PROJECTS = ['webkit-tablet', 'desktop-1440', 'mobile-390'];
 
@@ -88,15 +88,14 @@ test.describe('RSVP-01 con token real', () => {
   let act: CreatedActivity;
 
   test.beforeAll(async ({}, testInfo) => {
+    test.setTimeout(240_000);
     api = await apiFor('owner');
     act = await q2Activity(api, `RSVP ${testInfo.project.name}`, { capacity: 10 });
   });
   test.afterAll(async () => {
     test.setTimeout(120_000);
     if (!api) return;
-    await spend('activity-write', 2);
-    await api.patch(`/app/actividades/api/${act.id}/status`, { data: { status: 'cancelada' } }).catch(() => {});
-    await api.delete(`/app/actividades/api/${act.id}`).catch(() => {});
+    await dropActivity(api, act.id);
     await api.dispose();
   });
 

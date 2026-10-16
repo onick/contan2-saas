@@ -9,7 +9,7 @@ import { runId, tag } from '../../fixtures/data';
 import { apiFor, trackVisitor, type CreatedActivity, type CreatedVisitor } from '../../support/q3-api';
 import { expectMinTarget, expectNoHorizontalOverflow } from '../../support/layout';
 import {
-  checkedIn, enrolledOf, escapeRe, NO_STATE, note, openKiosk, pickActivity, publicCheckin, q2Activity, q2Visitor, spend,
+  checkedIn, dropActivity, enrolledOf, escapeRe, NO_STATE, note, openKiosk, pickActivity, publicCheckin, q2Activity, q2Visitor, spend,
 } from '../../support/q2-common';
 
 const PROJECTS = ['webkit-tablet', 'desktop-1440'];
@@ -36,6 +36,7 @@ async function V(slot: number): Promise<CreatedVisitor> {
 }
 
 test.beforeAll(async ({}, testInfo) => {
+  test.setTimeout(240_000); // el throttle de escrituras de actividades (10/min) espacia las altas
   proj = testInfo.project.name;
   baseURL = String(testInfo.project.use.baseURL);
   if (!PROJECTS.includes(proj)) return;
@@ -53,9 +54,7 @@ test.afterAll(async () => {
   // las escrituras de actividades (30/min compartidos) se agotaban en el teardown global.
   for (const a of [MAIN, FULL, FLOW, KIDS]) {
     if (!a) continue;
-    await spend('activity-write', 2);
-    await api.patch(`/app/actividades/api/${a.id}/status`, { data: { status: 'cancelada' } }).catch(() => {});
-    await api.delete(`/app/actividades/api/${a.id}`).catch(() => {});
+    await dropActivity(api, a.id);
   }
   await api.dispose();
 });

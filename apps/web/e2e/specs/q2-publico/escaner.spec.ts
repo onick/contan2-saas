@@ -12,7 +12,7 @@ import { apiFor, jsonOf, trackProtocol, type CreatedActivity, type CreatedVisito
 import { expectMinTarget, expectNoHorizontalOverflow } from '../../support/layout';
 import { hideQr, installSwitchableCamera, showQr } from '../../support/q2-camera';
 import {
-  checkedIn, enrolledOf, escapeRe, NO_STATE, note, publicCheckin, q2Activity, q2Visitor, SCANNER_STATE, spend,
+  checkedIn, dropActivity, enrolledOf, escapeRe, NO_STATE, note, publicCheckin, q2Activity, q2Visitor, SCANNER_STATE, spend,
 } from '../../support/q2-common';
 
 const PROJECTS = ['webkit-tablet', 'desktop-1440', 'mobile-390'];
@@ -38,6 +38,7 @@ async function V(slot: number): Promise<CreatedVisitor> {
 }
 
 test.beforeAll(async ({}, testInfo) => {
+  test.setTimeout(240_000); // el throttle de escrituras de actividades (10/min) espacia las altas
   proj = testInfo.project.name;
   baseURL = String(testInfo.project.use.baseURL);
   if (!PROJECTS.includes(proj)) return;
@@ -52,9 +53,7 @@ test.afterAll(async () => {
   if (!api) return;
   for (const a of [SC, FULLS, PROT]) {
     if (!a) continue;
-    await spend('activity-write', 2);
-    await api.patch(`/app/actividades/api/${a.id}/status`, { data: { status: 'cancelada' } }).catch(() => {});
-    await api.delete(`/app/actividades/api/${a.id}`).catch(() => {});
+    await dropActivity(api, a.id);
   }
   await api.dispose();
 });
@@ -135,11 +134,13 @@ test.describe('PIN del escáner', () => {
     await page.getByLabel('PIN del centro').fill(wrong);
     await spend('pin');
     await Promise.all([page.waitForResponse((r) => r.url().endsWith('/scanner/api/pin')), page.getByRole('button', { name: 'Entrar' }).click()]);
-    await expect(page.getByRole('alert')).toContainText('PIN incorrecto');
+    // (el anunciador de rutas de Next tambien es role=alert: se acota al <p> del formulario)
+    const alert = page.locator('p[role="alert"]');
+    await expect(alert).toContainText('PIN incorrecto');
     await expect(page.getByRole('heading', { name: 'Ingresa el PIN de puerta' })).toBeVisible();
     expect((await context.cookies()).some((k) => k.name === 'scanner_session')).toBe(false);
     // El mensaje no revela el PIN ni cuantos intentos quedan.
-    expect(await page.getByRole('alert').innerText()).not.toMatch(/\d{4}/);
+    expect(await alert.innerText()).not.toMatch(/\d{4}/);
   });
 
   test('SCN-01b la pantalla de PIN es usable en este viewport (sin enviar PIN)', async ({ page }) => {

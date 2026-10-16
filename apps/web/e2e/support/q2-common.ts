@@ -98,6 +98,20 @@ export async function q2Visitor(api: APIRequestContext, projectName: string, slo
   return retry429(`visitante ${slot}`, () => createVisitor(api, slotN(projectName, slot), label));
 }
 
+/** Cancela y borra una actividad [E2E] con throttle y reintento ante 429 (limite de escrituras compartido). */
+export async function dropActivity(api: APIRequestContext, id: string): Promise<void> {
+  const once = async (call: () => Promise<{ status(): number }>) => {
+    for (let i = 0; i < 5; i++) {
+      const res = await call().catch(() => null);
+      if (!res || res.status() !== 429) return;
+      await new Promise((r) => setTimeout(r, 20_000));
+    }
+  };
+  await spend('activity-write', 2);
+  await once(() => api.patch(`/app/actividades/api/${id}/status`, { data: { status: 'cancelada' } }));
+  await once(() => api.delete(`/app/actividades/api/${id}`));
+}
+
 /** Asistencias activas de una actividad (owner): para verificar efectos reales en la DB. */
 export async function checkedIn(api: APIRequestContext, activityId: string) {
   return jsonOf<{ items: Array<{ id: string; userCode: string | null; anonymous: boolean; companionsAdults: number; companionsChildren: number }>; total: number }>(
