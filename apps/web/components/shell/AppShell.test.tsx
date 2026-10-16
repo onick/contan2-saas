@@ -1,7 +1,13 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { AppShell } from './AppShell';
 import { DEFAULT_BRANDING } from '../../lib/branding/config';
+
+// TopbarUserMenu usa useRouter (logout por fetch + replace): fuera de Next no hay app router montado.
+vi.mock('next/navigation', async (orig) => ({
+  ...(await orig<typeof import('next/navigation')>()),
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+}));
 
 // globals:false → cleanup explícito entre renders (ver Sidebar.test.tsx).
 afterEach(cleanup);
