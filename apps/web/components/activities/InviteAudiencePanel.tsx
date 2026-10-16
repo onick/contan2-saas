@@ -52,7 +52,7 @@ export function InviteAudiencePanel({ activityId, activityName, open, onClose, o
       setSelected(new Set(body.candidates.map((c) => c.id))); // todos pre-marcados
       setPhase('ready');
     } catch {
-      setError('Problema de red. Reintentá.');
+      setError('Problema de red. Reintenta.');
       setPhase('error');
     }
   }, [activityId]);
@@ -106,7 +106,7 @@ export function InviteAudiencePanel({ activityId, activityName, open, onClose, o
         setError(b?.error ?? 'No pudimos crear las invitaciones.');
       }
     } catch {
-      setError('Problema de red. Reintentá.');
+      setError('Problema de red. Reintenta.');
     } finally {
       setBusy(false);
     }
@@ -206,7 +206,7 @@ export function InviteAudiencePanel({ activityId, activityName, open, onClose, o
                 </>
               ) : (
                 <p className="rounded-lg bg-surface-container px-3 py-3 text-[13px] text-muted">
-                  No quedan candidatos invitables en este segmento. Probá con otro segmento del selector.
+                  No quedan candidatos invitables en este segmento. Prueba con otro segmento del selector.
                 </p>
               )}
             </>

@@ -194,7 +194,7 @@ function DeleteActivityDialog({ id, title, onClose, onDeleted }: {
     try {
       res = await fetch(`/app/actividades/api/${encodeURIComponent(id)}`, { method: 'DELETE' });
     } catch {
-      setBusy(false); setError('Problema de red. Revisá tu conexión e intentá de nuevo.');
+      setBusy(false); setError('Problema de red. Revisa tu conexión e intenta de nuevo.');
       return;
     }
     if (res.status === 204) { setBusy(false); onDeleted(); return; }
@@ -203,9 +203,9 @@ function DeleteActivityDialog({ id, title, onClose, onDeleted }: {
     setBusy(false);
     setError(
       body?.error ??
-      (res.status === 403 ? 'No tenés permiso para eliminar actividades.'
+      (res.status === 403 ? 'No tienes permiso para eliminar actividades.'
         : res.status === 404 ? 'La actividad ya no existe o no pertenece a este centro.'
-        : 'No pudimos eliminar la actividad. Intentá de nuevo.'),
+        : 'No pudimos eliminar la actividad. Intenta de nuevo.'),
     );
   }
 

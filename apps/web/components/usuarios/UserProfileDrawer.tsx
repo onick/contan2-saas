@@ -267,7 +267,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
                         ? fmtDateTime(detail.data.credentialSentAt)
                         : detail.data.email
                           ? 'Aún no se envió a su email.'
-                          : 'Agregá un email para enviarle su credencial QR.'}
+                          : 'Agrega un email para enviarle su credencial QR.'}
                     </p>
                   </div>
                   {canEdit && detail.data.email && !resendOpen ? (
@@ -399,7 +399,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
                 </Button>
               ) : (
                 <div className="rounded-lg border border-line bg-surface-container p-3">
-                  <p className="text-[13px] text-ink">¿Archivar a este visitante? Se ocultará del listado; su historial y asistencias se preservan. Podés reactivarlo luego.</p>
+                  <p className="text-[13px] text-ink">¿Archivar a este visitante? Se ocultará del listado; su historial y asistencias se preservan. Puedes reactivarlo luego.</p>
                   <div className="mt-3 flex items-center justify-end gap-2">
                     <Button type="button" variant="secondary" size="sm" onClick={() => setArchiveConfirm(false)} disabled={archiveBusy}>Cancelar</Button>
                     <Button type="button" size="sm" className="text-danger-fg" onClick={doArchive} disabled={archiveBusy}>

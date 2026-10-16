@@ -16,7 +16,7 @@ const ACCEPT_SET = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export function validateCoverFile(f: File): string | null {
-  if (!ACCEPT_SET.has(f.type)) return 'Formato no permitido. Usá JPEG, PNG o WebP.';
+  if (!ACCEPT_SET.has(f.type)) return 'Formato no permitido. Usa JPEG, PNG o WebP.';
   if (f.size > MAX_BYTES) return 'La imagen supera el máximo de 5 MB.';
   return null;
 }
@@ -122,7 +122,7 @@ export function CoverDropzone({ file, onSelect, disabled, labelId }: CoverDropzo
           )}
         >
           <ImagePlus size={22} strokeWidth={1.75} aria-hidden="true" className="text-faint" />
-          <span className="text-[13px] font-medium text-muted">Arrastrá una imagen o tocá para elegir</span>
+          <span className="text-[13px] font-medium text-muted">Arrastra una imagen o toca para elegir</span>
           <span className="text-[11px] text-faint">JPEG, PNG o WebP · máx 5 MB</span>
         </button>
       )}

@@ -71,7 +71,7 @@ describe('NewActivityDrawer · portada obligatoria', () => {
 
   it('la PORTADA aparece primero (antes de Nombre)', () => {
     renderDrawer();
-    const cover = screen.getByText(/Arrastrá una imagen/);
+    const cover = screen.getByText(/Arrastra una imagen/);
     const nombre = screen.getByLabelText(/Nombre/);
     // cover precede a Nombre en el DOM.
     expect(cover.compareDocumentPosition(nombre) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -116,7 +116,7 @@ describe('NewActivityDrawer · portada obligatoria', () => {
   });
 
   it('tipo/dimensiones peligrosas → error de portada, conserva el formulario', async () => {
-    vi.mocked(optimizeCover).mockRejectedValueOnce(new OptimizeError('bad_type', 'Formato no permitido. Usá JPEG, PNG o WebP.'));
+    vi.mocked(optimizeCover).mockRejectedValueOnce(new OptimizeError('bad_type', 'Formato no permitido. Usa JPEG, PNG o WebP.'));
     renderDrawer();
     fillFields();
     setFile('image/gif', 'x.gif');

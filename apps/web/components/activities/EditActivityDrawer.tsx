@@ -90,7 +90,7 @@ function friendly(issue: ZodIssue): string {
   switch (issue.code) {
     case 'too_small': return issue.type === 'string' ? `Mínimo ${issue.minimum} caracteres` : `Mínimo ${issue.minimum}`;
     case 'too_big': return issue.type === 'string' ? `Máximo ${issue.maximum} caracteres` : `Máximo ${issue.maximum}`;
-    case 'invalid_enum_value': return 'Seleccioná una opción válida';
+    case 'invalid_enum_value': return 'Selecciona una opción válida';
     case 'invalid_type': return 'Requerido';
     default: return issue.message;
   }
@@ -98,13 +98,13 @@ function friendly(issue: ZodIssue): string {
 
 function serverMessage(status: number, body: { error?: string } | null): string {
   switch (status) {
-    case 401: return 'Tu sesión expiró. Iniciá sesión de nuevo.';
-    case 403: return 'No tenés permiso para editar actividades.';
+    case 401: return 'Tu sesión expiró. Inicia sesión de nuevo.';
+    case 403: return 'No tienes permiso para editar actividades.';
     case 404: return 'La actividad ya no existe o no pertenece a este centro.';
     case 409: return body?.error ?? 'La capacidad no puede ser menor que la cantidad de inscritos.';
-    case 400: return body?.error ?? 'Revisá los datos del formulario.';
-    case 502: return body?.error ?? 'Problema de red. Reintentá.';
-    default: return 'No pudimos guardar los cambios. Intentá de nuevo.';
+    case 400: return body?.error ?? 'Revisa los datos del formulario.';
+    case 502: return body?.error ?? 'Problema de red. Reintenta.';
+    default: return 'No pudimos guardar los cambios. Intenta de nuevo.';
   }
 }
 
@@ -228,7 +228,7 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
     const body: Record<string, unknown> = {};
 
     if (dirty.includes('name')) body.name = form.name.trim();
-    if (dirty.includes('type')) { if (!form.type) fe.type = 'Seleccioná un tipo'; else body.type = form.type; }
+    if (dirty.includes('type')) { if (!form.type) fe.type = 'Selecciona un tipo'; else body.type = form.type; }
     if (dirty.includes('location')) body.location = form.location.trim();
     if (dirty.includes('date')) {
       if (!form.date) fe.date = 'Requerido';
@@ -287,14 +287,14 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
         up = await fetch(`/app/actividades/api/${encodeURIComponent(activity.id)}/cover`, { method: 'POST', body: fd });
       } catch {
         setBusy(false);
-        setCoverErr('Problema de red al subir la portada. Reintentá.');
+        setCoverErr('Problema de red al subir la portada. Reintenta.');
         return;
       }
       if (!up.ok) {
         setBusy(false);
         let body: { error?: string } | null = null;
         try { body = (await up.json()) as { error?: string }; } catch { /* sin JSON */ }
-        setCoverErr(body?.error ?? 'No pudimos subir la portada. Intentá de nuevo.');
+        setCoverErr(body?.error ?? 'No pudimos subir la portada. Intenta de nuevo.');
         return;
       }
       uploadedCoverRef.current = cover.previewUrl; // no re-subir si el PATCH falla
@@ -312,7 +312,7 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
       });
     } catch {
       setBusy(false);
-      setErrors({ _form: 'Problema de red. Revisá tu conexión e intentá de nuevo.' });
+      setErrors({ _form: 'Problema de red. Revisa tu conexión e intenta de nuevo.' });
       return;
     }
 
@@ -419,7 +419,7 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
                   <button type="button" disabled={busy} aria-labelledby={`${baseId}-cover-label`} onClick={() => fileRef.current?.click()}
                     className={cn('mt-1 flex aspect-video w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-line bg-surface text-center transition-colors hover:bg-surface-container disabled:opacity-50', focusRing)}>
                     <ImagePlus size={22} strokeWidth={1.75} aria-hidden="true" className="text-faint" />
-                    <span className="text-[13px] font-medium text-muted">Esta actividad no tiene portada · tocá para agregar una</span>
+                    <span className="text-[13px] font-medium text-muted">Esta actividad no tiene portada · toca para agregar una</span>
                     <span className="text-[11px] text-faint">JPEG, PNG o WebP · se optimiza automáticamente</span>
                   </button>
                 )}
@@ -443,7 +443,7 @@ export function EditActivityDrawer({ activity, onClose, onSaved }: EditActivityD
                     <span className={labelCls}>Tipo</span>
                     <select value={form.type} onChange={(e) => set('type', e.target.value)}
                       aria-invalid={!!errors.type} aria-describedby={errors.type ? errId('type') : undefined} className={inputCls(!!errors.type)}>
-                      <option value="" disabled>Seleccioná…</option>
+                      <option value="" disabled>Selecciona…</option>
                       {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>)}
                     </select>
                     <FieldError k="type" />

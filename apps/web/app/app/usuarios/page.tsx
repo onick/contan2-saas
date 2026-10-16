@@ -87,7 +87,7 @@ export default async function UsuariosPage({
   if (!view) {
     if (!isDemoFallbackAllowed()) {
       return shell(
-        <Unavailable inline title="Usuarios no disponibles" description="No pudimos cargar el padrón de visitantes. Reintentá en unos segundos." />,
+        <Unavailable inline title="Usuarios no disponibles" description="No pudimos cargar el padrón de visitantes. Reintenta en unos segundos." />,
       );
     }
     return shell(
@@ -162,7 +162,7 @@ export default async function UsuariosPage({
             title="Sin resultados"
             description={
               q.trim()
-                ? 'No encontramos usuarios para tu búsqueda. Probá con otro término.'
+                ? 'No encontramos usuarios para tu búsqueda. Prueba con otro término.'
                 : cohort !== 'all'
                   ? 'No hay usuarios en esta cohorte.'
                   : 'Aún no hay visitantes registrados.'

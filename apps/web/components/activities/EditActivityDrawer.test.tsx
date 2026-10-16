@@ -120,7 +120,7 @@ describe('EditActivityDrawer · full-fidelity', () => {
     expect((screen.getByLabelText(/Capacidad/) as HTMLInputElement).value).toBe('5');
   });
 
-  it.each([[403, /No tenés permiso/i], [404, /ya no existe/i]])('error %i en PATCH muestra mensaje, sin onSaved', async (status, re) => {
+  it.each([[403, /No tienes permiso/i], [404, /ya no existe/i]])('error %i en PATCH muestra mensaje, sin onSaved', async (status, re) => {
     mockFetch({ status, body: { error: 'x' } });
     const { onSaved } = renderDrawer();
     await ready();

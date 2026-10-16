@@ -66,7 +66,7 @@ export function ImportGuestsPanel({ activityId, activityName, open, onClose, onI
       if (!res.ok) { setError((json as { error?: string } | null)?.error ?? 'No pudimos leer el archivo.'); setPhase('error'); return; }
       const body = GuestsImportPreviewResponseSchema.parse(json);
       setRows(body.rows); setSummary(body.summary); setTruncated(body.truncated); setPhase('preview');
-    } catch { setError('Problema de red al subir el archivo. Reintentá.'); setPhase('error'); }
+    } catch { setError('Problema de red al subir el archivo. Reintenta.'); setPhase('error'); }
   }
 
   async function commit() {
@@ -79,7 +79,7 @@ export function ImportGuestsPanel({ activityId, activityName, open, onClose, onI
       if (!res.ok) { setError((json as { error?: string } | null)?.error ?? 'No pudimos completar la importación.'); setPhase('error'); return; }
       const body = GuestsImportCommitResponseSchema.parse(json);
       setResult(body.result); setPhase('done'); onImported();
-    } catch { setError('Problema de red al importar. Reintentá.'); setPhase('error'); }
+    } catch { setError('Problema de red al importar. Reintenta.'); setPhase('error'); }
   }
 
   if (!open || typeof document === 'undefined') return null;
@@ -105,7 +105,7 @@ export function ImportGuestsPanel({ activityId, activityName, open, onClose, onI
           {(phase === 'idle' || phase === 'uploading' || phase === 'error') ? (
             <>
               <p className="text-[13.5px] leading-relaxed text-muted">
-                Subí un archivo <strong>CSV o Excel</strong> (Nombre, Apellido, Email, Teléfono). Te mostramos una
+                Sube un archivo <strong>CSV o Excel</strong> (Nombre, Apellido, Email, Teléfono). Te mostramos una
                 vista previa antes de confirmar; los que ya existan <strong>no se modifican</strong>. Los que no
                 tengan correo entran igual a la lista (no reciben invitación por email).
               </p>
@@ -124,7 +124,7 @@ export function ImportGuestsPanel({ activityId, activityName, open, onClose, onI
                 {phase === 'uploading' ? (
                   <><Loader2 size={22} strokeWidth={2} aria-hidden="true" className="animate-spin text-muted" /><span className="text-[13px] text-muted">Leyendo {filename}…</span></>
                 ) : (
-                  <><FileSpreadsheet size={24} strokeWidth={1.75} aria-hidden="true" className="text-faint" /><span className="text-[13.5px] font-semibold text-ink">Elegí un archivo</span><span className="text-[12px] text-faint">CSV o Excel · hasta 5 MB · 1.000 filas</span></>
+                  <><FileSpreadsheet size={24} strokeWidth={1.75} aria-hidden="true" className="text-faint" /><span className="text-[13.5px] font-semibold text-ink">Elige un archivo</span><span className="text-[12px] text-faint">CSV o Excel · hasta 5 MB · 1.000 filas</span></>
                 )}
               </label>
               {error ? (
@@ -188,7 +188,7 @@ export function ImportGuestsPanel({ activityId, activityName, open, onClose, onI
                 {result.createdUsers > 0 ? `${result.createdUsers} nuevos en el padrón · ` : ''}{result.alreadyInvited} ya estaban
               </p>
               <p className="mt-3 text-[12.5px] text-muted">
-                Para enviarles la invitación por correo usá <strong>“Invitar audiencia”</strong> (a los que tienen email). El import no manda correos automáticamente.
+                Para enviarles la invitación por correo usa <strong>“Invitar audiencia”</strong> (a los que tienen email). El import no manda correos automáticamente.
               </p>
             </div>
           ) : null}

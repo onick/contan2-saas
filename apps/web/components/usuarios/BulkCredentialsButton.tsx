@@ -44,7 +44,7 @@ export function BulkCredentialsButton({ pendingCount, className }: { pendingCoun
         ? `Simulación completada (sin clave de envío configurada): ${summary.sent} credencial${summary.sent === 1 ? '' : 'es'} lista${summary.sent === 1 ? '' : 's'} para enviarse, ${summary.skipped} omitidas, ${summary.failed} con error. No salió ningún email real.`
         : `Enviadas ${summary.sent} de ${summary.total} · ${summary.skipped} omitidas · ${summary.failed} con error.`);
     } catch {
-      setError('Problema de red. Reintentá.');
+      setError('Problema de red. Reintenta.');
     } finally {
       setBusy(false);
     }

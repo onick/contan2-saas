@@ -42,7 +42,7 @@ function friendly(issue: ZodIssue): string {
   switch (issue.code) {
     case 'too_small': return issue.type === 'string' ? `Mínimo ${issue.minimum} caracteres` : `Mínimo ${issue.minimum}`;
     case 'too_big': return issue.type === 'string' ? `Máximo ${issue.maximum} caracteres` : `Máximo ${issue.maximum}`;
-    case 'invalid_enum_value': return 'Seleccioná una opción válida';
+    case 'invalid_enum_value': return 'Selecciona una opción válida';
     case 'invalid_string': return 'Formato inválido';
     case 'invalid_type': return 'Requerido';
     default: return issue.message;
@@ -50,13 +50,13 @@ function friendly(issue: ZodIssue): string {
 }
 function serverMessage(status: number, body: { error?: string } | null): string {
   switch (status) {
-    case 401: return 'Tu sesión expiró. Iniciá sesión de nuevo.';
-    case 403: return 'No tenés permiso para crear actividades.';
+    case 401: return 'Tu sesión expiró. Inicia sesión de nuevo.';
+    case 403: return 'No tienes permiso para crear actividades.';
     case 413: return body?.error ?? 'La imagen supera el máximo de 5 MB.';
     case 415: return body?.error ?? 'Formato de imagen no permitido.';
-    case 400: return body?.error ?? 'Revisá los datos del formulario.';
-    case 502: return body?.error ?? 'Problema de red. Reintentá.';
-    default: return 'No pudimos crear la actividad. Intentá de nuevo.';
+    case 400: return body?.error ?? 'Revisa los datos del formulario.';
+    case 502: return body?.error ?? 'Problema de red. Reintenta.';
+    default: return 'No pudimos crear la actividad. Intenta de nuevo.';
   }
 }
 
@@ -143,7 +143,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
   // Valida campos (sin portada) y devuelve los valores normalizados o errores.
   function validateFields(): { ok: true; fields: Record<string, string> } | { ok: false; errors: Errors } {
     const fe: Errors = {};
-    if (!form.type) fe.type = 'Seleccioná un tipo';
+    if (!form.type) fe.type = 'Selecciona un tipo';
     let dateIso: string | undefined;
     if (!form.date) fe.date = 'Requerido';
     else { const iso = toIso(form.date); if (!iso) fe.date = 'Fecha inválida'; else dateIso = iso; }
@@ -199,7 +199,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
       res = await fetch('/app/actividades/api/with-cover', { method: 'POST', body: fd });
     } catch {
       setBusy(false);
-      setErrors({ _form: 'No pudimos crear la actividad. Revisá tu conexión e intentá de nuevo.' });
+      setErrors({ _form: 'No pudimos crear la actividad. Revisa tu conexión e intenta de nuevo.' });
       return;
     }
     if (res.status === 201) { success(); return; }
@@ -286,7 +286,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
                 <button type="button" disabled={busy} aria-labelledby={`${baseId}-cover-label`} onClick={() => fileRef.current?.click()}
                   className={cn('mt-1 flex aspect-video w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-line bg-surface text-center transition-colors hover:bg-surface-container disabled:opacity-50', focusRing)}>
                   <ImagePlus size={22} strokeWidth={1.75} aria-hidden="true" className="text-faint" />
-                  <span className="text-[13px] font-medium text-muted">Arrastrá una imagen o tocá para elegir</span>
+                  <span className="text-[13px] font-medium text-muted">Arrastra una imagen o toca para elegir</span>
                   <span className="text-[11px] text-faint">JPEG, PNG o WebP · las imágenes grandes se optimizan automáticamente</span>
                 </button>
               )}
@@ -308,7 +308,7 @@ export function NewActivityDrawer({ open, onClose, onCreated }: NewActivityDrawe
                 <label className="block">
                   <span className={labelCls}>Tipo</span>
                   <select value={form.type} onChange={(e) => set('type', e.target.value)} aria-invalid={!!errors.type} aria-describedby={errors.type ? errId('type') : undefined} className={inputCls(!!errors.type)}>
-                    <option value="" disabled>Seleccioná…</option>
+                    <option value="" disabled>Selecciona…</option>
                     {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
                   </select>
                   <FieldError k="type" />

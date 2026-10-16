@@ -55,7 +55,7 @@ export function ProgramPicker({ value, onChange, year, selectClassName = '', dis
 
   async function submitNew() {
     const nm = name.trim();
-    if (!nm) { setErr('Escribí un nombre.'); return; }
+    if (!nm) { setErr('Escribe un nombre.'); return; }
     setBusy(true); setErr(null);
     try {
       const body: Record<string, unknown> = { name: nm, isCyclical: cyclical };
@@ -69,7 +69,7 @@ export function ProgramPicker({ value, onChange, year, selectClassName = '', dis
       onChange(j?.program?.name ?? nm);
       setCreating(false); setName(''); setCyclical(false);
     } catch {
-      setErr('Error de red. Reintentá.');
+      setErr('Error de red. Reintenta.');
     } finally {
       setBusy(false);
     }

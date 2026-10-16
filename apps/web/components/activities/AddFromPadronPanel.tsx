@@ -97,7 +97,7 @@ export function AddFromPadronPanel({ activityId, activityName, open, onClose, on
       setSelected(new Map());
       onAdded();
     } else {
-      flash(res?.status === 403 ? 'No tenés permiso para agregar invitados.' : 'No se pudo agregar. Reintentá.');
+      flash(res?.status === 403 ? 'No tienes permiso para agregar invitados.' : 'No se pudo agregar. Reintenta.');
     }
   }
 
@@ -124,7 +124,7 @@ export function AddFromPadronPanel({ activityId, activityName, open, onClose, on
         </header>
 
         <div className="px-5 pt-4">
-          <p className="text-[13px] leading-relaxed text-muted">Buscá personas que <strong className="text-ink">ya están en el padrón</strong> y agregalas a la lista. Las que no tengan correo entran igual (se reciben por nombre); no se envía invitación por email.</p>
+          <p className="text-[13px] leading-relaxed text-muted">Busca personas que <strong className="text-ink">ya están en el padrón</strong> y agrégalas a la lista. Las que no tengan correo entran igual (se reciben por nombre); no se envía invitación por email.</p>
           <div className="mt-3 flex items-center gap-2 rounded-xl border border-line bg-surface px-3">
             <Search size={16} strokeWidth={2} className="text-faint" aria-hidden="true" />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nombre, código o email… (mín. 2)"
@@ -136,13 +136,13 @@ export function AddFromPadronPanel({ activityId, activityName, open, onClose, on
         <div className="mt-2 flex-1 overflow-y-auto px-3 pb-4">
           {phase === 'idle' && q.trim().length < 2 ? (
             <div className="px-3 py-8 text-center text-[13px] text-faint">
-              <p>Escribí al menos 2 caracteres para buscar.</p>
-              <p className="mt-2">Tip: escribí <button type="button" onClick={() => setQ('*protocolo')} className="font-semibold text-brand-text hover:underline">*protocolo</button> para ver toda la lista de protocolo.</p>
+              <p>Escribe al menos 2 caracteres para buscar.</p>
+              <p className="mt-2">Tip: escribe <button type="button" onClick={() => setQ('*protocolo')} className="font-semibold text-brand-text hover:underline">*protocolo</button> para ver toda la lista de protocolo.</p>
             </div>
           ) : phase === 'searching' ? (
             <p className="px-3 py-8 text-center text-[13px] text-faint"><Loader2 size={16} className="mr-1 inline animate-spin" /> Buscando…</p>
           ) : phase === 'error' ? (
-            <p className="px-3 py-8 text-center text-[13px] text-danger-fg">No pudimos buscar. Reintentá.</p>
+            <p className="px-3 py-8 text-center text-[13px] text-danger-fg">No pudimos buscar. Reintenta.</p>
           ) : rendered.length === 0 ? (
             <p className="px-3 py-8 text-center text-[13px] text-faint">Nadie coincide con la búsqueda.</p>
           ) : (
@@ -193,7 +193,7 @@ export function AddFromPadronPanel({ activityId, activityName, open, onClose, on
         </div>
 
         <footer className="flex items-center justify-between gap-3 border-t border-line px-5 py-4">
-          <p className="text-[12.5px] text-muted">{count > 0 ? <><strong className="text-ink tabular-nums">{count}</strong> seleccionad{count === 1 ? 'o' : 'os'}</> : 'Seleccioná personas para agregar'}</p>
+          <p className="text-[12.5px] text-muted">{count > 0 ? <><strong className="text-ink tabular-nums">{count}</strong> seleccionad{count === 1 ? 'o' : 'os'}</> : 'Selecciona personas para agregar'}</p>
           <Button type="button" disabled={count === 0 || busy} onClick={() => void add()} style={{ backgroundColor: 'var(--color-brand)' }}>
             {busy ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <UserPlus size={16} strokeWidth={2} aria-hidden="true" />} Agregar {count > 0 ? count : ''} a la lista
           </Button>

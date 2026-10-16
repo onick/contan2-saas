@@ -64,10 +64,10 @@ const APPS: AppDef[] = [
 ];
 
 const GUIDE: Array<{ icon: LucideIcon; title: string; body: string }> = [
-  { icon: Link2, title: 'Abrí la URL en la tablet', body: 'Usá "Copiar enlace" y pegalo en el navegador de la tablet, o escaneá el QR de la card con la cámara del dispositivo.' },
+  { icon: Link2, title: 'Abre la URL en la tablet', body: 'Usa "Copiar enlace" y pégalo en el navegador de la tablet, o escanea el QR de la card con la cámara del dispositivo.' },
   { icon: Maximize, title: 'Pantalla completa', body: 'Chrome: F11 o "Instalar app" desde el menú. iPad/Safari: Compartir → Añadir a pantalla de inicio (abre como app).' },
   { icon: Lock, title: 'Bloqueo de salida (opcional)', body: 'iPad: Acceso Guiado (Ajustes → Accesibilidad). Android: Anclado de pantalla en Seguridad. Evita que naveguen fuera.' },
-  { icon: Wifi, title: 'Wi-Fi y energía', body: 'Dejá la tablet al cargador (uso continuo) y verificá buena señal de Wi-Fi en la entrada.' },
+  { icon: Wifi, title: 'Wi-Fi y energía', body: 'Deja la tablet al cargador (uso continuo) y verifica buena señal de Wi-Fi en la entrada.' },
 ];
 
 function AppCard({ app, origin, stat }: { app: AppDef; origin: string; stat: number | null }) {
@@ -133,7 +133,7 @@ function AppCard({ app, origin, stat }: { app: AppDef; origin: string; stat: num
         <div className="mt-4 flex items-center gap-4 rounded-xl border border-line bg-surface-container/60 p-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={qr} alt={`QR para abrir ${app.label}`} className="h-[132px] w-[132px] rounded-lg bg-white p-1.5" />
-          <p className="text-[13px] text-muted">Escaneá con la cámara de la tablet de destino para abrir la URL al instante. El QR se genera en este navegador (no sale a ningún servicio externo).</p>
+          <p className="text-[13px] text-muted">Escanea con la cámara de la tablet de destino para abrir la URL al instante. El QR se genera en este navegador (no sale a ningún servicio externo).</p>
         </div>
       ) : null}
 

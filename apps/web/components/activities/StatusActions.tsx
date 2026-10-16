@@ -31,7 +31,7 @@ export interface ActionDef {
 export const STATUS_ACTIONS: Record<RawStatus, ActionDef[]> = {
   activa: [
     { key: 'finalizar', target: 'finalizada', label: 'Finalizar', icon: CheckCircle2, variant: 'secondary',
-      confirmTitle: 'Finalizar actividad', confirmBody: 'Dejará de estar activa. Podés reactivarla más adelante.' },
+      confirmTitle: 'Finalizar actividad', confirmBody: 'Dejará de estar activa. Puedes reactivarla más adelante.' },
     { key: 'cancelar', target: 'cancelada', label: 'Cancelar', icon: XCircle, variant: 'danger',
       confirmTitle: 'Cancelar actividad', confirmBody: 'No se envían correos y no se borra: se puede reactivar después.' },
   ],
@@ -47,12 +47,12 @@ export const STATUS_ACTIONS: Record<RawStatus, ActionDef[]> = {
 
 function serverMessage(status: number, body: { error?: string } | null): string {
   switch (status) {
-    case 401: return 'Tu sesión expiró. Iniciá sesión de nuevo.';
-    case 403: return 'No tenés permiso para cambiar el estado.';
+    case 401: return 'Tu sesión expiró. Inicia sesión de nuevo.';
+    case 403: return 'No tienes permiso para cambiar el estado.';
     case 404: return 'La actividad ya no existe o no pertenece a este centro.';
     case 409: return body?.error ?? 'Esa transición de estado no está permitida.';
-    case 502: return body?.error ?? 'Problema de red. Reintentá.';
-    default: return 'No pudimos cambiar el estado. Intentá de nuevo.';
+    case 502: return body?.error ?? 'Problema de red. Reintenta.';
+    default: return 'No pudimos cambiar el estado. Intenta de nuevo.';
   }
 }
 
@@ -93,7 +93,7 @@ export function StatusConfirmDialog({ id, action, onClose, onChanged }: StatusCo
         body: JSON.stringify({ status: action.target }),
       });
     } catch {
-      setBusy(false); setError('Problema de red. Revisá tu conexión e intentá de nuevo.');
+      setBusy(false); setError('Problema de red. Revisa tu conexión e intenta de nuevo.');
       return;
     }
     if (res.status === 200) { setBusy(false); onChanged(); return; }
