@@ -50,6 +50,17 @@ describe('proxyLogin', () => {
     expect(res.headers.get('set-cookie')).toBeNull();
   });
 
+  it('429: relaya Retry-After de api-v2 (Q8-69)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      const r = upstream(429, { error: 'Demasiados intentos.' });
+      r.headers.set('retry-after', '540');
+      return r;
+    }));
+    const res = await proxyLogin({ email: 'a@b.com', password: 'x' });
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('540');
+  });
+
   it('api-v2 caída → 502 (no propaga el error crudo)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ECONNREFUSED'); }));
     const res = await proxyLogin({ email: 'a@b.com', password: 'x' });
