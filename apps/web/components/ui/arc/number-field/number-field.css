@@ -1,1 +1,52 @@
-/* components/ui/arc/number-field/number-field.css · estilos del porte (keyframes, @starting-style y estados compuestos). Lo llena el bloque correspondiente. */
+/* components/ui/arc/number-field/number-field.css · odómetro y "bump" del NumberField (solo CSS).
+   Portado de arc-library (MIT © 2026 Elia Kuratli) · ver ../ATTRIBUTION.md. Sin colores propios. */
+
+/* Ventana del valor: recorta el dígito que entra. */
+.arc-nf-window {
+  display: inline-grid;
+  overflow: clip;
+  vertical-align: middle;
+}
+
+@keyframes arc-nf-roll-up {
+  from { transform: translateY(55%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes arc-nf-roll-down {
+  from { transform: translateY(-55%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+/* El valor "se tensa" hacia el tope al presionar contra él y vuelve. */
+@keyframes arc-nf-bump-max {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(3px); }
+  60% { transform: translateX(-1.5px); }
+  100% { transform: translateX(0); }
+}
+@keyframes arc-nf-bump-min {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(-3px); }
+  60% { transform: translateX(1.5px); }
+  100% { transform: translateX(0); }
+}
+@keyframes arc-nf-note-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.arc-nf-value[data-dir="up"] { animation: arc-nf-roll-up var(--arc-dur-standard) var(--arc-ease-enter) both; }
+.arc-nf-value[data-dir="down"] { animation: arc-nf-roll-down var(--arc-dur-standard) var(--arc-ease-enter) both; }
+
+.arc-nf[data-strain="max"] .arc-nf-window { animation: arc-nf-bump-max 420ms var(--arc-ease-standard); }
+.arc-nf[data-strain="min"] .arc-nf-window { animation: arc-nf-bump-min 420ms var(--arc-ease-standard); }
+
+.arc-nf-note { animation: arc-nf-note-in var(--arc-dur-fast) var(--arc-ease-enter) both; }
+
+/* Botón en el tope: se ve inactivo pero sigue enfocable (aria-disabled). */
+.arc-nf-btn[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  .arc-nf-value[data-dir],
+  .arc-nf[data-strain] .arc-nf-window,
+  .arc-nf-note { animation: none; }
+}
