@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export default async function BibliotecaInventarioPage() {
   const [inventories, sites] = [await getBiblioInventories(), await getBiblioSites()];
   if (inventories === null) {
-    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar el inventario. Reintentá en unos segundos." />;
+    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar el inventario. Reintenta en unos segundos." />;
   }
   return <InventarioClient initial={inventories} sites={sites?.sites ?? []} />;
 }

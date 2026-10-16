@@ -32,7 +32,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'No pudimos subir la portada. Intentá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos subir la portada. Intenta de nuevo.' }, { status: 502 });
   }
   const text = await upstream.text();
   return new Response(text, {

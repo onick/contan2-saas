@@ -16,7 +16,7 @@ export default async function BibliotecaCatalogoPage({ searchParams }: { searchP
   const q = (await searchParams).q?.trim().slice(0, 120) ?? '';
   const [titles, sites, facets] = [await getBiblioTitles(1, q), await getBiblioSites(), await getBiblioFacets()];
   if (titles === null) {
-    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar el catálogo. Reintentá en unos segundos." />;
+    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar el catálogo. Reintenta en unos segundos." />;
   }
   return <CatalogClient initial={titles} initialQ={q} sites={sites?.sites ?? []} facets={facets} />;
 }

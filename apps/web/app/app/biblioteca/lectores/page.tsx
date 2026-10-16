@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export default async function BibliotecaLectoresPage() {
   const [readers, stats] = [await getBiblioReaders(), await getBiblioReadersStats()];
   if (readers === null) {
-    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar los lectores. Reintentá en unos segundos." />;
+    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar los lectores. Reintenta en unos segundos." />;
   }
   return <LectoresClient initial={readers} initialStats={stats} />;
 }

@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export default async function BibliotecaCirculacionPage() {
   const [loans, summary] = [await getBiblioLoans(), await getBiblioLoansSummary()];
   if (loans === null) {
-    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar la circulación. Reintentá en unos segundos." />;
+    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar la circulación. Reintenta en unos segundos." />;
   }
   return <CirculacionClient initial={loans} initialSummary={summary} />;
 }
