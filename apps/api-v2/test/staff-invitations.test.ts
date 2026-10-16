@@ -135,7 +135,9 @@ run('staff invitations · invitar/aceptar', () => {
     expect((await call('GET', `/api/v2/auth/invitation/tok-inventado-${stamp}xxxx`)).statusCode).toBe(404);
 
     await call('POST', `/api/v2/staff/invitations/${invId}/revoke`, {}, TOK.admin);
-    expect((await call('GET', `/api/v2/auth/invitation/${plain}`)).statusCode).toBe(410);
+    const gone = await call('GET', `/api/v2/auth/invitation/${plain}`);
+    expect(gone.statusCode).toBe(410);
+    expect(gone.json().error).toBe('Esta invitación fue revocada.');
   });
 
   it('aceptar: crea staff ACTIVO que puede loguear; el token es one-shot; password débil → 400', async () => {

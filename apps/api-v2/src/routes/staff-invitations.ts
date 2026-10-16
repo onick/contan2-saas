@@ -77,6 +77,17 @@ async function writeAudit(db: ReturnType<typeof getDb>, orgId: string, staff: { 
   }).execute();
 }
 
+// Mensaje en español por estado de invitación no-pendiente (Q8-68). Estados
+// desconocidos caen en un genérico: nunca se interpola el valor crudo de la DB.
+export function invitationStateMessage(status: string): string {
+  switch (status) {
+    case 'revoked': return 'Esta invitación fue revocada.';
+    case 'accepted': return 'Esta invitación ya fue aceptada.';
+    case 'expired': return 'Esta invitación expiró.';
+    default: return 'Esta invitación ya no está disponible.';
+  }
+}
+
 export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
   app.get('/staff/invitations', async (req: FastifyRequest, reply) => {
     const db = getDb();
@@ -204,7 +215,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
     });
   });
 
-  // ── Lado público (aceptación) ──────────────────────────────────────────────
+    // ── Lado público (aceptación) ──────────────────────────────────────────────
 
   app.get('/auth/invitation/:token', async (req: FastifyRequest, reply) => {
     const db = getDb();
@@ -217,7 +228,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
       .where('token_hash', '=', hashToken(token))
       .executeTakeFirst();
     if (!inv || inv.organization_id !== tenant.org.id) { reply.code(404); return { error: 'Invitación no encontrada' }; }
-    if (inv.status !== 'pending') { reply.code(410); return { error: `Invitación ${inv.status}` }; }
+    if (inv.status !== 'pending') { reply.code(410); return { error: invitationStateMessage(inv.status) }; }
     if (new Date(inv.expires_at).getTime() < Date.now()) { reply.code(410); return { error: 'Invitación expirada' }; }
 
     const body: InvitationPreviewResponse = {
@@ -250,13 +261,13 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
       .where('token_hash', '=', hashToken(parsed.data.token))
       .executeTakeFirst();
     if (!inv || inv.organization_id !== tenant.org.id) { reply.code(404); return { error: 'Invitación no encontrada' }; }
-    if (inv.status !== 'pending') { reply.code(410); return { error: `Invitación ${inv.status}` }; }
+    if (inv.status !== 'pending') { reply.code(410); return { error: invitationStateMessage(inv.status) }; }
     if (new Date(inv.expires_at).getTime() < Date.now()) { reply.code(410); return { error: 'Invitación expirada' }; }
 
     const existing = await db.selectFrom('staff_members').select('id')
       .where('organization_id', '=', inv.organization_id).where('email', '=', inv.email)
       .where('status', '!=', 'deleted').executeTakeFirst();
-    if (existing) { reply.code(409); return { error: 'Ya existe una cuenta con este correo. Usá "Olvidé mi contraseña".' }; }
+    if (existing) { reply.code(409); return { error: 'Ya existe una cuenta con este correo. Usa "Olvidé mi contraseña".' }; }
 
     const finalName = parsed.data.fullName?.trim() || inv.full_name || inv.email.split('@')[0]!;
     const passwordHash = await hashStaffPassword(parsed.data.password);
@@ -279,6 +290,6 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
 
     req.log.info({ email: maskEmail(staff.email), org: tenant.org.slug, role: inv.role }, 'invitación aceptada');
     reply.code(201);
-    return { ok: true, message: 'Cuenta creada. Ya podés ingresar.' };
+    return { ok: true, message: 'Cuenta creada. Ya puedes ingresar.' };
   });
 };
