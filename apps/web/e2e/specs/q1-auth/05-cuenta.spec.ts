@@ -169,8 +169,13 @@ test.describe('Q1 cuenta', () => {
       expect(cookies.find((x) => x.name === 'contan2_session' && x.value), 'cookie limpia tras logout').toBeUndefined();
 
       // Atras: /app NO debe mostrar datos; termina en /login.
-      await page.goBack();
-      await expect(page).toHaveURL(/\/login/, { timeout: 20_000 }); // /app (en el historial) redirige a /login
+      // El logout navega con replace (la entrada /app se sustituye por /login), asi que "atras" puede volver a
+      // about:blank (pagina inicial del arnes): lo que importa es que NUNCA reaparezca /app con datos.
+      await page.goBack().catch(() => null);
+      await page.waitForLoadState('domcontentloaded').catch(() => null);
+      expect(page.url(), 'atras no debe devolver /app autenticado').not.toMatch(/\/app(\/|$)/);
+      await page.goto('/app'); // y entrar a /app sin sesion redirige a /login
+      await expect(page).toHaveURL(/\/login/, { timeout: 20_000 });
       await expect(page.getByRole('heading', { name: 'Mi cuenta' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Menú de usuario' })).toHaveCount(0);
     } finally {
