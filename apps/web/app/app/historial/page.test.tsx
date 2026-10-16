@@ -22,7 +22,7 @@ vi.mock('../../../components/shell/AppShell', async () => {
       children: React.ReactNode; branding?: unknown; activeKey?: string;
     }) => (
       <>
-        <Sidebar branding={(branding as Parameters<typeof Sidebar>[0]['branding']) ?? DEFAULT_BRANDING} activeKey={activeKey} />
+        <Sidebar branding={(branding as Parameters<typeof Sidebar>[0]['branding']) ?? DEFAULT_BRANDING} activeKey={activeKey} role="owner" />
         {children}
       </>
     ),
