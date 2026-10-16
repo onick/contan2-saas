@@ -155,8 +155,8 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { ok: false, body: { error: guard.error } }; }
-    if (!BIBLIO_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { ok: false, body: { error: 'No tenés permiso para el módulo Biblioteca.' } }; }
-    if ((await biblioLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { ok: false, body: { error: 'Demasiadas operaciones seguidas. Esperá un momento.' } }; }
+    if (!BIBLIO_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { ok: false, body: { error: 'No tienes permiso para el módulo Biblioteca.' } }; }
+    if ((await biblioLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { ok: false, body: { error: 'Demasiadas operaciones seguidas. Espera un momento.' } }; }
     return { ok: true, g: { orgId: guard.ctx.org.id, staffId: guard.ctx.staff.id, staffRole: guard.ctx.staff.role, orgName: guard.ctx.org.name, primaryColor: guard.ctx.org.primaryColor ?? null } };
   }
 
@@ -488,7 +488,7 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
         else parseErr = true;
       }
       if (parseErr) { reply.code(400); return { error: 'Carga de archivo inválida.' }; }
-      if (fileCount > 1) { reply.code(400); return { error: 'Subí exactamente un archivo.' }; }
+      if (fileCount > 1) { reply.code(400); return { error: 'Sube exactamente un archivo.' }; }
       if (oversize) { reply.code(413); return { error: 'La imagen supera el máximo de 5 MB.' }; }
       if (fileCount === 0 || !buf) { reply.code(400); return { error: 'Se requiere un archivo de portada.' }; }
 
@@ -606,7 +606,7 @@ export const biblioRoute: FastifyPluginAsync = async (app) => {
   // ── Autofill por ISBN ──────────────────────────────────────────────────────
   app.get('/biblio/isbn/:isbn', async (req: FastifyRequest, reply) => {
     const r = await gate(req, reply); if (!r.ok) return r.body;
-    if ((await isbnLimiter.hit(`${r.g.orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas consultas de ISBN. Esperá un momento.' }; }
+    if ((await isbnLimiter.hit(`${r.g.orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas consultas de ISBN. Espera un momento.' }; }
     const isbn = (req.params as { isbn: string }).isbn;
     return withTenant(getDb(), r.g.orgId, async (db) => {
       const res = await lookupIsbn(db, isbn);

@@ -71,8 +71,8 @@ export const biblioReadersRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { ok: false, body: { error: guard.error } }; }
-    if (!BIBLIO_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { ok: false, body: { error: 'No tenés permiso para el módulo Biblioteca.' } }; }
-    if ((await limiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { ok: false, body: { error: 'Demasiadas operaciones seguidas. Esperá un momento.' } }; }
+    if (!BIBLIO_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { ok: false, body: { error: 'No tienes permiso para el módulo Biblioteca.' } }; }
+    if ((await limiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { ok: false, body: { error: 'Demasiadas operaciones seguidas. Espera un momento.' } }; }
     return { ok: true, g: { orgId: guard.ctx.org.id, staffId: guard.ctx.staff.id, staffRole: guard.ctx.staff.role, codePrefix: guard.ctx.org.codePrefix } };
   }
 
@@ -186,7 +186,7 @@ export const biblioReadersRoute: FastifyPluginAsync = async (app) => {
           }).onConflict((oc) => oc.columns(['organization_id', 'code']).doNothing())
             .returning(['id', 'code']).executeTakeFirst();
         }
-        if (!user) { reply.code(500); return { error: 'No se pudo generar el carné. Reintentá.' }; }
+        if (!user) { reply.code(500); return { error: 'No se pudo generar el carné. Reintenta.' }; }
 
         await db.insertInto('biblio_member_profiles').values({
           organization_id: r.g.orgId, user_id: user.id,

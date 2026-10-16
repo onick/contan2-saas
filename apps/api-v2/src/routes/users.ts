@@ -243,18 +243,18 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     return withTenant(db, org.id, async (db) => {
     if (!CAN_WRITE_USER_ROLES.has(staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para exportar el padrón.' };
+      return { error: 'No tienes permiso para exportar el padrón.' };
     }
     if ((await exportLimiter.hit(`${org.id}:${req.ip}`)).limited) {
       reply.code(429);
-      return { error: 'Demasiadas exportaciones seguidas. Esperá un momento.' };
+      return { error: 'Demasiadas exportaciones seguidas. Espera un momento.' };
     }
 
     const q = (req.query ?? {}) as Record<string, unknown>;
     const format = String(q.format ?? 'csv').toLowerCase();
     if (format !== 'csv' && format !== 'xlsx') {
       reply.code(400);
-      return { error: 'Formato inválido: usá csv o xlsx.' };
+      return { error: 'Formato inválido: usa csv o xlsx.' };
     }
     const search = parseSearch(q.q);
     if (search.error) { reply.code(400); return { error: 'Parámetro de búsqueda inválido.' }; }
@@ -302,7 +302,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) {
-      reply.code(403); return { error: 'No tenés permiso para importar visitantes.' };
+      reply.code(403); return { error: 'No tienes permiso para importar visitantes.' };
     }
     const format = (req.query as Record<string, unknown>).format === 'xlsx' ? 'xlsx' : 'csv';
     const { body, contentType, filename } = await buildImportTemplate(format);
@@ -323,10 +323,10 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     const { org, staff } = guard.ctx;
     return withTenant(db, org.id, async (db) => {
     if (!CAN_WRITE_USER_ROLES.has(staff.role)) {
-      reply.code(403); return { error: 'No tenés permiso para importar visitantes.' };
+      reply.code(403); return { error: 'No tienes permiso para importar visitantes.' };
     }
     if ((await importLimiter.hit(`${org.id}:${req.ip}`)).limited) {
-      reply.code(429); return { error: 'Demasiadas importaciones seguidas. Esperá un momento.' };
+      reply.code(429); return { error: 'Demasiadas importaciones seguidas. Espera un momento.' };
     }
     const commit = (req.query as Record<string, unknown>).commit === 'true';
 
@@ -351,9 +351,9 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       else parseErr = true;
     }
     if (parseErr) { reply.code(400); return { error: 'Carga de archivo inválida.' }; }
-    if (fileCount > 1) { reply.code(400); return { error: 'Subí exactamente un archivo.' }; }
+    if (fileCount > 1) { reply.code(400); return { error: 'Sube exactamente un archivo.' }; }
     if (oversize) { reply.code(413); return { error: `El archivo supera el máximo de ${IMPORT_MAX_BYTES / (1024 * 1024)} MB.` }; }
-    if (!buf || buf.length === 0) { reply.code(400); return { error: 'Subí un archivo CSV o Excel.' }; }
+    if (!buf || buf.length === 0) { reply.code(400); return { error: 'Sube un archivo CSV o Excel.' }; }
 
     const parsed = await parseUsersFile(buf, filename);
     if (parsed.error) { reply.code(400); return { error: parsed.error }; }
@@ -558,7 +558,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     return withTenant(db, org.id, async (db) => {
     if ((await createLimiter.hit(`${org.id}:${req.ip}`)).limited) {
       reply.code(429);
-      return { error: 'Demasiadas altas en poco tiempo. Esperá un momento.' };
+      return { error: 'Demasiadas altas en poco tiempo. Espera un momento.' };
     }
     const parsed = AdminUserCreateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -618,7 +618,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       }
       if (e instanceof Error && e.message === 'CODE_EXHAUSTED') {
         reply.code(500);
-        return { error: 'No se pudo generar un código único. Intentá de nuevo.' };
+        return { error: 'No se pudo generar un código único. Intenta de nuevo.' };
       }
       throw e;
     }
@@ -655,7 +655,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     }
     if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para editar visitantes.' };
+      return { error: 'No tienes permiso para editar visitantes.' };
     }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
@@ -733,7 +733,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     }
     if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para reenviar credenciales.' };
+      return { error: 'No tienes permiso para reenviar credenciales.' };
     }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
@@ -741,7 +741,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
 
     if ((await credLimiter.hit(`${orgId}:${staff.id}:${req.ip}`)).limited) {
       reply.code(429);
-      return { error: 'Demasiados reenvíos. Esperá un momento e intentá de nuevo.' };
+      return { error: 'Demasiados reenvíos. Espera un momento e intenta de nuevo.' };
     }
     const key = String(req.headers['idempotency-key'] ?? '').trim();
     if (!key || key.length > 200) {
@@ -796,7 +796,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     if ('sent' in result && result.sent === true) { outcome = 'sent'; message = 'Credencial enviada al email del visitante.'; }
     else if ('skipped' in result && result.skipped && /RESEND/i.test(result.reason ?? '')) { outcome = 'dry-run'; message = 'Dry-run: sin clave de envío configurada, no se envió ni se marcó como enviada.'; }
     else if ('skipped' in result && result.skipped) { outcome = 'skipped'; message = `No se envió (${result.reason ?? 'omitido'}).`; }
-    else { outcome = 'error'; message = 'No pudimos enviar la credencial. Intentá de nuevo.'; }
+    else { outcome = 'error'; message = 'No pudimos enviar la credencial. Intenta de nuevo.'; }
 
     await writeUserAudit(db, { orgId, staff, action: 'credential.resent', targetUserId: user.id, metadata: { result: outcome }, ip: req.ip, ua: req.headers['user-agent'] ?? null });
 
@@ -812,7 +812,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para archivar visitantes.' }; }
+    if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para archivar visitantes.' }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     const code = normalizeCodeForLookup((req.params as { code: string }).code);
@@ -836,7 +836,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para reactivar visitantes.' }; }
+    if (!CAN_WRITE_USER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para reactivar visitantes.' }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     const code = normalizeCodeForLookup((req.params as { code: string }).code);

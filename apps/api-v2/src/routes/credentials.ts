@@ -32,7 +32,7 @@ export const credentialsRoute: FastifyPluginAsync = async (app) => {
     }
     if ((await pngLimiter.hit(`${tenant.org.id}:${req.ip}`)).limited) {
       reply.code(429);
-      return { error: 'Demasiadas descargas. Intentá en un momento.' };
+      return { error: 'Demasiadas descargas. Intenta en un momento.' };
     }
 
     const m = FILE_RE.exec(String((req.params as { file: string }).file ?? ''));

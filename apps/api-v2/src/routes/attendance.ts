@@ -59,7 +59,7 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
     const to = parseIsoDate(query.dateTo);
     if (from === 'invalid' || to === 'invalid') {
       reply.code(400);
-      return { error: 'Fecha inválida (usá ISO 8601).' };
+      return { error: 'Fecha inválida (usa ISO 8601).' };
     }
     if (from && to && from.getTime() > to.getTime()) {
       reply.code(400);
@@ -182,7 +182,7 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!MANAGER_ROLES.has(guard.ctx.staff.role)) {
-      reply.code(403); return { error: 'No tenés permiso para quitar asistencias.' };
+      reply.code(403); return { error: 'No tienes permiso para quitar asistencias.' };
     }
     if ((await deleteLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' };
@@ -232,7 +232,7 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!MANAGER_ROLES.has(guard.ctx.staff.role)) {
-      reply.code(403); return { error: 'No tenés permiso para editar asistencias.' };
+      reply.code(403); return { error: 'No tienes permiso para editar asistencias.' };
     }
     if ((await editLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' };

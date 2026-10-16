@@ -26,7 +26,7 @@ export function lockedMessage(state: LockoutState, now = new Date()): string {
   const mins = state.lockedUntil
     ? Math.max(1, Math.ceil((state.lockedUntil.getTime() - now.getTime()) / 60_000))
     : 1;
-  return `Cuenta bloqueada temporalmente por intentos fallidos. Probá de nuevo en ${mins} minuto${mins === 1 ? '' : 's'}.`;
+  return `Cuenta bloqueada temporalmente por intentos fallidos. Prueba de nuevo en ${mins} minuto${mins === 1 ? '' : 's'}.`;
 }
 
 export interface LockoutAttemptResult {

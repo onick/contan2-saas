@@ -159,7 +159,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     }
     if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para crear actividades.' };
+      return { error: 'No tienes permiso para crear actividades.' };
     }
     if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
       reply.code(429);
@@ -225,7 +225,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     }
     if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para crear actividades.' };
+      return { error: 'No tienes permiso para crear actividades.' };
     }
     if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
       reply.code(429);
@@ -263,7 +263,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     }
     if (fileCount > 1) {
       reply.code(400);
-      return { error: 'Subí exactamente un archivo de portada.' };
+      return { error: 'Sube exactamente un archivo de portada.' };
     }
     if (oversize) {
       reply.code(413);
@@ -367,7 +367,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     } catch (e) {
       req.log.error({ err: e }, 'with-cover: fallo al crear actividad con portada');
       reply.code(500);
-      return { error: 'No se pudo crear la actividad con portada. Intentá de nuevo.' };
+      return { error: 'No se pudo crear la actividad con portada. Intenta de nuevo.' };
     }
     });
   });
@@ -387,7 +387,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     }
     if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para gestionar portadas.' };
+      return { error: 'No tienes permiso para gestionar portadas.' };
     }
     if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
       reply.code(429);
@@ -435,7 +435,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     }
     if (fileCount > 1) {
       reply.code(400);
-      return { error: 'Subí exactamente un archivo.' };
+      return { error: 'Sube exactamente un archivo.' };
     }
     if (oversize) {
       reply.code(413);
@@ -514,7 +514,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     }
     if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para editar actividades.' };
+      return { error: 'No tienes permiso para editar actividades.' };
     }
     if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
       reply.code(429);
@@ -614,7 +614,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     }
     if (!CAN_CREATE_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para cambiar el estado de actividades.' };
+      return { error: 'No tienes permiso para cambiar el estado de actividades.' };
     }
     if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
       reply.code(429);
@@ -797,7 +797,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     }
     if (!CAN_DELETE_ROLES.has(guard.ctx.staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para eliminar actividades.' };
+      return { error: 'No tienes permiso para eliminar actividades.' };
     }
     if ((await writeLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
       reply.code(429);

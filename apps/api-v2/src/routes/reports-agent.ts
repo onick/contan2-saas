@@ -22,7 +22,7 @@ export const reportsAgentRoute: FastifyPluginAsync = async (app) => {
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     if ((await agentLimiter.hit(`${orgId}:${req.ip}`)).limited) {
-      reply.code(429); return { error: 'Demasiadas consultas seguidas. Esperá un momento.' };
+      reply.code(429); return { error: 'Demasiadas consultas seguidas. Espera un momento.' };
     }
     const parsed = ReportsAgentRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Consulta inválida.' }; }

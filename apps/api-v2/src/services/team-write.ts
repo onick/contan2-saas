@@ -76,7 +76,7 @@ async function audit(tx: DbClient, ctx: Ctx, action: string, targetId: string, t
 }
 
 export async function changeRole(ctx: Ctx, targetId: string, newRole: StaffRole): Promise<{ id: string; role: string }> {
-  if (targetId === ctx.actor.id) throw new TeamWriteError(400, 'No podés cambiar tu propio rol.');
+  if (targetId === ctx.actor.id) throw new TeamWriteError(400, 'No puedes cambiar tu propio rol.');
   if (newRole === 'owner' && ctx.actor.role !== 'owner') throw new TeamWriteError(403, 'Solo el propietario puede asignar el rol de propietario.');
 
   return withTenant(ctx.db, ctx.orgId, async (tx) => {
@@ -85,7 +85,7 @@ export async function changeRole(ctx: Ctx, targetId: string, newRole: StaffRole)
     if (target.role === newRole) return { id: target.id, role: target.role as string };
     // Degradar a un owner: no puede ser el último owner activo.
     if (target.role === 'owner' && newRole !== 'owner') {
-      if ((await activeOwnerCount(tx, ctx.orgId)) <= 1) throw new TeamWriteError(400, 'La organización debe tener al menos un propietario activo. Asigná otro antes de cambiar este rol.');
+      if ((await activeOwnerCount(tx, ctx.orgId)) <= 1) throw new TeamWriteError(400, 'La organización debe tener al menos un propietario activo. Asigna otro antes de cambiar este rol.');
     }
     await tx.updateTable('staff_members').set({ role: newRole, updated_at: new Date().toISOString() }).where('id', '=', target.id).where('organization_id', '=', ctx.orgId).execute();
     await audit(tx, ctx, 'staff.role_changed', target.id, target.full_name, { from: target.role, to: newRole });
@@ -94,7 +94,7 @@ export async function changeRole(ctx: Ctx, targetId: string, newRole: StaffRole)
 }
 
 export async function changeStatus(ctx: Ctx, targetId: string, newStatus: StaffStatus): Promise<{ id: string; status: string }> {
-  if (targetId === ctx.actor.id) throw new TeamWriteError(400, 'No podés cambiar tu propio estado.');
+  if (targetId === ctx.actor.id) throw new TeamWriteError(400, 'No puedes cambiar tu propio estado.');
 
   return withTenant(ctx.db, ctx.orgId, async (tx) => {
     const target = await loadTarget(tx, ctx.orgId, targetId);
@@ -102,7 +102,7 @@ export async function changeStatus(ctx: Ctx, targetId: string, newStatus: StaffS
     if (target.status === newStatus) return { id: target.id, status: target.status as string };
     // Suspender a un owner: no puede ser el último owner activo.
     if (newStatus === 'suspended' && target.role === 'owner') {
-      if ((await activeOwnerCount(tx, ctx.orgId)) <= 1) throw new TeamWriteError(400, 'No podés suspender al último propietario activo.');
+      if ((await activeOwnerCount(tx, ctx.orgId)) <= 1) throw new TeamWriteError(400, 'No puedes suspender al último propietario activo.');
     }
     await tx.updateTable('staff_members').set({ status: newStatus, updated_at: new Date().toISOString() }).where('id', '=', target.id).where('organization_id', '=', ctx.orgId).execute();
     // Al suspender, revocar TODAS las sesiones vivas del target (no puede seguir operando).

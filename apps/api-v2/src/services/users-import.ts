@@ -172,14 +172,14 @@ export async function parseUsersFile(buf: Buffer, filename: string): Promise<Par
   try {
     matrix = isXlsx ? await parseXlsx(buf) : parseCsv(buf.toString('utf8'));
   } catch {
-    return { rows: [], error: 'No pudimos leer el archivo. Verificá que sea un CSV o Excel válido.' };
+    return { rows: [], error: 'No pudimos leer el archivo. Verifica que sea un CSV o Excel válido.' };
   }
   // Primera fila NO vacía = encabezado.
   const headerIdx = matrix.findIndex((r) => r.some((c) => c.trim() !== ''));
   if (headerIdx === -1) return { rows: [], error: 'El archivo está vacío.' };
   const header = matrix[headerIdx]!.map((h) => HEADER_ALIASES[norm(h)] ?? null);
   if (!header.includes('firstName') || !header.includes('lastName')) {
-    return { rows: [], error: 'No reconocimos las columnas. Usá la plantilla (Nombre, Apellido, Email, Teléfono).' };
+    return { rows: [], error: 'No reconocimos las columnas. Usa la plantilla (Nombre, Apellido, Email, Teléfono).' };
   }
   const col = (name: 'firstName' | 'lastName' | 'email' | 'phone' | 'code') => header.indexOf(name);
   const ci = { firstName: col('firstName'), lastName: col('lastName'), email: col('email'), phone: col('phone'), code: col('code') };

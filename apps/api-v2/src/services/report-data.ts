@@ -37,7 +37,7 @@ export function parseRange(fromRaw: unknown, toRaw: unknown): ReportRange {
   const from = String(fromRaw ?? '');
   const to = String(toRaw ?? '');
   if (!DATE_RE.test(from) || !DATE_RE.test(to)) {
-    throw new ReportError(400, 'Rango inválido: usá from y to en formato YYYY-MM-DD.');
+    throw new ReportError(400, 'Rango inválido: usa from y to en formato YYYY-MM-DD.');
   }
   // Validez de calendario y conteo de días con aritmética UTC pura.
   const fromUtc = new Date(`${from}T00:00:00.000Z`);
@@ -50,7 +50,7 @@ export function parseRange(fromRaw: unknown, toRaw: unknown): ReportRange {
   }
   const days = Math.round((toUtc.getTime() - fromUtc.getTime()) / DAY_MS) + 1;
   if (days > MAX_REPORT_RANGE_DAYS) {
-    throw new ReportError(400, `Rango demasiado amplio (máx ${MAX_REPORT_RANGE_DAYS} días). Acotá el período.`);
+    throw new ReportError(400, `Rango demasiado amplio (máx ${MAX_REPORT_RANGE_DAYS} días). Acota el período.`);
   }
   return { from, to, fromDate: zonedMidnight(from), toExclusive: zonedMidnight(ymdAddDays(to, 1)) };
 }
@@ -99,7 +99,7 @@ export async function attendanceByActivity(
   if (categoryNorm) countQ = countQ.where(categoryWhere);
   const countRow = await countQ.executeTakeFirstOrThrow();
   if (Number(countRow.n) > MAX_REPORT_ROWS) {
-    throw new ReportError(400, `El período tiene ${countRow.n} actividades (máx ${MAX_REPORT_ROWS}). Acotá el rango.`);
+    throw new ReportError(400, `El período tiene ${countRow.n} actividades (máx ${MAX_REPORT_ROWS}). Acota el rango.`);
   }
 
   let rowsQ = db

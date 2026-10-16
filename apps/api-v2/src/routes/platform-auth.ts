@@ -43,7 +43,7 @@ export const platformAuthRoute: FastifyPluginAsync = async (app) => {
     if (rl.limited) {
       reply.code(429);
       reply.header('retry-after', Math.ceil(rl.retryAfterMs / 1000));
-      return { error: 'Demasiados intentos. Espera unos minutos e intentá de nuevo.' };
+      return { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' };
     }
 
     const parsed = PlatformLoginRequestSchema.safeParse(req.body);
@@ -144,7 +144,7 @@ export const platformAuthRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requirePlatformAdmin(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if ((await loginLimiter.hit(req.ip)).limited) { reply.code(429); return { error: 'Demasiados intentos. Esperá un momento.' }; }
+    if ((await loginLimiter.hit(req.ip)).limited) { reply.code(429); return { error: 'Demasiados intentos. Espera un momento.' }; }
 
     const parsed = PlatformChangePasswordRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: parsed.error.errors[0]?.message ?? 'Datos inválidos.' }; }

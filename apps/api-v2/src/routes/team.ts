@@ -28,7 +28,7 @@ export const teamRoute: FastifyPluginAsync = async (app) => {
     const { org, staff } = guard.ctx;
     if (!CAN_VIEW_TEAM.has(staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para ver el equipo.' };
+      return { error: 'No tienes permiso para ver el equipo.' };
     }
 
     const q = req.query as Record<string, unknown>;
@@ -52,7 +52,7 @@ export const teamRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
-    if (!CAN_VIEW_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para ver el equipo.' }; }
+    if (!CAN_VIEW_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tienes permiso para ver el equipo.' }; }
     // teamOverview lee tenant_audit_log (tabla RLS) para la "actividad de la
     // semana": sin el GUC de org (withTenant), app_v2 hace default-deny y esos
     // KPIs quedarían en 0. Envolvemos para que las policies filtren por la org.
@@ -66,7 +66,7 @@ export const teamRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
-    if (!CAN_MANAGE_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar el equipo.' }; }
+    if (!CAN_MANAGE_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tienes permiso para gestionar el equipo.' }; }
     if ((await writeLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' }; }
     const parsed = TeamRoleUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Rol inválido.' }; }
@@ -89,7 +89,7 @@ export const teamRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
-    if (!CAN_MANAGE_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar el equipo.' }; }
+    if (!CAN_MANAGE_TEAM.has(staff.role)) { reply.code(403); return { error: 'No tienes permiso para gestionar el equipo.' }; }
     if ((await writeLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' }; }
     const parsed = TeamStatusUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Estado inválido.' }; }
