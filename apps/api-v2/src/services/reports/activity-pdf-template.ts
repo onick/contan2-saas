@@ -68,17 +68,24 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
   const onAccent = pickOn(accent);
   const logo = await loadLogoDataUri(organization.logoUrl);
 
-  const total = attendances.length;
-  const newcomers = affinities.filter(a => (a?.totalAttendances ?? 0) === 1).length;
+  // Asistencia = check-in real (checkedInAt). Las filas sin checkedInAt son
+  // RESERVAS (holds de protocolo/RSVP): se listan con Estado "Reservado" y no
+  // entran a los KPIs. `affinities` va alineada por índice con `attendances`.
+  const isSeated = a => !!a.checkedInAt;
+  const seatedIdx = [];
+  attendances.forEach((a, i) => { if (isSeated(a)) seatedIdx.push(i); });
+  const total = seatedIdx.length;
+  const heldCount = attendances.length - total;
+  const newcomers = seatedIdx.filter(i => (affinities[i]?.totalAttendances ?? 0) === 1).length;
   const returning = total - newcomers;
-  const vip = affinities.filter(a => (a?.totalAttendances ?? 0) >= 10).length;
+  const vip = seatedIdx.filter(i => (affinities[i]?.totalAttendances ?? 0) >= 10).length;
   const showUpPct = activity.capacity ? Math.round((total / activity.capacity) * 100) : 0;
 
   // Histograma por hora
   const byHour = new Map();
   for (const att of attendances) {
-    const iso = att.checkedInAt || att.registeredAt;
-    if (!iso) continue;
+    if (!isSeated(att)) continue; // las reservas no hicieron check-in
+    const iso = att.checkedInAt;
     const d = new Date(iso);
     if (isNaN(d.getTime())) continue;
     byHour.set(d.getHours(), (byHour.get(d.getHours()) || 0) + 1);
@@ -90,8 +97,9 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
   const rows = attendances.map((att, i) => {
     const u = users.find(x => x.id === att.userId);
     const prior = Math.max(0, (affinities[i]?.totalAttendances ?? 0) - 1);
-    const cat = categoryFor(prior);
-    const rowCls = cat === 'Primera visita' ? 'newcomer'
+    const seated = isSeated(att);
+    const cat = seated ? categoryFor(prior) : '—';
+    const rowCls = !seated ? 'held' : cat === 'Primera visita' ? 'newcomer'
       : cat === 'VIP' ? 'vip' : '';
     return `
       <tr class="${rowCls}">
@@ -100,9 +108,10 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
         <td>${esc(u?.firstName || '—')} ${esc(u?.lastName || '')}</td>
         <td>${esc(u?.email || '—')}</td>
         <td>${esc(u?.phone || '—')}</td>
-        <td class="num">${esc(fmtTime(att.checkedInAt || att.registeredAt))}</td>
+        <td class="num">${seated ? esc(fmtTime(att.checkedInAt)) : '—'}</td>
         <td class="num">${prior}</td>
-        <td><span class="tag tag--${cat === 'Primera visita' ? 'new' : cat === 'VIP' ? 'vip' : 'reg'}">${cat}</span></td>
+        <td>${seated ? 'Asistió' : 'Reservado'}</td>
+        <td><span class="tag tag--${!seated ? 'reg' : cat === 'Primera visita' ? 'new' : cat === 'VIP' ? 'vip' : 'reg'}">${cat}</span></td>
       </tr>`;
   }).join('');
 
@@ -224,7 +233,7 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
   .kpis {
     margin-top: 18px;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 10px;
   }
   .kpi {
@@ -318,6 +327,7 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
   }
   .tag--new { background: var(--accent); color: var(--on-accent); }
   .tag--vip { background: var(--primary); color: var(--on-primary); }
+  tr.held td { color: var(--text-muted); font-style: italic; }
   .tag--reg { background: #e5e7eb; color: #374151; }
 
   /* Page break antes de tabla larga */
@@ -384,6 +394,11 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
     <div class="kpi-sub">capacidad ${activity.capacity}</div>
   </div>
   <div class="kpi">
+    <div class="kpi-label">Reservados (en lista)</div>
+    <div class="kpi-value">${heldCount}</div>
+    <div class="kpi-sub">sin check-in</div>
+  </div>
+  <div class="kpi">
     <div class="kpi-label">Primera visita</div>
     <div class="kpi-value">${newcomers}</div>
     <div class="kpi-sub">nuevos para el centro</div>
@@ -418,7 +433,7 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
 
 <section class="section ${total > 8 ? 'page-break' : ''}">
   <h2>Asistentes (${total})</h2>
-  ${total === 0 ? `<div class="empty">No hay asistencias registradas todavía para esta actividad.</div>` : `
+  ${attendances.length === 0 ? `<div class="empty">No hay asistencias registradas todavía para esta actividad.</div>` : `
   <table class="attendees">
     <thead>
       <tr>
@@ -429,6 +444,7 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
         <th>Teléfono</th>
         <th>Hora</th>
         <th>Asist. previas</th>
+        <th>Estado</th>
         <th>Categoría</th>
       </tr>
     </thead>

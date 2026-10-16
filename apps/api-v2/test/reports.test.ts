@@ -59,13 +59,13 @@ run('GET /reports/attendance-by-activity', () => {
     const u = await db.insertInto('users').values({ id: randomUUID(), organization_id: orgId, code, first_name: 'V', last_name: 'T', email: `${code.toLowerCase()}@rep.do`, phone: '809-0', visit_count: 1 }).returning('id').executeTakeFirstOrThrow();
     return { id: u.id, code };
   };
-  const mkAttendance = async (orgId: string, activityId: string, opts: { anonymous?: boolean; companions?: number; userId?: string; userCode?: string } = {}) =>
+  const mkAttendance = async (orgId: string, activityId: string, opts: { anonymous?: boolean; companions?: number; userId?: string; userCode?: string; hold?: boolean } = {}) =>
     db.insertInto('attendance').values({
       id: randomUUID(), organization_id: orgId, activity_id: activityId, activity_name: 'x',
       user_id: opts.anonymous ? null : (opts.userId ?? null),
       user_code: opts.anonymous ? null : (opts.userCode ?? null),
       anonymous: opts.anonymous ?? false, companions_children: opts.companions ?? 0,
-      checked_in_at: new Date().toISOString(),
+      checked_in_at: opts.hold ? null : new Date().toISOString(),
     }).execute();
 
   beforeAll(async () => {
@@ -87,6 +87,9 @@ run('GET /reports/attendance-by-activity', () => {
     await mkAttendance(orgAId, actInRange, { userId: uA1.id, userCode: uA1.code }); // 1 persona
     await mkAttendance(orgAId, actInRange, { userId: uA2.id, userCode: uA2.code, companions: 2 }); // 3 personas
     await mkAttendance(orgAId, actInRange, { anonymous: true }); // 1 persona, anónima
+    // Reserva (hold de protocolo/RSVP): checked_in_at NULL → NO es asistencia.
+    const uHold = await mkUser(orgAId);
+    await mkAttendance(orgAId, actInRange, { userId: uHold.id, userCode: uHold.code, companions: 2, hold: true });
     const uB = await mkUser(orgBId);
     await mkAttendance(orgBId, (await db.selectFrom('activities').select('id').where('organization_id', '=', orgBId).executeTakeFirstOrThrow()).id, { userId: uB.id, userCode: uB.code });
 
@@ -118,7 +121,9 @@ run('GET /reports/attendance-by-activity', () => {
     // Sólo las 2 actividades del tenant A dentro del rango (orden por fecha desc)
     expect(body.rows.map((r: { name: string }) => r.name)).toEqual([MALICIOUS_NAME, 'Concierto Jazz']);
     const jazz = body.rows.find((r: { name: string }) => r.name === 'Concierto Jazz');
-    expect(jazz).toMatchObject({ attendances: 3, people: 5, anonymous: 1, capacity: 100, occupancyPct: 5 });
+    expect(jazz).toMatchObject({ attendances: 3, people: 5, anonymous: 1, capacity: 100, occupancyPct: 5, reserved: 1 });
+    // La actividad sin asistencias no se pierde (el filtro va en el agregado).
+    expect(body.rows.find((r: { name: string }) => r.name === MALICIOUS_NAME)).toMatchObject({ attendances: 0, people: 0, reserved: 0 });
     expect(body.totals).toMatchObject({ activities: 2, attendances: 3, people: 5, anonymous: 1, capacity: 110, occupancyPct: 5 });
     expect(body.period).toEqual({ from: FROM, to: TO });
   });

@@ -79,9 +79,11 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
 
   // 2) Asistencias de esas actividades, en UN query (vs N+1 de v1).
   const atts = actIds.length === 0 ? [] : await db.selectFrom('attendance')
-    .select(['activity_id', 'user_id', 'registered_at'])
+    .select(['activity_id', 'user_id', 'checked_in_at'])
     .where('organization_id', '=', orgId)
     .where('activity_id', 'in', actIds)
+    // Asistencia = check-in real; las reservas (checked_in_at NULL) no cuentan.
+    .where('checked_in_at', 'is not', null)
     .execute();
 
   const attsByActivity = new Map<string, number>();
@@ -90,7 +92,7 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
   const uniqueUserIds = new Set<string>();
   for (const att of atts) {
     attsByActivity.set(att.activity_id, (attsByActivity.get(att.activity_id) ?? 0) + 1);
-    const reg = new Date(att.registered_at as unknown as string);
+    const reg = new Date(att.checked_in_at as unknown as string);
     if (!Number.isNaN(reg.getTime())) byDayMap.set(dayKey(reg), (byDayMap.get(dayKey(reg)) ?? 0) + 1);
     if (att.user_id) {
       uniqueUserIds.add(att.user_id);
@@ -196,7 +198,7 @@ export interface ActivityReportData {
     endDate: string | null; capacity: number; enrolledCount: number;
     status: string; description: string; category: string | null;
   };
-  attendances: Array<{ userId: string | null; userCode: string | null; registeredAt: string; anonymous: boolean; companionsChildren: number; companionsAdults: number }>;
+  attendances: Array<{ userId: string | null; userCode: string | null; registeredAt: string; checkedInAt: string | null; anonymous: boolean; companionsChildren: number; companionsAdults: number }>;
   users: Array<{ id: string; code: string; firstName: string; lastName: string; email: string | null; phone: string | null; visitCount: number; createdAt: string }>;
   affinities: Array<{ totalAttendances: number }>;
   // Protocolo (PR-6): invitados especiales de la actividad (invitación kind
@@ -254,9 +256,10 @@ export async function loadActivityReportData(db: DbClient, orgId: string, activi
   if (!a) return null;
 
   const atts = await db.selectFrom('attendance')
-    .select(['user_id', 'user_code', 'registered_at', 'anonymous', 'companions_children', 'companions_adults'])
+    .select(['user_id', 'user_code', 'registered_at', 'checked_in_at', 'anonymous', 'companions_children', 'companions_adults'])
     .where('organization_id', '=', orgId).where('activity_id', '=', activityId)
-    .orderBy('registered_at', 'desc')
+    // Check-ins primero (más recientes arriba); las reservas (NULL) al final.
+    .orderBy(sql`checked_in_at desc nulls last, registered_at desc`)
     .execute();
 
   const userIds = [...new Set(atts.flatMap((x) => (x.user_id ? [x.user_id] : [])))];
@@ -270,6 +273,8 @@ export async function loadActivityReportData(db: DbClient, orgId: string, activi
   const counts = userIds.length === 0 ? [] : await db.selectFrom('attendance')
     .select(['user_id', db.fn.countAll<number>().as('n')])
     .where('organization_id', '=', orgId).where('user_id', 'in', userIds)
+    // Afinidad = visitas reales (solo check-ins).
+    .where('checked_in_at', 'is not', null)
     .groupBy('user_id')
     .execute();
   const countById = new Map(counts.map((c) => [c.user_id, Number(c.n)]));
@@ -297,6 +302,7 @@ export async function loadActivityReportData(db: DbClient, orgId: string, activi
       userId: x.user_id,
       userCode: x.user_code,
       registeredAt: new Date(x.registered_at as unknown as string).toISOString(),
+      checkedInAt: x.checked_in_at ? new Date(x.checked_in_at as unknown as string).toISOString() : null,
       anonymous: x.anonymous,
       companionsChildren: x.companions_children ?? 0,
       companionsAdults: x.companions_adults ?? 0,

@@ -17,7 +17,7 @@ export interface ReportBranding {
 
 const HEADERS = [
   'Actividad', 'Fecha', 'Lugar', 'Categoría', 'Estado',
-  'Capacidad', 'Inscritos', 'Check-ins', 'Personas', 'Anónimos', 'Ocupación %',
+  'Capacidad', 'Inscritos', 'Check-ins', 'Personas', 'Anónimos', 'Ocupación %', 'Reservados',
 ];
 
 // '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
@@ -66,7 +66,7 @@ export async function buildAttendanceWorkbook(
   for (const r of report.rows) {
     ws.addRow([
       r.name, r.date.slice(0, 10), r.location, r.category ?? '', r.status,
-      r.capacity, r.enrolledCount, r.attendances, r.people, r.anonymous, r.occupancyPct,
+      r.capacity, r.enrolledCount, r.attendances, r.people, r.anonymous, r.occupancyPct, r.reserved ?? 0,
     ]);
   }
 
@@ -74,6 +74,7 @@ export async function buildAttendanceWorkbook(
   const total = ws.addRow([
     'TOTAL', '', '', '', '',
     report.totals.capacity, '', report.totals.attendances, report.totals.people, report.totals.anonymous, report.totals.occupancyPct,
+    report.rows.reduce((n, r) => n + (r.reserved ?? 0), 0),
   ]);
   total.font = { bold: true };
 
