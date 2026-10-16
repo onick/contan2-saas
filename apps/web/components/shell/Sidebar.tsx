@@ -84,7 +84,6 @@ export function Sidebar({ branding, activeKey, role }: SidebarProps) {
                     <a
                       key={item.key}
                       href={item.href}
-                      aria-label={item.label}
                       aria-current={active ? 'page' : undefined}
                       title={item.label}
                       className={
@@ -96,7 +95,8 @@ export function Sidebar({ branding, activeKey, role }: SidebarProps) {
                       }
                     >
                       <ItemIcon size={18} strokeWidth={1.75} aria-hidden="true" />
-                      <span className={HIDE}>{item.label}</span>
+                      {/* En el riel colapsado el texto sigue en el árbol de accesibilidad (sr-only) → el nombre del enlace es el texto visible, sin aria-label. */}
+                      <span className="group-data-[sidebar=collapsed]/shell:sr-only">{item.label}</span>
                       {item.liveBadge ? (
                         <LiveBadge source={item.liveBadge} />
                       ) : item.badge ? (
