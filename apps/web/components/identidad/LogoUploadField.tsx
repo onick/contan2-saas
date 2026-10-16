@@ -92,7 +92,7 @@ export function LogoUploadField({ value, onChange, disabled, label, hint, previe
             focusRing,
           )}
         >
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-brand">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-brand-text">
             {uploading ? <Loader2 size={20} className="animate-spin" aria-hidden="true" /> : <UploadCloud size={20} strokeWidth={1.75} aria-hidden="true" />}
           </span>
           <span className="text-[13.5px] font-semibold text-ink">{uploading ? 'Subiendo…' : 'Arrastrá tu logo o hacé clic'}</span>
@@ -124,7 +124,7 @@ export function LogoUploadField({ value, onChange, disabled, label, hint, previe
               <Button type="button" variant="secondary" size="sm" className="flex-1" disabled={disabled || uploading} onClick={() => inputRef.current?.click()}>
                 <RefreshCw size={14} strokeWidth={2} aria-hidden="true" /> Reemplazar
               </Button>
-              <Button type="button" variant="secondary" size="sm" className="flex-1 text-brand" disabled={disabled} onClick={() => { onChange(null); setError(null); }}>
+              <Button type="button" variant="secondary" size="sm" className="flex-1 text-brand-text" disabled={disabled} onClick={() => { onChange(null); setError(null); }}>
                 <X size={14} strokeWidth={2} aria-hidden="true" /> Quitar
               </Button>
             </div>

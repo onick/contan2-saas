@@ -12,7 +12,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Check, AlertTriangle } from 'lucide-react';
 import { Card, Button, cn, focusRing } from '../ui';
-import { textOn, isHex6 } from '../../lib/branding/contrast';
+import { textOn, isHex6, deriveBrandTokens } from '../../lib/branding/contrast';
 import { updateBranding } from '../../lib/api/branding-client';
 import { LogoUploadField } from './LogoUploadField';
 import { ColorField } from './ColorField';
@@ -59,6 +59,8 @@ export function BrandingEditor({ initial, canEdit }: Props) {
 
   // Contraste del primario (caso #f39228 → texto oscuro).
   const tone = primaryValid ? textOn(form.primaryColor) : null;
+  // Tokens derivados (texto de marca chico y chip) tal como los verá la app.
+  const derived = primaryValid ? deriveBrandTokens(form.primaryColor) : null;
 
   const save = useCallback(async () => {
     if (!dirty || !valid || phase === 'saving') return;
@@ -185,6 +187,12 @@ export function BrandingEditor({ initial, canEdit }: Props) {
                 <p className="truncate text-[13px] font-semibold text-ink">{form.name || 'Nombre del centro'}</p>
                 <button type="button" tabIndex={-1} className="mt-2 inline-flex items-center rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ backgroundColor: primaryValid ? form.primaryColor : '#888', color: tone?.color ?? '#fff', boxShadow: primaryValid ? `inset 0 0 0 1px rgba(0,0,0,0.06)` : undefined }}>Acción primaria</button>
                 <span className="ml-2 inline-block h-3 w-3 rounded-full align-middle" style={{ backgroundColor: secondaryValid ? form.secondaryColor : '#888' }} />
+                {derived ? (
+                  <p className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
+                    <span data-testid="preview-chip" className="rounded-full px-2 py-0.5 font-semibold" style={{ backgroundColor: derived.brandSoft, color: derived.brandText }}>Etiqueta</span>
+                    <span data-testid="preview-link" className="font-semibold underline" style={{ color: derived.brandText }}>Ver detalles</span>
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -199,6 +207,7 @@ export function BrandingEditor({ initial, canEdit }: Props) {
               </span>
             </p>
           ) : null}
+          <p className="mt-2 text-[12px] text-muted">El texto del botón se ajusta automáticamente para ser legible.</p>
         </Card>
       </div>
     </div>
