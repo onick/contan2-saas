@@ -78,8 +78,12 @@ const ROLE_NAV_ALLOWLIST: Record<string, Set<string>> = {
   puerta: new Set(['puerta', 'registros', 'protocolo', 'reportes', 'cuenta']),
   biblioteca: new Set(['biblioteca', 'cuenta']),
 };
+// Fail-closed: sin rol conocido (null/undefined, p.ej. si /shell/summary falla)
+// NUNCA se lista todo; se devuelve el mínimo seguro (solo "Mi cuenta").
+const FAIL_CLOSED_KEYS = new Set(['cuenta']);
 export function filterNavByRole(items: NavItem[], role: string | null | undefined): NavItem[] {
-  const allowed = role ? ROLE_NAV_ALLOWLIST[role] : undefined;
+  if (!role) return items.filter((i) => FAIL_CLOSED_KEYS.has(i.key));
+  const allowed = ROLE_NAV_ALLOWLIST[role];
   return allowed ? items.filter((i) => allowed.has(i.key)) : items;
 }
 

@@ -35,8 +35,10 @@ export function useShell(): ShellCtx {
   return useContext(Ctx);
 }
 
-export function ShellDataProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<string | null>(null);
+export function ShellDataProvider({ children, initialRole = null }: { children: ReactNode; initialRole?: string | null }) {
+  // El rol inicial viene del server (AppShell ya conoce al staff): si el fetch
+  // de /shell/summary falla, la paleta sigue filtrada por ese rol (fail-closed).
+  const [role, setRole] = useState<string | null>(initialRole);
   const [badges, setBadges] = useState<Badges | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
 

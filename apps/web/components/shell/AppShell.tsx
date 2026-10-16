@@ -42,7 +42,7 @@ export async function AppShell({ branding, title, activeKey, meta, children, rol
   }
 
   return (
-    <SidebarShell>
+    <SidebarShell role={role}>
       <Sidebar branding={branding} activeKey={activeKey} role={role} />
       {/* Navegación mobile (<md): barra inferior fija; el Sidebar existe md+. */}
       <MobileNav activeKey={activeKey} role={role} />
