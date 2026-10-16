@@ -195,7 +195,7 @@ test.describe('ADM-16 · equipo (cuenta e2e-reset)', () => {
       await page.goto('/app/equipo');
       await settle(page);
       await memberRow(page).click();
-      await page.getByRole('button', { name: 'Suspender' }).click();
+      await page.getByRole('menuitem', { name: 'Suspender' }).click();
       await expect(page.getByText(/¿Suspender a .*Se cerrarán sus sesiones/)).toBeVisible();
       const patch = page.waitForResponse((r) => r.url().includes(`/app/equipo/api/${resetId}/status`) && r.request().method() === 'PATCH');
       await page.getByRole('button', { name: 'Confirmar' }).click();
@@ -205,8 +205,8 @@ test.describe('ADM-16 · equipo (cuenta e2e-reset)', () => {
       await settle(page);
       await expect(page.getByText(RESET_EMAIL).first()).toBeVisible();
       await memberRow(page).click();
-      await expect(page.getByRole('button', { name: 'Suspender' }), 'la UI sabe que esta suspendida').toHaveCount(0);
-      await page.getByRole('button', { name: 'Reactivar' }).click();
+      await expect(page.getByRole('menuitem', { name: 'Suspender' }), 'la UI sabe que esta suspendida').toHaveCount(0);
+      await page.getByRole('menuitem', { name: 'Reactivar' }).click();
       const back = page.waitForResponse((r) => r.url().includes(`/app/equipo/api/${resetId}/status`) && r.request().method() === 'PATCH');
       await page.getByRole('button', { name: 'Confirmar' }).click();
       expect((await back).status()).toBe(200);
@@ -221,14 +221,14 @@ test.describe('ADM-16 · equipo (cuenta e2e-reset)', () => {
       await page.goto('/app/equipo');
       await settle(page);
       await memberRow(page).click();
-      await page.getByRole('button', { name: 'Hacer Puerta' }).click();
+      await page.getByRole('menuitem', { name: 'Hacer Puerta' }).click();
       const patch = page.waitForResponse((r) => r.url().includes(`/app/equipo/api/${resetId}/role`) && r.request().method() === 'PATCH');
       await page.getByRole('button', { name: 'Confirmar' }).click();
       expect((await patch).status()).toBe(200);
       expect((await resetMember())?.role).toBe('puerta');
       // Hallazgo: el menu NO ofrece "Hacer Consulta" aunque el rol existe (API/invitaciones lo aceptan).
       await memberRow(page).click();
-      const hasConsulta = await page.getByRole('button', { name: 'Hacer Consulta' }).count();
+      const hasConsulta = await page.getByRole('menuitem', { name: 'Hacer Consulta' }).count();
       test.info().annotations.push({ type: 'hallazgo S3', description: `TeamRowActions.ALL_ROLES no incluye 'consulta': opciones de "Hacer Consulta" en el menu = ${hasConsulta}` });
     } finally {
       const r = await api.patch(`/app/equipo/api/${resetId}/role`, { data: { role: 'operator' } });
@@ -263,13 +263,13 @@ test.describe('ADM-16 · equipo (cuenta e2e-reset)', () => {
     await adminPage.goto('/app/equipo');
     await settle(adminPage);
     await adminPage.getByRole('button', { name: 'Acciones de [E2E] Reset' }).click();
-    await expect(adminPage.getByRole('button', { name: 'Hacer Administrador' })).toBeVisible();
-    await expect(adminPage.getByRole('button', { name: 'Hacer Propietario' })).toHaveCount(0);
+    await expect(adminPage.getByRole('menuitem', { name: 'Hacer Administrador' })).toBeVisible();
+    await expect(adminPage.getByRole('menuitem', { name: 'Hacer Propietario' })).toHaveCount(0);
     // el owner SI la ve
     await page.reload();
     await settle(page);
     await memberRow(page).click();
-    await expect(page.getByRole('button', { name: 'Hacer Propietario' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Hacer Propietario' })).toBeVisible();
     await page.keyboard.press('Escape');
   });
 
@@ -284,7 +284,7 @@ test.describe('ADM-16 · equipo (cuenta e2e-reset)', () => {
     await page.goto('/app/equipo');
     await settle(page);
     await memberRow(page).click();
-    const offered = await page.getByRole('button', { name: /^Hacer / }).allInnerTexts();
+    const offered = await page.getByRole('menuitem', { name: /^Hacer / }).allInnerTexts();
     expect(offered.map((t) => t.trim()), 'roles ofrecidos para e2e-reset (operator)').toEqual(
       expect.arrayContaining(['Hacer Consulta', 'Hacer Puerta', 'Hacer Biblioteca', 'Hacer Protocolo', 'Hacer Administrador']),
     );

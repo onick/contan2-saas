@@ -15,6 +15,8 @@ import { Bell, Loader2, History } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/Popover';
 import { actionLabel, relativeTimeEs } from '../../lib/audit/labels';
 import { cn, focusRing } from '../ui/cn';
+import { useShell } from './ShellData';
+import { HISTORIAL_UI_ROLES } from '../../lib/shell/nav';
 
 interface AuditItem {
   id: string;
@@ -40,8 +42,13 @@ export function TopbarNotifications() {
   const [phase, setPhase] = useState<'loading' | 'ready' | 'forbidden' | 'error'>('loading');
   const [items, setItems] = useState<AuditItem[]>([]);
   const [hasUnread, setHasUnread] = useState(false);
+  // El feed es el audit log: solo se pide si el rol puede entrar al Historial.
+  // Sin rol conocido o sin permiso no hay fetch (evita el 403 ruidoso) ni campana.
+  const { role } = useShell();
+  const allowed = !!role && HISTORIAL_UI_ROLES.has(role);
 
   useEffect(() => {
+    if (!allowed) return;
     let ignore = false;
     void fetch(`/app/historial/api/audit?limit=${LIMIT}`, { cache: 'no-store' })
       .then(async (r) => {
@@ -58,10 +65,10 @@ export function TopbarNotifications() {
       })
       .catch(() => { if (!ignore) setPhase('error'); });
     return () => { ignore = true; };
-  }, []);
+  }, [allowed]);
 
-  // Operator sin permiso de historial: nada que mostrar → nada que fingir.
-  if (phase === 'forbidden') return null;
+  // Sin permiso de historial: nada que mostrar → nada que fingir.
+  if (!allowed || phase === 'forbidden') return null;
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
