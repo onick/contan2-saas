@@ -43,6 +43,17 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
       activityId = query.activityId;
     }
 
+    // status=all|checked_in|reserved (default all). Reserva = checked_in_at NULL
+    // (hold de protocolo/RSVP); check-in = checked_in_at NOT NULL.
+    let status: 'all' | 'checked_in' | 'reserved' = 'all';
+    if (query.status != null) {
+      if (query.status !== 'all' && query.status !== 'checked_in' && query.status !== 'reserved') {
+        reply.code(400);
+        return { error: 'status inválido (all | checked_in | reserved).' };
+      }
+      status = query.status;
+    }
+
     const from = parseIsoDate(query.dateFrom);
     const to = parseIsoDate(query.dateTo);
     if (from === 'invalid' || to === 'invalid') {
@@ -57,6 +68,12 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
     // Filtros (tenant + actividad + rango + búsqueda) aplicados al listado Y al
     // count → `total` exacto. organizationId SIEMPRE del guard, nunca del cliente.
     // El LEFT JOIN a users es 1:1 (u.id = a.user_id) → no multiplica el count.
+    const statusCond =
+      status === 'checked_in' ? sql`a.checked_in_at is not null`
+      : status === 'reserved' ? sql`a.checked_in_at is null`
+      : sql`true`;
+    // Fecha efectiva: llegada real si existe; si no, la de la reserva.
+    const effAt = sql<Date>`coalesce(a.checked_in_at, a.registered_at)`;
     let rowsQ = db
       .selectFrom('attendance as a')
       .leftJoin('users as u', 'u.id', 'a.user_id')
@@ -70,21 +87,32 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
     let countQ = db
       .selectFrom('attendance as a')
       .leftJoin('users as u', 'u.id', 'a.user_id')
-      .select(db.fn.countAll<string>().as('n'))
+      // UNA consulta: total/people respetan `status`; el desglose checkedIn/reserved
+      // lo ignora (bajo los mismos demás filtros) con agregados `filter (where …)`.
       // PERSONAS = filas + acompañantes (los acompañantes no son filas propias).
-      .select(sql<string>`count(*) + coalesce(sum(a.companions_children + a.companions_adults), 0)`.as('people'))
+      .select([
+        sql<string>`count(*) filter (where ${statusCond})`.as('n'),
+        sql<string>`count(*) filter (where ${statusCond}) + coalesce(sum(a.companions_children + a.companions_adults) filter (where ${statusCond}), 0)`.as('people'),
+        sql<string>`count(*) filter (where a.checked_in_at is not null)`.as('checked_in'),
+        sql<string>`count(*) filter (where a.checked_in_at is null)`.as('reserved'),
+        sql<string>`count(*) filter (where a.checked_in_at is not null) + coalesce(sum(a.companions_children + a.companions_adults) filter (where a.checked_in_at is not null), 0)`.as('checked_in_people'),
+        sql<string>`count(*) filter (where a.checked_in_at is null) + coalesce(sum(a.companions_children + a.companions_adults) filter (where a.checked_in_at is null), 0)`.as('reserved_people'),
+      ])
       .where('a.organization_id', '=', orgId);
     if (activityId) {
       rowsQ = rowsQ.where('a.activity_id', '=', activityId);
       countQ = countQ.where('a.activity_id', '=', activityId);
     }
+    if (status !== 'all') {
+      rowsQ = rowsQ.where(statusCond as never);
+    }
     if (from) {
-      rowsQ = rowsQ.where('a.registered_at', '>=', from);
-      countQ = countQ.where('a.registered_at', '>=', from);
+      rowsQ = rowsQ.where(sql<boolean>`coalesce(a.checked_in_at, a.registered_at) >= ${from}`);
+      countQ = countQ.where(sql<boolean>`coalesce(a.checked_in_at, a.registered_at) >= ${from}`);
     }
     if (to) {
-      rowsQ = rowsQ.where('a.registered_at', '<=', to);
-      countQ = countQ.where('a.registered_at', '<=', to);
+      rowsQ = rowsQ.where(sql<boolean>`coalesce(a.checked_in_at, a.registered_at) <= ${to}`);
+      countQ = countQ.where(sql<boolean>`coalesce(a.checked_in_at, a.registered_at) <= ${to}`);
     }
     if (pattern) {
       rowsQ = rowsQ.where((eb) =>
@@ -107,7 +135,7 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
 
     const [rows, count] = await Promise.all([
       rowsQ
-        .orderBy('a.registered_at', 'desc')
+        .orderBy(effAt, 'desc')
         .orderBy('a.id', 'desc')
         .limit(limit)
         .offset(offset)
@@ -129,7 +157,17 @@ export const attendanceRoute: FastifyPluginAsync = async (app) => {
       companionsAdults: r.companions_adults ?? 0,
     }));
 
-    const body: AttendanceListResponse = { items, total: Number(count.n), people: Number(count.people), limit, offset };
+    const body: AttendanceListResponse = {
+      items,
+      total: Number(count.n),
+      people: Number(count.people),
+      checkedIn: Number(count.checked_in),
+      reserved: Number(count.reserved),
+      checkedInPeople: Number(count.checked_in_people),
+      reservedPeople: Number(count.reserved_people),
+      limit,
+      offset,
+    };
     return body;
     });
   });

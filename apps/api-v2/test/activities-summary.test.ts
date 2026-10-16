@@ -64,11 +64,16 @@ run('GET /activities/:id/summary · resumen post-evento', () => {
     } as never).execute();
     return id;
   };
-  const attend = async (org: string, activityId: string, userId: string | null, companions = 0, adults = 0) => {
+  // Por defecto es un CHECK-IN real (checked_in_at puesto). `hold=true` crea una
+  // RESERVA (protocolo/RSVP): checked_in_at NULL.
+  const attend = async (
+    org: string, activityId: string, userId: string | null, companions = 0, adults = 0, hold = false,
+  ) => {
     await db.insertInto('attendance').values({
       id: randomUUID(), organization_id: org, user_id: userId, activity_id: activityId,
       activity_name: 'x', user_code: null, anonymous: userId === null,
       companions_children: companions, companions_adults: adults,
+      checked_in_at: hold ? null : new Date().toISOString(),
     } as never).execute();
   };
 
@@ -150,6 +155,9 @@ run('GET /activities/:id/summary · resumen post-evento', () => {
       companionsChildren: 3, // 2 de u2 + 1 del anónimo
       companionsAdults: 2, // 2 de u3 (acompañantes adultos de puerta)
       peopleInRoom: 10, // 5 + 3 niños + 2 adultos
+      reservedCount: 0,
+      reservedPeople: 0,
+      roomPct: 10, // round(10/100*100)
     });
   });
 
@@ -162,6 +170,56 @@ run('GET /activities/:id/summary · resumen post-evento', () => {
     expect(summary.newcomers).toBe(0);
     expect(summary.avgPriorAttendances).toBe(0);
     expect(summary.peopleInRoom).toBe(0);
+  });
+
+  it('reservas no son asistencias: holds aparte, nuevos solo entre check-ins', async () => {
+    const act = await mkActivity(orgAId, 20, 5);
+    const c1 = await mkUser(orgAId);
+    const c2 = await mkUser(orgAId);
+    await attend(orgAId, act, c1);
+    await attend(orgAId, act, c2, 0, 1); // +1 adulto
+    const h1 = await mkUser(orgAId);
+    const h2 = await mkUser(orgAId);
+    const h3 = await mkUser(orgAId);
+    await attend(orgAId, act, h1, 0, 0, true);
+    await attend(orgAId, act, h2, 0, 0, true);
+    await attend(orgAId, act, h3, 1, 1, true); // hold con 2 acompañantes
+    const { summary } = ActivitySummaryResponseSchema.parse((await getSummary(act, TOK.admin)).json());
+    expect(summary.totalAttendances).toBe(2);
+    expect(summary.identifiedCount).toBe(2);
+    expect(summary.peopleInRoom).toBe(3);
+    expect(summary.newcomers).toBe(2);
+    expect(summary.companionsAdults).toBe(1);
+    expect(summary.companionsChildren).toBe(0);
+    expect(summary.reservedCount).toBe(3);
+    expect(summary.reservedPeople).toBe(5);
+    expect(summary.roomPct).toBe(15); // round(3/20*100)
+    expect(summary.occupancyPct).toBe(25); // aforo comprometido: enrolled 5 / 20
+  });
+
+  it('un hold en OTRA actividad no vuelve habitual al usuario aquí', async () => {
+    const act = await mkActivity(orgAId);
+    const other = await mkActivity(orgAId);
+    const u = await mkUser(orgAId);
+    await attend(orgAId, other, u, 0, 0, true); // solo reservó allá
+    await attend(orgAId, act, u);
+    const { summary } = ActivitySummaryResponseSchema.parse((await getSummary(act, TOK.admin)).json());
+    expect(summary.newcomers).toBe(1);
+    expect(summary.returning).toBe(0);
+    expect(summary.vipCount).toBe(0);
+  });
+
+  it('solo holds (42 reservas, 0 check-ins) → asistencias 0 y reservedCount 42', async () => {
+    const act = await mkActivity(orgAId, 100, 42);
+    for (let i = 0; i < 42; i++) await attend(orgAId, act, await mkUser(orgAId), 0, 0, true);
+    const { summary } = ActivitySummaryResponseSchema.parse((await getSummary(act, TOK.admin)).json());
+    expect(summary.totalAttendances).toBe(0);
+    expect(summary.peopleInRoom).toBe(0);
+    expect(summary.newcomers).toBe(0);
+    expect(summary.identifiedCount).toBe(0);
+    expect(summary.reservedCount).toBe(42);
+    expect(summary.reservedPeople).toBe(42);
+    expect(summary.roomPct).toBe(0);
   });
 
   it('sin cookie → 401; actividad inexistente → 404', async () => {
