@@ -1,0 +1,150 @@
+{
+  "owner:/app": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/actividades": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/biblioteca": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/biblioteca/catalogo": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/biblioteca/circulacion": [
+    "aria-valid-attr-value",
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/biblioteca/inventario": [
+    "aria-valid-attr-value",
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/biblioteca/lectores": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/biblioteca/reservas": [
+    "aria-valid-attr-value",
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/biblioteca/titulos/nuevo": [
+    "color-contrast",
+    "label",
+    "label-content-name-mismatch",
+    "scrollable-region-focusable"
+  ],
+  "owner:/app/check-in": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/cuenta": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/equipo": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/historial": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/identidad": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/modo-publico": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/protocolo": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/puerta": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/registros": [
+    "color-contrast",
+    "label-content-name-mismatch",
+    "scrollable-region-focusable"
+  ],
+  "owner:/app/reportes": [
+    "color-contrast",
+    "label-content-name-mismatch",
+    "select-name"
+  ],
+  "owner:/app/segmentos": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "owner:/app/usuarios": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "pub:/kiosko": [
+    "label-content-name-mismatch"
+  ],
+  "role:admin:/app": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "role:biblioteca:/app/biblioteca": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "role:consulta:/app": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "role:operator:/app": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "role:protocolo:/app/protocolo": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "role:puerta:/app/puerta": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "state:confirm-dialog": [
+    "color-contrast"
+  ],
+  "state:dialogo-nuevo-visitante": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "state:drawer-actividad": [
+    "color-contrast",
+    "definition-list",
+    "dlitem",
+    "label-content-name-mismatch"
+  ],
+  "state:drawer-usuario": [
+    "color-contrast",
+    "definition-list",
+    "label-content-name-mismatch"
+  ],
+  "state:error-checkin": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "state:palette": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ],
+  "state:vacio-usuarios": [
+    "color-contrast",
+    "label-content-name-mismatch"
+  ]
+}
