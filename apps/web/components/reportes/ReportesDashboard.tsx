@@ -159,12 +159,12 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
   return (
     <div ref={rootRef}>
       {/* header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
+        <div className="min-w-0">
           <h1 className="text-[28px] font-extrabold tracking-tight text-ink sm:text-[30px]">Reportes</h1>
           <p className="mt-1 text-[14px] text-muted">Resumen ejecutivo con comparación contra el período anterior.</p>
         </div>
-        <div className="flex flex-none flex-wrap gap-2.5 sm:ml-auto">
+        <div className="flex min-w-0 flex-wrap gap-2.5 sm:ml-auto">
           <ReportsAgent />
           <a href={`/app/reportes/api/period?kind=xlsx&${reportsQuery(range.from, range.to, types, cats)}`} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <Download size={16} strokeWidth={1.9} /> Exportar Excel
