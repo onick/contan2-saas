@@ -18,7 +18,7 @@ const ITEMS = [
   { id: 't2', userCode: null, firstName: null, lastName: null, activityId: 'A1', activityName: 'X', anonymous: true, checkedInAt: '2026-06-11T15:05:00.000Z', registeredAt: '2026-06-11T15:05:00.000Z', companionsChildren: 0, companionsAdults: 0 },
 ];
 
-function mockFetch(items: typeof ITEMS = ITEMS, extra: Record<string, unknown> = {}) {
+function mockFetch(items: Array<Record<string, unknown>> = ITEMS, extra: Record<string, unknown> = {}) {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
     JSON.stringify({ items, total: items.length, limit: 200, offset: 0, ...extra }),
     { status: 200, headers: { 'content-type': 'application/json' } },
