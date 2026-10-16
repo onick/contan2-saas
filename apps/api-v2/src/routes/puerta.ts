@@ -18,11 +18,12 @@ import {
   type PuertaOccupancyResponse,
   type PuertaSala,
 } from '@contan2/contracts';
-import { requireTenantStaff } from '../guard.js';
+import { requireRole, requireTenantStaff } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { buildPuertaExportWorkbook, type PuertaExportRow } from '../services/puerta-export.js';
 import { safeFilename } from '../services/csv.js';
 
+const DOOR_WRITE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'operator', 'puerta']);
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const EXPORT_ROW_CAP = 50_000; // cota dura de filas del export (memoria acotada)
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -102,7 +103,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
   // ── POST /puerta/registrar ─────────────────────────────────────────────────
   app.post('/puerta/registrar', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para registrar entradas en la puerta.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
