@@ -1,7 +1,8 @@
 'use client';
 
 import { useTransition } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathnameSafe, useSearchParamsSafe } from '../../lib/navigation/safe';
 import { ListFilter } from 'lucide-react';
 import { parseUserStatus, patchSearchParams, type UserStatusFilter } from '../../lib/admin/list-params';
 import {
@@ -17,8 +18,8 @@ const OPTS: { key: UserStatusFilter; label: string }[] = [
 
 export function EstadoFilterButton() {
   const router = useRouter();
-  const pathname = usePathname();
-  const sp = useSearchParams();
+  const pathname = usePathnameSafe();
+  const sp = useSearchParamsSafe();
   const [, startTransition] = useTransition();
   const active = parseUserStatus(sp.get('status') ?? undefined);
 

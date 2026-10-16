@@ -5,7 +5,8 @@
 // Resetea page al cambiar. Preserva q/cohorte.
 
 import { useTransition } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathnameSafe, useSearchParamsSafe } from '../../lib/navigation/safe';
 import { parseUserStatus, patchSearchParams, type UserStatusFilter } from '../../lib/admin/list-params';
 import { cn, focusRing } from '../ui';
 
@@ -17,8 +18,8 @@ const OPTS: { key: UserStatusFilter; label: string }[] = [
 
 export function UserStatusFilter() {
   const router = useRouter();
-  const pathname = usePathname();
-  const sp = useSearchParams();
+  const pathname = usePathnameSafe();
+  const sp = useSearchParamsSafe();
   const [pending, start] = useTransition();
   const active = parseUserStatus(sp.get('status') ?? undefined);
 

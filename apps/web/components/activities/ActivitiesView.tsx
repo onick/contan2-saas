@@ -6,7 +6,8 @@
 // page.tsx sigue siendo Server Component (hace el fetch); esto es client.
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useSearchParamsSafe } from '../../lib/navigation/safe';
 import { Search, List, LayoutGrid } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
 import {
@@ -46,7 +47,7 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
   // Filtros INICIALIZADOS desde la URL y reflejados en ella (replaceState, sin
   // recargar): sobreviven al refresh y se pueden compartir (auditoría
   // 2026-06-10: antes se perdían al navegar). El filtrado sigue en memoria.
-  const sp = useSearchParams();
+  const sp = useSearchParamsSafe();
   const [query, setQuery] = useState(sp.get('q') ?? '');
   const [status, setStatus] = useState<StatusFilter>(
     STATUS_KEYS.has(sp.get('estado') ?? '') ? (sp.get('estado') as StatusFilter) : 'todas');

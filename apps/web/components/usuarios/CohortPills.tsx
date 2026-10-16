@@ -7,7 +7,8 @@
 // si faltan, las pills siguen navegables sin número.
 
 import { useTransition } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathnameSafe, useSearchParamsSafe } from '../../lib/navigation/safe';
 import { USER_COHORTS, type UserCohort, type UsersFacetsResponse } from '@contan2/contracts';
 import { patchSearchParams, parseCohort } from '../../lib/admin/list-params';
 import { cn, focusRing } from '../ui';
@@ -28,8 +29,8 @@ export interface CohortPillsProps {
 
 export function CohortPills({ counts }: CohortPillsProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const sp = useSearchParams();
+  const pathname = usePathnameSafe();
+  const sp = useSearchParamsSafe();
   const [pending, startTransition] = useTransition();
   const active = parseCohort(sp.get('cohort') ?? undefined);
 
