@@ -162,11 +162,15 @@ describe('LandingPage completa', () => {
   it('anclas del nav existen como id', () => {
     for (const l of landing.nav.links) expect(page).toContain(`id="${l.href.slice(1)}"`);
   });
-  it('sin <script> ni "use client" en el HTML', () => {
-    expect(page).not.toContain('<script');
+  it('sin chunks de framework: cero <script src>; a lo sumo un inline ≤3 KB (mejora progresiva del formulario)', () => {
+    expect(page).not.toMatch(/<script[^>]*\ssrc=/);
+    expect(page).not.toContain('use client');
+    const inline = [...page.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1] ?? "");
+    expect(inline.length).toBeLessThanOrEqual(1);
+    for (const code of inline) expect(Buffer.byteLength(code, 'utf8')).toBeLessThanOrEqual(3072);
   });
   it('ids únicos', () => {
-    const ids = [...page.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+    const ids = [...page.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1] ?? "");
     expect(new Set(ids).size).toBe(ids.length);
   });
 });

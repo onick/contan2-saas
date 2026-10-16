@@ -18,10 +18,11 @@ for preset in mobile desktop; do
   for i in $(seq 1 "$RUNS"); do
     extra=()
     [ "$preset" = "desktop" ] && extra=(--preset=desktop)
-    npx -y lighthouse@12 "$URL" "${extra[@]}" \
+    # ${extra[@]+…}: bash 3.2 (macOS) + set -u fallan con un array vacío.
+    npx -y lighthouse@12 "$URL" ${extra[@]+"${extra[@]}"} \
       --only-categories=performance,accessibility,seo \
       --output=json --output-path="$OUT/$preset-$i.json" \
-      --chrome-flags="--headless=new --no-sandbox" --quiet
+      --chrome-flags="--headless=new --no-sandbox ${LH_CHROME_FLAGS:-}" --quiet
   done
 done
 

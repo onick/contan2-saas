@@ -20,7 +20,7 @@ export type LandingImage = {
 
 export type LandingCta = {
   label: string;
-  href: '/login' | '/registro' | '#contacto' | `mailto:${string}`;
+  href: '/login' | '#contacto' | `mailto:${string}`;
   variant: 'primary' | 'secondary' | 'ghost';
 };
 

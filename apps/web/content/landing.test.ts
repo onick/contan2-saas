@@ -19,7 +19,7 @@ const image = z.object({
 });
 const cta = z.object({
   label: z.string().min(2),
-  href: z.string().refine((h) => h === '/login' || h === '/registro' || h === '#contacto' || /^mailto:[^\s@]+@[^\s@]+$/.test(h), 'href no permitido'),
+  href: z.string().refine((h) => h === '/login' || h === '#contacto' || /^mailto:[^\s@]+@[^\s@]+$/.test(h), 'href no permitido'),
   variant: z.enum(['primary', 'secondary', 'ghost']),
 });
 const text = z.string().min(1);
@@ -171,7 +171,7 @@ describe('content/landing.ts', () => {
       ...landing.footer.links.map((l) => l.href),
       ...(landing.footer.groups ?? []).flatMap((g) => g.links.map((l) => l.href).filter(Boolean) as string[]),
     ];
-    for (const h of hrefs) expect(h).toMatch(/^(\/login|\/registro|#[a-z0-9-]+|mailto:[^\s@]+@[^\s@]+)$/);
+    for (const h of hrefs) expect(h).toMatch(/^(\/login|#[a-z0-9-]+|mailto:[^\s@]+@[^\s@]+)$/);
     const legal = (landing.footer.groups ?? []).find((g) => g.title === 'Legal');
     expect(legal?.links.every((l) => !l.href && /próximamente/.test(l.note ?? ''))).toBe(true);
   });
