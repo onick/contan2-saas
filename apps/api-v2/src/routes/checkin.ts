@@ -150,10 +150,12 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
       capacity: number; enrolled_count: number; recent: string;
       image_url: string | null; image_pos_y: number | null;
       audience: CheckinActivityItem['audience'];
+      in_room: string; held_people: string;
     }>`
       SELECT a.id, a.name, a.location, a.date, a.capacity, a.enrolled_count,
              a.image_url, a.image_pos_y, a.audience,
-             COALESCE(r.recent, 0) AS recent
+             COALESCE(r.recent, 0) AS recent,
+             COALESCE(p.in_room, 0) AS in_room, COALESCE(p.held_people, 0) AS held_people
       FROM activities a
       LEFT JOIN (
         SELECT activity_id, count(*) AS recent
@@ -161,6 +163,16 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
         WHERE organization_id = ${orgId} AND checked_in_at >= now() - interval '10 minutes'
         GROUP BY activity_id
       ) r ON r.activity_id = a.id
+      -- Personas físicamente en sala (check-ins + acompañantes) vs cupo RETENIDO por
+      -- reservas (checked_in_at NULL: protocolo/RSVP). enrolled_count suma ambos.
+      LEFT JOIN (
+        SELECT activity_id,
+               COALESCE(SUM(1 + COALESCE(companions_children, 0) + COALESCE(companions_adults, 0)) FILTER (WHERE checked_in_at IS NOT NULL), 0) AS in_room,
+               COALESCE(SUM(1 + COALESCE(companions_children, 0) + COALESCE(companions_adults, 0)) FILTER (WHERE checked_in_at IS NULL), 0) AS held_people
+        FROM attendance
+        WHERE organization_id = ${orgId}
+        GROUP BY activity_id
+      ) p ON p.activity_id = a.id
       WHERE a.organization_id = ${orgId} AND a.status = 'activa'
             AND a.is_permanent = false
       ORDER BY a.date ASC, a.id ASC
@@ -189,6 +201,8 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
         // Solo cuando hay lista (≥1 invitación no cancelada); si no, null.
         guestList: gl && gl.total > 0 ? { total: gl.total, arrived: gl.arrived } : null,
         audience: row.audience,
+        inRoom: Number(row.in_room),
+        heldPeople: Number(row.held_people),
       };
     });
     const body: CheckinActivitiesResponse = { items, serverNow: new Date().toISOString() };
