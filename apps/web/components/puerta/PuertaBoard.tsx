@@ -148,7 +148,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
 
       {/* Agenda de la Sala VR (aforo != null): agendar visitas de colegios. */}
       {salas.filter((s) => s.aforo !== null).map((s) => (
-        <VrAgenda key={`agenda-${s.id}`} salaId={s.id} salaName={s.name} />
+        <VrAgenda key={`agenda-${s.id}`} salaId={s.id} salaName={s.name} aforo={s.aforo} />
       ))}
 
       <RegisterSheet reg={reg} byId={byId} busy={busy} onClose={() => setReg(null)} onSubmit={submit} />
