@@ -129,7 +129,7 @@ export async function proxyKioskCheckin(body: unknown): Promise<Response> {
       cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'No pudimos completar el registro. Intentá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos completar el registro. Intenta de nuevo.' }, { status: 502 });
   }
   const text = await upstream.text();
   return new Response(text, {

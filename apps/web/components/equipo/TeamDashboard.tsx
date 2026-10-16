@@ -101,7 +101,7 @@ export function TeamDashboard({ initialOverview, currentStaffId, currentRole, ca
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <div>
           <h1 className="text-[28px] font-extrabold tracking-tight text-ink sm:text-[30px]">Mi equipo</h1>
-          <p className="mt-1 text-[14px] text-muted">Gestioná a las personas que tienen acceso a tu organización y sus permisos.</p>
+          <p className="mt-1 text-[14px] text-muted">Gestiona a las personas que tienen acceso a tu organización y sus permisos.</p>
         </div>
         <div className="flex flex-none flex-wrap gap-2.5 sm:ml-auto">
           <button type="button" onClick={() => setRolesOpen(true)}
@@ -151,7 +151,7 @@ export function TeamDashboard({ initialOverview, currentStaffId, currentRole, ca
         </div>
         <aside>
           <Card padding="md">
-            <h3 className="mb-3 text-[14.5px] font-bold text-ink">¿Necesitás ayuda?</h3>
+            <h3 className="mb-3 text-[14.5px] font-bold text-ink">¿Necesitas ayuda?</h3>
             <ul className="space-y-3">
               <li className="flex gap-3">
                 <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-[#e7effe] text-[#2563eb]"><BookOpen size={16} strokeWidth={1.9} /></span>
@@ -165,7 +165,7 @@ export function TeamDashboard({ initialOverview, currentStaffId, currentRole, ca
               </li>
               <li className="flex gap-3">
                 <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-success-bg text-success-fg"><KeyRound size={16} strokeWidth={1.9} /></span>
-                <div><p className="text-[13px] font-bold text-ink">Buenas prácticas</p><p className="text-[12px] text-muted">Asigná el menor acceso necesario y revisá los miembros activos.</p></div>
+                <div><p className="text-[13px] font-bold text-ink">Buenas prácticas</p><p className="text-[12px] text-muted">Asigna el menor acceso necesario y revisa los miembros activos.</p></div>
               </li>
             </ul>
           </Card>
@@ -206,7 +206,7 @@ export function TeamDashboard({ initialOverview, currentStaffId, currentRole, ca
               <button type="button" onClick={() => setRolesOpen(false)} className={cn('grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-surface-container', focusRing)}><X size={18} /></button>
             </header>
             <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
-              <p className="text-[12.5px] text-muted">Los roles son fijos: definen qué puede hacer cada miembro. Asigná el menor acceso necesario.</p>
+              <p className="text-[12.5px] text-muted">Los roles son fijos: definen qué puede hacer cada miembro. Asigna el menor acceso necesario.</p>
               {Object.entries(ROLE_META).map(([key, m]) => (
                 <div key={key} className="flex gap-3 rounded-xl border border-line p-3">
                   <span className={cn('grid h-10 w-10 flex-none place-items-center rounded-lg', m.tint)}><m.Icon size={19} strokeWidth={1.9} /></span>

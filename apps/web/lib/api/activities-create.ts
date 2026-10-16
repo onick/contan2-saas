@@ -28,7 +28,7 @@ export async function proxyCreateActivity(body: unknown): Promise<Response> {
     });
   } catch {
     // Fallo de red hacia api-v2 → 502 (el cliente muestra "reintentá").
-    return Response.json({ error: 'No pudimos crear la actividad. Intentá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos crear la actividad. Intenta de nuevo.' }, { status: 502 });
   }
   const text = await upstream.text();
   return new Response(text, {
@@ -64,7 +64,7 @@ export async function proxyUploadCover(id: string, req: Request): Promise<Respon
       cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'No pudimos subir la portada. Intentá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos subir la portada. Intenta de nuevo.' }, { status: 502 });
   }
   const text = await upstream.text();
   return new Response(text, {
@@ -99,7 +99,7 @@ export async function proxyCreateActivityWithCover(req: Request): Promise<Respon
       cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'No pudimos crear la actividad. Intentá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos crear la actividad. Intenta de nuevo.' }, { status: 502 });
   }
   const text = await upstream.text();
   return new Response(text, {

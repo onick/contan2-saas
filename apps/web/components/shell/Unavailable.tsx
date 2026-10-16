@@ -16,7 +16,7 @@ export interface UnavailableProps {
 export function Unavailable({
   inline = false,
   title = 'Servicio no disponible',
-  description = 'No pudimos cargar los datos en este momento. Volvé a intentarlo en unos segundos.',
+  description = 'No pudimos cargar los datos en este momento. Vuelve a intentarlo en unos segundos.',
   hideRetry = false,
 }: UnavailableProps) {
   const card = (

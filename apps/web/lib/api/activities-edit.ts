@@ -45,7 +45,7 @@ export function proxyUpdateActivity(id: string, body: unknown): Promise<Response
   return proxyPatch(
     `/api/v2/activities/${encodeURIComponent(id)}`,
     body,
-    'No pudimos guardar los cambios. Intentá de nuevo.',
+    'No pudimos guardar los cambios. Intenta de nuevo.',
   );
 }
 
@@ -54,7 +54,7 @@ export function proxyUpdateStatus(id: string, body: unknown): Promise<Response> 
   return proxyPatch(
     `/api/v2/activities/${encodeURIComponent(id)}/status`,
     body,
-    'No pudimos cambiar el estado. Intentá de nuevo.',
+    'No pudimos cambiar el estado. Intenta de nuevo.',
   );
 }
 
@@ -73,7 +73,7 @@ export async function proxyDeleteActivity(id: string): Promise<Response> {
       cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'No pudimos eliminar la actividad. Intentá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos eliminar la actividad. Intenta de nuevo.' }, { status: 502 });
   }
   if (upstream.status === 204) return new Response(null, { status: 204 });
   const text = await upstream.text();

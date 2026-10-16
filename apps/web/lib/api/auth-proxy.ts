@@ -27,7 +27,7 @@ export async function proxyLogin(body: unknown): Promise<Response> {
     });
   } catch {
     return Response.json(
-      { error: 'No pudimos conectar con el servidor. Intentá de nuevo.' },
+      { error: 'No pudimos conectar con el servidor. Intenta de nuevo.' },
       { status: 502 },
     );
   }
@@ -103,7 +103,7 @@ export async function proxyAuth(
       cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'Problema de red. Reintentá.' }, { status: 502 });
+    return Response.json({ error: 'Problema de red. Reintenta.' }, { status: 502 });
   }
   if (upstream.status === 204) return new Response(null, { status: 204 });
   const text = await upstream.text();

@@ -62,14 +62,14 @@ export function AuditTimeline() {
       const body = await res.json().catch(() => ({}));
       if (id !== reqId.current) return; // respuesta obsoleta
       if (!res.ok) {
-        setError(res.status === 403 ? 'No tenés permiso para ver el historial (solo owner/admin).' : (body.error ?? 'No pudimos cargar el historial.'));
+        setError(res.status === 403 ? 'No tienes permiso para ver el historial (solo owner/admin).' : (body.error ?? 'No pudimos cargar el historial.'));
         setPhase('error'); return;
       }
       setItems((prev) => (cur ? [...prev, ...body.items] : body.items));
       setCursor(body.nextCursor ?? null);
       setPhase('ready');
     } catch {
-      if (id === reqId.current) { setError('No pudimos conectar. Intentá de nuevo.'); setPhase('error'); }
+      if (id === reqId.current) { setError('No pudimos conectar. Intenta de nuevo.'); setPhase('error'); }
     }
   }, [buildQs]);
 

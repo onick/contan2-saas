@@ -22,6 +22,6 @@ export async function devolverLoan(inventoryCode: string, signal?: AbortSignal):
     if (!res.ok || !j?.loan) return { ok: false, error: (j as { error?: string }).error ?? 'No se pudo registrar la devolución.' };
     return { ok: true, loan: j.loan as BiblioLoan };
   } catch {
-    return { ok: false, error: 'Problema de red. Reintentá.' };
+    return { ok: false, error: 'Problema de red. Reintenta.' };
   }
 }

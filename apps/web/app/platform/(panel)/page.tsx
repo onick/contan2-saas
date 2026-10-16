@@ -19,7 +19,7 @@ export default async function PlatformOperacionPage() {
     return (
       <div>
         <h1 className="text-[24px] font-semibold tracking-tight text-white">Operación</h1>
-        <div className="mt-6 rounded-xl border border-red-400/20 bg-red-500/[0.06] p-6 text-[13.5px] text-red-200">No pudimos cargar las métricas. Reintentá.</div>
+        <div className="mt-6 rounded-xl border border-red-400/20 bg-red-500/[0.06] p-6 text-[13.5px] text-red-200">No pudimos cargar las métricas. Reintenta.</div>
       </div>
     );
   }

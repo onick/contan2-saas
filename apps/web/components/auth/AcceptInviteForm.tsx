@@ -27,9 +27,9 @@ export function AcceptInviteForm({ token, initialName }: { token: string; initia
       });
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       if (res.status === 201) setDone(true);
-      else setError(body?.error ?? 'No pudimos crear la cuenta. Pedí una invitación nueva.');
+      else setError(body?.error ?? 'No pudimos crear la cuenta. Pide una invitación nueva.');
     } catch {
-      setError('Problema de red. Revisá tu conexión.');
+      setError('Problema de red. Revisa tu conexión.');
     } finally {
       setBusy(false);
     }
@@ -40,7 +40,7 @@ export function AcceptInviteForm({ token, initialName }: { token: string; initia
       <div className="flex flex-col items-center gap-2 py-4 text-center" role="status">
         <PartyPopper size={28} strokeWidth={1.75} aria-hidden="true" className="text-success-fg" />
         <p className="text-sm font-semibold text-ink">Cuenta creada</p>
-        <p className="text-[13px] text-muted">Ya formás parte del equipo. Ingresá con tu correo y la contraseña que elegiste.</p>
+        <p className="text-[13px] text-muted">Ya formas parte del equipo. Ingresa con tu correo y la contraseña que elegiste.</p>
         <a href="/login" className={cn('mt-2 rounded text-[13px] font-semibold text-brand-text hover:underline', focusRing)}>Ir a ingresar</a>
       </div>
     );

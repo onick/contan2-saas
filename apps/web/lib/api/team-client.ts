@@ -13,7 +13,7 @@ async function patch(url: string, body: unknown): Promise<Result<Mutation>> {
   try {
     res = await fetch(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   } catch {
-    return { ok: false, status: 0, error: 'No pudimos conectar. Intentá de nuevo.' };
+    return { ok: false, status: 0, error: 'No pudimos conectar. Intenta de nuevo.' };
   }
   const b = await res.json().catch(() => ({}));
   if (!res.ok) return { ok: false, status: res.status, error: (b as { error?: string }).error ?? 'No se pudo completar la acción.' };

@@ -54,14 +54,14 @@ export function InvitationsSection({ canInviteOwner }: { canInviteOwner: boolean
       });
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       if (res.status === 201) {
-        setMsg({ kind: 'ok', text: 'Invitación creada. El enlace vence en 24 horas (envío de email pendiente de habilitar: compartilo manualmente desde el historial del servidor).' });
+        setMsg({ kind: 'ok', text: 'Invitación creada. El enlace vence en 24 horas (envío de email pendiente de habilitar: compártelo manualmente desde el historial del servidor).' });
         setEmail(''); setFullName('');
         await load();
       } else {
         setMsg({ kind: 'error', text: body?.error ?? 'No pudimos crear la invitación.' });
       }
     } catch {
-      setMsg({ kind: 'error', text: 'Problema de red. Reintentá.' });
+      setMsg({ kind: 'error', text: 'Problema de red. Reintenta.' });
     } finally {
       setBusy(false);
     }
@@ -86,7 +86,7 @@ export function InvitationsSection({ canInviteOwner }: { canInviteOwner: boolean
       <h2 className="flex items-center gap-2 text-base font-bold tracking-tight text-ink">
         <MailPlus size={17} strokeWidth={2} aria-hidden="true" className="text-muted" /> Invitaciones
       </h2>
-      <p className="mt-0.5 text-[13px] text-muted">Invitá a una persona del equipo; crea su propia contraseña desde el enlace (vence en 24 h).</p>
+      <p className="mt-0.5 text-[13px] text-muted">Invita a una persona del equipo; crea su propia contraseña desde el enlace (vence en 24 h).</p>
 
       <form onSubmit={invite} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[2fr_2fr_1fr_auto] sm:items-end">
         <label className="block">

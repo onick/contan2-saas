@@ -28,7 +28,7 @@ async function getJson<S extends ZodTypeAny>(url: string, schema: S, signal?: Ab
     res = await fetch(url, { cache: 'no-store', ...(signal ? { signal } : {}) });
   } catch (e) {
     if ((e as { name?: string }).name === 'AbortError') throw e; // el caller descarta
-    return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' };
+    return { ok: false, status: 0, error: 'Sin conexión. Reintenta.' };
   }
   let body: { error?: string } | unknown = null;
   try { body = await res.json(); } catch { /* sin JSON */ }
@@ -45,7 +45,7 @@ async function postJson<S extends ZodTypeAny>(url: string, body: unknown, schema
   try {
     res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
   } catch {
-    return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' };
+    return { ok: false, status: 0, error: 'Sin conexión. Reintenta.' };
   }
   let parsed: { error?: string } | unknown = null;
   try { parsed = await res.json(); } catch { /* */ }

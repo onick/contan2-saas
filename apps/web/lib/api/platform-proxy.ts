@@ -17,7 +17,7 @@ export async function proxyPlatformLogin(body: unknown): Promise<Response> {
       method: 'POST', headers, body: JSON.stringify(body), cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'No pudimos conectar con el servidor. Intentá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos conectar con el servidor. Intenta de nuevo.' }, { status: 502 });
   }
   const text = await up.text();
   const res = new Response(text, {
@@ -65,7 +65,7 @@ export async function proxyPlatform(
       method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}), cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'Problema de red. Reintentá.' }, { status: 502 });
+    return Response.json({ error: 'Problema de red. Reintenta.' }, { status: 502 });
   }
   const text = await up.text();
   return new Response(text, {

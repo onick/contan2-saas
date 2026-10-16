@@ -33,13 +33,13 @@ export default async function PlatformTenantsPage({ searchParams }: { searchPara
 
       {!data ? (
         <div className="mt-5 rounded-xl border border-red-400/20 bg-red-500/[0.06] p-6 text-[13.5px] text-red-200">
-          No pudimos cargar los tenants. Reintentá.
+          No pudimos cargar los tenants. Reintenta.
         </div>
       ) : data.tenants.length === 0 ? (
         <div className="mt-5 flex flex-col items-center gap-2 rounded-xl border border-white/8 bg-white/[0.02] p-12 text-center">
           <Building2 size={24} className="text-white/30" aria-hidden="true" />
           <p className="text-[14px] font-medium text-white/70">Sin resultados</p>
-          <p className="text-[12.5px] text-white/40">Ajustá la búsqueda o los filtros.</p>
+          <p className="text-[12.5px] text-white/40">Ajusta la búsqueda o los filtros.</p>
         </div>
       ) : (
         <div className="mt-5 overflow-hidden rounded-xl border border-white/8 bg-white/[0.02]">

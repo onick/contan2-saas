@@ -117,7 +117,7 @@ export function AccountPanel({ admin }: { admin: PlatformAdminPublic }) {
       {/* Sesiones activas */}
       <div className={card}>
         <h2 className="text-[14px] font-semibold text-white">Sesiones activas</h2>
-        <p className="mt-0.5 text-[12.5px] text-white/40">Cerrá las que no reconozcas.</p>
+        <p className="mt-0.5 text-[12.5px] text-white/40">Cierra las que no reconozcas.</p>
         <div className="mt-4 space-y-2">
           {sessions === null ? (
             <div className="flex items-center gap-2 py-4 text-[13px] text-white/40"><Loader2 size={15} className="animate-spin" /> Cargando…</div>

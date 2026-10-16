@@ -51,7 +51,7 @@ export function LogoUploadField({ value, onChange, disabled, label, hint, previe
   async function handleFile(file: File | undefined) {
     if (!file || disabled) return;
     setError(null);
-    if (!OK_TYPES.test(file.type)) { setError('Formato no permitido. Usá PNG, SVG, JPEG o WebP.'); return; }
+    if (!OK_TYPES.test(file.type)) { setError('Formato no permitido. Usa PNG, SVG, JPEG o WebP.'); return; }
     if (file.size > MAX_BYTES) { setError('El logo supera el máximo de 2 MB.'); return; }
     setUploading(true);
     try {
@@ -62,7 +62,7 @@ export function LogoUploadField({ value, onChange, disabled, label, hint, previe
       if (!res.ok) { setError((body as { error?: string }).error ?? 'No se pudo subir el logo.'); return; }
       onChange((body as { logoUrl: string }).logoUrl);
     } catch {
-      setError('No se pudo subir el logo. Reintentá.');
+      setError('No se pudo subir el logo. Reintenta.');
     } finally {
       setUploading(false);
     }
@@ -95,7 +95,7 @@ export function LogoUploadField({ value, onChange, disabled, label, hint, previe
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-brand-text">
             {uploading ? <Loader2 size={20} className="animate-spin" aria-hidden="true" /> : <UploadCloud size={20} strokeWidth={1.75} aria-hidden="true" />}
           </span>
-          <span className="text-[13.5px] font-semibold text-ink">{uploading ? 'Subiendo…' : 'Arrastrá tu logo o hacé clic'}</span>
+          <span className="text-[13.5px] font-semibold text-ink">{uploading ? 'Subiendo…' : 'Arrastra tu logo o haz clic'}</span>
           <span className="max-w-xs text-[11.5px] leading-relaxed text-faint">PNG, SVG, JPG o WebP · hasta 2&nbsp;MB. Idealmente con <strong className="text-muted">fondo transparente</strong>. Se ajusta solo.</span>
           <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden"
             onChange={(e) => { void handleFile(e.target.files?.[0]); e.target.value = ''; }} disabled={disabled} />
@@ -162,7 +162,7 @@ export function LogoUploadField({ value, onChange, disabled, label, hint, previe
       {/* Opción avanzada: URL */}
       <div className="mt-2.5">
         <button type="button" onClick={() => setUrlOpen((v) => !v)} className={cn('inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-brand-accent hover:underline', focusRing)}>
-          <ChevronRight size={13} strokeWidth={2.5} aria-hidden="true" className={cn('transition-transform', urlOpen && 'rotate-90')} /> ¿Tu logo está en una URL? Pegala
+          <ChevronRight size={13} strokeWidth={2.5} aria-hidden="true" className={cn('transition-transform', urlOpen && 'rotate-90')} /> ¿Tu logo está en una URL? Pégala
         </button>
         {urlOpen ? (
           <div className="mt-2">

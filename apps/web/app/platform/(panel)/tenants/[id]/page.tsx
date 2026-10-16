@@ -22,7 +22,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     return (
       <div>
         <a href="/platform/tenants" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white/50 hover:text-white/80"><ArrowLeft size={15} /> Tenants</a>
-        <div className="mt-5 rounded-xl border border-red-400/20 bg-red-500/[0.06] p-6 text-[13.5px] text-red-200">No pudimos cargar el tenant. Reintentá.</div>
+        <div className="mt-5 rounded-xl border border-red-400/20 bg-red-500/[0.06] p-6 text-[13.5px] text-red-200">No pudimos cargar el tenant. Reintenta.</div>
       </div>
     );
   }

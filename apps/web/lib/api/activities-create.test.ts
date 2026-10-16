@@ -83,11 +83,11 @@ describe('proxyCreateActivity', () => {
 
   it('relaya un error del upstream tal cual (403)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: 'No tenés permiso' }), { status: 403, headers: { 'content-type': 'application/json' } }),
+      new Response(JSON.stringify({ error: 'No tienes permiso' }), { status: 403, headers: { 'content-type': 'application/json' } }),
     ));
     const res = await proxyCreateActivity({});
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: 'No tenés permiso' });
+    expect(await res.json()).toEqual({ error: 'No tienes permiso' });
   });
 
   it('fallo de red hacia api-v2 → 502', async () => {

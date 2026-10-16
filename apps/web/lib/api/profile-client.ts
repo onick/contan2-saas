@@ -22,7 +22,7 @@ export async function createUser(input: AdminUserCreateRequest): Promise<Result<
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
     });
   } catch {
-    return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' };
+    return { ok: false, status: 0, error: 'Sin conexión. Reintenta.' };
   }
   let body: { error?: string } | unknown = null;
   try { body = await res.json(); } catch { /* */ }
@@ -40,7 +40,7 @@ export async function updateUser(code: string, patch: AdminUserUpdateRequest): P
       method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch),
     });
   } catch {
-    return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' };
+    return { ok: false, status: 0, error: 'Sin conexión. Reintenta.' };
   }
   let body: { error?: string } | unknown = null;
   try { body = await res.json(); } catch { /* */ }
@@ -55,7 +55,7 @@ async function getJson<S extends ZodTypeAny>(url: string, schema: S, signal?: Ab
     res = await fetch(url, { cache: 'no-store', ...(signal ? { signal } : {}) });
   } catch (e) {
     if ((e as { name?: string }).name === 'AbortError') throw e; // el caller descarta
-    return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' };
+    return { ok: false, status: 0, error: 'Sin conexión. Reintenta.' };
   }
   let body: { error?: string } | unknown = null;
   try { body = await res.json(); } catch { /* sin JSON */ }
@@ -85,7 +85,7 @@ export async function resendCredential(code: string, idempotencyKey: string): Pr
   try {
     res = await fetch(`${base(code)}/credential`, { method: 'POST', headers: { 'idempotency-key': idempotencyKey } });
   } catch {
-    return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' };
+    return { ok: false, status: 0, error: 'Sin conexión. Reintenta.' };
   }
   let body: { error?: string } | unknown = null;
   try { body = await res.json(); } catch { /* */ }
@@ -97,7 +97,7 @@ export async function resendCredential(code: string, idempotencyKey: string): Pr
 async function postArchive(code: string, action: 'archive' | 'reactivate'): Promise<Result<AdminUserArchiveResponse>> {
   let res: Response;
   try { res = await fetch(`${base(code)}/${action}`, { method: 'POST' }); }
-  catch { return { ok: false, status: 0, error: 'Sin conexión. Reintentá.' }; }
+  catch { return { ok: false, status: 0, error: 'Sin conexión. Reintenta.' }; }
   let body: { error?: string } | unknown = null;
   try { body = await res.json(); } catch { /* */ }
   if (!res.ok) return { ok: false, status: res.status, error: (body as { error?: string })?.error ?? 'No se pudo completar.' };
