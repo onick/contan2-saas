@@ -13,7 +13,7 @@
 // bloquea el resto del detalle).
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { X, CalendarDays, MapPin, Tag, Users, ImageOff, Pencil, FileText, Loader2, Sparkles, Repeat2, Crown, UserPlus, BarChart3 } from 'lucide-react';
+import { X, CalendarDays, MapPin, Tag, Users, ImageOff, Pencil, FileText, Loader2, Sparkles, Repeat2, Crown, UserPlus, BarChart3, Clock } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
 import { fetchActivityDetail, fetchActivitySummary } from '../../lib/api/activity-detail';
 import type { ActivitySummary } from '@contan2/contracts';
@@ -141,7 +141,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
             <Row icon={CalendarDays} label="Fecha">{shown.date}</Row>
             <Row icon={MapPin} label="Lugar">{shown.location}</Row>
             <Row icon={Tag} label="Categoría">{shown.category}</Row>
-            <Row icon={Users} label="Ocupación">
+            <Row icon={Users} label="Aforo comprometido" hint="Incluye reservas (invitaciones con cupo retenido), no solo a quienes ya llegaron.">
               {shown.occupancyPct === null
                 ? <span className="text-faint">Sin datos</span>
                 : <span className="tabular-nums">{shown.registered} / {shown.capacity} <span className="text-faint">· {shown.occupancyPct}%</span></span>}
@@ -157,7 +157,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
           ) : null}
 
           {/* Resumen post-evento / en vivo (paridad v1) · sólo con asistencias. */}
-          {shown.statusRaw && summary && summary.totalAttendances > 0 ? (
+          {shown.statusRaw && summary && (summary.totalAttendances > 0 || (summary.reservedCount ?? 0) > 0) ? (
             <div className="mt-6">
               <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
                 <BarChart3 size={13} strokeWidth={1.75} aria-hidden="true" />
@@ -168,8 +168,16 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
                   icon={Users}
                   label="Asistencias"
                   value={summary.totalAttendances}
-                  extra={`${summary.occupancyPct}% ocupación${summary.anonymousCount > 0 ? ` · ${summary.anonymousCount} sin credencial` : ''}`}
+                  extra={`${summary.roomPct ?? summary.occupancyPct}% en sala${summary.anonymousCount > 0 ? ` · ${summary.anonymousCount} sin credencial` : ''}`}
                 />
+                {(summary.reservedCount ?? 0) > 0 ? (
+                  <StatTile
+                    icon={Clock}
+                    label="Reservados (en lista)"
+                    value={summary.reservedCount ?? 0}
+                    extra={`${summary.reservedPeople ?? summary.reservedCount} personas con cupo retenido`}
+                  />
+                ) : null}
                 {summary.companionsChildren + summary.companionsAdults > 0 ? (
                   <StatTile
                     icon={Users}
@@ -178,6 +186,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
                     extra={companionsBreakdown(summary.companionsChildren, summary.companionsAdults)}
                   />
                 ) : null}
+                {summary.totalAttendances > 0 ? (<>
                 <StatTile
                   icon={Sparkles}
                   label="Nuevos visitantes"
@@ -196,6 +205,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
                   value={summary.vipCount}
                   extra="≥10 visitas totales"
                 />
+                </>) : null}
                 {summary.anonymousCount > 0 ? (
                   <StatTile
                     icon={UserPlus}
@@ -213,6 +223,7 @@ export function ActivityDetailDrawer({ activity, onClose, onEdit, canExportAtten
           {shown.statusRaw ? (
             <AttendeesSection
               activityId={shown.id}
+              activityStatus={shown.statusRaw}
               canExport={canExportAttendees}
               onMutated={() => setSummaryKey((k) => k + 1)}
               headerAction={canExportAttendees && shown.statusRaw === 'activa' ? (
@@ -377,14 +388,14 @@ function StatTile({ icon: Icon, label, value, extra }: { icon: typeof CalendarDa
   );
 }
 
-function Row({ icon: Icon, label, children }: { icon: typeof CalendarDays; label: string; children: React.ReactNode }) {
+function Row({ icon: Icon, label, hint, children }: { icon: typeof CalendarDays; label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
       <span className={cn('mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg bg-surface-container text-faint', focusRing)}>
         <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</dt>
+        <dt title={hint} className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</dt>
         <dd className="mt-0.5 text-sm text-ink">{children}</dd>
       </div>
     </div>

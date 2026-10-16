@@ -478,7 +478,9 @@ export function CheckinConsole() {
                           <span aria-hidden="true">·</span>
                           <span className="whitespace-nowrap tabular-nums">{fmtHour(a.date)}</span>
                           <span aria-hidden="true">·</span>
-                          <span className="whitespace-nowrap tabular-nums" title="Personas en sala (con acompañantes) sobre el aforo">{a.enrolledCount}/{a.capacity} en sala ({a.occupancyPct}%)</span>
+                          <span className="whitespace-nowrap tabular-nums" title="Personas en sala (con acompañantes) y cupos reservados sobre el aforo">{(a.heldPeople ?? 0) > 0
+                            ? `${a.inRoom ?? a.enrolledCount} en sala · ${a.heldPeople} reservados / ${a.capacity} (${a.occupancyPct}%)`
+                            : `${a.enrolledCount}/${a.capacity} en sala (${a.occupancyPct}%)`}</span>
                           {a.recentMovement > 0 ? <span className="whitespace-nowrap text-success-fg">+{a.recentMovement} en 10 min</span> : null}
                           {a.full ? <span className="font-semibold text-danger-fg">Lleno</span> : null}
                         </p>
@@ -563,7 +565,7 @@ export function CheckinConsole() {
                       </span>
                       <span className="block truncate text-[11px] text-faint">{r.activityName}</span>
                     </span>
-                    <span className="flex-none text-[11px] tabular-nums text-faint">{timeAgo(r.registeredAt, skewMs.current)}</span>
+                    <span className="flex-none text-[11px] tabular-nums text-faint">{timeAgo(r.checkedInAt ?? r.registeredAt, skewMs.current)}</span>
                   </li>
                 ))}
               </ul>

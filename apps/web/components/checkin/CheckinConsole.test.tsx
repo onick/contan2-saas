@@ -234,7 +234,7 @@ describe('CheckinConsole', () => {
       recent: () => J(200, {
         items: [
           { id: 'r1', userCode: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', activityId: 'A1', activityName: 'Concierto', anonymous: false, checkedInAt: new Date().toISOString(), registeredAt: new Date().toISOString(), companionsChildren: 0, companionsAdults: 0 },
-          { id: 'r2', userCode: null, firstName: null, lastName: null, activityId: 'A1', activityName: 'Concierto', anonymous: true, checkedInAt: new Date().toISOString(), registeredAt: new Date(Date.now() - 5 * 60_000 - 30_000).toISOString(), companionsChildren: 0, companionsAdults: 0 },
+          { id: 'r2', userCode: null, firstName: null, lastName: null, activityId: 'A1', activityName: 'Concierto', anonymous: true, checkedInAt: new Date(Date.now() - 5 * 60_000 - 30_000).toISOString(), registeredAt: new Date(Date.now() - 5 * 60_000 - 30_000).toISOString(), companionsChildren: 0, companionsAdults: 0 },
         ],
         total: 2, limit: 8, offset: 0,
       }),
@@ -244,6 +244,53 @@ describe('CheckinConsole', () => {
     expect(await screen.findByText('Sofía Méndez')).toBeInTheDocument();
     expect(screen.getByText('+1 sin credencial', { selector: 'span' })).toBeInTheDocument(); // fila anónima del feed
     expect(screen.getByText('hace 5 min')).toBeInTheDocument();
+  });
+
+  it('feed: pide solo check-ins reales (status=checked_in) y fecha por checkedInAt (hold convertido hoy = "hace 5 min")', async () => {
+    const fn = installFetch({
+      metrics: okMetrics, activities: okActs(),
+      recent: () => J(200, {
+        items: [
+          // invitación de hace 3 días convertida en check-in hace 5 min
+          { id: 'r1', userCode: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', activityId: 'A1', activityName: 'Concierto', anonymous: false, checkedInAt: new Date(Date.now() - 5 * 60_000 - 30_000).toISOString(), registeredAt: new Date(Date.now() - 3 * 86_400_000).toISOString(), companionsChildren: 0, companionsAdults: 0 },
+        ],
+        total: 1, limit: 8, offset: 0,
+      }),
+    });
+    render(<CheckinConsole />);
+    expect(await screen.findByText('Sofía Méndez')).toBeInTheDocument();
+    expect(screen.getByText('hace 5 min')).toBeInTheDocument();
+    const recentCall = fn.mock.calls.map((c) => String(c[0])).find((u) => u.includes('/api/recent'));
+    expect(recentCall).toContain('status=checked_in');
+  });
+
+  it('feed con API vieja (checkedInAt null): cae a registeredAt', async () => {
+    installFetch({
+      metrics: okMetrics, activities: okActs(),
+      recent: () => J(200, {
+        items: [{ id: 'r1', userCode: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', activityId: 'A1', activityName: 'Concierto', anonymous: false, checkedInAt: null, registeredAt: new Date(Date.now() - 5 * 60_000 - 30_000).toISOString(), companionsChildren: 0, companionsAdults: 0 }],
+        total: 1, limit: 8, offset: 0,
+      }),
+    });
+    render(<CheckinConsole />);
+    expect(await screen.findByText('Sofía Méndez')).toBeInTheDocument();
+    expect(screen.getByText('hace 5 min')).toBeInTheDocument();
+  });
+
+  it('aforo: con inRoom/heldPeople → "N en sala · M reservados / cap"', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs([{ ...act1, enrolledCount: 40, inRoom: 12, heldPeople: 28 } as typeof act1]) });
+    render(<CheckinConsole />);
+    expect(await screen.findByText(/12 en sala · 28 reservados \/ 100/)).toBeInTheDocument();
+  });
+
+  it('aforo: heldPeople 0 o API vieja → etiqueta de siempre', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs([{ ...act1, inRoom: 40, heldPeople: 0 } as typeof act1]) });
+    render(<CheckinConsole />);
+    expect(await screen.findByText(/40\/100 en sala/)).toBeInTheDocument();
+    cleanup();
+    installFetch({ metrics: okMetrics, activities: okActs() });
+    render(<CheckinConsole />);
+    expect(await screen.findByText(/40\/100 en sala/)).toBeInTheDocument();
   });
 
   it('feed vacío → estado honesto (sin demo)', async () => {

@@ -43,7 +43,7 @@ describe('ActivityDetailDrawer · resumen post-evento', () => {
     render(<ActivityDetailDrawer activity={ACT} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Resumen post-evento')).toBeInTheDocument());
     expect(screen.getByText('Asistencias')).toBeInTheDocument();
-    expect(screen.getByText('80% ocupación · 1 sin credencial')).toBeInTheDocument();
+    expect(screen.getByText('80% en sala · 1 sin credencial')).toBeInTheDocument();
     expect(screen.getByText('Nuevos visitantes')).toBeInTheDocument();
     expect(screen.getByText('50% de 4 identificados')).toBeInTheDocument();
     expect(screen.getByText('Habituales')).toBeInTheDocument();
@@ -81,5 +81,42 @@ describe('ActivityDetailDrawer · resumen post-evento', () => {
     render(<ActivityDetailDrawer activity={{ ...ACT, statusRaw: undefined, type: undefined }} onClose={vi.fn()} />);
     expect(fn).not.toHaveBeenCalled();
     expect(screen.queryByText(/Resumen/)).toBeNull();
+  });
+
+  // ── Reservas vs asistencias (fix 2026-10) ──
+  it('solo reservas (0 check-ins): mosaico "Reservados (en lista)" + sin Nuevos/Habituales/VIP', async () => {
+    mockFetch({ status: 200, body: { summary: { ...SUMMARY, totalAttendances: 0, identifiedCount: 0, anonymousCount: 0, newcomers: 0, returning: 0, vipCount: 0, companionsChildren: 0, companionsAdults: 0, peopleInRoom: 0, newcomerRatio: 0, avgPriorAttendances: 0, reservedCount: 42, reservedPeople: 55, roomPct: 0 } } });
+    render(<ActivityDetailDrawer activity={ACT} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Reservados (en lista)')).toBeInTheDocument());
+    expect(screen.getByText('55 personas con cupo retenido')).toBeInTheDocument();
+    expect(screen.getByText('0% en sala')).toBeInTheDocument();
+    expect(screen.queryByText('Nuevos visitantes')).toBeNull();
+    expect(screen.queryByText('Habituales')).toBeNull();
+    expect(screen.queryByText(/VIPs presentes/)).toBeNull();
+  });
+
+  it('con check-ins y reservas: Asistencias usa roomPct y aparecen ambos mosaicos', async () => {
+    mockFetch({ status: 200, body: { summary: { ...SUMMARY, roomPct: 10, reservedCount: 2, reservedPeople: 3 } } });
+    render(<ActivityDetailDrawer activity={ACT} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Reservados (en lista)')).toBeInTheDocument());
+    expect(screen.getByText('10% en sala · 1 sin credencial')).toBeInTheDocument();
+    expect(screen.getByText('3 personas con cupo retenido')).toBeInTheDocument();
+    expect(screen.getByText('Nuevos visitantes')).toBeInTheDocument();
+  });
+
+  it('fila de aforo se llama "Aforo comprometido" con tooltip "incluye reservas"', async () => {
+    mockFetch({ status: 200, body: { summary: SUMMARY } });
+    render(<ActivityDetailDrawer activity={ACT} onClose={vi.fn()} />);
+    const label = await screen.findByText('Aforo comprometido');
+    expect(label.getAttribute('title')).toMatch(/incluye reservas/i);
+    expect(screen.queryByText('Ocupación')).toBeNull();
+  });
+
+  it('API vieja (sin reservedCount/roomPct): igual que antes, sin mosaico de reservados', async () => {
+    mockFetch({ status: 200, body: { summary: SUMMARY } });
+    render(<ActivityDetailDrawer activity={ACT} onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Resumen post-evento')).toBeInTheDocument());
+    expect(screen.getByText('80% en sala · 1 sin credencial')).toBeInTheDocument();
+    expect(screen.queryByText('Reservados (en lista)')).toBeNull();
   });
 });
