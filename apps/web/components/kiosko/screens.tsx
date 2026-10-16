@@ -12,6 +12,7 @@ import {
   Baby, Users, Info, Minus, Plus, Film, Music, MessagesSquare, Palette, Ban, RotateCcw,
   ShieldCheck, type LucideIcon,
 } from 'lucide-react';
+import { NumberField } from '../ui/arc/number-field/NumberField';
 import { KioskButton, TicketButton, KioskBackPill, FauxQr, cx, kioskFocus } from './ui';
 import { BorderBeam } from '../ui/BorderBeam';
 import { KioskClock } from './KioskClock';
@@ -68,20 +69,22 @@ function CompanionsControl({
 }
 
 function StepperRow({ icon, label, value, onChange }: { icon: React.ReactNode; label: string; value: number; onChange: (n: number) => void }) {
-  const stepBtn = cx('grid h-11 w-11 place-items-center rounded-xl bg-subtle text-ink disabled:opacity-40', kioskFocus);
   return (
     <div className="flex items-center gap-3">
       <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-brand-soft text-brand-text">{icon}</span>
       <span className="flex-1 text-ink">{label}</span>
-      <div className="flex items-center gap-3">
-        <button type="button" aria-label={`Quitar ${label.toLowerCase()}`} disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))} className={stepBtn}>
-          <Minus size={18} aria-hidden="true" />
-        </button>
-        <span className="num w-6 text-center text-lg font-semibold text-ink" aria-live="polite">{value}</span>
-        <button type="button" aria-label={`Agregar ${label.toLowerCase()}`} disabled={value >= MAX_CHILDREN} onClick={() => onChange(Math.min(MAX_CHILDREN, value + 1))} className={stepBtn}>
-          <Plus size={18} aria-hidden="true" />
-        </button>
-      </div>
+      <NumberField
+        size="kiosk"
+        editable={false}
+        hideLabel
+        label={label}
+        value={value}
+        onValueChange={onChange}
+        min={0}
+        max={MAX_CHILDREN}
+        decrementLabel={`Quitar ${label.toLowerCase()}`}
+        incrementLabel={`Agregar ${label.toLowerCase()}`}
+      />
     </div>
   );
 }
