@@ -5,7 +5,8 @@
 // component re-fetchea). Debounce en la búsqueda.
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useSearchParamsSafe } from '../../lib/navigation/safe';
 import { Search } from 'lucide-react';
 
 const STATUSES = [['', 'Todos los estados'], ['active', 'Activos'], ['suspended', 'Suspendidos'], ['trial_ended', 'Trial terminado']] as const;
@@ -13,7 +14,7 @@ const PLANS = [['', 'Todos los planes'], ['free', 'Free'], ['pro', 'Pro'], ['ent
 
 export function TenantsFilterBar({ q, status, plan }: { q: string; status: string; plan: string }) {
   const router = useRouter();
-  const sp = useSearchParams();
+  const sp = useSearchParamsSafe();
   const [text, setText] = useState(q);
   const first = useRef(true);
 

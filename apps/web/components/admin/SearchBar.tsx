@@ -6,7 +6,8 @@
 // el spinner indica navegación pendiente en el control. Sin client-fetch.
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathnameSafe, useSearchParamsSafe } from '../../lib/navigation/safe';
 import { Search, Loader2 } from 'lucide-react';
 import { cn, focusRing } from '../ui/cn';
 import { patchSearchParams } from '../../lib/admin/list-params';
@@ -20,8 +21,8 @@ export interface SearchBarProps {
 
 export function SearchBar({ label, placeholder, paramName = 'q', debounceMs = 300 }: SearchBarProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const sp = useSearchParams();
+  const pathname = usePathnameSafe();
+  const sp = useSearchParamsSafe();
   const urlValue = sp.get(paramName) ?? '';
 
   const [value, setValue] = useState(urlValue);

@@ -1,7 +1,8 @@
 'use client';
 
 import { useTransition } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathnameSafe, useSearchParamsSafe } from '../../lib/navigation/safe';
 import { ListFilter } from 'lucide-react';
 import { USER_COHORTS, type UserCohort } from '@contan2/contracts';
 import { parseCohort, patchSearchParams } from '../../lib/admin/list-params';
@@ -22,8 +23,8 @@ const LABELS: Record<UserCohort, string> = {
 
 export function RolFilterButton() {
   const router = useRouter();
-  const pathname = usePathname();
-  const sp = useSearchParams();
+  const pathname = usePathnameSafe();
+  const sp = useSearchParamsSafe();
   const [, startTransition] = useTransition();
   const active = parseCohort(sp.get('cohort') ?? undefined);
 

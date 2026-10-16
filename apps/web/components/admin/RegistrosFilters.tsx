@@ -6,7 +6,8 @@
 // separado (opción "Todas" / vaciar la fecha) o todos juntos.
 
 import { useTransition } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathnameSafe, useSearchParamsSafe } from '../../lib/navigation/safe';
 import { X } from 'lucide-react';
 import { cn, focusRing } from '../ui/cn';
 import { patchSearchParams } from '../../lib/admin/list-params';
@@ -18,8 +19,8 @@ export interface ActivityOption {
 
 export function RegistrosFilters({ activities }: { activities: ActivityOption[] }) {
   const router = useRouter();
-  const pathname = usePathname();
-  const sp = useSearchParams();
+  const pathname = usePathnameSafe();
+  const sp = useSearchParamsSafe();
   const [pending, startTransition] = useTransition();
 
   const activityId = sp.get('activityId') ?? '';

@@ -1,0 +1,45 @@
+/* styles/landing.css · CSS aislado de la landing (Pages Router). Solo escanea
+   los componentes de la landing y pages/: NO hereda el Tailwind de toda la app
+   (globals.css). Los nombres de token son los de app/globals.css; el diseño
+   final puede ajustar valores. */
+@import "tailwindcss" source(none);
+@source "../components/marketing/landing";
+@source "../pages";
+
+@theme static {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --color-brand: #f39228;
+  --color-brand-fg: #1f2326;
+  --color-brand-text: #ae5f0a;
+  --color-brand-soft: #fef4e8;
+  --color-brand-strong: #ae5f0a;
+  --color-focus: #ae5f0a;
+
+  --color-page: #fafaf9;
+  --color-surface: #ffffff;
+  --color-ink: #1f2326;
+  --color-muted: #636769;
+  --color-line: #e7e5e4;
+
+  --radius-card: 12px;
+  --ease-standard: cubic-bezier(.2,0,0,1);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+body {
+  background-color: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}

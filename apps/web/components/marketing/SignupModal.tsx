@@ -6,10 +6,9 @@
 
 import { useState, useEffect, useRef, useId, type FormEvent, type ReactNode, type KeyboardEvent as RKE } from 'react';
 import { createPortal } from 'react-dom';
-import { Fraunces } from 'next/font/google';
+import { fraunces } from '../../lib/marketing/fonts';
 import { X, Loader2, Mail, RotateCcw, Eye, EyeOff, Check, ArrowRight } from 'lucide-react';
 
-const fraunces = Fraunces({ subsets: ['latin'], weight: ['500', '600'], style: ['normal', 'italic'] });
 
 interface Props {
   open: boolean;

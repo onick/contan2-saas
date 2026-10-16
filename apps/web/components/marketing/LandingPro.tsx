@@ -1,4 +1,4 @@
-import { Fraunces } from 'next/font/google';
+import { fraunces } from '../../lib/marketing/fonts';
 import { ArrowRight } from 'lucide-react';
 import { SignupTrigger } from './SignupTrigger';
 
@@ -9,7 +9,6 @@ import { SignupTrigger } from './SignupTrigger';
 // imágenes viven en public/marketing/. CTAs abren el modal de registro
 // (SignupTrigger → SignupModal → POST /api/auth/signup).
 
-const fraunces = Fraunces({ subsets: ['latin'], weight: ['400', '500', '600'], style: ['normal', 'italic'] });
 
 const INK = '#16181d';
 const ACCENT = '#e65100';

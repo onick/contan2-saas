@@ -6,7 +6,7 @@
 // modo edición). Apertura por click de fila + teclado (↑/↓) + deep-link `?ver=`.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParamsSafe } from '../../lib/navigation/safe';
 import { UserProfileDrawer } from './UserProfileDrawer';
 import { cn, focusRing } from '../ui';
 
@@ -21,7 +21,7 @@ export function ProfileProvider({ children, canEdit = false }: { children: React
   const [editIntent, setEditIntent] = useState(false);
   const open = useCallback((c: string) => { setEditIntent(false); setCode(c); }, []);
   const openEdit = useCallback((c: string) => { setEditIntent(true); setCode(c); }, []);
-  const sp = useSearchParams();
+  const sp = useSearchParamsSafe();
   const consumedDeepLink = useRef(false);
 
   useEffect(() => {

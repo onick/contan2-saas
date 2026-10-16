@@ -6,7 +6,8 @@
 // anterior visible durante la navegación (useTransition).
 
 import { useTransition } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { usePathnameSafe, useSearchParamsSafe } from '../../lib/navigation/safe';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn, focusRing } from '../ui/cn';
 import { PAGE_SIZES, patchSearchParams, totalPages } from '../../lib/admin/list-params';
@@ -19,8 +20,8 @@ export interface PaginationProps {
 
 export function Pagination({ total, page, pageSize }: PaginationProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const sp = useSearchParams();
+  const pathname = usePathnameSafe();
+  const sp = useSearchParamsSafe();
   const [pending, startTransition] = useTransition();
 
   const pages = totalPages(total, pageSize);
