@@ -463,7 +463,7 @@ test.describe('BIB-06 circulacion', () => {
     expect(third.status).toBe(409);
   });
 
-  test('HIPOTESIS: renovar extiende +14 dias sobre el vencimiento, no lo recalcula desde hoy', { tag: '@write' }, async () => {
+  test('renovar extiende +14 dias sobre el vencimiento vigente (decision 6.8)', { tag: '@write' }, async () => {
     const l1 = await reader(1, 'empleado');
     const a1 = await item(1, 'Alfa');
     await resetReaders();
@@ -474,7 +474,7 @@ test.describe('BIB-06 circulacion', () => {
     expect(renewed.status).toBe(200);
     const gained = (new Date(renewed.json.loan.dueAt).getTime() - due0) / 86_400_000;
     await giveBack(a1.code);
-    expect(gained, 'el boton dice "Renovar (+14 dias)": renovar el mismo dia del prestamo no suma nada (due = hoy + 14)').toBeGreaterThanOrEqual(13);
+    expect(gained, 'el boton dice "Renovar (+14 dias)": renovar el mismo dia del prestamo mueve el vencimiento 14 dias (max(due, hoy) + 14)').toBeGreaterThanOrEqual(13);
   });
 
   test('devolver por UI (boton de la fila) y por escaneo (drawer Devolucion)', { tag: '@write' }, async ({ page }) => {

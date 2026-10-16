@@ -125,10 +125,14 @@ run('biblioteca · circulación F2', () => {
     expect(r.json().error).toContain('Límite');
   });
 
-  it('renovar: +14 días y contador; máximo 2; sala no se renueva', async () => {
+  it('renovar: +14 días sobre el vencimiento vigente y contador; máximo 2; sala no se renueva', async () => {
+    const due0 = new Date((await db.selectFrom('biblio_loans').select('due_at').where('id', '=', loanId).executeTakeFirstOrThrow()).due_at as unknown as string).getTime();
     const r1 = await req('POST', `/api/v2/biblio/loans/${loanId}/renew`, TOK.biblio, {});
     expect(r1.statusCode).toBe(200);
     expect(r1.json().loan.renewals).toBe(1);
+    // Decisión 6.8: renovar el MISMO día del préstamo mueve el vencimiento 14 días más allá del original.
+    const gained = (new Date(r1.json().loan.dueAt).getTime() - due0) / 86_400_000;
+    expect(gained).toBeGreaterThan(13.9); expect(gained).toBeLessThan(14.1);
     expect((await req('POST', `/api/v2/biblio/loans/${loanId}/renew`, TOK.biblio, {})).json().loan.renewals).toBe(2);
     expect((await req('POST', `/api/v2/biblio/loans/${loanId}/renew`, TOK.biblio, {})).statusCode).toBe(409); // máx 2
     // Sala no se renueva.
@@ -171,5 +175,15 @@ run('biblioteca · circulación F2', () => {
     expect(s.alerts.activeTotal).toBe(3);
     expect(s.alerts.overdue).toBe(0);
     expect(s.policy).toEqual({ loanDays: 14, maxRenewals: 2, maxOpenLoans: 3 });
+  });
+
+  it('renovar un préstamo VENCIDO cuenta los 14 días desde hoy, no desde el vencimiento viejo', async () => {
+    // C-3 quedó prestado por el test del límite. Va al final del archivo: no altera los conteos del resumen.
+    const loan = (await req('GET', '/api/v2/biblio/loans?tab=activos&q=' + encodeURIComponent(`C${stamp}-3`), TOK.biblio)).json().loans[0];
+    await db.updateTable('biblio_loans').set({ due_at: new Date(Date.now() - 30 * 86_400_000).toISOString() } as never).where('id', '=', loan.id).execute();
+    const r = await req('POST', `/api/v2/biblio/loans/${loan.id}/renew`, TOK.biblio, {});
+    expect(r.statusCode).toBe(200);
+    const days = (new Date(r.json().loan.dueAt).getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(13); expect(days).toBeLessThan(15.1);
   });
 });

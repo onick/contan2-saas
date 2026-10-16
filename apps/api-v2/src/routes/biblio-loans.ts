@@ -6,7 +6,7 @@
 //   GET  /biblio/loans/precheck   · valida carné/ejemplar ANTES de confirmar
 //   POST /biblio/loans            · prestar (domicilio 14 días · sala mismo día)
 //   POST /biblio/returns          · devolver por código de ejemplar (escaneo)
-//   POST /biblio/loans/:id/renew  · renovar (+14 días, máx 2)
+//   POST /biblio/loans/:id/renew  · renovar (+14 días sobre el vencimiento vigente, o desde hoy si ya venció; máx 2)
 //   GET  /biblio/readers/:id/loans · préstamos del lector (panel de Lectores)
 // Política F2 (constantes; configurable por tenant en fase posterior):
 // 14 días · máx 2 renovaciones · máx 3 préstamos abiertos por lector.
@@ -87,6 +87,11 @@ const LOAN_COLS = [
 // Vencimiento: fin del día en TZ del centro. Domicilio: +LOAN_DAYS; sala: hoy.
 const dueAtSql = (days: number) =>
   sql<string>`((date_trunc('day', now() at time zone ${TZ}) + ${`${days + 1} days`}::interval - interval '1 second') at time zone ${TZ})`;
+
+// Renovación (decisión 6.8): nuevo vencimiento = max(vencimiento vigente, hoy) + RENEW_DAYS,
+// a fin de día en TZ del centro. Si ya venció, cuenta desde hoy; si no, desde el vencimiento vigente.
+const renewedDueAtSql = (days: number) =>
+  sql<string>`((date_trunc('day', greatest(due_at, now()) at time zone ${TZ}) + ${`${days + 1} days`}::interval - interval '1 second') at time zone ${TZ})`;
 
 export const biblioLoansRoute: FastifyPluginAsync = async (app) => {
   async function gate(req: FastifyRequest, reply: { code: (n: number) => void }): Promise<{ ok: true; g: Guarded } | { ok: false; body: { error: string } }> {
@@ -382,7 +387,7 @@ export const biblioLoansRoute: FastifyPluginAsync = async (app) => {
       await db.updateTable('biblio_loans')
         .set({
           renewals: sql`renewals + 1`,
-          due_at: dueAtSql(RENEW_DAYS),
+          due_at: renewedDueAtSql(RENEW_DAYS),
           updated_at: sql`now()`,
         })
         .where('organization_id', '=', r.g.orgId).where('id', '=', id)
