@@ -10,7 +10,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, ClipboardEvent } from 'react';
-import { cn } from '../../cn';
+
+// Sin `cn` (clsx + tailwind-merge): /scanner es mobile-first y ese par pesa ~9 KB gz. Aquí no hay clases en conflicto.
+const cn = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' ');
 
 export interface OtpInputProps {
   value: string;
