@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import type { CSSProperties } from 'react';
+import { notFound } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
 import { InvitationPreviewResponseSchema } from '@contan2/contracts';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { resolvePublicBrandView } from '../../../lib/branding/public-brand';
 import { brandingToCssVars } from '../../../lib/branding/theme';
 import { getPublicBranding } from '../../../lib/api/kiosko';
 import { apiGet, ApiError } from '../../../lib/api/client';
@@ -10,7 +11,7 @@ import { AcceptInviteForm } from '../../../components/auth/AcceptInviteForm';
 import { BrandChip } from '../../../components/shell/BrandMark';
 
 // Aceptación de invitación de equipo (S1). Pública; el preview se resuelve
-// SERVER-side contra api-v2 (404/410 → estado honesto sin form). El shell
+// SERVER-side contra api-v2 (404/410 → notFound(): status HTTP 404, sin form). El shell
 // visual es el de /login.
 export const metadata: Metadata = {
   title: 'Invitación · Contan2',
@@ -23,11 +24,10 @@ const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Admin
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const branding = getLocalBranding();
+    const pub = await getPublicBranding();
+  // Host sin organización → marca neutra, nunca la del CCB (Q8-65).
+  const { branding, name: brandName, logoUrl } = resolvePublicBrandView(pub);
   const themeVars = brandingToCssVars(branding) as CSSProperties;
-  const pub = await getPublicBranding();
-  const brandName = pub?.name ?? branding.name;
-  const logoUrl = pub?.logoUrl ?? null;
 
   let preview: { email: string; fullName: string | null; role: string; organization: { name: string } | null } | null = null;
   let problem: string | null = null;
@@ -35,9 +35,11 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     const res = await apiGet(`/api/v2/auth/invitation/${encodeURIComponent(token)}`, InvitationPreviewResponseSchema);
     preview = res.invitation;
   } catch (e) {
-    problem = e instanceof ApiError && e.status === 410
-      ? 'Esta invitación ya fue usada, revocada o expiró. Pedí una nueva a quien te invitó.'
-      : 'Invitación no encontrada. Revisá el enlace o pedí una nueva.';
+    // Token inexistente o invitación revocada/usada/vencida → 404 real (antes
+    // era un 200 con el mensaje, Q8-71). Ver not-found.tsx. Mensaje neutro:
+    // no revela en qué estado está una invitación a quien tenga el enlace.
+    if (e instanceof ApiError && (e.status === 404 || e.status === 410)) notFound();
+    problem = 'No pudimos cargar la invitación. Intenta de nuevo en unos minutos.';
   }
 
   return (

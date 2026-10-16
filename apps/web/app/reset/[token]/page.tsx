@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { CSSProperties } from 'react';
-import { getLocalBranding } from '../../../lib/branding/config';
+import { resolvePublicBrandView } from '../../../lib/branding/public-brand';
 import { brandingToCssVars } from '../../../lib/branding/theme';
 import { getPublicBranding } from '../../../lib/api/kiosko';
 import { ResetForm } from '../../../components/auth/ResetForm';
@@ -17,11 +17,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function ResetPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const branding = getLocalBranding();
+    const pub = await getPublicBranding();
+  // Host sin organización → marca neutra, nunca la del CCB (Q8-65).
+  const { branding, name: brandName, logoUrl } = resolvePublicBrandView(pub);
   const themeVars = brandingToCssVars(branding) as CSSProperties;
-  const pub = await getPublicBranding();
-  const brandName = pub?.name ?? branding.name;
-  const logoUrl = pub?.logoUrl ?? null;
 
   return (
     <div style={themeVars} className="grid min-h-screen place-items-center bg-page px-5 py-10">

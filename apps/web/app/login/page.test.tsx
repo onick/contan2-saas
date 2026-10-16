@@ -1,9 +1,12 @@
 // apps/web/app/login/page.test.tsx · textos e identidad del login (presentación).
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+const pubState = vi.hoisted(() => ({ value: null as null | Record<string, unknown> }));
+vi.mock('../../lib/api/kiosko', () => ({ getPublicBranding: async () => pubState.value }));
+
 import LoginPage from './page';
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); pubState.value = null; });
 
 async function renderPage(next?: string) {
   const ui = await LoginPage({ searchParams: Promise.resolve(next ? { next } : {}) });
@@ -11,11 +14,22 @@ async function renderPage(next?: string) {
 }
 
 describe('/login', () => {
-  it('conserva la identidad y los textos en español', async () => {
+  it('host sin organización (API pública sin tenant): login NEUTRO, nunca la identidad del CCB (Q8-65)', async () => {
     await renderPage();
-    // Sin logo real (API pública no disponible en tests): BrandChip como fallback neutro.
     expect(screen.getByTestId('brand-chip')).toBeInTheDocument();
-    // Nombre del tenant en dos líneas (split por splitBrandName).
+    expect(screen.getByText('contan2')).toBeInTheDocument();
+    expect(screen.queryByText(/Banreservas|Centro Cultural/)).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('conserva la identidad y los textos en español', async () => {
+    pubState.value = {
+      name: 'Centro Cultural Banreservas', logoUrl: null, verticalLogoUrl: null,
+      primaryColor: '#f39228', secondaryColor: '#31a3db',
+    };
+    await renderPage();
+    expect(screen.getByTestId('brand-chip')).toBeInTheDocument();
+    // Nombre del tenant en dos líneas.
     expect(screen.getByText('Centro Cultural')).toBeInTheDocument();
     expect(screen.getByText('Banreservas')).toBeInTheDocument();
     expect(screen.getByRole('heading')).toBeInTheDocument();
