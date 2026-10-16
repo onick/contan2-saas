@@ -1,1 +1,63 @@
-/* components/ui/arc/date-range-picker/date-range-picker.css · estilos del porte (keyframes, @starting-style y estados compuestos). Lo llena el bloque correspondiente. */
+/* components/ui/arc/date-range-picker/date-range-picker.css · movimiento del selector de rango (porte de Arc Library, ver ../ATTRIBUTION.md).
+   Solo keyframes, @starting-style y estados compuestos; el resto vive en utilidades de Tailwind dentro del TSX.
+   Sin colores sueltos: todo sale de los tokens de marca. */
+
+/* Panel: crece desde el borde del trigger (Radix publica el origen). Sin @starting-style el panel aparece sin animar. */
+.arc-pop {
+  transform-origin: var(--radix-popover-content-transform-origin);
+  opacity: 1;
+  transition:
+    opacity var(--arc-dur-fast) var(--arc-ease-enter),
+    transform var(--arc-dur-standard) var(--arc-ease-enter);
+}
+@starting-style {
+  .arc-pop[data-state="open"] {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.arc-pop[data-state="closed"] {
+  opacity: 0;
+  transform: translateY(-2px) scale(0.99);
+  transition-duration: var(--arc-dur-exit);
+  /* Keyframe no-op: Radix espera a que termine antes de desmontar. */
+  animation: arc-exit var(--arc-dur-exit);
+}
+
+/* Meses: el conjunto desliza en la dirección del viaje (el mes anterior llega desde la izquierda). */
+.arc-drp-months[data-dir="1"] { animation: arc-drp-slide-next 280ms var(--arc-ease-enter) both; }
+.arc-drp-months[data-dir="-1"] { animation: arc-drp-slide-prev 280ms var(--arc-ease-enter) both; }
+@keyframes arc-drp-slide-next { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes arc-drp-slide-prev { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+
+/* Barras del rango: una por semana; se estiran con transiciones de left/width. */
+.arc-drp-bar {
+  position: absolute;
+  height: calc(var(--cell) - 6px);
+  background: var(--color-brand-soft);
+  transition:
+    left 300ms var(--arc-ease-standard),
+    width 300ms var(--arc-ease-standard),
+    opacity 160ms var(--arc-ease-enter);
+}
+.arc-drp-bar[data-empty] { opacity: 0; }
+
+/* Etiqueta del trigger: la palabra nueva sube al cambiar (no en el primer pintado). */
+.arc-drp-roll { display: inline-block; white-space: pre; }
+.arc-drp-roll[data-animate="true"] { animation: arc-drp-roll 260ms var(--arc-ease-enter) both; }
+@keyframes arc-drp-roll { from { opacity: 0; transform: translateY(0.45em); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .arc-pop,
+  .arc-pop[data-state="closed"] {
+    transition: none;
+    animation: none;
+    transform: none;
+  }
+  @starting-style {
+    .arc-pop[data-state="open"] { opacity: 1; transform: none; }
+  }
+  .arc-drp-months[data-dir],
+  .arc-drp-roll[data-animate="true"] { animation: none; }
+  .arc-drp-bar { transition: none; }
+}
