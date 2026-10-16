@@ -8,7 +8,7 @@ process.env.ROOT_DOMAIN = 'contan2.com';
 process.env.TRUST_PROXY = '1'; // IP por request → presupuesto de rate-limit aislado por test
 
 import { randomUUID } from 'node:crypto';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 import { createDb, type Database } from '@contan2/db';
@@ -72,15 +72,17 @@ run('slice público read-only (kiosko)', () => {
     ]).execute();
 
     const now = new Date().toISOString();
+    // Las activas llevan fecha/cierre FUTUROS: el job global de auto-finalize (otros archivos) no debe poder cerrarlas.
+    const future = new Date(Date.now() + 24 * 3_600_000).toISOString();
     await db.insertInto('activities').values([
       // Visible: activa + con cupo + póster.
-      { id: randomUUID(), organization_id: orgAId, name: 'Cine Foro Visible', type: 'Cine', category: 'Cine', location: 'Sala 1', date: now, capacity: 100, enrolled_count: 10, image_url: '/uploads/cine.jpg', status: 'activa' },
+      { id: randomUUID(), organization_id: orgAId, name: 'Cine Foro Visible', type: 'Cine', category: 'Cine', location: 'Sala 1', date: future, end_date: future, capacity: 100, enrolled_count: 10, image_url: '/uploads/cine.jpg', status: 'activa' },
       // Oculta: activa pero SIN cupo (enrolled == capacity).
-      { id: randomUUID(), organization_id: orgAId, name: 'Concierto Lleno', type: 'Concierto', location: 'Sala 2', date: now, capacity: 5, enrolled_count: 5, status: 'activa' },
+      { id: randomUUID(), organization_id: orgAId, name: 'Concierto Lleno', type: 'Concierto', location: 'Sala 2', date: future, end_date: future, capacity: 5, enrolled_count: 5, status: 'activa' },
       // Oculta: finalizada.
       { id: randomUUID(), organization_id: orgAId, name: 'Taller Pasado', type: 'Taller', location: 'Sala 3', date: now, capacity: 50, enrolled_count: 1, status: 'finalizada' },
       // De orgB (aislamiento): no debe verse desde host A.
-      { id: randomUUID(), organization_id: orgBId, name: 'Ajena Visible', type: 'Cine', location: 'Sala X', date: now, capacity: 80, enrolled_count: 0, status: 'activa' },
+      { id: randomUUID(), organization_id: orgBId, name: 'Ajena Visible', type: 'Cine', location: 'Sala X', date: future, end_date: future, capacity: 80, enrolled_count: 0, status: 'activa' },
     ]).execute();
 
     app = buildApp();
@@ -346,8 +348,7 @@ run('slice público read-only (kiosko)', () => {
   });
 
   it('x-forwarded-host: con TRUST_FORWARDED_HOST=1 resuelve el tenant por el header (detrás de proxy)', async () => {
-    const prev = process.env.TRUST_FORWARDED_HOST;
-    process.env.TRUST_FORWARDED_HOST = '1';
+    vi.stubEnv('TRUST_FORWARDED_HOST', '1');
     try {
       // Host = servicio interno (no-tenant); el host real del tenant va en el header.
       const res = await app.inject({
@@ -358,8 +359,7 @@ run('slice público read-only (kiosko)', () => {
       expect(res.statusCode).toBe(200);
       expect(PublicActivitiesResponseSchema.parse(res.json()).total).toBe(1); // la actividad de orgA
     } finally {
-      if (prev === undefined) delete process.env.TRUST_FORWARDED_HOST;
-      else process.env.TRUST_FORWARDED_HOST = prev;
+      vi.unstubAllEnvs();
     }
   });
 
