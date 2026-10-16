@@ -400,7 +400,7 @@ test.describe('ADM-20 · API caida por modulo: estado honesto, nunca demo', () =
   test('ADM-20a [S1] /app/check-in: con la API caida muestra error con reintento (honesto)', async ({ page }) => {
     const r = await offline(page, '/app/check-in');
     expect(r.text).toMatch(/Métricas no disponibles/);
-    expect(r.text).toMatch(/Sin conexión\. Reintentá\./);
+    expect(r.text).toMatch(/Sin conexión\. Reintenta\./);
     await expect(page.getByRole('button', { name: 'Refrescar' })).toBeVisible();
   });
 

@@ -57,7 +57,6 @@ test('RSVP-02b responder con token inválido (POST) es rechazado sin crear nada'
 });
 
 test('RSVP-02c el aviso de invitación no encontrada y el error de respuesta están en tuteo', async ({ page }) => {
-  test.fail(true, 'BUG H4 (S3): voseo "Revisá el enlace… pedí una invitación…" en components/rsvp/RsvpClient.tsx (también "podés", "acompañás", "Intentá"); el cliente es dominicano: tuteo');
   await spend('rsvp');
   await page.goto(`/rsvp/${'e2e0'.repeat(12)}`);
   await expect(page.getByText('Invitación no encontrada')).toBeVisible();
@@ -137,7 +136,7 @@ test.describe('RSVP-01 con token real', () => {
     await spend('rsvp', 3);
     await page.goto(`/rsvp/${token}?intent=no`);
     await page.getByRole('button', { name: 'No puedo' }).click();
-    await expect(page.getByText(/Quedó registrado que no podés asistir|no pod[ée]s asistir/)).toBeVisible();
+    await expect(page.getByText(/Quedó registrado que no puedes asistir|no pued[eé]s asistir/)).toBeVisible();
     await page.reload();
     await expect(page.getByRole('button', { name: 'No puedo' })).toHaveCount(0);
   });
