@@ -27,7 +27,7 @@ const CAT: Record<ProtocolCategory, { label: string; bg: string; text: string }>
 };
 const STATUS: Record<Guest['status'], { txt: string; cls: string }> = {
   attended: { txt: 'Asistió', cls: 'bg-success-bg text-success-fg' },
-  confirmed: { txt: 'Confirmó', cls: 'bg-success-bg text-success-fg' },
+  confirmed: { txt: 'Confirmado', cls: 'bg-success-bg text-success-fg' },
   pending: { txt: 'Invitado', cls: 'bg-surface-container text-muted' },
   declined: { txt: 'No puede', cls: 'bg-surface-container text-muted' },
   expired: { txt: 'Expirada', cls: 'bg-surface-container text-faint' },
@@ -85,6 +85,7 @@ export function ProtocolSection({ activityId, refreshKey }: { activityId: string
         {k.confirmed > 0 ? <> · <strong className="text-success-fg">{k.confirmed}</strong> confirmó{k.confirmed === 1 ? '' : 'n'}</> : null}
         {k.attended > 0 ? <> · <strong className="text-success-fg">{k.attended}</strong> asistió{k.attended === 1 ? '' : 'eron'}</> : null}
         {k.pending > 0 ? <> · <strong className="text-ink">{k.pending}</strong> sin responder</> : null}
+        {(k.seatsHeld ?? 0) > 0 ? <> · <strong className="text-ink">{k.seatsHeld}</strong> con asiento retenido</> : null}
         {k.declined > 0 ? <> · {k.declined} no puede{k.declined === 1 ? '' : 'n'}</> : null}
         {k.totalPartySize > 0 ? <> · <strong className="text-ink">{k.totalPartySize}</strong> persona{k.totalPartySize === 1 ? '' : 's'} esperada{k.totalPartySize === 1 ? '' : 's'}</> : null}
       </p>
@@ -93,7 +94,9 @@ export function ProtocolSection({ activityId, refreshKey }: { activityId: string
         <ul ref={listRef} className="mt-2 divide-y divide-line/70 border-t border-line/70">
           {data.guests.map((g) => {
             const m = CAT[g.category];
-            const st = STATUS[g.status];
+            const st = g.status === 'pending' && g.seatHeld
+              ? { txt: 'Invitado · asiento reservado', cls: STATUS.pending.cls }
+              : STATUS[g.status];
             return (
               <li key={g.userId} data-prow className="flex items-center gap-2.5 py-2">
                 <span className="grid h-8 w-8 flex-none place-items-center rounded-full text-[11px] font-bold" style={{ background: m.bg, color: m.text }}>

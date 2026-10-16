@@ -15,7 +15,14 @@ import { cn, focusRing } from '../ui';
 
 const WHEN = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-export function AttendeesSection({ activityId, canExport, onMutated, headerAction }: { activityId: string; canExport: boolean; onMutated?: () => void; headerAction?: ReactNode }) {
+const CLOCK = new Intl.DateTimeFormat('es-DO', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+type StatusFilter = 'all' | 'checked_in' | 'reserved';
+
+// Reserva (hold de Protocolo/RSVP) = fila sin check-in real (checkedInAt null).
+const isReserved = (a: AttendanceListItem) => a.checkedInAt == null;
+
+export function AttendeesSection({ activityId, canExport, onMutated, headerAction, activityStatus }: { activityId: string; canExport: boolean; onMutated?: () => void; headerAction?: ReactNode; activityStatus?: string }) {
   const { open } = useProfileActions();
   const router = useRouter();
   // Zafacón con confirmación en dos pasos (inline) — sólo owner/admin
@@ -27,11 +34,14 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
   const [items, setItems] = useState<AttendanceListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [people, setPeople] = useState(0); // filas + acompañantes
+  // Desglose del server (API nueva). Ausentes (API vieja) → se derivan de los items.
+  const [counts, setCounts] = useState<{ checkedIn?: number; reserved?: number; checkedInPeople?: number; reservedPeople?: number }>({});
+  const [filter, setFilter] = useState<StatusFilter>('all');
   const [q, setQ] = useState('');
 
   useEffect(() => {
     let ignore = false;
-    setPhase('loading'); setQ('');
+    setPhase('loading'); setQ(''); setFilter('all');
     void fetch(`/app/check-in/api/recent?activityId=${encodeURIComponent(activityId)}&limit=200`, { cache: 'no-store' })
       .then(async (r) => {
         if (ignore) return;
@@ -40,6 +50,7 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
         setItems(body.items);
         setTotal(body.total);
         setPeople(body.people ?? body.total);
+        setCounts({ checkedIn: body.checkedIn, reserved: body.reserved, checkedInPeople: body.checkedInPeople, reservedPeople: body.reservedPeople });
         setPhase('ready');
       })
       .catch(() => { if (!ignore) setPhase('error'); });
@@ -93,18 +104,31 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
         setEditError(res.status === 409 ? 'No hay cupo suficiente.' : (b?.error ?? 'No se pudo guardar.'));
       }
     } catch {
-      setEditError('Problema de red. Reintentá.');
+      setEditError('Problema de red. Reintenta.');
     } finally {
       setSaving(false);
     }
   }
 
+  // Check-ins primero (orden estable), reservas después.
+  const ordered = useMemo(
+    () => [...items.filter((i) => !isReserved(i)), ...items.filter(isReserved)],
+    [items],
+  );
+  const derivedCheckedIn = items.filter((i) => !isReserved(i)).length;
+  const checkedIn = counts.checkedIn ?? derivedCheckedIn;
+  const reserved = counts.reserved ?? items.length - derivedCheckedIn;
+  const checkedInPeople = counts.checkedInPeople ?? (counts.checkedIn !== undefined ? people : null);
+  const finished = activityStatus === 'finalizada';
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return items;
-    return items.filter((i) =>
-      `${i.firstName ?? ''} ${i.lastName ?? ''} ${i.userCode ?? ''}`.toLowerCase().includes(needle));
-  }, [items, q]);
+    return ordered.filter((i) => {
+      if (filter === 'checked_in' && isReserved(i)) return false;
+      if (filter === 'reserved' && !isReserved(i)) return false;
+      return !needle || `${i.firstName ?? ''} ${i.lastName ?? ''} ${i.userCode ?? ''}`.toLowerCase().includes(needle);
+    });
+  }, [ordered, q, filter]);
 
   return (
     <div className="mt-6">
@@ -113,7 +137,8 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
           <UsersRound size={13} strokeWidth={1.75} aria-hidden="true" /> Asistentes
           {phase === 'ready' ? (
             <span className="tabular-nums">
-              ({total}){people > total ? <span className="ml-1 normal-case text-muted">· {people} personas</span> : null}
+              ({checkedIn}){checkedInPeople !== null && checkedInPeople > checkedIn ? <span className="ml-1 normal-case text-muted">· {checkedInPeople} personas</span> : null}
+              {reserved > 0 ? <span className="ml-1 normal-case text-muted">· {reserved} reservado{reserved === 1 ? '' : 's'}</span> : null}
             </span>
           ) : null}
         </p>
@@ -138,6 +163,20 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
         <p className="mt-2 text-[13px] text-faint">Aún no hay asistentes registrados.</p>
       ) : (
         <>
+          {checkedIn === 0 ? (
+            <p className="mt-2 text-[13px] text-faint">Aún no llegó nadie · {reserved} en lista</p>
+          ) : null}
+          {reserved > 0 ? (
+            <div role="group" aria-label="Filtrar por estado" className="mt-2 flex flex-wrap gap-1.5">
+              {([['all', 'Todos', checkedIn + reserved], ['checked_in', 'Asistieron', checkedIn], ['reserved', 'Reservados', reserved]] as const).map(([key, label, n]) => (
+                <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)}
+                  className={cn('rounded-full border px-2.5 py-1 text-[12px] font-semibold tabular-nums transition-colors', focusRing,
+                    filter === key ? 'border-brand bg-accent-soft text-ink' : 'border-line bg-surface text-muted hover:text-ink')}>
+                  {label} <span className="text-faint">{n}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           {items.length > 8 ? (
             <label className="mt-2 flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
               <Search size={14} strokeWidth={1.75} aria-hidden="true" className="text-faint" />
@@ -158,7 +197,7 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
                         <Sparkle size={14} strokeWidth={1.75} aria-hidden="true" />
                       </span>
                       <span className="min-w-0 flex-1 text-[13px] text-muted">Sin credencial (walk-in)</span>
-                      <Meta a={a} />
+                      <Meta a={a} finished={finished} />
                     </div>
                   ) : (
                     <button
@@ -174,10 +213,10 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
                         <span className="block truncate text-[13px] font-medium text-ink">{a.firstName} {a.lastName}</span>
                         <span className="block font-mono text-[11px] tracking-wide text-faint">{a.userCode}</span>
                       </span>
-                      <Meta a={a} />
+                      <Meta a={a} finished={finished} />
                     </button>
                   )}
-                  {canExport ? (
+                  {canExport && !isReserved(a) ? (
                     confirmId === a.id ? (
                       <span className="flex flex-none items-center gap-1">
                         <button type="button" disabled={deleting === a.id} onClick={() => void removeAttendance(a.id)}
@@ -203,6 +242,9 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
                     )
                   ) : null}
                 </div>
+                {isReserved(a) ? (
+                  <p className="px-3 pb-2 text-[11px] text-faint">Se gestiona desde Invitaciones/Protocolo.</p>
+                ) : null}
                 {editId === a.id ? (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-surface-container/40 px-3 py-2.5">
                     <span className="text-[12px] font-semibold text-muted">Acompañantes</span>
@@ -226,7 +268,7 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
             ) : null}
           </ul>
           <p className="mt-1.5 text-[11px] text-faint">
-            Tocá un asistente para ver y editar su perfil.
+            Toca un asistente para ver y editar su perfil.
             {total > items.length ? ` Mostrando los ${items.length} más recientes de ${total} — el Excel los incluye a todos.` : ''}
           </p>
         </>
@@ -242,12 +284,16 @@ function companionLabel(a: AttendanceListItem): string | null {
   return parts.length ? parts.join(' ') : null;
 }
 
-function Meta({ a }: { a: AttendanceListItem }) {
+function Meta({ a, finished }: { a: AttendanceListItem; finished: boolean }) {
   const comp = companionLabel(a);
+  const reservation = isReserved(a);
   return (
     <span className="flex flex-none items-center gap-2 text-[11px] tabular-nums text-faint">
       {comp ? <span className="rounded-full bg-surface-container px-1.5 py-0.5 font-semibold text-muted">{comp}</span> : null}
-      {WHEN.format(new Date(a.registeredAt))}
+      {reservation
+        ? <span className="rounded-full bg-surface-container px-1.5 py-0.5 font-semibold text-muted">{finished ? 'No asistió' : 'Reservado (en lista)'}</span>
+        : <span className="rounded-full bg-success-bg px-1.5 py-0.5 font-semibold text-success-fg">Asistió {CLOCK.format(new Date(a.checkedInAt!))}</span>}
+      {WHEN.format(new Date(a.checkedInAt ?? a.registeredAt))}
     </span>
   );
 }
