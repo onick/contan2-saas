@@ -26,6 +26,8 @@ import { parsePage, parseSearch, parseCohort, parseUserStatusFilter, likeContain
 // propios endpoints, y Biblioteca por sus lectores; ninguno usa /users.
 const PADRON_READ_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'operator', 'consulta', 'puerta']);
 const CAN_WRITE_USER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+// Crear visitantes: paridad v1 → también operator (consola/alta manual). Puerta usa su propio flujo.
+const CAN_CREATE_USER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'operator']);
 
 // Reenvío de credencial: idempotencia en checkin_idempotency (endpoint dedicado) +
 // rate-limit por tenant + actor + IP. NUNCA envío masivo (1 visitante por request).
@@ -544,7 +546,10 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
   // RESEND_API_KEY) con resultado honesto. Auditoría user.created (sin PII).
   app.post('/users', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    // B9 (RBAC): crear personas en el padrón = owner/admin/operator (paridad v1,
+    // test 'roles: owner, admin Y operator pueden crear'). consulta/protocolo/
+    // biblioteca → 403. La puerta crea visitantes por su propio flujo gateado.
+    const guard = requireRole(await requireTenantStaff(db, req), CAN_CREATE_USER_ROLES, 'No tienes permiso para crear personas en el padrón.');
     if (!guard.ok) {
       reply.code(guard.status);
       return { error: guard.error };
