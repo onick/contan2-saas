@@ -43,6 +43,21 @@ describe('/login', () => {
     ).toBeInTheDocument();
   });
 
+  it('con logo del tenant NO repite el nombre en pantalla (queda solo para lectores de pantalla) y conserva el subtítulo', async () => {
+    pubState.value = {
+      name: 'Centro Cultural Banreservas', logoUrl: 'https://cdn.example/ccb-horizontal.png', verticalLogoUrl: null,
+      primaryColor: '#f39228', secondaryColor: '#31a3db',
+    };
+    await renderPage();
+    const img = screen.getByRole('img');
+    expect(img).toHaveAttribute('alt', 'Centro Cultural Banreservas');
+    const h1 = screen.getByRole('heading', { level: 1 });
+    expect(h1).toHaveTextContent('Centro Cultural Banreservas');
+    expect(h1.className).toContain('sr-only');
+    expect(screen.queryByText('Centro Cultural')).toBeNull(); // sin la versión en dos líneas visibles
+    expect(screen.getByText('Panel de administración')).toBeInTheDocument();
+  });
+
   it('no agrega Google ni registro; la recuperación es el único enlace (S1)', async () => {
     await renderPage();
     expect(screen.queryByText(/google/i)).toBeNull();

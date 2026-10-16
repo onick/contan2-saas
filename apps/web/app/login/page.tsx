@@ -78,13 +78,28 @@ export default async function LoginPage({
             ) : (
               <BrandChip slug={branding.slug} name={brandName} className="h-16 w-16 rounded-[12px]" />
             )}
-            <h1 className="mt-3 text-[19px] font-semibold leading-tight tracking-tight">
-              <span className="block text-muted">{nameLine1}</span>
-              {nameLine2 ? (
-                <span className="block font-light text-muted">{nameLine2}</span>
-              ) : null}
+            {/* Con logo del tenant el nombre ya está en la imagen: no se repite en
+                pantalla (queda como h1 solo para lectores de pantalla). Sin logo, el
+                nombre acompaña al chip de iniciales. */}
+            <h1
+              className={
+                logoUrl
+                  ? 'sr-only'
+                  : 'mt-3 text-[19px] font-semibold leading-tight tracking-tight'
+              }
+            >
+              {logoUrl ? (
+                brandName
+              ) : (
+                <>
+                  <span className="block text-muted">{nameLine1}</span>
+                  {nameLine2 ? (
+                    <span className="block font-light text-muted">{nameLine2}</span>
+                  ) : null}
+                </>
+              )}
             </h1>
-            <p className="mt-1 text-[13px] text-muted">Panel de administración</p>
+            <p className={logoUrl ? 'mt-3 text-[13px] text-muted' : 'mt-1 text-[13px] text-muted'}>Panel de administración</p>
           </header>
 
           <div className="mt-5 rounded-2xl border border-line bg-surface p-6 shadow-md sm:p-7">
