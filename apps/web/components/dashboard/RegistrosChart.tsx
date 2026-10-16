@@ -43,6 +43,8 @@ export function RegistrosChart({ series }: Props) {
   useDataAnim(rootRef, series);
 
   const items = sampleSeries(series);
+  // Rotular como mucho ~12 etiquetas del eje (1 de cada labelStep).
+  const labelStep = items.length > 12 ? Math.ceil(items.length / 12) : 1;
   const empty = items.length === 0 || items.every((i) => i.value === 0);
   const peak = empty ? -1 : items.reduce((b, it, i) => (it.value > items[b]!.value ? i : b), 0);
   const max = empty ? 1 : Math.max(1, ...items.map((i) => i.value));
@@ -103,18 +105,26 @@ export function RegistrosChart({ series }: Props) {
                 );
               })}
             </div>
+            {/* Eje: con muchos días (p.ej. 30) las etiquetas no caben a 820 px y
+                desbordaban la página. Cada celda es flex-1 + min-w-0 (nunca más ancha
+                que su columna) y, cuando hay más de 12, solo se rotula 1 de cada
+                `labelStep` (la resaltada siempre). */}
             <div className="mt-1.5 flex gap-px sm:gap-[3px]">
-              {items.map((it, k) => (
-                <span
-                  key={k}
-                  className={cn(
-                    'num flex-1 text-center text-[10px] tabular-nums transition-colors',
-                    hi === k ? 'font-bold text-ink' : 'text-faint',
-                  )}
-                >
-                  {it.label}
-                </span>
-              ))}
+              {items.map((it, k) => {
+                const show = hi === k || k % labelStep === 0;
+                return (
+                  <span
+                    key={k}
+                    aria-label={show ? undefined : it.label}
+                    className={cn(
+                      'num min-w-0 flex-1 overflow-hidden text-center text-[10px] tabular-nums transition-colors',
+                      hi === k ? 'font-bold text-ink' : 'text-faint',
+                    )}
+                  >
+                    {show ? it.label : '\u00a0'}
+                  </span>
+                );
+              })}
             </div>
           </>
         )}
