@@ -137,10 +137,8 @@ test.describe('Q1 cuenta', () => {
     }
   });
 
-  test('AUTH-07a BUG CONOCIDO: clic con mouse en "Cerrar sesion" del menu de usuario no cierra la sesion', async ({ browser, baseURL }) => {
-    // Observado: el clic cierra el menu (Radix) pero el <form> se desmonta antes del submit y nunca sale el POST a
-    // /api/auth/logout. Con teclado (Enter) si funciona. Esperado: /login. test.fail: pasa mientras el bug exista.
-    test.fail(true, 'Q1-01: TopbarUserMenu desmonta el form antes de que el clic lo envie');
+  test('AUTH-07a: clic con mouse en "Cerrar sesion" del menu de usuario cierra la sesion (Q8-63 corregido)', async ({ browser, baseURL }) => {
+    // Regresion de Q8-63: el POST sale desde onSelect (el <form> dentro del menu se desmontaba antes del submit).
     test.skip(!readState().resetPassword, 'no reproducible: sin clave de e2e-reset');
     const a = await openSessionA(browser, baseURL!);
     try {

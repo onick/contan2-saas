@@ -226,10 +226,8 @@ test.describe('Q1 sesion', () => {
     }
   });
 
-  test('AUTH-15b BUG CONOCIDO: GET /auth/me acepta la sesion de otro tenant (no valida el host)', async ({ browser, baseURL }) => {
-    // Hoy devuelve 200 con el staff de ccb aunque el host sea otro (o inexistente). Esperado: 401.
-    // test.fail: pasa mientras el bug exista; si alguien lo arregla, Playwright marca "expected to fail" y hay que quitar esto.
-    test.fail(true, 'Q1-02: apps/api-v2/src/routes/auth-me.ts no compara organizationId con el tenant del host');
+  test('AUTH-15b: GET /auth/me rechaza (401) la sesion de otro tenant (Q8-64 corregido)', async ({ browser, baseURL }) => {
+    // Q8-64: auth-me compara organizationId de la sesion con el tenant del host.
     const owner = statePath('owner');
     const token = (JSON.parse(readFileSync(owner, 'utf8')) as { cookies: Array<{ name: string; value: string }> }).cookies.find(
       (c) => c.name === SESSION_COOKIE,
