@@ -91,6 +91,7 @@ export function SessionsCard() {
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [sessions, setSessions] = useState<StaffSessionInfo[]>([]);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setPhase('loading');
@@ -109,9 +110,13 @@ export function SessionsCard() {
   async function revoke(id: string) {
     if (revoking) return;
     setRevoking(id);
+    setRevokeError(null);
     try {
       const res = await fetch(`/app/cuenta/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (res.status === 204) setSessions((ss) => ss.filter((s) => s.id !== id));
+      else setRevokeError('No pudimos cerrar esa sesión. Intenta de nuevo.');
+    } catch {
+      setRevokeError('No pudimos cerrar esa sesión. Revisa tu conexión e intenta de nuevo.');
     } finally {
       setRevoking(null);
     }
@@ -122,7 +127,7 @@ export function SessionsCard() {
       <h2 className="flex items-center gap-2 text-base font-bold tracking-tight text-ink">
         <MonitorSmartphone size={17} strokeWidth={2} aria-hidden="true" className="text-muted" /> Sesiones activas
       </h2>
-      <p className="mt-0.5 text-[13px] text-muted">Dónde está abierta tu cuenta. Cerrá las que no reconozcas.</p>
+      <p className="mt-0.5 text-[13px] text-muted">Dónde está abierta tu cuenta. Cierra las que no reconozcas.</p>
 
       {phase === 'loading' ? (
         <p className="mt-4 flex items-center gap-1.5 text-[13px] text-faint" aria-busy="true">
@@ -134,6 +139,10 @@ export function SessionsCard() {
           <Button type="button" variant="secondary" onClick={() => void load()}>Reintentar</Button>
         </div>
       ) : (
+        <>
+        {revokeError ? (
+          <p role="alert" className="mt-3 text-[13px] text-danger-fg">{revokeError}</p>
+        ) : null}
         <ul className="mt-4 divide-y divide-line">
           {sessions.map((s) => (
             <li key={s.id} className="flex items-center gap-3 py-3">
@@ -156,6 +165,7 @@ export function SessionsCard() {
             </li>
           ))}
         </ul>
+        </>
       )}
     </Card>
   );
