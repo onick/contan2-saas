@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { act } from 'react';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { hydrateRoot } from 'react-dom/client';
 import { CheckinConsole } from './CheckinConsole';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -141,6 +143,76 @@ describe('CheckinConsole', () => {
     expect(focus.closest('.checkin-rise')).toBeTruthy(); // tarjeta animada presente
     fireEvent.click(screen.getByRole('button', { name: /Quitar visitante/i }));
     expect(screen.queryByText(/Registrar a Sofía en/)).toBeNull(); // vuelve a la normalidad
+  });
+
+  it('actividad enfocada: la elegida en el selector manda sobre la primera por fecha y es la que se registra', async () => {
+    const act3 = { ...act1, id: 'A3', name: 'Taller de cerámica' };
+    const fn = installFetch({
+      metrics: okMetrics, activities: okActs([act1, act3]), visitors: () => J(200, { items: [visitor] }),
+      checkin: () => J(201, { code: 'CCB-7K2P9Q', visitCount: 5, partySize: 1, activity: { id: 'A3', name: 'Taller de cerámica' }, mode: 'existing' }),
+    });
+    render(<CheckinConsole />);
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sofia' } });
+    await settle(400);
+    fireEvent.click(await screen.findByText('Sofía Méndez'));
+    // la tarjeta se remonta al cambiar de actividad (key): se vuelve a consultar cada vez
+    const card = async () => (await screen.findByText(/Registrar a Sofía en/)).closest('.checkin-rise') as HTMLElement;
+    const select = within(await card()).getByRole('combobox') as HTMLSelectElement;
+    expect(select.value).toBe('A1'); // sin elección explícita: la primera activa
+    fireEvent.change(select, { target: { value: 'A3' } });
+    expect((await card()).textContent).toContain('Taller de cerámica');
+    // un refresco de actividades NO le quita la elección al staff
+    fireEvent.click(screen.getByRole('button', { name: 'Refrescar' }));
+    await settle(10);
+    expect((within(await card()).getByRole('combobox') as HTMLSelectElement).value).toBe('A3');
+    fireEvent.click(within(await card()).getByRole('button', { name: /Registrar/ }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Quedó auditado/i));
+    const post = fn.mock.calls.find((c) => String(c[0]).includes('/api/checkin'))!;
+    expect(JSON.parse((post[1] as { body: string }).body).activityId).toBe('A3');
+  });
+
+  it('al cambiar de visitante se descarta la actividad elegida (vuelve al criterio por defecto)', async () => {
+    const act3 = { ...act1, id: 'A3', name: 'Taller de cerámica' };
+    installFetch({ metrics: okMetrics, activities: okActs([act1, act3]), visitors: () => J(200, { items: [visitor] }) });
+    render(<CheckinConsole />);
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sofia' } });
+    await settle(400);
+    fireEvent.click(await screen.findByText('Sofía Méndez'));
+    fireEvent.change(within((await screen.findByText(/Registrar a Sofía en/)).closest('.checkin-rise') as HTMLElement).getByRole('combobox'), { target: { value: 'A3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Quitar visitante/i }));
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sofia' } });
+    await settle(400);
+    fireEvent.click(await screen.findByText('Sofía Méndez'));
+    const sel = within((await screen.findByText(/Registrar a Sofía en/)).closest('.checkin-rise') as HTMLElement).getByRole('combobox') as HTMLSelectElement;
+    expect(sel.value).toBe('A1');
+  });
+
+  it('hidratación (#418): el HTML de servidor (TZ=UTC) y el primer render de cliente coinciden', async () => {
+    const prevTz = process.env.TZ;
+    const errors: unknown[] = [];
+    const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    const prevAct = g.IS_REACT_ACT_ENVIRONMENT;
+    g.IS_REACT_ACT_ENVIRONMENT = true;
+    const spy = vi.spyOn(console, 'error').mockImplementation((...a) => { errors.push(a); });
+    try {
+      process.env.TZ = 'UTC';
+      const html = renderToString(<CheckinConsole />);
+      expect(html).toContain('--:--'); // el reloj no pinta "ahora" en el servidor
+      process.env.TZ = 'America/Santo_Domingo'; // el navegador está en hora DR
+      installFetch({ metrics: okMetrics, activities: okActs() });
+      const host = document.createElement('div');
+      host.innerHTML = html;
+      document.body.appendChild(host);
+      let root!: ReturnType<typeof hydrateRoot>;
+      await act(async () => { root = hydrateRoot(host, <CheckinConsole />, { onRecoverableError: (e) => errors.push(e) }); });
+      expect(errors).toEqual([]);
+      await act(async () => { root.unmount(); });
+      host.remove();
+    } finally {
+      if (prevTz === undefined) delete process.env.TZ; else process.env.TZ = prevTz;
+      g.IS_REACT_ACT_ENVIRONMENT = prevAct;
+      spy.mockRestore();
+    }
   });
 
   it('duplicado/cupo → 409 muestra error, sin éxito', async () => {

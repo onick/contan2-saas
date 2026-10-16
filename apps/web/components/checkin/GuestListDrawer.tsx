@@ -17,7 +17,7 @@ type Filter = 'pending' | 'arrived' | 'all';
 
 // Protocolo: designado (protocol_profiles, vía isProtocol) o invitación kind=protocol.
 const isProto = (i: Inv): boolean => i.isProtocol ?? i.kind === 'protocol';
-const fmtHour = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+const fmtHour = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santo_Domingo' });
 
 export function GuestListDrawer({ activity, onClose, onArrival }: {
   activity: CheckinActivityItem | null;
