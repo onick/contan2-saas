@@ -61,9 +61,10 @@ do update set used_at = null, expires_at = now() + interval '30 days';
 --    ejecutar purge-staging.sql (seccion invitado) o archivar la cuenta y re-sembrar.
 -- Re-armado idempotente: si la invitación anterior (mismo token) ya no está pendiente,
 -- se elimina para que el INSERT no choque con el UNIQUE de token_hash.
-delete from staff_invitations si using org
- where si.organization_id = org.id and si.email = 'e2e-invitado@test.local'
-   and si.token_hash = '{{INVITE_TOKEN_HASH}}' and si.status <> 'pending';
+delete from staff_invitations
+ where organization_id = (select id from organizations where slug = 'ccb')
+   and email = 'e2e-invitado@test.local'
+   and token_hash = '{{INVITE_TOKEN_HASH}}' and status <> 'pending';
 with org as (select id from organizations where slug = 'ccb'),
      inviter as (
        select sm.id from staff_members sm, org
