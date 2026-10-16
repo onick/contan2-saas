@@ -236,6 +236,7 @@ export function CirculacionClient({ initial, initialSummary }: {
             onValueChange={(v) => { setTab(v); setPage(1); }}
             tabs={CIRC_TABS}
           >
+            <TabsContent value={tab} className="flex flex-col gap-4 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
             {/* ── Búsqueda ── */}
             <label className={cn('flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-2.5', focusRing)}>
               <Search size={16} className="text-faint" aria-hidden="true" />
@@ -309,6 +310,7 @@ export function CirculacionClient({ initial, initialSummary }: {
                 </nav>
               ) : null}
             </div>
+            </TabsContent>
           </Tabs>
         </div>
       </div>

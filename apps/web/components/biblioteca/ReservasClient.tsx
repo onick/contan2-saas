@@ -15,7 +15,7 @@ import type {
 } from '@contan2/contracts';
 import {
   Card, Button, IconButton, Chip, EmptyState, SectionHeader, Sheet,
-  Tabs, DataTableClient, cn, focusRing,
+  Tabs, TabsContent, DataTableClient, cn, focusRing,
 } from '../ui';
 import type { DataTableColumn } from '../ui';
 
@@ -237,6 +237,7 @@ export function ReservasClient({ initial, initialSummary }: {
             onValueChange={(v) => { setTab(v); setPage(1); }}
             tabs={RESERVAS_TABS}
           >
+            <TabsContent value={tab} className="flex flex-col gap-4 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
             {/* ── Búsqueda ── */}
             <label className={cn('flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-2.5', focusRing)}>
               <Search size={16} className="text-faint" aria-hidden="true" />
@@ -325,6 +326,7 @@ export function ReservasClient({ initial, initialSummary }: {
                 </nav>
               ) : null}
             </div>
+            </TabsContent>
           </Tabs>
         </div>
       </div>
