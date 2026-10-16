@@ -371,6 +371,14 @@ export const ActivitySummarySchema = z.object({
   companionsChildren: z.number().int(), // niños acompañantes (suma)
   companionsAdults: z.number().int(), // adultos acompañantes (suma)
   peopleInRoom: z.number().int(), // asistencias + acompañantes (niños + adultos)
+  // Fix 2026-10 (reservas vs asistencias): TODOS los campos de arriba cuentan SOLO
+  // check-ins reales (attendance.checked_in_at IS NOT NULL). Las RESERVAS (holds de
+  // protocolo/RSVP: checked_in_at NULL) viven aparte. occupancyPct sigue siendo
+  // enrolled_count/capacity = AFORO COMPROMETIDO (incluye reservas). Opcionales por
+  // compatibilidad: la web vieja ignora lo que no conoce; la web nueva tolera API vieja.
+  reservedCount: z.number().int().optional(),   // filas en lista sin llegar
+  reservedPeople: z.number().int().optional(),  // reservas + sus acompañantes = cupo retenido
+  roomPct: z.number().int().optional(),         // round(peopleInRoom / capacity * 100)
 });
 export type ActivitySummary = z.infer<typeof ActivitySummarySchema>;
 export const ActivitySummaryResponseSchema = z.object({ summary: ActivitySummarySchema });
@@ -932,6 +940,12 @@ export const AttendanceListResponseSchema = z.object({
   // PERSONAS del filtro: total de filas + acompañantes (niños+adultos). Optional
   // por compat con clientes viejos; el server siempre lo manda.
   people: z.number().int().optional(),
+  // Fix 2026-10: desglose reservas vs check-ins bajo los MISMOS filtros (ignoran el
+  // query `status`). El estado por fila se deriva de checkedInAt != null.
+  checkedIn: z.number().int().optional(),
+  reserved: z.number().int().optional(),
+  checkedInPeople: z.number().int().optional(),
+  reservedPeople: z.number().int().optional(),
   limit: z.number().int(),
   offset: z.number().int(),
 });
@@ -1094,6 +1108,10 @@ export const CheckinActivityItemSchema = z.object({
   guestList: z.object({ total: z.number().int(), arrived: z.number().int() }).nullable().optional(),
   // Tipo de público → la puerta sabe si los acompañantes son niños o adultos.
   audience: ActivityAudienceSchema.optional(),
+  // Fix 2026-10: enrolledCount = aforo comprometido (incluye reservas). Para la
+  // etiqueta "en sala" la puerta usa inRoom (check-ins + acompañantes) y heldPeople.
+  inRoom: z.number().int().optional(),
+  heldPeople: z.number().int().optional(),
 });
 export type CheckinActivityItem = z.infer<typeof CheckinActivityItemSchema>;
 export const CheckinActivitiesResponseSchema = z.object({
@@ -1215,10 +1233,11 @@ export const ReportAttendanceRowSchema = z.object({
   status: z.string(),
   capacity: z.number().int(),
   enrolledCount: z.number().int(),
-  attendances: z.number().int(),
+  attendances: z.number().int(), // check-ins reales
   people: z.number().int(),
   anonymous: z.number().int(),
   occupancyPct: z.number().int(),
+  reserved: z.number().int().optional(), // Fix 2026-10: reservas sin check-in
 });
 export type ReportAttendanceRow = z.infer<typeof ReportAttendanceRowSchema>;
 
@@ -1413,6 +1432,10 @@ export const ActivityProtocolGuestSchema = z.object({
   status: z.enum(['pending', 'confirmed', 'declined', 'expired', 'canceled', 'attended']),
   plusOnes: z.number().int(), partySize: z.number().int(),
   attended: z.boolean(), sentAt: z.string().nullable(), respondedAt: z.string().nullable(),
+  // Fix 2026-10: attended = check-in REAL (checked_in_at). seatHeld = tiene asiento
+  // reservado (hold) y todavía no llegó.
+  seatHeld: z.boolean().optional(),
+  checkedInAt: z.string().nullable().optional(),
 });
 export type ActivityProtocolGuest = z.infer<typeof ActivityProtocolGuestSchema>;
 
@@ -1424,6 +1447,7 @@ export const ActivityProtocolListResponseSchema = z.object({
   kpis: z.object({
     invited: z.number().int(), confirmed: z.number().int(), attended: z.number().int(),
     declined: z.number().int(), pending: z.number().int(), totalPartySize: z.number().int(),
+    seatsHeld: z.number().int().optional(), // Σ(1+acompañantes) de holds sin check-in
   }),
   guests: z.array(ActivityProtocolGuestSchema),
 });
