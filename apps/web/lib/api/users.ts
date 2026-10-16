@@ -13,7 +13,7 @@ import { apiGet } from './client';
 import { toApiQuery, type UserStatusFilter } from '../admin/list-params';
 import type { UserRow, RowTone } from '../usuarios/demoData';
 
-const DATE_FMT = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric' });
+const DATE_FMT = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Santo_Domingo' });
 
 // Relativo simple desde una fecha ISO ("hoy", "hace N días/semanas/meses").
 function relativeAgo(iso: string): string {

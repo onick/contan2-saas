@@ -1,5 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { hydrateRoot } from 'react-dom/client';
+import { act } from 'react';
 
 // RowActions (por fila) usa useRouter; ProfileProvider, useSearchParams.
 vi.mock('next/navigation', () => ({
@@ -60,6 +63,53 @@ describe('UsersTable', () => {
       }
       // Sin posición absoluta ni fixed que cause solapamiento
       expect(verBtn.className).not.toMatch(/\babsolute\b|\bfixed\b/);
+    }
+  });
+});
+
+describe('UsersTable · hidratación (#418)', () => {
+  // `users.ts` entrega `registeredAt` ya formateado ("13 oct 2026"). Re-parsearlo con
+  // new Date() usa la TZ del proceso: UTC en el servidor → "12/10/2026" en hora DR
+  // vs "13/10/2026" en el navegador DR.
+  const row = { ...USERS[0]!, registeredAt: '13 oct 2026', lastVisit: 'hace 2 días' };
+
+  it('el HTML de servidor (TZ=UTC) y el de cliente (TZ=DR) son idénticos', () => {
+    const prev = process.env.TZ;
+    try {
+      process.env.TZ = 'UTC';
+      const server = renderToString(<UsersTable users={[row]} />);
+      process.env.TZ = 'America/Santo_Domingo';
+      const client = renderToString(<UsersTable users={[row]} />);
+      expect(client).toBe(server);
+      expect(server).toContain('13 oct 2026');
+    } finally {
+      if (prev === undefined) delete process.env.TZ; else process.env.TZ = prev;
+    }
+  });
+
+  it('hidrata sin errores recuperables', async () => {
+    const prev = process.env.TZ;
+    const errors: unknown[] = [];
+    const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    const prevAct = g.IS_REACT_ACT_ENVIRONMENT;
+    g.IS_REACT_ACT_ENVIRONMENT = true;
+    const spy = vi.spyOn(console, 'error').mockImplementation((...a) => { errors.push(a); });
+    try {
+      process.env.TZ = 'UTC';
+      const html = renderToString(<UsersTable users={[row]} />);
+      process.env.TZ = 'America/Santo_Domingo';
+      const host = document.createElement('div');
+      host.innerHTML = html;
+      document.body.appendChild(host);
+      let root!: ReturnType<typeof hydrateRoot>;
+      await act(async () => { root = hydrateRoot(host, <UsersTable users={[row]} />, { onRecoverableError: (e) => errors.push(e) }); });
+      expect(errors).toEqual([]);
+      await act(async () => { root.unmount(); });
+      host.remove();
+    } finally {
+      if (prev === undefined) delete process.env.TZ; else process.env.TZ = prev;
+      g.IS_REACT_ACT_ENVIRONMENT = prevAct;
+      spy.mockRestore();
     }
   });
 });

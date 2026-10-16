@@ -17,8 +17,8 @@ import { Button, IconButton, Chip, cn, focusRing, useDrawerLifecycle, type ChipT
 type Async<T> = { phase: 'loading' } | { phase: 'error'; error: string } | { phase: 'ready'; data: T };
 const HISTORY_PAGE = 10;
 
-const ABS = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric' });
-const TIME = new Intl.DateTimeFormat('es', { hour: 'numeric', minute: '2-digit' });
+const ABS = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Santo_Domingo' });
+const TIME = new Intl.DateTimeFormat('es', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Santo_Domingo' });
 // "9 jun 2026 · 4:12 p. m." (paridad v1: fecha + hora exacta del evento).
 const fmtDateTime = (iso: string): string => { const d = new Date(iso); return `${ABS.format(d)} · ${TIME.format(d)}`; };
 function relAgo(iso: string | null): string {
