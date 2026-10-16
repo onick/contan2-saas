@@ -12,9 +12,10 @@
 // como data URI para que el PDF sea self-contained.
 // =============================================================================
 
-import { generatePalette, pickOn } from '../branding-tokens.js';
+import { esc, pdfCover, pdfShellCss, pdfTheme } from './pdf-shell.js';
 import { loadLogoDataUri } from '../credential.js';
 import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
+import { occupancyPct, peopleOf } from './metrics.js';
 
 
 const TYPE_LABELS = {
@@ -27,9 +28,6 @@ const STATUS_LABELS = {
   activa: 'Activa', finalizada: 'Finalizada', cancelada: 'Cancelada', borrador: 'Borrador',
 };
 
-const esc = s => String(s ?? '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -58,16 +56,10 @@ function categoryFor(prior) {
 }
 
 export async function buildActivityPdfHtml({ organization, activity, attendances, users, affinities, protocol }) {
-  const palette = generatePalette(organization.primaryColor || '#f39228') || {};
-  const primary = palette['700'] || organization.primaryColor || '#f39228';
-  const primaryLight = palette['50'] || '#fef4e8';
-  const primary100 = palette['100'] || '#fde6c8';
-  const primary900 = palette['900'] || '#7a3300';
-  const accent = organization.secondaryColor || '#31a3db';
+  const theme = pdfTheme(organization);
+  const { primary, primary900, accent } = theme;
   const accentLight = '#fff4e6';
-  const onPrimary = pickOn(primary);
-  const onAccent = pickOn(accent);
-  const logo = await loadLogoDataUri(organization.logoUrl);
+  const logo = await loadLogoDataUri(organization.credentialLogoUrl || organization.logoUrl);
 
   // Asistencia = check-in real (checkedInAt). Las filas sin checkedInAt son
   // RESERVAS (holds de protocolo/RSVP): se listan con Estado "Reservado" y no
@@ -77,10 +69,11 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
   attendances.forEach((a, i) => { if (isSeated(a)) seatedIdx.push(i); });
   const total = seatedIdx.length;
   const heldCount = attendances.length - total;
+  const peopleInRoom = seatedIdx.reduce((n, i) => n + peopleOf(attendances[i]), 0);
   const newcomers = seatedIdx.filter(i => (affinities[i]?.totalAttendances ?? 0) === 1).length;
   const returning = total - newcomers;
   const vip = seatedIdx.filter(i => (affinities[i]?.totalAttendances ?? 0) >= 10).length;
-  const showUpPct = activity.capacity ? Math.round((total / activity.capacity) * 100) : 0;
+  const showUpPct = occupancyPct(peopleInRoom, activity.capacity);
 
   // Histograma por hora
   const byHour = new Map();
@@ -130,61 +123,10 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
 <meta charset="utf-8" />
 <title>Informe de asistencia · ${esc(activity.name)}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
-  * { box-sizing: border-box; }
-  :root {
-    --primary: ${primary};
-    --primary-light: ${primaryLight};
-    --primary-100: ${primary100};
-    --primary-900: ${primary900};
-    --accent: ${accent};
-    --accent-light: ${accentLight};
-    --on-primary: ${onPrimary};
-    --on-accent: ${onAccent};
-    --text: #1f2937;
-    --text-muted: #6b7280;
-    --border: #e5e7eb;
-    --surface: #ffffff;
-    --surface-alt: #f9fafb;
-  }
-  html, body { font-family: 'Inter', system-ui, sans-serif; color: var(--text); margin: 0; }
-  body { font-size: 11px; line-height: 1.45; }
-  h1, h2, h3 { margin: 0; font-weight: 700; color: var(--text); }
-  .eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text-muted); }
-
-  /* === Cover === */
-  .cover {
-    position: relative;
-    padding: 32px 32px 24px;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-900) 100%);
-    color: var(--on-primary);
-    border-radius: 14px;
-    overflow: hidden;
-  }
-  .cover::after {
-    content: '';
-    position: absolute;
-    right: -80px; top: -80px;
-    width: 320px; height: 320px;
-    background: var(--accent);
-    opacity: 0.18;
-    border-radius: 50%;
-    filter: blur(0.5px);
-  }
-  .cover-head {
-    display: flex; align-items: center; gap: 18px;
-    position: relative; z-index: 1;
-  }
-  .cover-logo {
-    width: 72px; height: 72px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .cover-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
-  .cover-org { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; opacity: 0.85; }
-  .cover-title { font-size: 26px; font-weight: 800; line-height: 1.15; margin-top: 4px; }
-  .cover-subtitle { margin-top: 18px; font-size: 12px; opacity: 0.9; position: relative; z-index: 1; }
-
+${pdfShellCss(theme)}
+  .kpis { grid-template-columns: repeat(4, 1fr); }
+  .kpi { padding: 13px 14px 12px; }
+  .kpi-value { font-size: 24px; }
   /* === Activity card === */
   .activity-card {
     margin-top: 18px;
@@ -230,39 +172,6 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
   }
   .activity-meta dt { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; }
   .activity-meta dd { font-size: 12px; font-weight: 600; margin: 1px 0 0; }
-
-  /* === KPIs === */
-  .kpis {
-    margin-top: 18px;
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-  }
-  .kpi {
-    background: var(--primary-light);
-    border-radius: 10px;
-    padding: 14px 16px;
-    border-left: 4px solid var(--primary);
-  }
-  .kpi.accent { border-left-color: var(--accent); }
-  .kpi-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; }
-  .kpi-value { font-size: 26px; font-weight: 800; color: var(--primary); line-height: 1; margin-top: 4px; }
-  .kpi.accent .kpi-value { color: var(--accent); }
-  .kpi-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
-
-  /* === Section heads === */
-  .section { margin-top: 22px; }
-  .section h2 {
-    font-size: 13px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--primary);
-    margin-bottom: 10px;
-    padding-bottom: 6px;
-    border-bottom: 2px solid var(--primary);
-    display: inline-block;
-  }
 
   /* === Análisis === */
   .analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -317,56 +226,16 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
   table.attendees .idx { color: var(--text-muted); text-align: center; width: 24px; }
   table.attendees .code { font-family: ui-monospace, Menlo, monospace; font-weight: 700; }
   table.attendees .num { font-variant-numeric: tabular-nums; }
-  .tag {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    white-space: nowrap;
-  }
   .tag--new { background: var(--accent); color: var(--on-accent); }
   .tag--vip { background: var(--primary); color: var(--on-primary); }
   tr.held td { color: var(--text-muted); font-style: italic; }
   .tag--reg { background: #e5e7eb; color: #374151; }
 
-  /* Page break antes de tabla larga */
-  .page-break { page-break-before: always; }
-
-  /* Footer (Puppeteer header/footer template usa otro mecanismo, este es solo
-     para impresión web). */
-  .footnote {
-    margin-top: 18px;
-    padding-top: 10px;
-    border-top: 1px solid var(--border);
-    font-size: 9px;
-    color: var(--text-muted);
-    font-style: italic;
-  }
-
-  /* Empty state */
-  .empty {
-    text-align: center;
-    padding: 24px;
-    color: var(--text-muted);
-    font-style: italic;
-  }
 </style>
 </head>
 <body>
 
-<section class="cover">
-  <div class="cover-head">
-    ${logo ? `<div class="cover-logo"><img src="${logo}" alt="" /></div>` : ''}
-    <div>
-      <div class="cover-org">${esc(organization.name)}</div>
-      <div class="cover-title">Informe de Asistencia</div>
-    </div>
-  </div>
-  <div class="cover-subtitle">Generado el ${esc(fmtNow())}</div>
-</section>
+${pdfCover({ logo, orgName: organization.name, title: 'Informe de Asistencia', eyebrow: esc(activity.name), range: fmtDate(activity.date), subtitle: `Generado el ${fmtNow()}` })}
 
 <section class="activity-card">
   <div class="activity-card-head">
@@ -393,7 +262,7 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
   <div class="kpi">
     <div class="kpi-label">% Ocupación</div>
     <div class="kpi-value">${showUpPct}%</div>
-    <div class="kpi-sub">capacidad ${activity.capacity}</div>
+    <div class="kpi-sub">${peopleInRoom} en sala · capacidad ${activity.capacity}</div>
   </div>
   <div class="kpi">
     <div class="kpi-label">Reservados (en lista)</div>
