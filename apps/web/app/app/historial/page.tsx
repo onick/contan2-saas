@@ -32,7 +32,7 @@ export default async function HistorialPage() {
       <Unavailable
         inline
         title="Acceso restringido"
-        description="El historial de auditoría es para propietarios y administradores. Si crees que es un error, pedile acceso a un administrador."
+        description="El historial de auditoría es para propietarios y administradores. Si crees que es un error, pídele acceso a un administrador."
       />,
     );
   }

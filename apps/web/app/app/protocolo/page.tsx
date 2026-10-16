@@ -34,7 +34,7 @@ export default async function ProtocoloPage() {
       <Unavailable
         inline
         title="Protocolo no disponible"
-        description="No pudimos cargar el directorio de invitados especiales. Si tu rol no tiene acceso a protocolo, pedile a un administrador que te habilite."
+        description="No pudimos cargar el directorio de invitados especiales. Si tu rol no tiene acceso a protocolo, pídele a un administrador que te habilite."
       />,
     );
   }
