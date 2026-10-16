@@ -210,6 +210,9 @@ test.describe('ADM-05/06/09 · eliminar, invitaciones y asistencia (API + UI)', 
   });
 
   test('ADM-06 [S1] invitaciones: invitar del padron, importar CSV, cancelar; "Asistio" derivado del check-in', { tag: '@write' }, async ({ page }) => {
+    // El import de invitados tiene límite 3/min compartido: withRateLimitRetry puede esperar
+    // hasta ~62 s por intento; el timeout por defecto (45 s) lo cortaba.
+    test.setTimeout(180_000);
     // a) invitar a v2 (padron) -> aparece pendiente.
     const inv = await api.post(`${apiActivity(act.id)}/invite-existing`, { data: { userIds: [v2.id] } });
     expect(inv.status()).toBe(201);
