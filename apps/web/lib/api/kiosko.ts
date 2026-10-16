@@ -13,6 +13,7 @@ import {
   type PublicActivity,
   type PublicBrandingResponse,
   type PublicVisitor,
+  type PublicVisitorSuggestion,
 } from '@contan2/contracts';
 import { apiGet, ApiError } from './client';
 import { forwardingHeaders } from './forwarded';
@@ -62,6 +63,21 @@ export function toKioskVisitor(v: PublicVisitor): KioskVisitor {
     firstName: v.firstName,
     lastName: v.lastName,
     code: v.code,
+    visitCount: v.visitCount,
+    isNew: false,
+    companionsChildren: 0,
+  };
+}
+
+// Sugerencia del typeahead → KioskVisitor SIN code (KIO-03): apellido abreviado,
+// pista de código e id opaco. El code real nunca llega al navegador por acá.
+export function toKioskSuggestion(v: PublicVisitorSuggestion): KioskVisitor {
+  return {
+    firstName: v.firstName,
+    lastName: v.lastName,
+    code: '',
+    codeHint: v.codeHint,
+    suggestionId: v.suggestionId,
     visitCount: v.visitCount,
     isNew: false,
     companionsChildren: 0,
@@ -158,7 +174,7 @@ export async function suggestKioskVisitors(q: string): Promise<KioskVisitor[]> {
       `/api/v2/public/users/suggest?q=${encodeURIComponent(q)}`,
       PublicVisitorSuggestResponseSchema,
     );
-    return suggestions.map(toKioskVisitor);
+    return suggestions.map(toKioskSuggestion);
   } catch {
     return [];
   }

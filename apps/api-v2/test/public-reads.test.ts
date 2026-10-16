@@ -91,6 +91,7 @@ run('slice público read-only (kiosko)', () => {
     if (app) await app.close();
     for (const id of [orgAId, orgBId, orgSId]) {
       if (!id) continue;
+      await db.deleteFrom('attendance').where('organization_id', '=', id).execute();
       await db.deleteFrom('activities').where('organization_id', '=', id).execute();
       await db.deleteFrom('users').where('organization_id', '=', id).execute();
       await db.deleteFrom('organizations').where('id', '=', id).execute();
@@ -211,11 +212,16 @@ run('slice público read-only (kiosko)', () => {
     const res = await get('/api/v2/public/users/suggest?q=ana', hostA);
     expect(res.statusCode).toBe(200);
     const out = PublicVisitorSuggestResponseSchema.parse(res.json());
-    const codes = out.suggestions.map((s) => s.code);
-    expect(codes).toContain('CCB-ANA001');
-    expect(codes).toContain('CCB-ANA002');
+    const hints = out.suggestions.map((s) => s.codeHint);
+    expect(hints).toContain('•••001');
+    expect(hints).toContain('•••002');
     // ordenadas por visitas desc: ANA001 (5) antes que ANA002 (1)
-    expect(out.suggestions[0]!.code).toBe('CCB-ANA001');
+    expect(out.suggestions[0]!.codeHint).toBe('•••001');
+    // KIO-03: nombre abreviado, jamás el code completo ni el apellido entero
+    expect(out.suggestions[0]!.lastName).toBe('P.');
+    expect(res.body).not.toContain('CCB-ANA');
+    expect(res.body).not.toContain('Pérez');
+    expect(res.body).not.toContain('"code"');
     // anti-leak PII: shape mínimo, sin email/teléfono en el body
     expect(res.body).not.toContain('@');
     expect(res.body).not.toContain('phone');
@@ -226,7 +232,7 @@ run('slice público read-only (kiosko)', () => {
     const res = await get(`/api/v2/public/users/suggest?q=${encodeURIComponent('visitante.pub@')}`, hostA);
     expect(res.statusCode).toBe(200);
     const out = PublicVisitorSuggestResponseSchema.parse(res.json());
-    expect(out.suggestions.some((s) => s.code === codeU1)).toBe(true);
+    expect(out.suggestions.some((s) => s.codeHint === '•••001' && s.firstName === 'Carmen')).toBe(true);
     // el email de orgB no debe verse desde host A
     const cross = PublicVisitorSuggestResponseSchema.parse((await get(`/api/v2/public/users/suggest?q=${encodeURIComponent('ajeno@b.do')}`, hostA)).json());
     expect(cross.suggestions).toHaveLength(0);
@@ -243,11 +249,54 @@ run('slice público read-only (kiosko)', () => {
     // '809-555-0001' de Carmen: prefijo con separadores y sin ellos.
     for (const q of ['8095550', '809-555', '(809) 555']) {
       const out = PublicVisitorSuggestResponseSchema.parse((await get(`/api/v2/public/users/suggest?q=${encodeURIComponent(q)}`, hostA)).json());
-      expect(out.suggestions.some((s) => s.code === codeU1)).toBe(true);
+      expect(out.suggestions.some((s) => s.codeHint === '•••001' && s.firstName === 'Carmen')).toBe(true);
       // anti-leak: el body jamás incluye el teléfono
     }
     const short = PublicVisitorSuggestResponseSchema.parse((await get('/api/v2/public/users/suggest?q=809', hostA)).json());
     expect(short.suggestions).toHaveLength(0);
+  });
+
+  // ── KIO-03: el id opaco de sugerencia permite el check-in sin exponer el code ──
+  const suggestFor = async (q: string, host = hostA) =>
+    PublicVisitorSuggestResponseSchema.parse((await get(`/api/v2/public/users/suggest?q=${encodeURIComponent(q)}`, host)).json()).suggestions;
+  const postCheckin = (body: unknown, host = hostA) =>
+    app.inject({ method: 'POST', url: '/api/v2/public/checkin', headers: { host, 'x-forwarded-for': `10.9.${Math.floor(ipSeq / 250)}.${(ipSeq++ % 250) + 1}` }, payload: body as object });
+  const visibleActivity = async () =>
+    (await db.selectFrom('activities').select('id').where('organization_id', '=', orgAId).where('name', '=', 'Cine Foro Visible').executeTakeFirstOrThrow()).id;
+
+  it('suggestionId permite el check-in y resuelve al code real en el servidor', async () => {
+    const [ana] = await suggestFor('ana');
+    expect(ana!.suggestionId).toMatch(/^sg1\./);
+    expect(ana!.suggestionId).not.toContain('ANA001');
+    const res = await postCheckin({ activityId: await visibleActivity(), visitor: { suggestionId: ana!.suggestionId } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().code).toBe('CCB-ANA001');
+  });
+
+  it('suggestionId inventado o adulterado → 410, sin check-in', async () => {
+    const act = await visibleActivity();
+    expect((await postCheckin({ activityId: act, visitor: { suggestionId: 'sg1.inventado' } })).statusCode).toBe(410);
+    expect((await postCheckin({ activityId: act, visitor: { suggestionId: 'CCB-ANA001' } })).statusCode).toBe(410);
+    const [ana] = await suggestFor('ana');
+    const tampered = ana!.suggestionId.slice(0, -2) + (ana!.suggestionId.endsWith('A') ? 'BB' : 'AA');
+    expect((await postCheckin({ activityId: act, visitor: { suggestionId: tampered } })).statusCode).toBe(410);
+  });
+
+  it('suggestionId vencido (> 2 min) → 410', async () => {
+    const { sealSuggestion } = await import('../src/services/kiosk-suggestion.js');
+    const old = sealSuggestion(orgAId, 'CCB-ANA001', Date.now() - 3 * 60_000);
+    expect((await postCheckin({ activityId: await visibleActivity(), visitor: { suggestionId: old } })).statusCode).toBe(410);
+  });
+
+  it('suggestionId de OTRA organización → 410', async () => {
+    const { sealSuggestion } = await import('../src/services/kiosk-suggestion.js');
+    const foreign = sealSuggestion(orgBId, 'MEM-PUB002');
+    expect((await postCheckin({ activityId: await visibleActivity(), visitor: { suggestionId: foreign } })).statusCode).toBe(410);
+  });
+
+  it('check-in por code sigue funcionando (kioskos viejos / código tecleado)', async () => {
+    const res = await postCheckin({ activityId: await visibleActivity(), visitor: { code: 'CCB-ANA002' } });
+    expect(res.statusCode).toBe(200);
   });
 
   it('lookup por TELÉFONO exacto (normalizado, tolera 1 de país) → { visitor }; no-match → 404; incompleto → 400', async () => {

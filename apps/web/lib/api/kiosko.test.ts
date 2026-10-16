@@ -87,11 +87,14 @@ describe('lookupKioskVisitor', () => {
 describe('suggestKioskVisitors', () => {
   it('mapea la lista de sugerencias (isNew=false)', async () => {
     apiGetMock.mockResolvedValue({ suggestions: [
-      { firstName: 'Ana', lastName: 'Pérez', code: 'CCB-AAA111', visitCount: 3 },
-      { firstName: 'Ana', lastName: 'Peña', code: 'CCB-BBB222', visitCount: 1 },
+      { firstName: 'Ana', lastName: 'P.', codeHint: '•••111', suggestionId: 'sg1.aaa', visitCount: 3 },
+      { firstName: 'Ana', lastName: 'P.', codeHint: '•••222', suggestionId: 'sg1.bbb', visitCount: 1 },
     ] });
     const out = await suggestKioskVisitors('ana');
-    expect(out.map((v) => v.code)).toEqual(['CCB-AAA111', 'CCB-BBB222']);
+    // KIO-03: sin code (queda vacío); pista parcial + id opaco
+    expect(out.map((v) => v.code)).toEqual(['', '']);
+    expect(out.map((v) => v.codeHint)).toEqual(['•••111', '•••222']);
+    expect(out.map((v) => v.suggestionId)).toEqual(['sg1.aaa', 'sg1.bbb']);
     expect(out[0]!.isNew).toBe(false);
   });
   it('devuelve [] ante error (typeahead silencioso, NO re-lanza)', async () => {

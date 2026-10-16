@@ -48,6 +48,11 @@ export interface KioskVisitor {
   // niños van como acompañantes. En la DB real (PR de escrituras) →
   // attendance.companions_children (SMALLINT DEFAULT 0, aditivo: v1 lo ignora).
   companionsChildren: number;
+  // Sólo en sugerencias del typeahead (KIO-03): NO hay `code` (queda ''); en su
+  // lugar, pista parcial ("•••K2P") e id opaco de corta vida que el check-in
+  // envía al servidor para que él resuelva el código real.
+  codeHint?: string;
+  suggestionId?: string;
 }
 
 // Cabezas que ocupa este registro (el adulto responsable + sus niños). Es lo que
