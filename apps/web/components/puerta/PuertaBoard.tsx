@@ -15,6 +15,7 @@ import type { PuertaSala, CheckinVisitorItem } from '@contan2/contracts';
 import { searchCheckinVisitors } from '../../lib/api/checkin-client';
 import { Card, Button, IconButton, Field, Chip, EmptyState, ErrorState, cn, focusRing, useDrawerLifecycle } from '../ui';
 import { DoorButton } from './DoorButton';
+import { NumberField } from '../ui/arc/number-field/NumberField';
 import { PuertaIdentify } from './PuertaIdentify';
 import { VrAgenda } from './VrAgenda';
 import { salaColor } from './salaColors';
@@ -308,7 +309,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
                   {/* div, no label: un label activaría su primer control (el botón −) al tocar el texto */}
                   <div className="block">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{isCol ? 'Alumnos' : 'Integrantes'}</span>
-                    <Stepper value={g.studentCount} onChange={(v) => setG({ ...g, studentCount: v })} />
+                    <Stepper label={isCol ? 'Alumnos' : 'Integrantes'} value={g.studentCount} onChange={(v) => setG({ ...g, studentCount: v })} />
                   </div>
                 </div>
                 <div className="mt-3">
@@ -332,26 +333,18 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
   );
 }
 
-function Stepper({ value, onChange, min = 0 }: { value: number; onChange: (v: number) => void; min?: number }) {
-  const btn = cn('h-11 w-11 bg-surface-container text-[20px] font-bold text-ink hover:bg-line', focusRing);
+function Stepper({ value, onChange, label, min = 0 }: { value: number; onChange: (v: number) => void; label: string; min?: number }) {
   return (
-    <div className="mt-1 flex items-center overflow-hidden rounded-lg border border-line">
-      <button type="button" aria-label="Menos" onClick={() => onChange(Math.max(min, value - 1))} className={btn}>−</button>
-      <b className="flex-1 text-center text-[18px] font-bold tabular-nums">{value}</b>
-      <button type="button" aria-label="Más" onClick={() => onChange(value + 1)} className={btn}>+</button>
-    </div>
+    <NumberField block editable size="md" hideLabel label={label} value={value} onValueChange={onChange} min={min} max={2000}
+      className="mt-1" decrementLabel={`Menos ${label.toLowerCase()}`} incrementLabel={`Más ${label.toLowerCase()}`} />
   );
 }
 export function Companions({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const btn = cn('grid h-10 w-10 place-items-center rounded-lg bg-surface-container text-[18px] font-bold text-ink hover:bg-line', focusRing);
   return (
     <div className="my-3 flex items-center justify-between rounded-lg border border-line px-3 py-2">
       <span className="text-[13.5px] font-semibold text-ink">Acompañantes <span className="font-normal text-muted">(+1 por cada uno)</span></span>
-      <div className="flex items-center gap-2.5">
-        <button type="button" aria-label="Menos acompañantes" onClick={() => onChange(Math.max(0, value - 1))} className={btn}>−</button>
-        <b className="min-w-[24px] text-center text-[17px] font-bold tabular-nums">{value}</b>
-        <button type="button" aria-label="Más acompañantes" onClick={() => onChange(Math.min(10, value + 1))} className={btn}>+</button>
-      </div>
+      <NumberField size="md" editable={false} hideLabel label="Acompañantes" value={value} onValueChange={onChange} min={0} max={10}
+        decrementLabel="Menos acompañantes" incrementLabel="Más acompañantes" />
     </div>
   );
 }

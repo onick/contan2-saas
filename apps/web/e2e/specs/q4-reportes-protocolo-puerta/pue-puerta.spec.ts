@@ -180,7 +180,10 @@ test.describe('PUE-01 salas permanentes: registrar', { tag: '@write' }, () => {
     await page.getByRole('button', { name: /Registrar entrada/ }).first().click();
     const dlg = page.getByRole('dialog');
     const mas = dlg.getByRole('button', { name: 'Más acompañantes' });
-    for (let i = 0; i < 14; i++) await mas.click();
+    // 10 clics llegan al tope (aria-disabled: sigue enfocable, Playwright lo trata como deshabilitado).
+    for (let i = 0; i < 10; i++) await mas.click();
+    await expect(mas).toBeDisabled();
+    await expect(dlg.getByText('Máximo 10')).toBeVisible();
     await expect(dlg.getByRole('button', { name: /Registrar entrada · 11 personas/ })).toBeVisible();
     await page.keyboard.press('Escape');
     await context.close();

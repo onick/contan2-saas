@@ -13,6 +13,7 @@ import { searchCheckinVisitors } from '../../lib/api/checkin-client';
 import { CheckinScanModal } from '../checkin/CheckinScanModal';
 import { Button, IconButton, cn, focusRing } from '../ui';
 import { DoorButton } from './DoorButton';
+import { NumberField } from '../ui/arc/number-field/NumberField';
 
 export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
   onRegister: (code: string) => void; busy: boolean;
@@ -60,7 +61,6 @@ export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
     } catch { setNotFound(true); }
   }
 
-  const stepBtn = cn('grid h-10 w-10 place-items-center rounded-lg bg-surface-container text-[18px] font-bold text-ink hover:bg-line', focusRing);
   if (selected) {
     return (
       <div>
@@ -74,11 +74,8 @@ export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
         </div>
         <div className="mt-3 flex items-center justify-between rounded-lg border border-line px-3 py-2">
           <span className="text-[13.5px] font-semibold text-ink">Acompañantes <span className="font-normal text-muted">(+1 c/u)</span></span>
-          <div className="flex items-center gap-2.5">
-            <button type="button" aria-label="Menos acompañantes" onClick={() => onCompanions(Math.max(0, companions - 1))} className={stepBtn}>−</button>
-            <b className="min-w-[24px] text-center text-[17px] font-bold tabular-nums">{companions}</b>
-            <button type="button" aria-label="Más acompañantes" onClick={() => onCompanions(Math.min(10, companions + 1))} className={stepBtn}>+</button>
-          </div>
+          <NumberField size="md" editable={false} hideLabel label="Acompañantes" value={companions} onValueChange={onCompanions} min={0} max={10}
+            decrementLabel="Menos acompañantes" incrementLabel="Más acompañantes" />
         </div>
         <DoorButton size="lg" className="mt-3 w-full" onClick={() => onRegister(selected.code)} disabled={busy}>
           {busy ? <Loader2 size={17} className="animate-spin" /> : <Check size={18} strokeWidth={2.4} />} Registrar entrada{companions > 0 ? ` · ${1 + companions} personas` : ''}

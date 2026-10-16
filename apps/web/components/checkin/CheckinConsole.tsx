@@ -9,14 +9,16 @@
 // sin credencial" con Idempotency-Key reutilizada en reintentos del MISMO click.
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History, Medal, ListChecks, Image as ImageIcon, Minus, Plus } from 'lucide-react';
+import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History, Medal, ListChecks, Image as ImageIcon } from 'lucide-react';
 import { GuestListDrawer } from './GuestListDrawer';
 import { CoverThumb } from '../activities/CoverThumb';
+import { MAX_COMPANIONS_CHILDREN, MAX_COMPANIONS_ADULTS } from '@contan2/contracts';
 import type { CheckinMetricsResponse, CheckinActivityItem, CheckinVisitorItem, AttendanceListItem } from '@contan2/contracts';
 import { getCheckinMetrics, getCheckinActivities, searchCheckinVisitors, postCheckin, postCheckinAnonymous, getRecentCheckins } from '../../lib/api/checkin-client';
 import { NewVisitorDrawer } from './NewVisitorDrawer';
 import { CheckinScanModal } from './CheckinScanModal';
 import { Button, Card, Chip, IconButton, cn, focusRing } from '../ui';
+import { NumberField } from '../ui/arc/number-field/NumberField';
 import { RefreshCw } from 'lucide-react';
 
 type Async<T> = { phase: 'loading' | 'ready' | 'error'; data?: T; error?: string };
@@ -314,7 +316,7 @@ export function CheckinConsole() {
                     <p className="truncate text-sm font-semibold text-ink">
                       {selected.firstName} {selected.lastName}
                       {selected.protocol ? (
-                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 align-[-1px] text-[10.5px] font-bold uppercase tracking-wide text-[#b35400]">
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 align-[-1px] text-[10.5px] font-bold uppercase tracking-wide text-brand-text">
                           <Medal size={10} strokeWidth={2.5} aria-hidden="true" /> Protocolo{selected.protocol.honorific ? ` · ${selected.protocol.honorific}` : ''}
                         </span>
                       ) : null}
@@ -375,7 +377,7 @@ export function CheckinConsole() {
                             <span className="block truncate text-sm font-medium text-ink">
                               {v.firstName} {v.lastName}
                               {v.protocol ? (
-                                <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-accent-soft px-1.5 py-0.5 align-[-1px] text-[10px] font-bold uppercase tracking-wide text-[#b35400]">
+                                <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-accent-soft px-1.5 py-0.5 align-[-1px] text-[10px] font-bold uppercase tracking-wide text-brand-text">
                                   <Medal size={9} strokeWidth={2.5} aria-hidden="true" /> Protocolo
                                 </span>
                               ) : null}
@@ -417,7 +419,7 @@ export function CheckinConsole() {
                     />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-[#b35400]">Registrar a {selected.firstName} en</p>
+                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-brand-text">Registrar a {selected.firstName} en</p>
                     <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold tracking-tight text-ink">
                       <span className="truncate">{focusedActivity.name}</span>
                       {isToday(focusedActivity.date) ? (
@@ -453,10 +455,10 @@ export function CheckinConsole() {
                 {/* Acompañantes del registro (sin credencial propia; suman al cupo). */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-5 py-3.5 md:px-6">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Acompañantes</span>
-                  <MiniStepper label="Niños" value={compKids} onChange={setCompKids} />
-                  <MiniStepper label="Adultos" value={compAdults} onChange={setCompAdults} />
+                  <MiniStepper label="Niños" value={compKids} onChange={setCompKids} max={MAX_COMPANIONS_CHILDREN} />
+                  <MiniStepper label="Adultos" value={compAdults} onChange={setCompAdults} max={MAX_COMPANIONS_ADULTS} />
                   {compKids + compAdults > 0 ? (
-                    <span className="text-xs font-semibold text-[#b35400]" aria-live="polite">
+                    <span className="text-xs font-semibold text-brand-text" aria-live="polite">
                       Entrarán {1 + compKids + compAdults} personas
                     </span>
                   ) : null}
@@ -638,19 +640,24 @@ export function CheckinConsole() {
   );
 }
 
-// Stepper compacto de acompañantes (0..10) para el registro identificado.
-function MiniStepper({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
-  const btn = cn('grid h-8 w-8 place-items-center rounded-lg border border-line bg-surface text-ink hover:bg-surface-container disabled:opacity-40', focusRing);
+// Stepper compacto de acompañantes (0..MAX_COMPANIONS_*) para el registro identificado.
+function MiniStepper({ label, value, onChange, max }: { label: string; value: number; onChange: (n: number) => void; max: number }) {
   return (
     <span className="flex items-center gap-1.5">
       <span className="text-xs text-muted">{label}</span>
-      <button type="button" aria-label={`Menos ${label.toLowerCase()}`} disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))} className={btn}>
-        <Minus size={14} aria-hidden="true" />
-      </button>
-      <span className="w-5 text-center text-sm font-bold tabular-nums text-ink" aria-live="polite">{value}</span>
-      <button type="button" aria-label={`Más ${label.toLowerCase()}`} disabled={value >= 10} onClick={() => onChange(Math.min(10, value + 1))} className={btn}>
-        <Plus size={14} aria-hidden="true" />
-      </button>
+      <NumberField
+        size="sm"
+        editable={false}
+        hideLabel
+        label={label}
+        value={value}
+        onValueChange={onChange}
+        min={0}
+        max={max}
+        decrementLabel={`Menos ${label.toLowerCase()}`}
+        incrementLabel={`Más ${label.toLowerCase()}`}
+        limitHint={(m) => `Máx. ${String(m)}`}
+      />
     </span>
   );
 }
