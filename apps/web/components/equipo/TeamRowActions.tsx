@@ -20,7 +20,7 @@ interface Props {
 }
 
 const ROLE_LABEL: Record<string, string> = { owner: 'Propietario', admin: 'Administrador', operator: 'Operador', protocolo: 'Protocolo', consulta: 'Consulta', puerta: 'Puerta', biblioteca: 'Biblioteca' };
-const ALL_ROLES = ['operator', 'puerta', 'biblioteca', 'protocolo', 'admin', 'owner'] as const;
+const ALL_ROLES = ['operator', 'consulta', 'puerta', 'biblioteca', 'protocolo', 'admin', 'owner'] as const;
 
 type View =
   | { kind: 'menu' }
@@ -96,17 +96,17 @@ export function TeamRowActions({ member, currentStaffId, currentRole, onChanged 
               {view.kind === 'menu' ? (
                 <div className="py-1">
                   {roleOptions.map((r) => (
-                    <button key={r} type="button" className={itemCls} onClick={() => setView({ kind: 'confirm-role', role: r })}>
+                    <button key={r} type="button" role="menuitem" className={itemCls} onClick={() => setView({ kind: 'confirm-role', role: r })}>
                       {r === 'owner' ? <ShieldCheck size={15} aria-hidden="true" className="text-faint" /> : <UserCog size={15} aria-hidden="true" className="text-faint" />}
                       Hacer {ROLE_LABEL[r]}
                     </button>
                   ))}
                   {member.status === 'active' ? (
-                    <button type="button" className={cn(itemCls, 'text-danger-fg')} onClick={() => setView({ kind: 'confirm-status', status: 'suspended' })}>
+                    <button type="button" role="menuitem" className={cn(itemCls, 'text-danger-fg')} onClick={() => setView({ kind: 'confirm-status', status: 'suspended' })}>
                       <Ban size={15} aria-hidden="true" /> Suspender
                     </button>
                   ) : (
-                    <button type="button" className={itemCls} onClick={() => setView({ kind: 'confirm-status', status: 'active' })}>
+                    <button type="button" role="menuitem" className={itemCls} onClick={() => setView({ kind: 'confirm-status', status: 'active' })}>
                       <RotateCcw size={15} aria-hidden="true" className="text-faint" /> Reactivar
                     </button>
                   )}

@@ -51,4 +51,17 @@ describe('TeamRowActions', () => {
     const { container } = render(<TeamRowActions member={{ ...operator, role: 'owner' }} currentStaffId="s1" currentRole="admin" onChanged={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('owner ve los roles asignables (incluido Consulta) como menuitems; admin no ve Propietario', () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const { unmount } = render(<TeamRowActions member={{ ...operator, role: 'admin' }} currentStaffId="s1" currentRole="owner" onChanged={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Acciones/i }));
+    const names = screen.getAllByRole('menuitem').map((e) => e.textContent?.trim());
+    expect(names).toEqual(expect.arrayContaining(['Hacer Operador', 'Hacer Consulta', 'Hacer Puerta', 'Hacer Biblioteca', 'Hacer Protocolo', 'Hacer Propietario', 'Suspender']));
+    unmount();
+    render(<TeamRowActions member={operator} currentStaffId="s1" currentRole="admin" onChanged={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Acciones/i }));
+    expect(screen.getByRole('menuitem', { name: 'Hacer Consulta' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Hacer Propietario' })).toBeNull();
+  });
 });
