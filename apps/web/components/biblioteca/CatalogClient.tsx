@@ -21,6 +21,7 @@ import {
   cn, focusRing,
 } from '../ui';
 import type { DataTableColumn } from '../ui';
+import { SplitButton } from '../ui/arc/split-button/SplitButton';
 import { numero } from '../../lib/format';
 import { spineColor } from '../../lib/biblioteca/spine';
 
@@ -210,9 +211,16 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
               <Button variant="secondary" disabled title="Llega con el import por lotes">
                 <Upload size={15} strokeWidth={2} /> Importar <Chip tone="neutral">Pronto</Chip>
               </Button>
-              <Button variant="primary" onClick={() => router.push('/app/biblioteca/titulos/nuevo')}>
-                <BookPlus size={16} strokeWidth={2} /> Agregar libro
-              </Button>
+              <SplitButton
+                label="Agregar libro"
+                icon={BookPlus}
+                href="/app/biblioteca/titulos/nuevo"
+                menuLabel="Más formas de agregar un libro"
+                actions={[
+                  { label: 'Por ISBN (autocompletar)', href: '/app/biblioteca/titulos/nuevo?modo=isbn' },
+                  { label: 'Manual', href: '/app/biblioteca/titulos/nuevo?modo=manual' },
+                ]}
+              />
             </>
           }
         />

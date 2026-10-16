@@ -1,1 +1,24 @@
-/* components/ui/arc/split-button/split-button.css · estilos del porte (keyframes, @starting-style y estados compuestos). Lo llena el bloque correspondiente. */
+/* components/ui/arc/split-button/split-button.css
+   Portado de arc-library (MIT © 2026 Elia Kuratli), registry/components/split-button/
+   split-button.module.css @ b40c890. Ver ../ATTRIBUTION.md.
+   Aspecto (colores, radios, tamaños) por utilidades en SplitButton.tsx; aquí solo el
+   movimiento. El chevrón y el menú animan en ../dropdown-menu/dropdown-menu.css.
+   Se descartó el morph de ancho/glifos de Arc. */
+
+/* Toda la píldora se hunde al pulsar la acción principal. El gatillo del menú responde solo
+   con color: Radix lo mide en pointerdown para ubicar el menú y una escala lo movería. */
+.arc-split {
+  transition: transform var(--arc-dur-fast) var(--arc-ease-standard);
+}
+.arc-split:has(> .arc-split-main:active) {
+  transform: scale(0.98);
+  transition-duration: var(--arc-dur-instant);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arc-split,
+  .arc-split:has(> .arc-split-main:active) {
+    transform: none;
+    transition: none;
+  }
+}

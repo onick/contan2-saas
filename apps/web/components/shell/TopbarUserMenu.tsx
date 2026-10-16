@@ -42,7 +42,8 @@ const ROLE_LABEL: Record<Me['role'], string> = {
 
 const itemCls = cn(
   'relative flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2 py-1.5 text-[14px] text-ink outline-none',
-  'data-[highlighted]:bg-surface-container data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+  'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+  'forced-colors:data-[highlighted]:outline forced-colors:data-[highlighted]:outline-2',
 );
 
 function initials(name: string): string {
@@ -138,7 +139,7 @@ export function TopbarUserMenu({ orgName }: { orgName: string }) {
 
           <DropdownMenuSeparator />
 
-          <RadixDropdown.Item className={itemCls} onSelect={logout}>
+          <RadixDropdown.Item className={itemCls} data-tone="danger" onSelect={logout}>
             <LogOut size={15} strokeWidth={2} aria-hidden="true" className="text-danger-fg" />
             <span className="text-danger-fg">Cerrar sesión</span>
           </RadixDropdown.Item>

@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { CatalogClient } from './CatalogClient';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -64,5 +65,19 @@ describe('CatalogClient · botón Importar', () => {
     const imp = screen.getByRole('button', { name: /Importar/ });
     expect(imp).toBeDisabled();
     expect(imp).toHaveTextContent(/Pronto/);
+  });
+});
+
+describe('CatalogClient · CTA Agregar libro (SplitButton)', () => {
+  it('la acción principal enlaza al alta y el menú ofrece ISBN y Manual con ?modo', async () => {
+    const user = userEvent.setup();
+    render(<CatalogClient initial={initial} sites={[]} facets={null} />);
+    const main = screen.getByRole('link', { name: 'Agregar libro' });
+    expect(main).toHaveAttribute('href', '/app/biblioteca/titulos/nuevo');
+    await user.click(screen.getByRole('button', { name: 'Más formas de agregar un libro' }));
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((i) => i.textContent)).toEqual(['Por ISBN (autocompletar)', 'Manual']);
+    expect(items[0]).toHaveAttribute('href', '/app/biblioteca/titulos/nuevo?modo=isbn');
+    expect(items[1]).toHaveAttribute('href', '/app/biblioteca/titulos/nuevo?modo=manual');
   });
 });
