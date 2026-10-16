@@ -295,14 +295,11 @@ test.describe('con sesión de escáner', () => {
     const me = await context.request.get('/scanner/api/me');
     expect(me.status()).toBe(401);
 
-    // Reuso del token tras "Salir" (sesion sin estado en servidor): se documenta, no se imprime el valor.
+    // Reuso del token tras "Salir": el servidor lo revoca (Q8-59). No se imprime el valor.
     const ctx = await request.newContext({ baseURL: base!, extraHTTPHeaders: { cookie: `scanner_session=${old}` } });
     const replay = await ctx.get('/scanner/api/me');
     await ctx.dispose();
-    if (replay.status() === 200) {
-      test.info().annotations.push({ type: 'hallazgo S3', description: 'SCN-09: el token del escáner sigue válido tras "Salir" (cookie firmada sin revocación en servidor; vence a las 8 h)' });
-      note(test.info(), 'SCN-09', 'S3', 'logout solo borra la cookie del navegador; el token firmado sigue válido hasta las 8 h (apps/api-v2/src/routes/scanner.ts /scanner/logout)');
-    }
+    expect(replay.status(), 'token del escaner revocado tras Salir').toBe(401);
     expect(errs).toEqual([]);
   });
 

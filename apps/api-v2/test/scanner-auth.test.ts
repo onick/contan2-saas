@@ -48,6 +48,7 @@ run('scanner auth · PIN → cookie firmada', () => {
     if (app) await app.close();
     for (const id of [orgAId, orgBId]) {
       if (!id) continue;
+      await db.deleteFrom('checkin_idempotency').where('organization_id', '=', id).execute();
       await db.deleteFrom('organizations').where('id', '=', id).execute();
     }
     await db.destroy();
@@ -88,6 +89,23 @@ run('scanner auth · PIN → cookie firmada', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v2/scanner/me', headers: { host: hostA }, cookies: { scanner_session: cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.json().orgSlug).toBe(slugA);
+  });
+
+  it('logout revoca el token en el servidor: el token reutilizado da 401; otra sesión sigue viva (Q8-59)', async () => {
+    const tokenA = cookieOf(await pinReq(hostA, PIN))!;
+    const tokenB = cookieOf(await pinReq(hostA, PIN))!;
+    expect(tokenA).not.toBe(tokenB);
+    const me = (t: string) => app.inject({ method: 'GET', url: '/api/v2/scanner/me', headers: { host: hostA }, cookies: { scanner_session: t } });
+    expect((await me(tokenA)).statusCode).toBe(200);
+
+    const out = await app.inject({ method: 'POST', url: '/api/v2/scanner/logout', headers: { host: hostA }, cookies: { scanner_session: tokenA } });
+    expect(out.statusCode).toBe(200);
+
+    expect((await me(tokenA)).statusCode).toBe(401); // reutilizar el token copiado
+    expect((await me(tokenB)).statusCode).toBe(200); // solo se revoca el token presentado
+    // Logout idempotente / sin cookie: no rompe.
+    expect((await app.inject({ method: 'POST', url: '/api/v2/scanner/logout', headers: { host: hostA } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/api/v2/scanner/logout', headers: { host: hostA }, cookies: { scanner_session: tokenA } })).statusCode).toBe(200);
   });
 
   it('cross-tenant: cookie de A en host B → 401', async () => {
