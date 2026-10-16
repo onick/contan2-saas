@@ -186,17 +186,15 @@ test.describe('KIO-03 typeahead', () => {
     expect(body.suggestions.length).toBeLessThanOrEqual(8);
     for (const s of body.suggestions) {
       const keys = Object.keys(s);
-      for (const k of ['email', 'phone', 'id', 'userId', 'token']) expect(keys, `la respuesta publica no debe llevar ${k}`).not.toContain(k);
+      for (const k of ['email', 'phone', 'id', 'userId', 'token', 'code']) expect(keys, `la respuesta publica no debe llevar ${k}`).not.toContain(k);
     }
     await expect(page.getByText('¿Eres tú?')).toBeVisible();
-    // Estado de la UI: la sugerencia se ve entera (nombre completo + codigo completo) -> ver KIO-03b.
-    const item = page.getByRole('button', { name: new RegExp(escapeRe(v.code)) });
-    await expect(item).toBeVisible();
-    note(testInfo, 'KIO-03', 'S1', 'la sugerencia pública muestra nombre completo y CÓDIGO completo (la credencial) a cualquiera que escriba 3 letras');
+    // La sugerencia va enmascarada (nombre abreviado + pista de código) -> ver KIO-03b.
+    await expect(page.getByRole('option').first()).toBeVisible();
+    void testInfo;
   });
 
   test('KIO-03b la sugerencia pública está enmascarada (sin apellido ni código completos)', async ({ page }) => {
-    test.fail(true, 'BUG KIO-03 (S1): /public/users/suggest devuelve code+nombre+apellido completos; el code es la credencial del QR (apps/api-v2/src/routes/public.ts:283)');
     const v = await V(2);
     await toCodeScreen(page, MAIN);
     await spend('lookup', 2);
@@ -218,13 +216,12 @@ test.describe('KIO-03 typeahead', () => {
     await searchBox(page).focus();
     await page.keyboard.press('Tab'); // Buscar
     await page.keyboard.press('Tab'); // primera sugerencia
-    await expect(page.getByRole('button', { name: new RegExp(escapeRe(v.code)) })).toBeFocused();
+    await expect(page.getByRole('option').first()).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('button', { name: 'Sí, confirmar asistencia' })).toBeVisible();
   });
 
   test('KIO-03d el campo de búsqueda expone semántica combobox/listbox para lectores de pantalla', async ({ page }, testInfo) => {
-    test.fail(true, 'BUG KIO-03 (S2 a11y): input sin role=combobox/aria-expanded/aria-controls ni lista role=listbox; sin aviso aria-live de resultados (components/kiosko/screens.tsx CodeScreen)');
     const v = await V(2);
     await toCodeScreen(page, MAIN);
     await spend('lookup', 2);
@@ -474,7 +471,6 @@ test.describe('KIO-09 sin red', () => {
   });
 
   test('KIO-09c el aviso de error de red está en tuteo (no voseo)', async ({ page }) => {
-    test.fail(true, 'BUG H4 (S3): voseo "Revisá tu conexión e intentá de nuevo" en CodeScreen (components/kiosko/screens.tsx); el cliente es dominicano: tuteo');
     const v = await V(11);
     await toCodeScreen(page, MAIN);
     await page.route('**/kiosko/lookup**', (r) => r.abort('internetdisconnected'));
@@ -509,13 +505,12 @@ test('KIO-10a tras la confirmación vuelve solo a la bienvenida y no deja datos 
   await expect(searchBox(page)).toHaveValue('');
 });
 
-test('KIO-10b en pantallas intermedias, 10 min sin tocar vuelve a la bienvenida y borra lo tecleado', async ({ page }) => {
-  test.fail(true, 'BUG KIO-10 (S1 privacidad): solo la confirmación tiene temporizador; en identificación/búsqueda/registro lo tecleado (nombre, correo, teléfono) queda en una tablet pública (app/kiosko/KioskClient.tsx)');
+test('KIO-10b en pantallas intermedias, 60 s sin tocar vuelve a la bienvenida y borra lo tecleado', async ({ page }) => {
   await page.clock.install();
   await toNewScreen(page, MAIN);
   await page.getByLabel(/^Nombre/).fill('Persona Anterior');
   await page.getByLabel(/^Correo/).fill('anterior@test.local');
-  await page.clock.fastForward('10:00');
+  await page.clock.fastForward('01:05');
   await expect(page.getByTestId('kiosk-step-welcome')).toBeVisible({ timeout: 3_000 });
   expect(await page.locator('body').innerText()).not.toContain('Persona Anterior');
 });
