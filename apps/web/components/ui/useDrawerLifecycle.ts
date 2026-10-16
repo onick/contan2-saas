@@ -89,20 +89,95 @@ export function useDrawerLifecycle({
     return () => { panel.removeEventListener('animationend', onEnd); window.clearTimeout(t); };
   }, [closing]);
 
-  // Scroll-lock + Escape + restauración de foco, sostenidos toda la vida montada.
+  // Scroll-lock + Escape + trampa de foco + inert + restauración de foco,
+  // sostenidos toda la vida montada.
   useEffect(() => {
     if (!mounted) return;
     const prevActive = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') escRef.current?.(); };
+    // Raíz del diálogo: el ancestro role=dialog del panel (o el propio panel).
+    const root = (panelRef.current?.closest('[role="dialog"]') as HTMLElement | null) ?? panelRef.current;
+    const token = root ?? document.body;
+    modalStack.push(token);
+    const isTop = () => modalStack[modalStack.length - 1] === token;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (!isTop()) return; // con diálogos apilados sólo responde el de encima
+      if (e.key === 'Escape') { escRef.current?.(); return; }
+      if (e.key === 'Tab' && root) trapTab(e, root);
+    };
     document.addEventListener('keydown', onKey);
+    const releaseInert = root ? inertOthers(root) : () => {};
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
+      const i = modalStack.lastIndexOf(token);
+      if (i >= 0) modalStack.splice(i, 1);
+      releaseInert();
       document.body.style.overflow = prevOverflow;
-      prevActive?.focus?.();
+      // El foco vuelve al disparador (si sigue en el documento).
+      if (prevActive && prevActive.isConnected) prevActive.focus?.();
     };
-  }, [mounted]);
+  }, [mounted, panelRef]);
 
   return { mounted, closing, panelRef };
+}
+
+// Pila de diálogos modales abiertos (el último es el activo).
+const modalStack: HTMLElement[] = [];
+
+const FOCUSABLE =
+  'a[href], area[href], button, input:not([type="hidden"]), select, textarea, summary, [tabindex], [contenteditable="true"]';
+
+function focusablesIn(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => {
+    if ((el as HTMLButtonElement).disabled) return false;
+    const ti = el.getAttribute('tabindex');
+    if (ti !== null && Number(ti) < 0) return false;
+    if (el.hidden || el.closest('[hidden], [inert]')) return false;
+    return true;
+  });
+}
+
+// Tab / Shift+Tab ciclan dentro del diálogo; si el foco quedó fuera (o en el propio
+// contenedor tabindex=-1), entra por el primero/último según la dirección.
+function trapTab(e: KeyboardEvent, root: HTMLElement) {
+  const items = focusablesIn(root);
+  if (items.length === 0) { e.preventDefault(); root.focus?.(); return; }
+  const first = items[0]!;
+  const last = items[items.length - 1]!;
+  const active = document.activeElement as HTMLElement | null;
+  const inside = !!active && root.contains(active) && active !== root;
+  if (e.shiftKey) {
+    if (!inside || active === first) { e.preventDefault(); last.focus(); }
+  } else if (!inside || active === last) {
+    e.preventDefault(); first.focus();
+  }
+}
+
+const SUPPORTS_INERT = typeof HTMLElement !== 'undefined' && 'inert' in HTMLElement.prototype;
+
+// Marca como `inert` (o aria-hidden si el navegador no soporta inert) todo lo que
+// NO es el diálogo: los hermanos de cada ancestro, hasta <body>. Devuelve el revert.
+function inertOthers(root: HTMLElement): () => void {
+  const undo: Array<() => void> = [];
+  let node: HTMLElement | null = root;
+  while (node && node !== document.body) {
+    const parent: HTMLElement | null = node.parentElement;
+    if (!parent) break;
+    for (const sib of Array.from(parent.children) as HTMLElement[]) {
+      if (sib === node || sib.tagName === 'SCRIPT' || sib.tagName === 'STYLE') continue;
+      if (SUPPORTS_INERT) {
+        if (sib.hasAttribute('inert')) continue;
+        sib.setAttribute('inert', '');
+        undo.push(() => sib.removeAttribute('inert'));
+      } else {
+        const prev = sib.getAttribute('aria-hidden');
+        sib.setAttribute('aria-hidden', 'true');
+        undo.push(() => (prev === null ? sib.removeAttribute('aria-hidden') : sib.setAttribute('aria-hidden', prev)));
+      }
+    }
+    node = parent;
+  }
+  return () => undo.forEach((fn) => fn());
 }

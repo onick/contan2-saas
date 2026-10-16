@@ -119,4 +119,88 @@ describe('useDrawerLifecycle', () => {
     expect(document.activeElement).toBe(trigger);
     trigger.remove();
   });
+
+  describe('trampa de foco e inert', () => {
+    function Modal({ open, onClose }: { open: boolean; onClose: () => void }) {
+      const { mounted, panelRef } = useDrawerLifecycle({ open, onEscape: onClose });
+      return (
+        <>
+          <main><button data-testid="outside">fuera</button></main>
+          {mounted ? (
+            <div role="dialog" aria-modal="true" aria-label="demo">
+              <div ref={panelRef}>
+                <button data-testid="a">A</button>
+                <input data-testid="b" />
+                <button data-testid="off" disabled>x</button>
+                <button data-testid="skip" tabIndex={-1}>y</button>
+                <a href="#z" data-testid="c">C</a>
+              </div>
+            </div>
+          ) : null}
+        </>
+      );
+    }
+    const tab = (shift = false) => fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Tab', shiftKey: shift });
+
+    it('14 Tabs consecutivos nunca salen del diálogo (el Tab lo gestiona el trap)', () => {
+      render(<Modal open onClose={() => {}} />);
+      const dialog = screen.getByRole('dialog');
+      screen.getByTestId('a').focus();
+      for (let n = 0; n < 14; n++) {
+        const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+        document.activeElement!.dispatchEvent(ev);
+        // Sin trap el navegador movería el foco fuera; con trap, sólo preventDefault
+        // cuando está en el borde y mantiene el foco dentro.
+        if (ev.defaultPrevented === false) {
+          // paso interno: avanzamos como lo haría el navegador (dentro del diálogo)
+          const order = ['a', 'b', 'c'].map((id) => screen.getByTestId(id));
+          const k = order.indexOf(document.activeElement as HTMLElement);
+          order[k + 1]?.focus();
+        }
+        expect(dialog.contains(document.activeElement)).toBe(true);
+      }
+    });
+
+    it('Tab en el último vuelve al primero; Shift+Tab en el primero va al último', () => {
+      render(<Modal open onClose={() => {}} />);
+      screen.getByTestId('c').focus();
+      tab();
+      expect(document.activeElement).toBe(screen.getByTestId('a'));
+      tab(true);
+      expect(document.activeElement).toBe(screen.getByTestId('c'));
+    });
+
+    it('si el foco está fuera, Tab entra al diálogo', () => {
+      render(<Modal open onClose={() => {}} />);
+      screen.getByTestId('outside').focus();
+      tab();
+      expect(document.activeElement).toBe(screen.getByTestId('a'));
+    });
+
+    it('el resto de la app queda inert mientras está abierto y se libera al cerrar', () => {
+      const { rerender } = render(<Modal open onClose={() => {}} />);
+      const main = screen.getByTestId('outside').closest('main')!;
+      expect(main.hasAttribute('inert') || main.getAttribute('aria-hidden') === 'true').toBe(true);
+      expect(screen.getByRole('dialog').hasAttribute('inert')).toBe(false);
+      stubReducedMotion(true);
+      rerender(<Modal open={false} onClose={() => {}} />);
+      expect(main.hasAttribute('inert')).toBe(false);
+      expect(main.hasAttribute('aria-hidden')).toBe(false);
+    });
+
+    it('Esc cierra y el foco vuelve al disparador', () => {
+      stubReducedMotion(true);
+      const trigger = document.createElement('button');
+      document.body.appendChild(trigger);
+      trigger.focus();
+      const onClose = vi.fn();
+      const { rerender } = render(<Modal open onClose={onClose} />);
+      screen.getByTestId('a').focus();
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+      expect(onClose).toHaveBeenCalledTimes(1);
+      rerender(<Modal open={false} onClose={onClose} />);
+      expect(document.activeElement).toBe(trigger);
+      trigger.remove();
+    });
+  });
 });

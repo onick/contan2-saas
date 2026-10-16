@@ -10,7 +10,7 @@ import { createPortal } from 'react-dom';
 import { X, Loader2 } from 'lucide-react';
 import type { CheckinActivityItem } from '@contan2/contracts';
 import { postCheckin } from '../../lib/api/checkin-client';
-import { IconButton, Button, cn, focusRing } from '../ui';
+import { IconButton, Button, cn, focusRing, useDrawerLifecycle } from '../ui';
 
 interface Form { firstName: string; lastName: string; email: string; phone: string; activityId: string }
 const EMPTY: Form = { firstName: '', lastName: '', email: '', phone: '', activityId: '' };
@@ -53,18 +53,11 @@ export function NewVisitorDrawer({ open, activities, onClose, onDone, initialNam
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const prevActive = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') requestClose.current(); };
-    document.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    firstRef.current?.focus();
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prevOverflow; prevActive?.focus?.(); };
-  }, [open]);
+  // Escape, scroll-lock, trampa de foco, inert y restauración de foco los maneja el hook.
+  const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: () => requestClose.current() });
+  useEffect(() => { if (mounted && open) firstRef.current?.focus(); }, [mounted, open]);
 
-  if (!open || typeof document === 'undefined') return null;
+  if (!mounted || typeof document === 'undefined') return null;
 
   const set = (k: keyof Form, v: string) => { setForm((f) => ({ ...f, [k]: v })); setError(null); };
 
@@ -95,8 +88,8 @@ export function NewVisitorDrawer({ open, activities, onClose, onDone, initialNam
 
   return createPortal(
     <div className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => requestClose.current()} className="drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity" />
-      <div className={cn('drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] md:max-h-none rounded-t-2xl border-t border-line bg-surface shadow-xl', 'md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0', 'flex flex-col')}>
+      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={() => requestClose.current()} className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
+      <div ref={panelRef} className={cn('drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] md:max-h-none rounded-t-2xl border-t border-line bg-surface shadow-xl', 'md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0', 'flex flex-col', closing && 'drawer-panel--closing')}>
         <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0">
             <p className={labelCls}>Nuevo visitante</p>
