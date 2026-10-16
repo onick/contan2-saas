@@ -5,6 +5,9 @@ import { Unavailable } from '../../../components/shell/Unavailable';
 import { ReportesDashboard } from '../../../components/reportes/ReportesDashboard';
 import { getTenantBranding } from '../../../lib/branding/tenant';
 import { getPeriodSummary } from '../../../lib/api/reports';
+import { getAdminGate } from '../../../lib/auth/session';
+import { ErrorState } from '../../../components/ui';
+import { REPORT_ROLES } from '../../../lib/shell/nav';
 
 // Reportes · dashboard ejecutivo. Resumen del período + comparación con el
 // anterior, todo desde datos REALES (period-summary). Carga inicial server-side
@@ -27,8 +30,13 @@ function thisMonthRange(): { from: string; to: string } {
 
 export default async function ReportesPage() {
   const branding = await getTenantBranding();
+  const gate = await getAdminGate();
+  const role = gate.status === 'ok' ? gate.staff.role : null;
+  const canExport = !!role && REPORT_ROLES.has(role);
   const range = thisMonthRange();
-  const data = await getPeriodSummary(range.from, range.to);
+  // Sin permiso de reportes (api-v2: 403 en todo /reports salvo el resumen): ni
+  // siquiera pedimos el período; estado honesto en vez de KPIs en 0.
+  const data = canExport ? await getPeriodSummary(range.from, range.to) : null;
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Reportes" activeKey="reportes">
@@ -36,9 +44,19 @@ export default async function ReportesPage() {
     </AppShell>
   );
 
+  if (!canExport) {
+    return shell(
+      <ErrorState
+        kind="forbidden"
+        title="No tienes permiso para ver Reportes"
+        description="Los reportes y su exportación son para propietarios, administradores y el equipo de Puerta. Si crees que es un error, habla con un administrador."
+      />,
+    );
+  }
+
   if (!data) {
     return shell(<Unavailable inline title="Reportes no disponibles" description="No pudimos calcular el resumen del período. Reintentá en unos segundos." />);
   }
 
-  return shell(<ReportesDashboard initial={data} initialRange={range} />);
+  return shell(<ReportesDashboard initial={data} initialRange={range} canExport />);
 }

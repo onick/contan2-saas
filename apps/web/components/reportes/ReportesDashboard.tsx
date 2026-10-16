@@ -13,7 +13,7 @@ import {
   Clock, Layers, type LucideIcon,
 } from 'lucide-react';
 import type { PeriodSummaryResponse } from '@contan2/contracts';
-import { Card, cn, focusRing } from '../ui';
+import { Card, ErrorState, cn, focusRing } from '../ui';
 import { DeltaPct, buildSlices, Donut, Bars, LineChart } from '../charts/primitives';
 import { useDataAnim } from '../charts/useDataAnim';
 import { ReportsAgent } from './ReportsAgent';
@@ -68,9 +68,12 @@ const PALETTE = ['#e65100', '#14b8a6', '#8b5cf6', '#10b981', '#3b6fe0', '#ec4899
 export interface ReportesDashboardProps {
   initial: PeriodSummaryResponse;
   initialRange: { from: string; to: string };
+  // false → el rol no puede generar/exportar reportes (api-v2 da 403): sin botones
+  // de export ni KPIs, un estado de «sin permiso» honesto. Por defecto true.
+  canExport?: boolean;
 }
 
-export function ReportesDashboard({ initial, initialRange }: ReportesDashboardProps) {
+export function ReportesDashboard({ initial, initialRange, canExport = true }: ReportesDashboardProps) {
   const [data, setData] = useState(initial);
   const [periodKey, setPeriodKey] = useState('mes');
   const [range, setRange] = useState(initialRange);
@@ -87,6 +90,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
   // Re-fetch al cambiar filtros (salta el primer render: ya tenemos `initial`).
   useEffect(() => {
     if (first.current) { first.current = false; return; }
+    if (!canExport) return;
     let cancel = false;
     setLoading(true);
     setSummaryErr(false);
@@ -100,13 +104,14 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
 
   // Ciclos/categorías del tenant (una vez) para el filtro del dashboard.
   useEffect(() => {
+    if (!canExport) return;
     let cancel = false;
     fetch('/app/reportes/api/categories', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => { if (!cancel && j && Array.isArray(j.categories)) setCatList(j.categories as CatItem[]); })
       .catch(() => {});
     return () => { cancel = true; };
-  }, []);
+  }, [canExport]);
 
   // Cerrar dropdowns al click afuera.
   useEffect(() => {
@@ -156,15 +161,25 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
   const wdItems = data.byWeekday.map((w) => ({ label: WEEKDAYS[w.weekday] ?? '', value: w.count }));
   const wdMax = Math.max(1, ...wdItems.map((w) => w.value));
 
+  if (!canExport) {
+    return (
+      <ErrorState
+        kind="forbidden"
+        title="No tienes permiso para ver Reportes"
+        description="Los reportes y su exportación son para propietarios, administradores y el equipo de Puerta. Si crees que es un error, habla con un administrador."
+      />
+    );
+  }
+
   return (
     <div ref={rootRef}>
       {/* header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-[28px] font-extrabold tracking-tight text-ink sm:text-[30px]">Reportes</h1>
           <p className="mt-1 text-[14px] text-muted">Resumen ejecutivo con comparación contra el período anterior.</p>
         </div>
-        <div className="flex flex-none flex-wrap gap-2.5 sm:ml-auto">
+        <div className="flex flex-wrap gap-2.5 sm:ml-auto sm:justify-end">
           <ReportsAgent />
           <a href={`/app/reportes/api/period?kind=xlsx&${reportsQuery(range.from, range.to, types, cats)}`} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <Download size={16} strokeWidth={1.9} /> Exportar Excel

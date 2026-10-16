@@ -9,6 +9,10 @@ vi.mock('../../../lib/branding/tenant', () => ({
     status: 'active', plan: 'free', trialEndsAt: null,
   }),
 }));
+let mockRole = 'admin';
+vi.mock('../../../lib/auth/session', () => ({
+  getAdminGate: async () => ({ status: 'ok', staff: { id: 's1', role: mockRole } }),
+}));
 import ReportesPage from './page';
 
 // Reportes · dashboard ejecutivo. La página fetchea el period-summary inicial
@@ -41,7 +45,7 @@ vi.mock('../../../lib/api/reports', async (orig) => {
   return { ...actual, getPeriodSummary: vi.fn().mockResolvedValue(SAMPLE) };
 });
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); mockRole = 'admin'; });
 
 describe('/app/reportes · dashboard', () => {
   it('renderiza KPIs + paneles del período con datos reales; export con rango vivo', async () => {
@@ -64,5 +68,20 @@ describe('/app/reportes · dashboard', () => {
     expect(document.querySelectorAll('a[href="#"]')).toHaveLength(0);
     const pdf = screen.getByRole('link', { name: /Descargar PDF/i });
     expect(pdf.getAttribute('href')).toMatch(/\/app\/reportes\/api\/period\?kind=pdf&from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}/);
+  });
+
+  it('puerta (puede generar reportes) ve el dashboard con export', async () => {
+    mockRole = 'puerta';
+    render(await ReportesPage());
+    expect(screen.getByRole('link', { name: /Descargar PDF/i })).toBeInTheDocument();
+  });
+
+  it.each(['operator', 'consulta', 'protocolo', 'biblioteca'])('%s: «sin permiso» honesto, sin KPIs ni botones de export', async (role) => {
+    mockRole = role;
+    render(await ReportesPage());
+    expect(screen.getByRole('alert')).toHaveTextContent(/No tienes permiso para ver Reportes/);
+    expect(screen.queryByRole('link', { name: /Descargar PDF/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Exportar Excel/i })).toBeNull();
+    expect(screen.queryByText('Evolución de asistencias')).toBeNull();
   });
 });
