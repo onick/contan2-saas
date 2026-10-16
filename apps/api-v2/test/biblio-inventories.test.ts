@@ -106,18 +106,23 @@ run('biblioteca · inventario F6', () => {
     expect(prest.items.map((x: { inventoryCode: string }) => x.inventoryCode)).toEqual([`I${stamp}-3`]);
     expect(prest.items[0]).toMatchObject({ resultado: 'prestado', estado: 'prestado' });
     const fuera = (await req('GET', `/api/v2/biblio/inventories/${invId}/items?tab=fuera`, TOK.biblio)).json();
-    // El ejemplar del Depósito B escaneado en Sala A no entra al alcance del
-    // sitio A (scope = registrados en A) pero SÍ quedó registrado el escaneo:
-    // aparece como fuera_ubicacion en la sesión de A solo si pertenece al scope.
-    // Nuestro diseño: el scope es por sitio registrado → el intruso NO figura acá.
-    expect(fuera.total).toBe(0);
+    // BIB-08a: el ejemplar del Depósito B escaneado en Sala A entra al alcance
+    // (registrados en A + escaneados en la sesión) y se lista como intruso.
+    expect(fuera.items.map((x: { inventoryCode: string }) => x.inventoryCode)).toEqual([`I${stamp}-4`]);
+    expect(fuera.total).toBe(1);
+    expect(fuera.items[0]).toMatchObject({ resultado: 'fuera_ubicacion', siteName: 'Depósito B' });
+    // Es un EXTRA: no descuenta esperados ni cambia faltantes/prestados.
+    const live = (await req('GET', '/api/v2/biblio/inventories', TOK.biblio)).json().active;
+    expect(live).toMatchObject({ expected: 3, scanned: 2, found: 1, misplaced: 1, onLoan: 1, missing: 1 });
+    const esc = (await req('GET', `/api/v2/biblio/inventories/${invId}/items?tab=escaneados`, TOK.biblio)).json();
+    expect(esc.total).toBe(2);
   });
 
   it('finalizar: congela el resumen (faltante real = 1; prestado no cuenta); repetir 409', async () => {
     const r = await req('POST', `/api/v2/biblio/inventories/${invId}/finish`, TOK.biblio, {});
     expect(r.statusCode).toBe(200);
     const inv = r.json().inventory;
-    expect(inv).toMatchObject({ status: 'finalizado', expected: 3, scanned: 1, found: 1, onLoan: 1, missing: 1 });
+    expect(inv).toMatchObject({ status: 'finalizado', expected: 3, scanned: 2, found: 1, misplaced: 1, onLoan: 1, missing: 1 });
     expect((await req('POST', `/api/v2/biblio/inventories/${invId}/finish`, TOK.biblio, {})).statusCode).toBe(409);
     // Tras cerrar, el pendiente pasa a FALTANTE.
     const falt = (await req('GET', `/api/v2/biblio/inventories/${invId}/items?tab=faltantes`, TOK.biblio)).json();
@@ -134,6 +139,13 @@ run('biblioteca · inventario F6', () => {
     expect(r.statusCode).toBe(200);
     expect(r.headers['content-type']).toContain('spreadsheetml');
     expect(r.rawPayload.subarray(0, 2).toString()).toBe('PK');
+    // El intruso (fuera de ubicación) y los 3 esperados figuran en el Excel congelado.
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(r.rawPayload as never);
+    const ws = wb.getWorksheet('Inventario')!;
+    const lines = Array.from({ length: ws.rowCount }, (_, i) => ws.getRow(i + 1).values as unknown[]).map((v) => v.join('|'));
+    expect(lines.some((l) => l.includes(`I${stamp}-4`) && l.includes('Fuera de ubicación'))).toBe(true);
+    expect(lines.filter((l) => l.includes(`I${stamp}-`)).length).toBe(4);
   });
 
   it('bajas: los ejemplares retirados aparecen con su motivo', async () => {

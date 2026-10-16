@@ -39,26 +39,32 @@ async function audit(db: DbClient, g: Guarded, action: string, targetId: string,
   }).execute();
 }
 
-// Alcance de la sesión: ejemplares VIVOS (del sitio, o todos).
-function scopeItems(db: DbClient, orgId: string, siteId: string | null) {
+// Alcance de la sesión (alias `i` = ejemplar, `sc` = su escaneo en esta sesión):
+// ejemplares VIVOS registrados en el sitio (o todos si la sesión es global) MÁS
+// los de otro sitio que se escanearon en esta sesión (fuera de ubicación).
+function scopeItems(db: DbClient, orgId: string, inv: { id: string; site_id: string | null }) {
   let q = db.selectFrom('biblio_items as i')
+    .leftJoin('biblio_inventory_scans as sc', (join) => join
+      .onRef('sc.item_id', '=', 'i.id').on('sc.inventory_id', '=', inv.id))
     .where('i.organization_id', '=', orgId)
     .where('i.retired_at', 'is', null);
-  if (siteId) q = q.where('i.site_id', '=', siteId);
+  if (inv.site_id) q = q.where((eb) => eb.or([eb('i.site_id', '=', inv.site_id as string), eb('sc.id', 'is not', null)]));
   return q;
 }
+// ¿El ejemplar está registrado en el sitio de la sesión? (esperado vs. extra escaneado)
+const inSiteSql = (siteId: string | null) => siteId
+  ? sql<boolean>`i.site_id = ${siteId}`
+  : sql<boolean>`true`;
 
 // Conteos derivados de una sesión (en vivo).
 async function liveCounts(db: DbClient, orgId: string, inv: { id: string; site_id: string | null }) {
-  const row = await scopeItems(db, orgId, inv.site_id)
-    .leftJoin('biblio_inventory_scans as sc', (join) => join
-      .onRef('sc.item_id', '=', 'i.id').on('sc.inventory_id', '=', inv.id))
+  const row = await scopeItems(db, orgId, inv)
     .select([
-      db.fn.countAll<string>().as('expected'),
+      sql<string>`count(*) filter (where ${inSiteSql(inv.site_id)})`.as('expected'),
       sql<string>`count(sc.id)`.as('scanned'),
       sql<string>`count(sc.id) filter (where not sc.misplaced)`.as('found'),
       sql<string>`count(sc.id) filter (where sc.misplaced)`.as('misplaced'),
-      sql<string>`count(*) filter (where sc.id is null and exists (
+      sql<string>`count(*) filter (where sc.id is null and ${inSiteSql(inv.site_id)} and exists (
         select 1 from biblio_loans l where l.item_id = i.id and l.returned_at is null))`.as('onloan'),
     ])
     .executeTakeFirst();
@@ -70,7 +76,8 @@ async function liveCounts(db: DbClient, orgId: string, inv: { id: string; site_i
     found: Number(row?.found ?? 0),
     misplaced: Number(row?.misplaced ?? 0),
     onLoan,
-    missing: Math.max(0, expected - scanned - onLoan),
+    // Los escaneos fuera de ubicación son EXTRAS: no descuentan esperados.
+    missing: Math.max(0, expected - (scanned - Number(row?.misplaced ?? 0)) - onLoan),
   };
 }
 
@@ -86,7 +93,7 @@ async function toInventory(db: DbClient, orgId: string, r: InvRow): Promise<Bibl
     ? {
         expected: Number(r.expected_count), scanned: Number(r.scanned_count ?? 0),
         found: Number(r.found_count ?? 0), misplaced: Number(r.misplaced_count ?? 0),
-        onLoan: Math.max(0, Number(r.expected_count) - Number(r.scanned_count ?? 0) - Number(r.missing_count ?? 0)),
+        onLoan: Math.max(0, Number(r.expected_count) - (Number(r.scanned_count ?? 0) - Number(r.misplaced_count ?? 0)) - Number(r.missing_count ?? 0)),
         missing: Number(r.missing_count ?? 0),
       }
     : await liveCounts(db, orgId, { id: r.id, site_id: r.site_id });
@@ -265,11 +272,9 @@ export const biblioInventoriesRoute: FastifyPluginAsync = async (app) => {
       if (!inv) { reply.code(404); return { error: 'Inventario no encontrado.' }; }
       const finished = inv.status !== 'en_progreso';
 
-      let base = scopeItems(db, r.g.orgId, inv.site_id)
+      let base = scopeItems(db, r.g.orgId, { id: invId, site_id: inv.site_id })
         .innerJoin('biblio_titles as t', 't.id', 'i.title_id')
         .leftJoin('biblio_sites as s', 's.id', 'i.site_id')
-        .leftJoin('biblio_inventory_scans as sc', (join) => join
-          .onRef('sc.item_id', '=', 'i.id').on('sc.inventory_id', '=', invId))
         .leftJoin('biblio_sites as fs', 'fs.id', 'sc.found_site_id');
       const onLoanSql = sql<boolean>`exists (select 1 from biblio_loans l where l.item_id = i.id and l.returned_at is null)`;
       if (tab === 'escaneados') base = base.where(sql<boolean>`sc.id is not null`);
@@ -330,11 +335,9 @@ export const biblioInventoriesRoute: FastifyPluginAsync = async (app) => {
       const inv = await toInventory(db, r.g.orgId, invRow as unknown as InvRow);
       const finished = inv.status !== 'en_progreso';
 
-      const rows = await scopeItems(db, r.g.orgId, inv.siteId)
+      const rows = await scopeItems(db, r.g.orgId, { id: invId, site_id: inv.siteId })
         .innerJoin('biblio_titles as t', 't.id', 'i.title_id')
         .leftJoin('biblio_sites as s', 's.id', 'i.site_id')
-        .leftJoin('biblio_inventory_scans as sc', (join) => join
-          .onRef('sc.item_id', '=', 'i.id').on('sc.inventory_id', '=', invId))
         .select(['i.inventory_code', 't.title', 't.authors',
           sql<string | null>`coalesce(i.call_number, t.call_number)`.as('call_number'),
           's.name as site_name', 'i.shelf', 'sc.id as scan_id', 'sc.misplaced', 'sc.scanned_at'])
