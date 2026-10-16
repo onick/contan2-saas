@@ -115,13 +115,14 @@ export function RegistrosChart({ series }: Props) {
                 return (
                   <span
                     key={k}
-                    aria-label={show ? undefined : it.label}
                     className={cn(
                       'num min-w-0 flex-1 overflow-hidden text-center text-[10px] tabular-nums transition-colors',
                       hi === k ? 'font-bold text-ink' : 'text-faint',
                     )}
                   >
-                    {show ? it.label : '\u00a0'}
+                    {/* Un <span> sin rol no admite aria-label (axe aria-prohibited-attr):
+                        la etiqueta omitida queda como texto solo para lectores de pantalla. */}
+                    {show ? it.label : <span className="sr-only">{it.label}</span>}
                   </span>
                 );
               })}

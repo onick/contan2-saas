@@ -18,17 +18,20 @@ describe('RegistrosChart · eje de días', () => {
     const cells = Array.from(container.querySelectorAll('span.num.flex-1'));
     expect(cells.length).toBe(30);
     for (const c of cells) expect(c.className).toContain('min-w-0');
-    const labeled = cells.filter((c) => /\d{2}\/\d{2}/.test(c.textContent ?? ''));
-    expect(labeled.length).toBeLessThanOrEqual(12);
-    expect(labeled.length).toBeGreaterThan(0);
-    // Las no rotuladas conservan el día como nombre accesible.
-    const blank = cells.find((c) => !/\d{2}\/\d{2}/.test(c.textContent ?? ''));
-    expect(blank?.getAttribute('aria-label')).toMatch(/\d{2}\/\d{2}/);
+    const visible = cells.filter((c) => !c.querySelector('.sr-only'));
+    expect(visible.length).toBeLessThanOrEqual(12);
+    expect(visible.length).toBeGreaterThan(0);
+    // Las no rotuladas conservan el día como texto solo para lectores de pantalla
+    // (nunca aria-label en un <span> sin rol: axe aria-prohibited-attr).
+    const hidden = cells.filter((c) => c.querySelector('.sr-only'));
+    expect(hidden.length).toBe(cells.length - visible.length);
+    for (const c of cells) expect(c.getAttribute('aria-label')).toBeNull();
+    expect(hidden[0]?.textContent).toMatch(/\d{2}\/\d{2}/);
   });
 
   it('con 7 días rotula todos', () => {
     const { container } = render(<RegistrosChart series={days(7)} />);
     const cells = Array.from(container.querySelectorAll('span.num.flex-1'));
-    expect(cells.filter((c) => /\d{2}\/\d{2}/.test(c.textContent ?? '')).length).toBe(7);
+    expect(cells.filter((c) => !c.querySelector('.sr-only')).length).toBe(7);
   });
 });
