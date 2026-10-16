@@ -59,6 +59,7 @@ async function loginScanner(baseURL: string): Promise<string> {
   const pin = env('E2E_SCANNER_PIN');
   if (!pin) return 'skip (sin E2E_SCANNER_PIN)';
   const file = statePath('scanner');
+  // Sesion guardada antigua (formato previo a PR-16) -> /scanner/api/me da 401 -> stateStillValid=false -> se pide el PIN de nuevo (1 vez por corrida).
   if (await stateStillValid(file, baseURL, '/scanner/api/me')) return 'reutilizado';
   const ctx = await request.newContext({ baseURL });
   try {

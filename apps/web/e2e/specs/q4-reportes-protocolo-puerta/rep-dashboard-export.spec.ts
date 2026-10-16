@@ -123,10 +123,16 @@ test.describe('REP-01 dashboard por periodo = period-summary', { tag: '@write' }
   });
 });
 
+/** 502 = el proxy no pudo hablar con api-v2 (tipicamente OOM del contenedor al renderizar el PDF): mensaje claro, el fallo no se oculta. */
+function expectNotBadGateway(res: { status(): number }): void {
+  expect(res.status() === 502, 'api-v2 no respondio (502): ¿memoria del contenedor?').toBe(false);
+}
+
 test.describe('REP-02 PDF branded', { tag: '@write' }, () => {
   test('REP-02a @smoke [S1] PDF por actividad: %PDF, adjunto, logo y color del tenant, reservados aparte', async ({ page }) => {
     test.setTimeout(150_000);
     const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/activity/${fx.act.id}.pdf`, { timeout: 120_000 }));
+    expectNotBadGateway(res);
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toContain('application/pdf');
     expect(res.headers()['content-disposition']).toMatch(/attachment;.*\.pdf/);
@@ -166,6 +172,7 @@ test.describe('REP-02 PDF branded', { tag: '@write' }, () => {
     const res = await withRateLimitRetry(() =>
       api.get(`/app/reportes/api/period?kind=pdf&from=${from}&to=${to}&${catQ(fx.category)}`, { timeout: 120_000 }),
     );
+    expectNotBadGateway(res);
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toContain('application/pdf');
     expect(res.headers()['content-disposition']).toMatch(/attachment;.*\.pdf/);
@@ -199,6 +206,7 @@ test.describe('REP-02 PDF branded', { tag: '@write' }, () => {
 test.describe('REP-03 Excel', { tag: '@write' }, () => {
   test('REP-03a [S1] Excel por actividad: hojas, columnas y reservas separadas de las asistencias', async () => {
     const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/activity/${fx.act.id}.xlsx`));
+    expectNotBadGateway(res);
     expect(res.status()).toBe(200);
     expect(res.headers()['content-disposition']).toMatch(/attachment;.*\.xlsx/);
     const buf = await res.body();
@@ -246,6 +254,7 @@ test.describe('REP-03 Excel', { tag: '@write' }, () => {
   test('REP-03c [S1] Excel por periodo (ciclo [E2E]): hojas, indicadores y detalle de la actividad', async () => {
     const { from, to } = RANGE();
     const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/period?kind=xlsx&from=${from}&to=${to}&${catQ(fx.category)}`));
+    expectNotBadGateway(res);
     expect(res.status()).toBe(200);
     expect(res.headers()['content-disposition']).toMatch(/Informe_periodo_.*\.xlsx/);
     const buf = await res.body();
@@ -273,6 +282,7 @@ test.describe('REP-03 Excel', { tag: '@write' }, () => {
     const now = new Date();
     const dr = ymdDR().split('-').map(Number);
     const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/month?year=${dr[0]}&month=${dr[1]}`));
+    expectNotBadGateway(res);
     expect(res.status()).toBe(200);
     expect(res.headers()['content-disposition']).toMatch(/registro_.*_\d{4}\.xlsx/);
     const buf = await res.body();
@@ -353,6 +363,7 @@ test.describe('REP-03 Excel', { tag: '@write' }, () => {
   test('REP-03g [S1] Excel de protocolo (owner): Resumen, Por actividad y Detalle con el invitado +2 sin asistir', async () => {
     const { from, to } = RANGE();
     const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/protocol?from=${from}&to=${to}`));
+    expectNotBadGateway(res);
     expect(res.status()).toBe(200);
     const buf = await res.body();
     saveArtifact('rep03-protocolo.xlsx', buf);

@@ -53,6 +53,13 @@ equipo `e2e-invitado@test.local`, 6 invitaciones RSVP con tokens conocidos sobre
 | `E2E_NO_MEDIA=1` | sin trazas/video/screenshots |
 | `Q2_RUN_PIN=1` | habilita los tests con PIN real del escáner (solo `webkit-tablet`, una vez por corrida) |
 
+## Sesiones guardadas (`.auth/`)
+
+`global-setup.ts` reutiliza cada `storageState` solo si la sonda (`/app/cuenta/api/me`, `/scanner/api/me`, ...) responde 200;
+con 401 hace un login nuevo (PIN del escáner o login de staff) **una sola vez por corrida**. Un cambio en el formato o la
+verificación de sesión del producto (p. ej. PR-16) invalida los `.auth/` antiguos: se renuevan solos en el siguiente
+arranque, pero si una corrida parcial (`E2E_ROLES`, `--grep`) no los toca, bórralos (`rm -rf e2e/.auth`) antes de repetir.
+
 ## Límites de staging (rate limits por IP)
 
 | Límite | Valor | Consecuencia |
@@ -60,7 +67,7 @@ equipo `e2e-invitado@test.local`, 6 invitaciones RSVP con tokens conocidos sobre
 | Login de staff | 10 / 15 min | un login por rol y por corrida (las sesiones se reusan desde `.auth/`); `E2E_ROLES` los acota |
 | Lockout por cuenta | 5 fallos / 15 min | AUTH-02 usa 1 intento malo con el owner |
 | Forgot / reset | 5 / 15 min compartido | AUTH-14 (`z-rate-limit`) deja la IP limitada ~15 min: **siempre el último** |
-| Import de usuarios | 3 / min | `withRateLimitRetry` |
+| Import de usuarios | 3 / min | `withRateLimitRetry` (respeta `Retry-After`; el limite se comparte entre corridas) |
 | Escrituras de actividades | 30 / min | el teardown espacia ≥2,1 s y reintenta ante 429 (máx. 3) |
 | Check-in público | 10 / min; lookup/suggest 30 / min | `spend()` de `support/q2-common.ts` |
 | RSVP | 10 / min | `spend('rsvp')` |
