@@ -9,6 +9,19 @@ import { ARTIFACTS_DIR, assertStaging, AUTH_DIR, BASE_URL, env, onlyProdReadonly
 import { ledgerDir, newRunId } from './fixtures/data';
 import { ROLES, roleEmail, rolePassword, statePath, type Role } from './fixtures/roles';
 
+// Ruta que debe responder 200 con una sesion valida de cada rol. Los roles confinados
+// (puerta/protocolo/biblioteca) redirigen desde /app a su home (app/app/layout.tsx), y una
+// sonda a /app los daria por vencidos -> login real en cada corrida (gasta el 10/15 min).
+const PROBE_BY_ROLE: Record<Role, string> = {
+  owner: '/app',
+  admin: '/app',
+  operator: '/app',
+  consulta: '/app',
+  puerta: '/app/puerta',
+  protocolo: '/app/protocolo',
+  biblioteca: '/app/biblioteca',
+};
+
 async function stateStillValid(file: string, baseURL: string, probe: string): Promise<boolean> {
   if (!existsSync(file)) return false;
   const ctx = await request.newContext({ baseURL, storageState: file });
@@ -27,7 +40,7 @@ async function loginRole(role: Role, baseURL: string): Promise<string> {
   const email = roleEmail(role);
   const password = rolePassword(role);
   if (!email || !password) return `skip (sin credenciales en .env.e2e)`;
-  if (await stateStillValid(file, baseURL, '/app')) return 'reutilizado';
+  if (await stateStillValid(file, baseURL, PROBE_BY_ROLE[role])) return 'reutilizado';
   const ctx: APIRequestContext = await request.newContext({ baseURL });
   try {
     const res = await ctx.post('/api/auth/login', { data: { email, password, rememberMe: false }, timeout: 30_000 });
