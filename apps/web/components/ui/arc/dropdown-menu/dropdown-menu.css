@@ -1,1 +1,96 @@
-/* components/ui/arc/dropdown-menu/dropdown-menu.css · estilos del porte (keyframes, @starting-style y estados compuestos). Lo llena el bloque correspondiente. */
+/* components/ui/arc/dropdown-menu/dropdown-menu.css
+   Movimiento del DropdownMenu del kit. Portado de arc-library (MIT © 2026 Elia Kuratli),
+   registry/components/dropdown-menu/dropdown-menu.module.css @ b40c890. Ver ../ATTRIBUTION.md.
+   Solo movimiento: el aspecto (colores, radio, sombra) viene de las utilidades del kit.
+   Se aplica por clase desde components/ui/DropdownMenu.tsx. */
+
+/* El panel crece desde el borde del disparador: desplazamiento hacia él + escala desde el
+   origen que calcula Radix (según side/align). Transiciones y no keyframes: un cierre que
+   interrumpe la apertura revierte desde donde está. */
+.arc-menu {
+  --menu-x: 0px;
+  --menu-y: -5px;
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+  transition:
+    opacity var(--arc-dur-fast) var(--arc-ease-enter),
+    transform var(--arc-dur-standard) var(--arc-ease-spring);
+}
+.arc-menu[data-side="top"] { --menu-y: 5px; }
+.arc-menu[data-side="left"] { --menu-x: 5px; --menu-y: 0px; }
+.arc-menu[data-side="right"] { --menu-x: -5px; --menu-y: 0px; }
+
+/* Entrada. Sin soporte de @starting-style el menú aparece sin animar. */
+@starting-style {
+  .arc-menu[data-state="open"] {
+    opacity: 0;
+    transform: translate(var(--menu-x), var(--menu-y)) scale(0.96);
+  }
+  .arc-menu[data-state="open"] [role="menuitem"],
+  .arc-menu[data-state="open"] [role="menuitemcheckbox"],
+  .arc-menu[data-state="open"] [role="menuitemradio"] {
+    opacity: 0;
+    transform: translate(calc(var(--menu-x) * 0.4), calc(var(--menu-y) * 0.4));
+  }
+}
+
+/* Salida, más rápida que la entrada. Radix desmonta al terminar la animación: el keyframe
+   no-op `arc-exit` (arc.css) mide el tiempo y la transición hace el trabajo visual. */
+.arc-menu[data-state="closed"] {
+  opacity: 0;
+  transform: translate(calc(var(--menu-x) * 0.5), calc(var(--menu-y) * 0.5)) scale(0.985);
+  transition:
+    opacity var(--arc-dur-exit) var(--arc-ease-standard),
+    transform var(--arc-dur-exit) var(--arc-ease-standard);
+  animation: arc-exit var(--arc-dur-exit) linear both;
+  pointer-events: none;
+}
+
+/* Escalonado ligero: --i (0..3) lo pone DropdownMenu.tsx; 20 ms por escalón, tope 60 ms. */
+.arc-menu [role="menuitem"],
+.arc-menu [role="menuitemcheckbox"],
+.arc-menu [role="menuitemradio"] {
+  transition:
+    opacity var(--arc-dur-standard) var(--arc-ease-enter) calc(min(var(--i, 0), 3) * 20ms),
+    transform var(--arc-dur-standard) var(--arc-ease-enter) calc(min(var(--i, 0), 3) * 20ms);
+}
+
+/* Resaltado deslizante (un único span posicionado por DropdownMenu.tsx). Con teclado salta;
+   con puntero se desliza (data-glide). */
+.arc-menu-highlight {
+  transition: opacity 70ms linear;
+}
+.arc-menu-highlight[data-glide="true"] {
+  transition:
+    transform var(--arc-dur-fast) var(--arc-ease-standard),
+    height var(--arc-dur-fast) var(--arc-ease-standard),
+    opacity 70ms linear;
+}
+
+/* Chevrón del disparador: 180° con el menú abierto. */
+.arc-chevron {
+  transition: transform var(--arc-dur-standard) var(--arc-ease-spring);
+}
+[aria-haspopup="menu"][data-state="open"] .arc-chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arc-menu,
+  .arc-menu[data-state="closed"] {
+    transform: none;
+    transition: opacity var(--arc-dur-instant) linear;
+  }
+  .arc-menu[data-state="closed"] { animation: none; }
+  .arc-menu [role="menuitem"],
+  .arc-menu [role="menuitemcheckbox"],
+  .arc-menu [role="menuitemradio"] { transition: none; }
+  .arc-menu-highlight,
+  .arc-menu-highlight[data-glide="true"] { transition: none; }
+  .arc-chevron { transition: none; }
+  @starting-style {
+    .arc-menu[data-state="open"] { opacity: 0; transform: none; }
+    .arc-menu[data-state="open"] [role="menuitem"],
+    .arc-menu[data-state="open"] [role="menuitemcheckbox"],
+    .arc-menu[data-state="open"] [role="menuitemradio"] { opacity: 1; transform: none; }
+  }
+}
