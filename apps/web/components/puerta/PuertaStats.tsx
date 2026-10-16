@@ -97,7 +97,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
   // ── derivados de presentación ──────────────────────────────────────────────
   const k = data.kpis, pr = data.prev, dl = data.deltas;
   const kpis = [
-    { label: 'Personas', value: k.people, prev: pr.people, delta: dl.people, tint: 'bg-brand/10 text-brand', Icon: Users },
+    { label: 'Personas', value: k.people, prev: pr.people, delta: dl.people, tint: 'bg-brand/10 text-brand-text', Icon: Users },
     { label: 'Entradas registradas', value: k.entries, prev: pr.entries, delta: dl.entries, tint: 'bg-info-soft text-info-text', Icon: DoorOpen },
     { label: 'En grupo', value: k.groupPeople, prev: pr.groupPeople, delta: dl.groupPeople, tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: GraduationCap },
     { label: 'Visitantes identificados', value: k.identified, prev: pr.identified, delta: dl.identified, tint: 'bg-success-bg text-success-fg', Icon: UserCheck },
@@ -147,7 +147,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
           <Link href="/app/puerta" className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <ArrowLeft size={16} strokeWidth={1.9} /> Registro
           </Link>
-          <a href={`/app/puerta/api/export?${exportQs}`} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
+          <a href={`/app/puerta/api/export?${exportQs}`} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-brand-fg hover:brightness-95', focusRing)}>
             <Download size={16} strokeWidth={1.9} /> Exportar Excel
           </a>
         </div>
@@ -157,7 +157,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
         {PRESETS.map((p) => (
           <button key={p.key} type="button" onClick={() => pickPreset(p.key)}
-            className={cn('rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors', focusRing, periodKey === p.key ? 'bg-brand text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
+            className={cn('rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors', focusRing, periodKey === p.key ? 'bg-brand text-brand-fg' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
             {p.label}
           </button>
         ))}
@@ -298,7 +298,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
 
         <p className="mt-6 text-[12.5px] text-muted">
           El Excel del botón de arriba respeta la sala y el rango elegidos. ¿Necesitás todo el histórico?{' '}
-          <a className="font-semibold text-brand hover:underline" href={`/app/puerta/api/export${sala !== 'all' ? `?sala=${sala}` : ''}`}>Descargar Excel completo</a>.
+          <a className="font-semibold text-brand-text hover:underline" href={`/app/puerta/api/export${sala !== 'all' ? `?sala=${sala}` : ''}`}>Descargar Excel completo</a>.
         </p>
       </div>
     </div>

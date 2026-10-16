@@ -519,7 +519,7 @@ export function CheckinConsole() {
                                 <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, var(--color-brand), var(--color-brand-accent))' }} />
                               </div>
                               <p className="mt-1 text-xs text-faint">
-                                <ListChecks size={12} strokeWidth={2} aria-hidden="true" className="mr-1 inline-block align-[-2px] text-brand" />
+                                <ListChecks size={12} strokeWidth={2} aria-hidden="true" className="mr-1 inline-block align-[-2px] text-brand-text" />
                                 Lista de invitados: <span className="font-semibold text-ink tabular-nums">{gl.arrived}</span> de {gl.total} llegaron · {Math.max(0, gl.total - gl.arrived)} pendientes
                               </p>
                             </div>

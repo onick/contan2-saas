@@ -89,7 +89,7 @@ export default async function SegmentMembersPage({ params }: { params: Promise<{
                             <tr key={m.id} className="border-t border-line align-middle hover:bg-page">
                               <td className="px-5 py-3.5 md:px-6">
                                 <a href={`/app/usuarios?q=${encodeURIComponent(m.code)}`} className={cn('group/link block min-w-0 rounded', focusRing)}>
-                                  <p className="truncate text-sm font-medium tracking-tight text-ink group-hover/link:text-brand">{m.firstName} {m.lastName}</p>
+                                  <p className="truncate text-sm font-medium tracking-tight text-ink group-hover/link:text-brand-text">{m.firstName} {m.lastName}</p>
                                   <p className="font-mono text-[11px] tracking-wide text-faint">{m.code}</p>
                                 </a>
                               </td>

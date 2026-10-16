@@ -129,7 +129,7 @@ export function TopbarNotifications() {
           href="/app/historial"
           onClick={() => setOpen(false)}
           className={cn(
-            'flex items-center justify-center gap-1.5 border-t border-line px-4 py-2.5 text-[13px] font-semibold text-brand hover:bg-surface-container',
+            'flex items-center justify-center gap-1.5 border-t border-line px-4 py-2.5 text-[13px] font-semibold text-brand-text hover:bg-surface-container',
             focusRing,
           )}
         >

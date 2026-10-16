@@ -30,6 +30,14 @@ describe('BrandingEditor', () => {
     expect(screen.getByText(/No cumple AA → el preview usa texto OSCURO/i)).toBeInTheDocument();
   });
 
+  it('muestra la nota de ajuste automático y chip/enlace con texto de marca AA', () => {
+    vi.stubGlobal('fetch', vi.fn());
+    render(<BrandingEditor initial={{ ...INITIAL, primaryColor: '#f39228' }} canEdit />);
+    expect(screen.getByText(/El texto del botón se ajusta automáticamente para ser legible/i)).toBeInTheDocument();
+    expect(screen.getByTestId('preview-chip')).toBeInTheDocument();
+    expect(screen.getByTestId('preview-link')).toBeInTheDocument();
+  });
+
   it('aplicar una paleta setea primario + acento y habilita guardar', () => {
     vi.stubGlobal('fetch', vi.fn());
     render(<BrandingEditor initial={INITIAL} canEdit />);

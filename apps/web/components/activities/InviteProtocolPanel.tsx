@@ -211,7 +211,7 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
                     <div className="flex items-center justify-between px-0.5">
                       <span className="text-[11.5px] text-faint">{filtered.length} visible{filtered.length === 1 ? '' : 's'}</span>
                       <button type="button" onClick={toggleAllVisible}
-                        className={cn('rounded-lg px-2 py-1 text-[12px] font-semibold text-brand hover:bg-accent-soft', focusRing)}>
+                        className={cn('rounded-lg px-2 py-1 text-[12px] font-semibold text-brand-text hover:bg-accent-soft', focusRing)}>
                         {allVisibleSelected ? 'Quitar selección visible' : 'Seleccionar todos los visibles'}
                       </button>
                     </div>
@@ -289,7 +289,7 @@ function CatChip({ label, active, onClick }: { label: string; active: boolean; o
     <button type="button" onClick={onClick} aria-pressed={active}
       className={cn(
         'rounded-full px-3 py-1 text-[12px] font-semibold transition-colors',
-        active ? 'bg-brand text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container',
+        active ? 'bg-brand text-brand-fg' : 'border border-line bg-surface text-muted hover:bg-surface-container',
         focusRing,
       )}>
       {label}

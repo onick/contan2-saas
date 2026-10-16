@@ -44,7 +44,7 @@ export function ForgotForm() {
         <MailCheck size={28} strokeWidth={1.75} aria-hidden="true" className="text-success-fg" />
         <p className="text-sm font-semibold text-ink">Revisá tu correo</p>
         <p className="text-[13px] text-muted">Si la cuenta existe, vas a recibir un enlace para crear una contraseña nueva. Vence en 1 hora.</p>
-        <a href="/login" className={cn('mt-2 rounded text-[13px] font-semibold text-brand hover:underline', focusRing)}>Volver a ingresar</a>
+        <a href="/login" className={cn('mt-2 rounded text-[13px] font-semibold text-brand-text hover:underline', focusRing)}>Volver a ingresar</a>
       </div>
     );
   }

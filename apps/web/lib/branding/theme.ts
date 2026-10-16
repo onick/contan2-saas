@@ -3,7 +3,7 @@ import type { OrgBrandingResponse } from '@contan2/contracts';
 // BrandingOrg reutiliza el tipo del contrato para mantener sincronía automática con la API.
 export type BrandingOrg = OrgBrandingResponse['organization'];
 
-import { textOn, textShade } from './contrast';
+import { deriveBrandTokens, textShade } from './contrast';
 
 export const CSS_VAR_BRAND        = '--color-brand';
 export const CSS_VAR_BRAND_FG     = '--color-brand-fg';
@@ -13,7 +13,7 @@ export const CSS_VAR_BRAND_ACCENT = '--color-brand-accent';
 export const CSS_VAR_INFO_TEXT    = '--color-info-text';
 export const CSS_VAR_INFO_SOFT    = '--color-info-soft';
 export const CSS_VAR_FOCUS        = '--color-focus';
-// Alias obsoleto — se conserva para no romper los ~19 consumidores actuales.
+// Relleno oscuro de marca (CTAs con texto blanco): más oscuro que brand-text.
 export const CSS_VAR_BRAND_STRONG = '--color-brand-strong';
 
 export type BrandCssVars = {
@@ -32,20 +32,19 @@ export type BrandCssVars = {
 // aplicado en el <div> de app/app/layout.tsx → emitimos todos los valores derivados
 // como vars concretas para que el subtree quede completamente tematizado.
 export function brandingToCssVars(branding: BrandingOrg): BrandCssVars {
-  const primary   = branding.primaryColor;
   const secondary = branding.secondaryColor;
+  const t = deriveBrandTokens(branding.primaryColor);
   // bg='#fafaf9' (page) es ligeramente más difícil que blanco → garantiza ≥4.5 en ambos.
-  const brandText = textShade(primary, '#fafaf9');
   const infoText  = textShade(secondary, '#fafaf9');
   return {
-    [CSS_VAR_BRAND]:        primary,
-    [CSS_VAR_BRAND_FG]:     textOn(primary).color,
-    [CSS_VAR_BRAND_TEXT]:   brandText,
-    [CSS_VAR_BRAND_SOFT]:   `color-mix(in srgb, ${primary} 10%, white)`,
+    [CSS_VAR_BRAND]:        t.brand,
+    [CSS_VAR_BRAND_FG]:     t.brandFg,
+    [CSS_VAR_BRAND_TEXT]:   t.brandText,
+    [CSS_VAR_BRAND_SOFT]:   t.brandSoft,
     [CSS_VAR_BRAND_ACCENT]: secondary,
     [CSS_VAR_INFO_TEXT]:    infoText,
     [CSS_VAR_INFO_SOFT]:    `color-mix(in srgb, ${secondary} 10%, white)`,
-    [CSS_VAR_FOCUS]:        brandText,
-    [CSS_VAR_BRAND_STRONG]: brandText,
+    [CSS_VAR_FOCUS]:        t.focus,
+    [CSS_VAR_BRAND_STRONG]: t.brandStrong,
   };
 }

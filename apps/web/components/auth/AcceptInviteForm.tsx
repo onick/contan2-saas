@@ -41,7 +41,7 @@ export function AcceptInviteForm({ token, initialName }: { token: string; initia
         <PartyPopper size={28} strokeWidth={1.75} aria-hidden="true" className="text-success-fg" />
         <p className="text-sm font-semibold text-ink">Cuenta creada</p>
         <p className="text-[13px] text-muted">Ya formás parte del equipo. Ingresá con tu correo y la contraseña que elegiste.</p>
-        <a href="/login" className={cn('mt-2 rounded text-[13px] font-semibold text-brand hover:underline', focusRing)}>Ir a ingresar</a>
+        <a href="/login" className={cn('mt-2 rounded text-[13px] font-semibold text-brand-text hover:underline', focusRing)}>Ir a ingresar</a>
       </div>
     );
   }

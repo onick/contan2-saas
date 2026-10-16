@@ -60,7 +60,7 @@ export function CohortPills({ counts }: CohortPillsProps) {
               'inline-flex flex-none items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-semibold transition-colors',
               focusRing,
               isActive
-                ? 'border-brand bg-brand text-white'
+                ? 'border-brand bg-brand text-brand-fg'
                 : 'border-line bg-surface text-muted hover:bg-page hover:text-ink',
             )}
           >

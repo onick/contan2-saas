@@ -145,7 +145,7 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
         <span className="ml-auto flex items-center gap-3">
           {canExport && items.length > 0 ? (
             <a href={`/app/reportes/api/activity/${encodeURIComponent(activityId)}.xlsx`}
-              className={cn('inline-flex items-center gap-1 rounded text-[12px] font-semibold text-brand hover:underline', focusRing)}>
+              className={cn('inline-flex items-center gap-1 rounded text-[12px] font-semibold text-brand-text hover:underline', focusRing)}>
               <FileSpreadsheet size={13} strokeWidth={2} aria-hidden="true" /> Exportar Excel
             </a>
           ) : null}
@@ -253,7 +253,7 @@ export function AttendeesSection({ activityId, canExport, onMutated, headerActio
                     {editError ? <span className="text-[11.5px] font-semibold text-danger-fg">{editError}</span> : null}
                     <span className="ml-auto flex items-center gap-1.5">
                       <button type="button" disabled={saving} onClick={() => void saveCompanions(a.id)}
-                        className={cn('rounded-md bg-brand px-2.5 py-1 text-[12px] font-bold text-white hover:bg-brand-strong disabled:opacity-50', focusRing)}>
+                        className={cn('rounded-md bg-brand px-2.5 py-1 text-[12px] font-bold text-brand-fg hover:brightness-95 disabled:opacity-50', focusRing)}>
                         {saving ? 'Guardando…' : 'Guardar'}
                       </button>
                       <button type="button" onClick={() => setEditId(null)}

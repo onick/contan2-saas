@@ -124,7 +124,7 @@ export function CirculacionClient({ initial, initialSummary }: {
       header: 'Lector',
       cell: (l) => (
         <span className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(l.userFirstName, l.userLastName)}</span>
+          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand-text">{initials(l.userFirstName, l.userLastName)}</span>
           <span className="min-w-0">
             <span className="block max-w-[170px] truncate text-[13px] font-bold leading-tight text-ink">{l.userFirstName} {l.userLastName}</span>
             <span className="block font-mono text-[10.5px] text-faint tabular-nums">{l.userCode}</span>
@@ -144,7 +144,7 @@ export function CirculacionClient({ initial, initialSummary }: {
               : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
           </span>
           <span className="min-w-0">
-            <span className="block max-w-[200px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand">{l.title}</span>
+            <span className="block max-w-[200px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand-text">{l.title}</span>
             <span className="block max-w-[200px] truncate text-[11px] text-muted">{l.authors[0] ?? ''}</span>
             <span className="block font-mono text-[10.5px] text-faint tabular-nums">Inv. {l.inventoryCode}</span>
           </span>
@@ -267,7 +267,7 @@ export function CirculacionClient({ initial, initialSummary }: {
                 }
                 mobileCard={(l) => (
                   <div className="flex items-center gap-3 p-4">
-                    <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(l.userFirstName, l.userLastName)}</span>
+                    <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand-text">{initials(l.userFirstName, l.userLastName)}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-bold text-ink">{l.userFirstName} {l.userLastName}</p>
                       <p className="truncate text-[11.5px] text-muted">{l.title} · Inv. {l.inventoryCode}</p>
@@ -375,7 +375,7 @@ function RailBtn({ Icon, label, onClick, href }: { Icon: typeof BookOpen; label:
   const cls = cn('flex flex-col items-center gap-1.5 rounded-xl border border-line bg-surface px-2 py-3 text-center transition-transform hover:-translate-y-0.5 hover:shadow-sm', focusRing);
   const inner = (
     <>
-      <Icon size={18} strokeWidth={1.8} className="text-brand" />
+      <Icon size={18} strokeWidth={1.8} className="text-brand-text" />
       <span className="text-[11.5px] font-bold leading-tight text-ink">{label}</span>
     </>
   );
