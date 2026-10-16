@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, Check, AlertTriangle, Plus, QrCode, Users, X, UserPlus, Search, DoorOpen, UserCheck } from 'lucide-react';
 import type { PuertaSala, CheckinVisitorItem } from '@contan2/contracts';
 import { searchCheckinVisitors } from '../../lib/api/checkin-client';
-import { Card, Button, IconButton, Field, Chip, EmptyState, cn, focusRing, useDrawerLifecycle } from '../ui';
+import { Card, Button, IconButton, Field, Chip, EmptyState, ErrorState, cn, focusRing, useDrawerLifecycle } from '../ui';
 import { DoorButton } from './DoorButton';
 import { PuertaIdentify } from './PuertaIdentify';
 import { VrAgenda } from './VrAgenda';
@@ -29,12 +29,20 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
   const [toast, setToast] = useState<{ k: 'ok' | 'err'; t: string } | null>(null);
   const [reg, setReg] = useState<Reg>(null);
   const [busy, setBusy] = useState(false);
+  // Estado de la carga de salas: distingue "aún no sé" / "falló" / "sin permiso"
+  // de "no hay salas" (lista vacía con 200).
+  const [load, setLoad] = useState<'loading' | 'ok' | 'error' | 'forbidden'>(initial.length > 0 ? 'ok' : 'loading');
 
   const refresh = useCallback(async () => {
     try {
       const res = await fetch('/app/puerta/api/salas', { cache: 'no-store' });
-      if (res.ok) setSalas((await res.json()).salas ?? []);
-    } catch { /* mantiene lo previo */ }
+      if (res.ok) {
+        const j = await res.json().catch(() => null);
+        if (j && Array.isArray(j.salas)) { setSalas(j.salas); setLoad('ok'); }
+        else setLoad('error');
+      } else if (res.status === 403) setLoad('forbidden');
+      else setLoad('error');
+    } catch { setLoad('error'); /* conserva las salas previas, si hay */ }
   }, []);
   useEffect(() => { refresh(); const t = setInterval(refresh, 20000); return () => clearInterval(t); }, [refresh]);
 
@@ -58,7 +66,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
     <div>
       <div role="status" aria-live="polite">
         {toast ? (
-          <div className={cn('mb-4 flex items-center gap-2 rounded-xl px-4 py-3 text-[14px] font-medium', toast.k === 'ok' ? 'bg-success-bg text-success-fg' : 'bg-danger-bg text-danger-fg')}>
+          <div role={toast.k === 'err' ? 'alert' : undefined} className={cn('mb-4 flex items-center gap-2 rounded-xl px-4 py-3 text-[14px] font-medium', toast.k === 'ok' ? 'bg-success-bg text-success-fg' : 'bg-danger-bg text-danger-fg')}>
             {toast.k === 'ok' ? <Check size={17} /> : <AlertTriangle size={17} />} {toast.t}
             <button onClick={() => setToast(null)} className="ml-auto opacity-60 hover:opacity-100"><X size={16} /></button>
           </div>
@@ -74,7 +82,15 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
       ) : null}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {salas.length === 0 ? (
+        {salas.length === 0 && load === 'loading' ? (
+          <p className="py-6 text-center text-[13px] text-muted lg:col-span-2">Cargando salas…</p>
+        ) : salas.length === 0 && load !== 'ok' ? (
+          <div className="lg:col-span-2">
+            {load === 'forbidden'
+              ? <ErrorState kind="forbidden" title="No tienes permiso para ver las salas" />
+              : <ErrorState title="No pudimos cargar las salas" description="La conexión con el servidor falló. Esto no significa que no haya salas configuradas." onRetry={() => { setLoad('loading'); void refresh(); }} />}
+          </div>
+        ) : salas.length === 0 ? (
           <div className="lg:col-span-2">
             <EmptyState icon={DoorOpen} title="No hay salas permanentes" description="Todavía no se configuraron salas permanentes (Ada Balcácer, Sala VR) para este tenant." />
           </div>
