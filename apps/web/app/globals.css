@@ -29,15 +29,15 @@
      :root y no siguen al subtree, emitimos todos los derivados como vars concretas). */
   --color-brand: #f39228;
   --color-brand-fg: #1f2326;
-  --color-brand-text: #ae5f0a;
-  --color-brand-soft: #fef4e8;
+  --color-brand-text: #a95d09;
+  --color-brand-soft: #fef4ea;
   --color-brand-accent: #31a3db;
   --color-info-text: #1d7aa7;
   --color-info-soft: #eaf6fc;
-  /* brand-strong: alias obsoleto (≈brand-text); conservado para los ~19 consumidores. */
-  --color-brand-strong: #ae5f0a;
-  /* focus sigue a brand-text para cumplir el 3:1 de WCAG 1.4.11. */
-  --color-focus: #ae5f0a;
+  /* brand-strong: relleno oscuro (texto blanco ≥5.5:1), derivado en lib/branding/contrast.ts. */
+  --color-brand-strong: #9d5608;
+  /* focus = brand-strong (≥3:1, WCAG 1.4.11). */
+  --color-focus: #9d5608;
 
   /* Superficies y texto neutros. */
   --color-page: #fafaf9;

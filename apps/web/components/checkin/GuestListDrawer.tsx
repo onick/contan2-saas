@@ -392,7 +392,7 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
                     {!createOpen ? (
                       <button type="button" onClick={() => { const parts = q.trim().split(/\s+/); setForm({ firstName: parts[0] ?? '', lastName: parts.slice(1).join(' '), email: '', phone: '' }); setCreateOpen(true); }}
                         className={cn('flex w-full items-center gap-3 rounded-xl border border-dashed border-line bg-surface p-3 text-left hover:border-brand-accent hover:bg-accent-soft/40', focusRing)}>
-                        <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-accent-soft text-brand"><UserPlus size={18} strokeWidth={2} aria-hidden="true" /></span>
+                        <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-accent-soft text-brand-text"><UserPlus size={18} strokeWidth={2} aria-hidden="true" /></span>
                         <span className="min-w-0">
                           <span className="block text-[13.5px] font-bold text-ink">Crear visitante «{q.trim()}»</span>
                           <span className="block text-[12px] text-muted">Se agrega al padrón, a esta lista y se le da entrada.</span>

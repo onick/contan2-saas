@@ -66,7 +66,7 @@ export function ActivitiesTable({ activities, onView, onEdit, onChanged }: Activ
                   </div>
                 </div>
                 <div className="flex flex-none items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                  <IconButton label={`Ver detalle de ${a.title}`} variant="ghost" size="sm" className="text-brand" onClick={() => onView?.(a)}>
+                  <IconButton label={`Ver detalle de ${a.title}`} variant="ghost" size="sm" className="text-brand-text" onClick={() => onView?.(a)}>
                     <Eye size={18} strokeWidth={2} aria-hidden="true" />
                   </IconButton>
                   <ActivityRowMenu activity={a} onView={onView} onEdit={onEdit} onChanged={onChanged} />
@@ -163,7 +163,7 @@ export function ActivitiesTable({ activities, onView, onEdit, onChanged }: Activ
                       el click de la fila (que abre el detalle). */}
                   <td className="whitespace-nowrap px-4 py-4" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
-                      <IconButton label={`Ver detalle de ${a.title}`} variant="ghost" size="sm" className="text-brand" onClick={() => onView?.(a)}>
+                      <IconButton label={`Ver detalle de ${a.title}`} variant="ghost" size="sm" className="text-brand-text" onClick={() => onView?.(a)}>
                         <Eye size={18} strokeWidth={2} aria-hidden="true" />
                       </IconButton>
                       <ActivityRowMenu activity={a} onView={onView} onEdit={onEdit} onChanged={onChanged} />

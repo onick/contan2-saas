@@ -193,7 +193,7 @@ export function InventarioClient({ initial, sites }: {
               : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
           </span>
           <span className="min-w-0">
-            <span className="block max-w-[200px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand">{it.title}</span>
+            <span className="block max-w-[200px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand-text">{it.title}</span>
             <span className="block max-w-[200px] truncate text-[11px] text-muted">{it.authors[0] ?? ''}</span>
           </span>
         </Link>
@@ -269,7 +269,7 @@ export function InventarioClient({ initial, sites }: {
           <Card padding="lg" className="app-reveal mt-5" style={{ animationDelay: '40ms' }}>
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="flex items-start gap-3.5">
-                <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-brand/10 text-brand"><ClipboardList size={22} strokeWidth={1.8} /></span>
+                <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-brand/10 text-brand-text"><ClipboardList size={22} strokeWidth={1.8} /></span>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-[16px] font-extrabold tracking-tight text-ink">{viewing.name}</h2>
@@ -316,7 +316,7 @@ export function InventarioClient({ initial, sites }: {
             {active ? (
               <form className="mt-4" onSubmit={(e) => { e.preventDefault(); void scan(scanCode); }}>
                 <label className={cn('flex items-center gap-2.5 rounded-xl border-2 border-brand/40 bg-surface px-3.5 py-3', focusRing)}>
-                  <ScanBarcode size={19} className="flex-none text-brand" aria-hidden="true" />
+                  <ScanBarcode size={19} className="flex-none text-brand-text" aria-hidden="true" />
                   <input ref={scanRef} value={scanCode} onChange={(e) => setScanCode(e.target.value)} autoFocus
                     placeholder="Escanea el código de barras del ejemplar (o escríbelo y Enter)…" aria-label="Escanear ejemplar"
                     className="w-full bg-transparent font-mono text-[15px] text-ink outline-none placeholder:font-sans placeholder:text-faint" />
@@ -468,7 +468,7 @@ export function InventarioClient({ initial, sites }: {
               </dl>
               <div className="mt-2.5 flex items-baseline justify-between border-t border-line/60 pt-2">
                 <span className="text-[12.5px] font-bold text-ink">Completado</span>
-                <span className="text-[16px] font-extrabold tabular-nums text-brand">{pct}%</span>
+                <span className="text-[16px] font-extrabold tabular-nums text-brand-text">{pct}%</span>
               </div>
             </Card>
 
@@ -494,11 +494,11 @@ export function InventarioClient({ initial, sites }: {
               <div className="mt-2 flex flex-col gap-1">
                 <a href={`/app/biblioteca/api/inventories/${viewing.id}/export`} download
                   className={cn('flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[12.5px] font-semibold text-ink hover:bg-surface-container', focusRing)}>
-                  <Download size={15} className="text-brand" strokeWidth={1.9} /> Exportar resultados (Excel)
+                  <Download size={15} className="text-brand-text" strokeWidth={1.9} /> Exportar resultados (Excel)
                 </a>
                 <button type="button" onClick={() => { setTab('faltantes'); setPage(1); }}
                   className={cn('flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[12.5px] font-semibold text-ink hover:bg-surface-container', focusRing)}>
-                  <Search size={15} className="text-brand" strokeWidth={1.9} /> Ver {viewing.status === 'finalizado' ? 'faltantes' : 'pendientes'}
+                  <Search size={15} className="text-brand-text" strokeWidth={1.9} /> Ver {viewing.status === 'finalizado' ? 'faltantes' : 'pendientes'}
                 </button>
                 <span className="flex cursor-default items-center gap-2.5 rounded-xl px-2.5 py-2 text-[12.5px] font-semibold text-faint" title="Llega en una fase posterior">
                   <Printer size={15} strokeWidth={1.9} /> Imprimir etiquetas de códigos <Chip tone="neutral">Pronto</Chip>
@@ -509,7 +509,7 @@ export function InventarioClient({ initial, sites }: {
         ) : null}
 
         <Card padding="md" className="app-reveal mt-4 border-brand/25 bg-brand/[0.04]" style={{ animationDelay: '150ms' }}>
-          <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><CircleCheck size={14} className="text-brand" /> Consejo</h2>
+          <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><CircleCheck size={14} className="text-brand-text" /> Consejo</h2>
           <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
             Escanea los códigos de los ejemplares uno por uno para verificar su existencia y ubicación.
             Lo que figura prestado no cuenta como faltante: está en la calle, no perdido.

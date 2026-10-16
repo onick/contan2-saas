@@ -183,7 +183,7 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
           <button type="button" className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13.5px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <Download size={16} strokeWidth={1.9} aria-hidden="true" /> Exportar segmentos
           </button>
-          <button type="button" className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13.5px] font-bold text-white hover:bg-brand-strong', focusRing)}>
+          <button type="button" className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13.5px] font-bold text-brand-fg hover:brightness-95', focusRing)}>
             <Send size={16} strokeWidth={1.9} aria-hidden="true" /> Crear campaña
           </button>
         </div>
@@ -342,7 +342,7 @@ export function SegmentsDashboard({ segments, totalVisitors }: SegmentsDashboard
             {categorias.sort((a, b) => b.count - a.count).map((s) => (
               <a key={s.id} href={`/app/segmentos/${encodeURIComponent(s.id)}`}
                 className={cn('group flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3.5 shadow-sm hover:border-brand/40', focusRing)}>
-                <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand/10 text-brand">
+                <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand/10 text-brand-text">
                   <Heart size={16} strokeWidth={1.9} aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink">{s.label}</span>

@@ -226,7 +226,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
 
       {/* ── Tabs del registro ── */}
       <div className="app-reveal mt-4 flex gap-1 overflow-x-auto border-b border-line" style={{ animationDelay: '30ms' }} role="tablist" tabIndex={0} aria-label="Secciones del registro">
-        <span role="tab" aria-selected="true" className="flex-none border-b-2 border-brand px-3.5 py-2 text-[13.5px] font-bold text-brand">Información bibliográfica</span>
+        <span role="tab" aria-selected="true" className="flex-none border-b-2 border-brand px-3.5 py-2 text-[13.5px] font-bold text-brand-text">Información bibliográfica</span>
         <span role="tab" aria-selected="false" aria-disabled="true" title="Los ejemplares se agregan en la ficha, después de guardar"
           className="flex-none cursor-default px-3.5 py-2 text-[13.5px] font-medium text-faint/70">Ejemplares (0)</span>
         <span role="tab" aria-selected="false" aria-disabled="true" title="Llega en las próximas fases"
@@ -259,8 +259,8 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
                     <img src={coverPreview ?? autofillCoverUrl ?? ''} alt="Vista previa de la portada" className="h-full w-full object-cover" />
                   ) : (
                     <span className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
-                      <ImagePlus size={22} strokeWidth={1.8} className="text-brand" />
-                      <span className="text-[12px] font-bold leading-tight text-brand">Agregar portada</span>
+                      <ImagePlus size={22} strokeWidth={1.8} className="text-brand-text" />
+                      <span className="text-[12px] font-bold leading-tight text-brand-text">Agregar portada</span>
                       <span className="text-[10.5px] leading-tight text-faint">JPG, PNG o WebP · máx {MAX_COVER_MB} MB</span>
                     </span>
                   )}
@@ -298,7 +298,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
                         {autofill ? <CircleCheck size={17} className="text-success-fg" aria-label="ISBN verificado" /> : null}
                         <button type="button" onClick={buscarIsbn} disabled={looking || !f.isbn.trim()}
                           aria-label="Buscar por ISBN y completar la ficha"
-                          className={cn('grid h-8 w-8 place-items-center rounded-lg text-brand hover:bg-brand/10 disabled:opacity-40', focusRing)}>
+                          className={cn('grid h-8 w-8 place-items-center rounded-lg text-brand-text hover:bg-brand/10 disabled:opacity-40', focusRing)}>
                           {looking ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} strokeWidth={2} />}
                         </button>
                       </span>
@@ -460,7 +460,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
           </Card>
 
           <Card padding="md" className="app-reveal mt-4 border-brand/25 bg-brand/[0.04]" style={{ animationDelay: '140ms' }}>
-            <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><ScanBarcode size={15} className="text-brand" /> ¿Necesitas ayuda?</h2>
+            <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><ScanBarcode size={15} className="text-brand-text" /> ¿Necesitas ayuda?</h2>
             <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">Escanea o escribe el ISBN y completamos la ficha automáticamente (título, autores, editorial, año y portada).</p>
             <Button variant="secondary" size="sm" className="mt-2.5 w-full" type="button"
               onClick={() => { isbnRef.current?.focus(); isbnRef.current?.select(); }}>
@@ -502,7 +502,7 @@ function ChipsField({ label, values, onChange, suggestions = [], placeholder, ma
       <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</span>
       <div className={cn('mt-1 flex min-h-11 flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-1.5', focusRing)}>
         {values.map((v) => (
-          <span key={v} className="flex items-center gap-1 rounded-full bg-brand/10 py-1 pl-2.5 pr-1.5 text-[12.5px] font-semibold text-brand">
+          <span key={v} className="flex items-center gap-1 rounded-full bg-brand/10 py-1 pl-2.5 pr-1.5 text-[12.5px] font-semibold text-brand-text">
             {v}
             <button type="button" aria-label={`Quitar ${v}`} onClick={() => onChange(values.filter((x) => x !== v))}
               className={cn('grid h-4.5 w-4.5 place-items-center rounded-full hover:bg-brand/20', focusRing)}>
@@ -518,7 +518,7 @@ function ChipsField({ label, values, onChange, suggestions = [], placeholder, ma
           className="min-w-[140px] flex-1 bg-transparent px-1 py-1 text-[13.5px] text-ink outline-none placeholder:text-faint" />
         {values.length < max && draft.trim() ? (
           <button type="button" onClick={() => add(draft)} aria-label={`Agregar ${draft}`}
-            className={cn('grid h-7 w-7 flex-none place-items-center rounded-lg text-brand hover:bg-brand/10', focusRing)}>
+            className={cn('grid h-7 w-7 flex-none place-items-center rounded-lg text-brand-text hover:bg-brand/10', focusRing)}>
             <Plus size={15} strokeWidth={2.2} />
           </button>
         ) : null}

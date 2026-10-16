@@ -137,7 +137,7 @@ export function AddFromPadronPanel({ activityId, activityName, open, onClose, on
           {phase === 'idle' && q.trim().length < 2 ? (
             <div className="px-3 py-8 text-center text-[13px] text-faint">
               <p>Escribí al menos 2 caracteres para buscar.</p>
-              <p className="mt-2">Tip: escribí <button type="button" onClick={() => setQ('*protocolo')} className="font-semibold text-brand hover:underline">*protocolo</button> para ver toda la lista de protocolo.</p>
+              <p className="mt-2">Tip: escribí <button type="button" onClick={() => setQ('*protocolo')} className="font-semibold text-brand-text hover:underline">*protocolo</button> para ver toda la lista de protocolo.</p>
             </div>
           ) : phase === 'searching' ? (
             <p className="px-3 py-8 text-center text-[13px] text-faint"><Loader2 size={16} className="mr-1 inline animate-spin" /> Buscando…</p>
@@ -156,7 +156,7 @@ export function AddFromPadronPanel({ activityId, activityName, open, onClose, on
                       className={cn('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left [&+*]:border-t', focusRing,
                         inList ? 'cursor-not-allowed opacity-70' : 'hover:bg-surface-container/60')}>
                       <span className={cn('grid h-5 w-5 flex-none place-items-center rounded-md border',
-                        inList ? 'border-line bg-surface-container' : checked ? 'border-transparent bg-brand text-white' : 'border-line bg-surface')}>
+                        inList ? 'border-line bg-surface-container' : checked ? 'border-transparent bg-brand text-brand-fg' : 'border-line bg-surface')}>
                         {checked && !inList ? <Check size={13} strokeWidth={3} aria-hidden="true" /> : null}
                       </span>
                       <span className={cn('grid h-9 w-9 flex-none place-items-center rounded-full text-[11px] font-bold',

@@ -127,7 +127,7 @@ export function ReservasClient({ initial, initialSummary }: {
       header: 'Reserva',
       cell: (r) => (
         <span>
-          <span className="flex items-center gap-1.5 font-mono text-[12px] font-bold tabular-nums text-ink"><Bookmark size={12} className="text-brand" aria-hidden="true" /> {r.code}</span>
+          <span className="flex items-center gap-1.5 font-mono text-[12px] font-bold tabular-nums text-ink"><Bookmark size={12} className="text-brand-text" aria-hidden="true" /> {r.code}</span>
           <span className="block pl-[18px] text-[11px] tabular-nums text-faint">{fmtDate(r.createdAt)}</span>
         </span>
       ),
@@ -154,7 +154,7 @@ export function ReservasClient({ initial, initialSummary }: {
               : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
           </span>
           <span className="min-w-0">
-            <span className="block max-w-[180px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand">{r.title}</span>
+            <span className="block max-w-[180px] truncate text-[13px] font-bold leading-tight text-ink hover:text-brand-text">{r.title}</span>
             <span className="block max-w-[180px] truncate text-[11px] text-muted">{r.authors[0] ?? ''}</span>
             {r.inventoryCode ? <span className="block font-mono text-[10.5px] text-faint tabular-nums">Inv. {r.inventoryCode}</span> : null}
           </span>
@@ -373,7 +373,7 @@ export function ReservasClient({ initial, initialSummary }: {
             ) : null}
 
             <Card padding="md" className="app-reveal mt-4" style={{ animationDelay: '120ms' }}>
-              <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><Clock3 size={14} className="text-brand" /> Cómo funciona</h2>
+              <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><Clock3 size={14} className="text-brand-text" /> Cómo funciona</h2>
               <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
                 Al devolverse una copia, la reserva más antigua pasa sola a <b className="text-ink">Lista para retirar</b> con un ejemplar apartado.
                 Si no la retiran en {summary.policy.pickupDays} días, vence y la copia pasa al siguiente de la fila.

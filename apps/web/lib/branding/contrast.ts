@@ -89,6 +89,37 @@ export function textShade(hex: string, bg = '#ffffff', min = 4.5): string {
   return toHex(r, g, b);
 }
 
+// Tinte claro de marca: equivale a `color-mix(in srgb, <hex> 10%, white)` pero como
+// hex concreto, para poder verificar el contraste del texto de marca sobre él.
+export function softTint(hex: string, pct = 0.1): string {
+  if (!isHex6(hex)) return '#fef4ea';
+  const h = hex.replace('#', '');
+  const ch = (i: number) => parseInt(h.slice(i, i + 2), 16) * pct + 255 * (1 - pct);
+  return toHex(ch(0), ch(2), ch(4));
+}
+
+export interface BrandTokens {
+  brand: string;       // color del tenant, tal cual
+  brandFg: string;     // texto sobre `brand` (blanco si ≥4.5:1, si no ink oscuro)
+  brandText: string;   // texto de marca pequeño: ≥4.5:1 sobre soft, page y blanco
+  brandStrong: string; // relleno oscuro para CTAs con texto blanco (≥5.5:1 con blanco)
+  brandSoft: string;   // tinte claro (fondo de chips/ítem activo)
+  focus: string;       // anillo de foco (= brandStrong)
+}
+
+// Derivación pura de los tokens de marca a partir del color primario del tenant.
+// Garantiza AA para cualquier color sin pedirle al tenant que lo cambie.
+export function deriveBrandTokens(primaryHex: string): BrandTokens {
+  const brand = isHex6(primaryHex) ? primaryHex.toLowerCase() : '#f39228';
+  const brandSoft = softTint(brand);
+  // El texto de marca vive sobre soft, page o blanco: se exige AA contra el más oscuro
+  // de los tres (el soft puede ser más claro o más oscuro que page según el color).
+  const hardestBg = [brandSoft, '#fafaf9', '#ffffff'].reduce((a, b) => (luminance(a) <= luminance(b) ? a : b));
+  const brandText = textShade(brand, hardestBg);
+  const brandStrong = textShade(brandText, '#ffffff', 5.5);
+  return { brand, brandFg: textOn(brand).color, brandText, brandStrong, brandSoft, focus: brandStrong };
+}
+
 // Relleno de marca AA-safe para texto BLANCO (≥4.5:1): devuelve el primario si ya
 // cumple, si no una versión oscurecida que sí cumple (caso #f39228 → blanco 2.35:1
 // → se oscurece). Sirve para derivar --color-brand-strong por tenant sin romper AA.

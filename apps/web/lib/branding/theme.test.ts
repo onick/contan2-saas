@@ -25,10 +25,9 @@ describe('brandingToCssVars', () => {
     expect(vars[CSS_VAR_BRAND_ACCENT]).toBe('#445566');
   });
 
-  it('brand-strong (alias obsoleto) igual a brand-text → AA-safe contra blanco', () => {
+  it('brand-strong AA-safe contra blanco', () => {
     const vars = brandingToCssVars({ ...DEFAULT_BRANDING, primaryColor: '#f39228' });
     expect(vars[CSS_VAR_BRAND]).toBe('#f39228');
-    expect(vars[CSS_VAR_BRAND_STRONG]).toBe(vars[CSS_VAR_BRAND_TEXT]);
     expect(contrastRatio('#ffffff', vars[CSS_VAR_BRAND_STRONG])).toBeGreaterThanOrEqual(4.5);
   });
 
@@ -65,10 +64,9 @@ describe('brandingToCssVars', () => {
     expect(contrastRatio(vars[CSS_VAR_INFO_TEXT], '#ffffff')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('focus y brand-strong son iguales a brand-text', () => {
+  it('focus es igual a brand-strong', () => {
     const vars = brandingToCssVars({ ...DEFAULT_BRANDING, primaryColor: '#f39228' });
-    expect(vars[CSS_VAR_FOCUS]).toBe(vars[CSS_VAR_BRAND_TEXT]);
-    expect(vars[CSS_VAR_BRAND_STRONG]).toBe(vars[CSS_VAR_BRAND_TEXT]);
+    expect(vars[CSS_VAR_FOCUS]).toBe(vars[CSS_VAR_BRAND_STRONG]);
   });
 });
 

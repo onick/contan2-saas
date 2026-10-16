@@ -125,7 +125,7 @@ export function InvitationsSection({ canInviteOwner }: { canInviteOwner: boolean
           <Loader2 size={14} strokeWidth={2} aria-hidden="true" className="animate-spin" /> Cargando invitaciones…
         </p>
       ) : phase === 'error' ? (
-        <p className="mt-4 text-[13px] text-muted">No pudimos cargar las invitaciones. <button type="button" onClick={() => void load()} className={cn('font-semibold text-brand hover:underline', focusRing)}>Reintentar</button></p>
+        <p className="mt-4 text-[13px] text-muted">No pudimos cargar las invitaciones. <button type="button" onClick={() => void load()} className={cn('font-semibold text-brand-text hover:underline', focusRing)}>Reintentar</button></p>
       ) : items.length === 0 ? (
         <p className="mt-4 text-[13px] text-faint">Sin invitaciones todavía.</p>
       ) : (
