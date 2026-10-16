@@ -2,7 +2,7 @@
 // Node: lee ROOT_DOMAIN en RUNTIME).
 //
 // 1) Ruteo por HOST de la raíz (la landing es HTML estático pre-renderizado):
-//      marketing (contan2.com)  /        → rewrite a /landing (estática)
+//      marketing (contan2.com)  /        → rewrite a /landing (estática; con LANDING_ENABLED=0 → 307 /login)
 //      marketing                /landing → 308 a / (una sola URL canónica)
 //      www.<root>               *        → 308 a https://<root><ruta>
 //      admin.*                  /        → /platform
@@ -23,6 +23,9 @@ import { getRequestHost, isMarketingHost, isWwwHost } from './lib/marketing/host
 const SESSION_COOKIE = 'contan2_session';
 const ADMIN_COOKIE = 'contan2_admin_session';
 const LANDING_CACHE = 'public, s-maxage=300, stale-while-revalidate=86400';
+
+// Lectura en runtime (Node): LANDING_ENABLED=0 → landing apagada.
+const landingDisabled = (): boolean => (process.env.LANDING_ENABLED ?? '').trim() === '0';
 
 const PUBLIC_AUTH_PREFIXES = ['/login', '/recuperar', '/reset', '/invite'];
 function isPublicAuthPath(pathname: string): boolean {
@@ -56,6 +59,10 @@ export function proxy(req: NextRequest): NextResponse {
   if (pathname === '/') {
     if (host.startsWith('admin.')) return redirectTo('/platform');
     if (isMarketingHost(host, root)) {
+      // LANDING_ENABLED=0 apaga la landing pública (p.ej. en prod hasta tener el
+      // permiso de marca del cliente para las capturas): la raíz va al login
+      // neutro. Cualquier otro valor (o ausencia) = landing encendida.
+      if (landingDisabled()) return redirectTo('/login');
       const url = req.nextUrl.clone();
       url.pathname = '/landing';
       const res = NextResponse.rewrite(url);
@@ -67,7 +74,8 @@ export function proxy(req: NextRequest): NextResponse {
 
   // ── /landing directo: la URL pública es '/' ────────────────────────────────
   if (pathname === '/landing') {
-    return isMarketingHost(host, root) ? redirectTo('/', 308) : redirectTo('/login');
+    if (!isMarketingHost(host, root)) return redirectTo('/login');
+    return landingDisabled() ? redirectTo('/login') : redirectTo('/', 308);
   }
 
   // ── Pantallas públicas de auth (noindex en staging, Q8-71) ─────────────────

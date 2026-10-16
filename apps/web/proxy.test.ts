@@ -55,6 +55,31 @@ describe('proxy /platform/*', () => {
   });
 });
 
+describe('proxy · LANDING_ENABLED=0 apaga la landing pública', () => {
+  let prev: string | undefined;
+  beforeEach(() => { prev = process.env.LANDING_ENABLED; process.env.LANDING_ENABLED = '0'; });
+  afterEach(() => { if (prev === undefined) delete process.env.LANDING_ENABLED; else process.env.LANDING_ENABLED = prev; });
+
+  it('contan2.com/ → 307 a /login (sin rewrite a /landing)', () => {
+    const res = proxy(mkReq('https://contan2.com/'));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('https://contan2.com/login');
+    expect(res.headers.get('x-middleware-rewrite')).toBeNull();
+  });
+
+  it('contan2.com/landing → 307 a /login (no 308 a /, evita el bucle)', () => {
+    const res = proxy(mkReq('https://contan2.com/landing'));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('https://contan2.com/login');
+  });
+
+  it('un tenant no cambia: ccb.contan2.com/ sigue yendo a /login', () => {
+    const res = proxy(mkReq('https://ccb.contan2.com/'));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('https://ccb.contan2.com/login');
+  });
+});
+
 describe('proxy · raíz por host', () => {
   it('contan2.com/ → rewrite a /landing con Cache-Control público', () => {
     const res = proxy(mkReq('https://contan2.com/'));
