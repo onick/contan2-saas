@@ -168,7 +168,13 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
       if (!api || !rootRef.current) { settle(); return; }
       const { gsap } = api;
       ctx = gsap.context(() => {
-        const tl = gsap.timeline({ defaults: { ease: 'power2.out' } });
+        // Al terminar, se limpian los estilos inline que dejó el reveal: un
+        // `transform` residual (aun translate(0,0)) crea un stacking context en
+        // cada hijo revelado y los hermanos posteriores tapan el menú ⋮.
+        const tl = gsap.timeline({
+          defaults: { ease: 'power2.out' },
+          onComplete: () => { gsap.set(reveal, { clearProps: 'transform,opacity' }); },
+        });
         groups.forEach((els, gi) => {
           if (!els.length) return;
           gsap.set(els, { opacity: 0, y: 10 });
@@ -196,7 +202,7 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
     void loadAnim().then((api) => {
       if (cancelled || !api || !rootRef.current) return;
       const items = rootRef.current.querySelectorAll('[data-anim="gcard"]');
-      if (items.length) api.gsap.from(items, { opacity: 0, y: 12, duration: 0.45, stagger: 0.05, ease: 'power2.out' });
+      if (items.length) api.gsap.from(items, { opacity: 0, y: 12, duration: 0.45, stagger: 0.05, ease: 'power2.out', clearProps: 'transform,opacity' });
     });
     return () => { cancelled = true; };
   }, [view]);
@@ -204,12 +210,12 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
   return (
     <div ref={rootRef}>
       {/* header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
+        <div className="min-w-0 sm:min-w-[16rem] sm:flex-1">
           <h1 data-anim="title" className="text-[28px] font-extrabold tracking-tight text-ink sm:text-[30px]">Protocolo Institucional</h1>
           <p className="mt-1 text-[14px] text-muted">Invitados especiales del centro: autoridades, prensa, patrocinadores y aliados.</p>
         </div>
-        <div className="flex flex-none flex-wrap gap-2.5 sm:ml-auto">
+        <div className="flex flex-wrap gap-2.5 sm:ml-auto sm:justify-end">
           <a href="/app/reportes/api/protocol" className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <Download size={16} strokeWidth={1.9} /> Exportar invitados
           </a>
@@ -290,7 +296,7 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
                   // al abrir el menú, la tarjeta se eleva (z-30) para que el menú no
                   // quede tapado por las tarjetas siguientes.
                   <Card key={g.userId} data-anim="gcard" padding="md" className={cn('relative', menuOpen === g.userId && 'z-30')}>
-                    <div className="absolute right-3 top-3" onClick={(e) => e.stopPropagation()}>
+                    <div className="absolute right-3 top-3 z-10" onClick={(e) => e.stopPropagation()}>
                       <button type="button" aria-label="Acciones" onClick={() => setMenuOpen((v) => (v === g.userId ? null : g.userId))} className={cn('grid h-7 w-7 place-items-center rounded-lg text-faint hover:bg-surface-container', focusRing)}><MoreVertical size={16} /></button>
                       {menuOpen === g.userId && (
                         <div className="absolute right-0 top-8 z-20 w-44 rounded-xl border border-line bg-surface p-1.5 shadow-xl">
