@@ -1,7 +1,7 @@
 // SeoHead · <head> de la landing (Pages Router → next/head). Server-render
-// puro, sin runtime JS. Stub: el bloque C agrega JSON-LD.
+// puro, sin runtime JS: solo etiquetas (incluye JSON-LD).
 import Head from 'next/head';
-import type { LandingSeo } from '../../../lib/marketing/seo';
+import { serializeJsonLd, type LandingSeo } from '../../../lib/marketing/seo';
 
 export function SeoHead({ seo }: { seo: LandingSeo }) {
   const og = seo.openGraph;
@@ -28,7 +28,7 @@ export function SeoHead({ seo }: { seo: LandingSeo }) {
       <script
         type="application/ld+json"
         // Escapa '<' para que ningún valor del contenido cierre el <script>.
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(seo.jsonLd).replace(/</g, '\\u003c') }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(seo.jsonLd) }}
       />
     </Head>
   );
