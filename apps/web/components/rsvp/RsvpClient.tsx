@@ -44,10 +44,10 @@ export function RsvpClient({ token, orgFallback, intent = null }: { token: strin
       } else if (res.ok && b?.alreadyResponded) {
         setResult((b.status === 'confirmed' ? 'confirmed' : 'declined'));
       } else {
-        setError(b?.error ?? 'No pudimos registrar tu respuesta. Intentá de nuevo.');
+        setError(b?.error ?? 'No pudimos registrar tu respuesta. Intenta de nuevo.');
       }
     } catch {
-      setError('Problema de red. Intentá de nuevo.');
+      setError('Problema de red. Intenta de nuevo.');
     } finally {
       setBusy(null);
     }
@@ -61,7 +61,7 @@ export function RsvpClient({ token, orgFallback, intent = null }: { token: strin
       <div className="rounded-2xl border border-line bg-surface p-6 text-center">
         <AlertTriangle size={26} strokeWidth={1.75} aria-hidden="true" className="mx-auto text-danger-fg" />
         <p className="mt-2 text-sm font-semibold text-ink">Invitación no encontrada</p>
-        <p className="mt-1 text-[13px] text-muted">Revisá el enlace de tu correo o pedí una invitación nueva al centro.</p>
+        <p className="mt-1 text-[13px] text-muted">Revisa el enlace de tu correo o pide una invitación nueva al centro.</p>
       </div>
     );
   }
@@ -86,11 +86,11 @@ export function RsvpClient({ token, orgFallback, intent = null }: { token: strin
           <div className="mt-5 rounded-xl bg-success-bg p-4 text-center" role="status">
             <PartyPopper size={24} strokeWidth={1.75} aria-hidden="true" className="mx-auto text-success-fg" />
             <p className="mt-1.5 text-sm font-semibold text-success-fg">¡Te esperamos, {inv.firstName}!</p>
-            <p className="mt-0.5 text-[13px] text-success-fg/90">Tu cupo quedó apartado. Presentá tu código QR en la entrada.</p>
+            <p className="mt-0.5 text-[13px] text-success-fg/90">Tu cupo quedó apartado. Presenta tu código QR en la entrada.</p>
           </div>
         ) : result === 'declined' || (inactive && inv.status === 'declined') ? (
           <p className="mt-5 rounded-xl bg-surface-container p-4 text-center text-[13px] text-muted" role="status">
-            Quedó registrado que no podés asistir. ¡Gracias por avisar, {inv.firstName}!
+            Quedó registrado que no puedes asistir. ¡Gracias por avisar, {inv.firstName}!
           </p>
         ) : inactive ? (
           <p className="mt-5 rounded-xl bg-surface-container p-4 text-center text-[13px] text-muted" role="status">
@@ -98,7 +98,7 @@ export function RsvpClient({ token, orgFallback, intent = null }: { token: strin
           </p>
         ) : (
           <>
-            <p className="mt-4 text-sm text-ink">Hola {inv.firstName}, ¿nos acompañás?</p>
+            <p className="mt-4 text-sm text-ink">Hola {inv.firstName}, ¿nos acompañas?</p>
             {error ? <p role="alert" className="mt-3 rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{error}</p> : null}
             <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
               {/* intent del email pre-enfoca el botón elegido (sin auto-enviar). */}

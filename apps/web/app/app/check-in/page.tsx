@@ -21,7 +21,7 @@ export default async function CheckinPage() {
           <SectionHeader
             level={1}
             title="Check-in"
-            subtitle="Registrá asistencias en puerta, en tiempo real"
+            subtitle="Registra asistencias en puerta, en tiempo real"
             actions={<Chip tone="success" dot className="uppercase tracking-[0.04em]">En vivo</Chip>}
           />
         </div>

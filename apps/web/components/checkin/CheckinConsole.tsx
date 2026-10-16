@@ -205,7 +205,7 @@ export function CheckinConsole() {
     }
     setQuery(code); // rellena la búsqueda → muestra coincidencias o el estado vacío
     if (r?.ok && r.data.items.length === 0) {
-      flash({ kind: 'error', msg: `Credencial ${code}: sin coincidencias. Verificá o creá el visitante.` });
+      flash({ kind: 'error', msg: `Credencial ${code}: sin coincidencias. Verifica o crea el visitante.` });
     }
   }
 
@@ -265,7 +265,7 @@ export function CheckinConsole() {
       <Card padding="md" className="app-reveal mt-6">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px]">
           {metrics.phase === 'error' && !metrics.data ? (
-            <span className="text-danger-fg">Métricas no disponibles — reintentá.</span>
+            <span className="text-danger-fg">Métricas no disponibles — reintenta.</span>
           ) : (
             METRIC_LABELS.map((m, i) => (
               <span key={m.key} className="inline-flex items-baseline gap-1.5 text-muted">
@@ -364,7 +364,7 @@ export function CheckinConsole() {
                 {results.phase === 'error' ? (
                   <p className="px-1 py-2 text-[13px] text-danger-fg">{results.error}</p>
                 ) : results.phase === 'ready' && results.items.length === 0 ? (
-                  <p className="px-1 py-2 text-[13px] text-faint">Sin coincidencias. Probá otro dato o creá el visitante.</p>
+                  <p className="px-1 py-2 text-[13px] text-faint">Sin coincidencias. Prueba otro dato o crea el visitante.</p>
                 ) : (
                   <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
                     {results.items.map((v) => (
@@ -396,7 +396,7 @@ export function CheckinConsole() {
                 )}
               </div>
             ) : (
-              <p className="mt-3 text-[13px] text-muted">Buscá por código o datos del visitante (mín. 2 caracteres).</p>
+              <p className="mt-3 text-[13px] text-muted">Busca por código o datos del visitante (mín. 2 caracteres).</p>
             ))}
           </Card>
 
@@ -579,7 +579,7 @@ export function CheckinConsole() {
             ) : recent.phase === 'loading' ? (
               <p className="px-5 pb-5 text-[13px] text-faint">Cargando…</p>
             ) : recent.data && recent.data.length === 0 ? (
-              <p className="px-5 pb-5 text-[13px] text-faint">Aún no hay check-ins hoy. Buscá o creá un visitante y registralo: aparecerá acá al instante.</p>
+              <p className="px-5 pb-5 text-[13px] text-faint">Aún no hay check-ins hoy. Busca o crea un visitante y regístralo: aparecerá acá al instante.</p>
             ) : (
               <ul>
                 {recent.data?.map((r) => (

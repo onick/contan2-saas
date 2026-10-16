@@ -65,7 +65,7 @@ export function NewVisitorDrawer({ open, activities, onClose, onDone, initialNam
     e.preventDefault();
     if (busy) return;
     if (form.firstName.trim().length < 1 || form.lastName.trim().length < 1) { setError('Nombre y apellido son obligatorios.'); return; }
-    if (!form.activityId) { setError('Elegí una actividad para el check-in.'); return; }
+    if (!form.activityId) { setError('Elige una actividad para el check-in.'); return; }
     setBusy(true);
     const r = await postCheckin({
       activityId: form.activityId,
@@ -110,7 +110,7 @@ export function NewVisitorDrawer({ open, activities, onClose, onDone, initialNam
               <label className="block">
                 <span className={labelCls}>Actividad</span>
                 <select value={form.activityId} onChange={(e) => set('activityId', e.target.value)} className={cn(inputCls, focusRing)}>
-                  <option value="" disabled>Elegí una actividad…</option>
+                  <option value="" disabled>Elige una actividad…</option>
                   {selectable.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.enrolledCount}/{a.capacity})</option>)}
                 </select>
               </label>

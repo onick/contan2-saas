@@ -25,6 +25,6 @@ export async function GET(req: Request): Promise<Response> {
     if (out && 'needsFullName' in out) return Response.json({ visitor: null, needsFullName: true, hint: out.hint });
     return Response.json({ visitor: out && 'visitor' in out ? out.visitor : null });
   } catch {
-    return Response.json({ error: 'No pudimos consultar el registro. Intentá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos consultar el registro. Intenta de nuevo.' }, { status: 502 });
   }
 }
