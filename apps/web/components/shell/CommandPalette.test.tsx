@@ -19,6 +19,7 @@ function setup() {
     <ShellDataProvider initialRole="owner">
       <Trigger label="Abrir" />
       <button>Otro control</button>
+      <button data-palette-trigger="" aria-label="Buscar">Buscar</button>
       <CommandPalette />
     </ShellDataProvider>,
   );
@@ -47,5 +48,15 @@ describe('CommandPalette · foco', () => {
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Buscar' }));
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
     expect(document.activeElement).toBe(trigger);
+  });
+  it('abierta sin foco previo (Ctrl+K desde <body>), al cerrar el foco cae al buscador del Topbar, no a <body>', () => {
+    setup();
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(document.activeElement).toBe(document.body);
+    act(() => { fireEvent.click(screen.getByRole('button', { name: 'Abrir' })); });
+    expect(screen.getByRole('dialog', { name: 'Buscar' })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Buscar' }), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Buscar' }));
   });
 });

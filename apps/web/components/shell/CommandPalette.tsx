@@ -44,7 +44,13 @@ export function CommandPalette() {
     }
     const prev = triggerRef.current;
     triggerRef.current = null;
-    if (prev instanceof HTMLElement && prev !== document.body && prev.isConnected) prev.focus();
+    if (prev instanceof HTMLElement && prev !== document.body && prev.isConnected) { prev.focus(); return; }
+    // Abierta con Ctrl/⌘+K sin foco previo (activeElement = <body>): el foco no
+    // puede "volver" a nada, así que cae al buscador del Topbar que abre la
+    // paleta (el visible según viewport), nunca a <body>.
+    const triggers = Array.from(document.querySelectorAll<HTMLElement>('[data-palette-trigger]'));
+    const visible = triggers.find((el) => el.getClientRects().length > 0) ?? triggers[0];
+    visible?.focus();
   }, [paletteOpen]);
 
   // Al abrir: reset + foco. Al cerrar: limpia. Bloqueo de scroll del body.

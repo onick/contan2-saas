@@ -110,6 +110,7 @@ export function TopbarSearchIcon() {
       type="button"
       onClick={openPalette}
       aria-label="Buscar"
+      data-palette-trigger=""
       className={cn('flex h-9 w-9 items-center justify-center rounded-full text-muted hover:text-ink md:hidden', focusRing)}
     >
       <Search size={20} strokeWidth={1.75} aria-hidden="true" />
@@ -137,6 +138,7 @@ export function TopbarSearch() {
       type="button"
       onClick={openPalette}
       aria-label="Buscar"
+      data-palette-trigger=""
       className={cn(
         'ml-2 hidden min-w-0 max-w-[420px] flex-1 items-center gap-2.5 rounded-field h-9 border border-line bg-surface px-3.5 text-[13px] text-muted transition-colors hover:text-ink md:flex',
         focusRing,
