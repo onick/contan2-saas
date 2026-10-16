@@ -165,6 +165,8 @@ export const ShellSummaryResponseSchema = z.object({
   badges: z.object({
     activeActivities: z.number().int(),
     checkinsToday: z.number().int(),
+    // Filas de asistencia de hoy (registros) — cifra secundaria; checkinsToday = personas.
+    checkinsTodayRecords: z.number().int().optional(),
     protocolPending: z.number().int(),
   }),
 });
@@ -1095,6 +1097,8 @@ export type PublicCheckinResponse = z.infer<typeof PublicCheckinResponseSchema>;
 export const CheckinMetricsResponseSchema = z.object({
   metrics: z.object({
     checkinsToday: z.number().int(),
+    // Registros (filas con check-in) de hoy; checkinsToday = personas (filas + acompañantes).
+    checkinsTodayRecords: z.number().int().optional(),
     checkinsLast10Min: z.number().int(),
     uniqueVisitorsToday: z.number().int(),
     activeActivities: z.number().int(),
@@ -1220,7 +1224,8 @@ const OverviewActivitySchema = z.object({
 export const DashboardOverviewResponseSchema = z.object({
   period: z.enum(['today', '7d', '30d', '90d']),
   series: z.array(z.object({ date: z.string(), value: z.number().int() })),
-  attendance: OverviewMetricSchema,
+  // attendance = PERSONAS (filas + acompañantes); records = registros (filas) del período actual.
+  attendance: OverviewMetricSchema.extend({ records: z.number().int().optional() }),
   newVisitors: OverviewMetricSchema,
   avgOccupancyPct: OverviewMetricSchema,
   returnRatePct: OverviewMetricSchema,

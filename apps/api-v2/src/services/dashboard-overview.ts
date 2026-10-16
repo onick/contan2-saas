@@ -72,7 +72,7 @@ export async function dashboardOverview(
     db.selectFrom('attendance')
       .select([
         sql<string>`to_char(checked_in_at AT TIME ZONE ${sql.lit(tz)}, 'YYYY-MM-DD')`.as('d'),
-        db.fn.countAll<string>().as('n'),
+        sql<string>`count(*) + coalesce(sum(companions_children + companions_adults), 0)`.as('n'),
       ])
       .where('organization_id', '=', orgId)
       .where('checked_in_at', '>=', start)
@@ -81,10 +81,13 @@ export async function dashboardOverview(
       .execute(),
     // Conteos curr/prev de asistencias y visitantes nuevos en una pasada.
     db.selectNoFrom((eb) => [
-      eb.selectFrom('attendance').select(eb.fn.countAll<string>().as('n'))
+      // Personas = filas + acompañantes (decisión 6.5); registros = filas.
+      eb.selectFrom('attendance').select(sql<string>`count(*) + coalesce(sum(companions_children + companions_adults), 0)`.as('n'))
         .where('organization_id', '=', orgId).where('checked_in_at', '>=', start).where('checked_in_at', '<', end).as('att_curr'),
-      eb.selectFrom('attendance').select(eb.fn.countAll<string>().as('n'))
+      eb.selectFrom('attendance').select(sql<string>`count(*) + coalesce(sum(companions_children + companions_adults), 0)`.as('n'))
         .where('organization_id', '=', orgId).where('checked_in_at', '>=', prevStart).where('checked_in_at', '<', start).as('att_prev'),
+      eb.selectFrom('attendance').select(eb.fn.countAll<string>().as('n'))
+        .where('organization_id', '=', orgId).where('checked_in_at', '>=', start).where('checked_in_at', '<', end).as('rec_curr'),
       newVisitorCountQuery(db, orgId, start, end).as('new_curr'),
       newVisitorCountQuery(db, orgId, prevStart, start).as('new_prev'),
     ]).executeTakeFirstOrThrow(),
@@ -113,6 +116,9 @@ export async function dashboardOverview(
         .where('attendance.organization_id', '=', orgId)
         .where('attendance.checked_in_at', '>=', prevStart).where('attendance.checked_in_at', '<', start)
         .where('users.visit_count', '>', 1).as('ret_prev'),
+      eb.selectFrom('attendance').select(eb.fn.countAll<string>().as('n'))
+        .where('organization_id', '=', orgId)
+        .where('checked_in_at', '>=', prevStart).where('checked_in_at', '<', start).as('ret_prev_den'),
     ]).executeTakeFirstOrThrow(),
     // Próxima actividad activa futura.
     db.selectFrom('activities')
@@ -154,8 +160,10 @@ export async function dashboardOverview(
   const newPrev = Number(counts.new_prev);
   const occCurr = occ.occ_curr === null ? 0 : Number(occ.occ_curr);
   const occPrev = occ.occ_prev === null ? 0 : Number(occ.occ_prev);
-  const retCurrPct = attCurr ? Math.round((Number(ret.ret_curr) / attCurr) * 100) : 0;
-  const retPrevPct = attPrev ? Math.round((Number(ret.ret_prev) / attPrev) * 100) : 0;
+  // El retorno se mide sobre registros (filas), no sobre personas.
+  const recCurr = Number(counts.rec_curr);
+  const retCurrPct = recCurr ? Math.round((Number(ret.ret_curr) / recCurr) * 100) : 0;
+  const retPrevPct = Number(ret.ret_prev_den) ? Math.round((Number(ret.ret_prev) / Number(ret.ret_prev_den)) * 100) : 0;
 
   const toActivity = (r: NonNullable<typeof upcomingRow>): OverviewActivity => ({
     id: r.id, name: r.name, type: r.type, category: r.category, location: r.location,
@@ -193,7 +201,7 @@ export async function dashboardOverview(
   return {
     period,
     series,
-    attendance: { current: attCurr, previous: attPrev, deltaPct: deltaPct(attCurr, attPrev) },
+    attendance: { current: attCurr, previous: attPrev, deltaPct: deltaPct(attCurr, attPrev), records: recCurr },
     newVisitors: { current: newCurr, previous: newPrev, deltaPct: deltaPct(newCurr, newPrev) },
     avgOccupancyPct: { current: occCurr, previous: occPrev, deltaPct: deltaPct(occCurr, occPrev) },
     returnRatePct: { current: retCurrPct, previous: retPrevPct, deltaPct: deltaPct(retCurrPct, retPrevPct) },
