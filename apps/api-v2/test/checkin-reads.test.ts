@@ -142,6 +142,37 @@ run('GET /checkin/* · lectura', () => {
     expect(body.items.some((a) => a.name.includes('permanente'))).toBe(false);
   });
 
+  it('inRoom/heldPeople: personas en sala (check-ins + acompañantes) vs cupo retenido por reservas', async () => {
+    // Actividad efímera (se borra al final) con 2 check-ins (uno +1 adulto +1 niño)
+    // y 2 reservas (una con +2 niños).
+    const act3 = await mkActivity(orgAId, 'Mixta reservas', 'activa', 40, 9, future(5));
+    const ins = (userId: string | null, checkedInAt: string | null, kids = 0, adults = 0) =>
+      db.insertInto('attendance').values({
+        id: randomUUID(), organization_id: orgAId, user_id: userId, user_code: null, activity_id: act3,
+        activity_name: 'x', checked_in_at: checkedInAt, anonymous: userId === null,
+        companions_children: kids, companions_adults: adults,
+      } as never).execute();
+    await ins(null, minutesAgo(5)); // 1 persona
+    await ins(null, minutesAgo(4), 1, 1); // 3 personas
+    await ins(null, null); // reserva: 1
+    await ins(null, null, 2, 0); // reserva: 3
+    try {
+      const body = CheckinActivitiesResponseSchema.parse((await get('/api/v2/checkin/activities', hostA, TOK.admin)).json());
+      const a3 = body.items.find((a) => a.id === act3)!;
+      expect(a3.inRoom).toBe(4);
+      expect(a3.heldPeople).toBe(4);
+      expect(a3.enrolledCount).toBe(9); // aforo comprometido intacto
+      // act1: 3 check-ins sin reservas; act2: 1 check-in (u1, otro día) + 1 reserva (u2).
+      const a1 = body.items.find((a) => a.id === act1)!;
+      const a2 = body.items.find((a) => a.id === act2)!;
+      expect([a1.inRoom, a1.heldPeople]).toEqual([3, 0]);
+      expect([a2.inRoom, a2.heldPeople]).toEqual([1, 1]);
+    } finally {
+      await db.deleteFrom('attendance').where('activity_id', '=', act3).execute();
+      await db.deleteFrom('activities').where('id', '=', act3).execute();
+    }
+  });
+
   it('guestList: total/llegaron por actividad; cancelada y sin-lista → null', async () => {
     const body = CheckinActivitiesResponseSchema.parse((await get('/api/v2/checkin/activities', hostA, TOK.admin)).json());
     const a1 = body.items.find((a) => a.id === act1)!;

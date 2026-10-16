@@ -432,7 +432,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
         'i.user_id', 'i.status', 'i.plus_ones', 'i.sent_at', 'i.responded_at',
         'u.code', 'u.first_name', 'u.last_name', 'u.email',
         'p.category', 'p.honorific', 'p.org_title',
-        sql<boolean>`(a.user_id is not null)`.as('attended'),
+        'a.id as att_id', 'a.checked_in_at', 'a.companions_children', 'a.companions_adults',
       ])
       .where('i.organization_id', '=', orgId).where('i.activity_id', '=', id)
       .where('i.kind', '=', 'protocol')
@@ -440,10 +440,16 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
       .execute();
 
     let invited = 0; let confirmed = 0; let attended = 0; let declined = 0; let pending = 0; let totalPartySize = 0;
+    let seatsHeld = 0;
     const guests = rows.map((r) => {
       const plusOnes = r.plus_ones ?? 0;
       const partySize = 1 + plusOnes;
-      const status = r.attended ? 'attended' as const : (r.status as ActivityProtocolListResponse['guests'][number]['status']);
+      // attended = check-in REAL (checked_in_at). Una fila de attendance sin
+      // check-in es una RESERVA (hold de la invitación), no una asistencia.
+      const isAttended = r.att_id !== null && r.checked_in_at !== null;
+      const seatHeld = r.att_id !== null && r.checked_in_at === null;
+      if (seatHeld) seatsHeld += 1 + (r.companions_children ?? 0) + (r.companions_adults ?? 0);
+      const status = isAttended ? 'attended' as const : (r.status as ActivityProtocolListResponse['guests'][number]['status']);
       if (r.status !== 'canceled') invited += 1;
       if (status === 'attended') attended += 1;
       else if (status === 'confirmed') confirmed += 1;
@@ -454,7 +460,9 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
         userId: r.user_id, code: r.code, firstName: r.first_name, lastName: r.last_name,
         email: r.email, category: (r.category ?? 'otro') as ActivityProtocolListResponse['guests'][number]['category'],
         honorific: r.honorific, orgTitle: r.org_title,
-        status, plusOnes, partySize, attended: r.attended,
+        status, plusOnes, partySize, attended: isAttended,
+        seatHeld,
+        checkedInAt: r.checked_in_at ? new Date(r.checked_in_at).toISOString() : null,
         sentAt: r.sent_at ? new Date(r.sent_at).toISOString() : null,
         respondedAt: r.responded_at ? new Date(r.responded_at).toISOString() : null,
       };
@@ -465,7 +473,7 @@ export const protocolRoute: FastifyPluginAsync = async (app) => {
         id: act.id, name: act.name, date: new Date(act.date).toISOString(), status: act.status,
         location: act.location, imageUrl: act.image_url,
       },
-      kpis: { invited, confirmed, attended, declined, pending, totalPartySize },
+      kpis: { invited, confirmed, attended, declined, pending, totalPartySize, seatsHeld },
       guests,
     };
     return body;

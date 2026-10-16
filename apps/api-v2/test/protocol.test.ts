@@ -284,6 +284,56 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     expect(body.kpis.totalPartySize).toBeGreaterThanOrEqual(3);
   });
 
+  it('protocolo POR actividad: la reserva NO es asistencia (seatHeld) hasta el check-in', async () => {
+    const a3 = randomUUID();
+    await db.insertInto('activities').values({
+      id: a3, organization_id: orgId, name: 'Gala reservas', type: 'otro', location: 'S',
+      date: future(3), capacity: 20, enrolled_count: 0, status: 'activa',
+      description: '', image_url: null, category: null,
+    } as never).execute();
+    const get = async () => ActivityProtocolListResponseSchema.parse(
+      (await call('GET', `/api/v2/activities/${a3}/protocol-invitations`, undefined, TOK.admin)).json());
+
+    // Invitar al embajador +2 (hold de 3 asientos) sin check-in.
+    const inv = await call('POST', `/api/v2/activities/${a3}/protocol-invitations`, { invites: [{ userId: uEmb, plusOnes: 2 }] }, TOK.admin);
+    expect(inv.json().summary.created).toBe(1);
+    let b = await get();
+    let emb = b.guests.find((g) => g.userId === uEmb)!;
+    expect(emb.attended).toBe(false);
+    expect(emb.status).toBe('pending');
+    expect(emb.seatHeld).toBe(true);
+    expect(emb.checkedInAt).toBeNull();
+    expect(b.kpis.attended).toBe(0);
+    expect(b.kpis.seatsHeld).toBe(3);
+
+    // RSVP "sí" → confirmed, sigue siendo reserva (todavía no llegó).
+    const tok = (await db.selectFrom('invitations').select('token').where('activity_id', '=', a3).where('user_id', '=', uEmb).executeTakeFirstOrThrow()).token;
+    expect((await call('POST', `/api/v2/public/rsvp/${tok}`, { action: 'yes' })).statusCode).toBe(200);
+    b = await get();
+    emb = b.guests.find((g) => g.userId === uEmb)!;
+    expect(emb.status).toBe('confirmed');
+    expect(emb.attended).toBe(false);
+    expect(emb.seatHeld).toBe(true);
+    expect(b.kpis.attended).toBe(0);
+    expect(b.kpis.seatsHeld).toBe(3);
+
+    // Check-in real → attended, checkedInAt, sin asiento retenido.
+    const code = (await db.selectFrom('users').select('code').where('id', '=', uEmb).executeTakeFirstOrThrow()).code;
+    expect((await call('POST', '/api/v2/checkin', { activityId: a3, visitor: { code }, companionsChildren: 0 }, TOK.admin)).statusCode).toBe(201);
+    b = await get();
+    emb = b.guests.find((g) => g.userId === uEmb)!;
+    expect(emb.attended).toBe(true);
+    expect(emb.status).toBe('attended');
+    expect(emb.seatHeld).toBe(false);
+    expect(emb.checkedInAt).toEqual(expect.any(String));
+    expect(b.kpis.attended).toBe(1);
+    expect(b.kpis.seatsHeld).toBe(0);
+
+    await db.deleteFrom('invitations').where('activity_id', '=', a3).execute();
+    await db.deleteFrom('attendance').where('activity_id', '=', a3).execute();
+    await db.deleteFrom('activities').where('id', '=', a3).execute();
+  });
+
   it('Modelo A aislado: invitar RESERVA y llena; sin cupo → no invita; declinar libera', async () => {
     const a2 = randomUUID();
     await db.insertInto('activities').values({

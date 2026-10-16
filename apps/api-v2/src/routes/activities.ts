@@ -675,12 +675,20 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       return { error: 'Actividad no encontrada.' };
     }
 
-    const atts = await db
+    const allAtts = await db
       .selectFrom('attendance')
-      .select(['user_id', 'companions_children', 'companions_adults'])
+      .select(['user_id', 'companions_children', 'companions_adults', 'checked_in_at'])
       .where('organization_id', '=', orgId)
       .where('activity_id', '=', id)
       .execute();
+
+    // Reservas (holds de protocolo/RSVP: checked_in_at NULL) NO son asistencias:
+    // las métricas de sala se calculan solo sobre los check-ins reales.
+    const atts = allAtts.filter((a) => a.checked_in_at !== null);
+    const held = allAtts.filter((a) => a.checked_in_at === null);
+    const reservedCount = held.length;
+    const reservedPeople = held.reduce(
+      (sum, a) => sum + 1 + (a.companions_children ?? 0) + (a.companions_adults ?? 0), 0);
 
     const totalAttendances = atts.length;
     const identifiedRows = atts.filter((a) => a.user_id !== null);
@@ -691,8 +699,9 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     const companionsChildren = atts.reduce((sum, a) => sum + (a.companions_children ?? 0), 0);
     const companionsAdults = atts.reduce((sum, a) => sum + (a.companions_adults ?? 0), 0);
 
-    // Asistencias TOTALES por usuario identificado (en toda la org), en un solo
-    // GROUP BY — define nuevo (=1), habitual (>1) y VIP (>=10).
+    // Check-ins TOTALES por usuario identificado (en toda la org), en un solo
+    // GROUP BY — define nuevo (=1), habitual (>1) y VIP (>=10). Las reservas de
+    // otras actividades no cuentan como visita previa.
     let newcomers = 0;
     let returning = 0;
     let vipCount = 0;
@@ -703,6 +712,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
         .select(['user_id', db.fn.countAll<number>().as('n')])
         .where('organization_id', '=', orgId)
         .where('user_id', 'in', identifiedIds)
+        .where('checked_in_at', 'is not', null)
         .groupBy('user_id')
         .execute();
       for (const c of counts) {
@@ -718,6 +728,8 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       ? Math.round((activity.enrolled_count / activity.capacity) * 100)
       : 0;
 
+    const peopleInRoom = totalAttendances + companionsChildren + companionsAdults;
+
     const body: ActivitySummaryResponse = {
       summary: {
         totalAttendances,
@@ -731,7 +743,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
         newcomerRatio: identifiedCount > 0 ? Math.round((newcomers / identifiedCount) * 100) : 0,
         companionsChildren,
         companionsAdults,
-        peopleInRoom: totalAttendances + companionsChildren + companionsAdults,
+        peopleInRoom,
+        reservedCount,
+        reservedPeople,
+        roomPct: activity.capacity > 0 ? Math.round((peopleInRoom / activity.capacity) * 100) : 0,
       },
     };
     return body;
