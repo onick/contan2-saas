@@ -6,6 +6,8 @@ import type { StaticImageData } from 'next/image';
 
 export type LandingImage = {
   src: StaticImageData;
+  /** Recorte para pantallas <768 px (arte dirigido con <picture>). Aditivo. */
+  mobileSrc?: StaticImageData;
   alt: string;
   caption?: string;
   /** De dónde salió la captura (trazabilidad de PII). */
@@ -61,11 +63,32 @@ export type LandingContent = {
   proof: {
     client: { name: string; logo?: LandingImage; permissionRef: string };
     metrics: LandingMetric[];
+    /** Aditivos (bloque B): ubicación del cliente, frase con {client} y {m0}…{mN}, y notas. */
+    location?: string;
+    statement?: string;
+    sourceNote?: string;
+    note?: string;
+  };
+  /** Aditivo (bloque B): sección Problema → solución. */
+  problem?: {
+    heading: string;
+    labels: { before: string; after: string };
+    rows: { before: string; after: string }[];
   };
   modules: { heading: string; intro: string; items: LandingModule[] };
   steps: { heading: string; items: { title: string; body: string }[] };
-  trust: { heading: string; items: { title: string; body: string }[] };
-  faq: { heading: string; items: { q: string; a: string }[] };
+  trust: {
+    heading: string;
+    /** Aditivo: cada ítem puede indicar su ícono (lucide, ya inline). */
+    items: { title: string; body: string; icon?: 'lock' | 'database' | 'qr' | 'user-check' }[];
+    note?: string;
+  };
+  faq: {
+    heading: string;
+    items: { q: string; a: string }[];
+    /** Aditivo: texto lateral con enlace a #contacto. */
+    aside?: { before: string; linkLabel: string; after: string };
+  };
   contact: {
     heading: string;
     body: string;
@@ -78,5 +101,9 @@ export type LandingContent = {
     legal: string;
     email: string;
     links: { label: string; href: string }[];
+    /** Aditivos (bloque B). Un enlace sin `href` se renderiza como texto. */
+    tagline?: string;
+    origin?: string;
+    groups?: { title: string; links: { label: string; href?: string; note?: string }[] }[];
   };
 };

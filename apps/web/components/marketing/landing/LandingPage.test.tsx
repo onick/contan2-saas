@@ -2,12 +2,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-vi.mock('../../../lib/marketing/fonts', () => ({ fraunces: { className: 'font-test' } }));
+vi.mock('../../../lib/marketing/landing-font', () => ({
+  schibsted: { className: 'font-landing', variable: 'font-landing-var' },
+}));
 
 import { LandingPage } from './LandingPage';
 import { landing } from '../../../content/landing';
 
-describe('LandingPage (stub)', () => {
+describe('LandingPage', () => {
   const html = renderToStaticMarkup(<LandingPage content={landing} />);
 
   it('un solo h1 con el título del contenido', () => {
