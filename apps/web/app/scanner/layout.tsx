@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1, // evita zoom accidental mientras se escanea
+  // Zoom permitido (WCAG 1.4.4): es el teléfono del staff, no un dispositivo público.
   themeColor: '#fafaf9',
 };
 

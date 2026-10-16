@@ -16,6 +16,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  // EXCEPCIÓN de modo kiosko (decisión del owner): la tablet pública no debe quedar
+  // ampliada por un visitante, así que el zoom se mantiene bloqueado aquí. En el
+  // escáner (teléfono del staff) sí se permite el zoom.
   maximumScale: 1,
   themeColor: '#fafaf9',
 };
