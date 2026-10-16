@@ -31,7 +31,12 @@ export const shellRoute: FastifyPluginAsync = async (app) => {
     const [activeActivities, checkinsToday, protocolPending] = await Promise.all([
       db.selectFrom('activities').select(db.fn.countAll<string>().as('n'))
         .where('organization_id', '=', orgId).where('status', '=', 'activa').executeTakeFirstOrThrow(),
-      db.selectFrom('attendance').select(db.fn.countAll<string>().as('n'))
+      // PERSONAS = filas con check-in + acompañantes (misma definición que checkin/metrics);
+      // `records` = solo filas. Las reservas (checked_in_at nulo) no cuentan.
+      db.selectFrom('attendance').select([
+        db.fn.countAll<string>().as('records'),
+        sql<string>`count(*) + coalesce(sum(companions_children + companions_adults), 0)`.as('n'),
+      ])
         .where('organization_id', '=', orgId).where('checked_in_at', 'is not', null)
         .where('checked_in_at', '>=', todayStart).executeTakeFirstOrThrow(),
       db.selectFrom('invitations').select(db.fn.countAll<string>().as('n'))
@@ -44,6 +49,7 @@ export const shellRoute: FastifyPluginAsync = async (app) => {
       badges: {
         activeActivities: Number(activeActivities.n),
         checkinsToday: Number(checkinsToday.n),
+        checkinsTodayRecords: Number(checkinsToday.records),
         protocolPending: Number(protocolPending.n),
       },
     };

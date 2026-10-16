@@ -69,7 +69,7 @@ describe('KIO-03 + KIO-03d · typeahead enmascarado y combobox', () => {
     if (u.startsWith('/kiosko/suggest')) return Promise.resolve({ ok: true, status: 200, json: async () => ({ suggestions }) });
     if (u.startsWith('/kiosko/checkin')) {
       checkinBodies.push(JSON.parse(String(init?.body)));
-      return Promise.resolve({ ok: true, status: 200, json: async () => ({ code: 'CCB-ANA001', visitCount: 6, partySize: 1, activity: { id: 'a1', name: 'x' } }) });
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ codeHint: '•••001', visitCount: 6, partySize: 1, activity: { id: 'a1', name: 'x' } }) });
     }
     return Promise.reject(new Error(`unexpected fetch ${u}`));
   });
@@ -110,6 +110,9 @@ describe('KIO-03 + KIO-03d · typeahead enmascarado y combobox', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Sí, confirmar asistencia/ })); });
     expect(checkinBodies).toHaveLength(1);
     expect((checkinBodies[0] as { visitor: unknown }).visitor).toEqual({ suggestionId: 'sg1.aaa' });
+    // 6.21: por sugerencia de nombre la confirmación va sin QR ni código.
+    expect(screen.getByTestId('kiosk-confirm-no-qr')).toHaveTextContent('Listo, Ana. Entrará 1 persona.');
+    expect(screen.queryByText(/CCB-ANA001/)).not.toBeInTheDocument();
   });
 
   it('Esc cierra la lista', async () => {

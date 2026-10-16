@@ -13,6 +13,8 @@ export interface StatCardProps {
   label: string;
   value: string | number;
   trend?: StatTrend;
+  // Cifra secundaria opcional bajo el valor (p. ej. "3 registros").
+  secondary?: string;
   className?: string;
 }
 
@@ -22,7 +24,7 @@ const TREND_TONE = {
   flat: 'neutral',
 } as const;
 
-export function StatCard({ icon: Icon, label, value, trend, className }: StatCardProps) {
+export function StatCard({ icon: Icon, label, value, trend, secondary, className }: StatCardProps) {
   return (
     <section
       className={cn(
@@ -39,6 +41,7 @@ export function StatCard({ icon: Icon, label, value, trend, className }: StatCar
         <p className="text-[13px] font-medium leading-snug text-muted line-clamp-2">{label}</p>
       </div>
       <p className="num mt-3 text-[28px] font-semibold leading-none text-ink">{value}</p>
+      {secondary ? <p className="mt-1 text-[12px] text-faint">{secondary}</p> : null}
       {trend ? (
         <div className="mt-2">
           <Badge tone={TREND_TONE[trend.dir]} className="text-[11px]">

@@ -20,7 +20,7 @@ export const metadata: Metadata = { title: 'Inicio' };
 export const dynamic = 'force-dynamic';
 
 const KPI_DEFS = {
-  attendance: 'Entradas registradas en el periodo',
+  attendance: 'Personas que entraron en el periodo, con sus acompañantes. Cada persona registrada cuenta una vez, más quienes vienen con ella.',
   newVisitors: 'Personas que se registraron por primera vez en el periodo',
   avgOccupancyPct: 'Promedio de cupos ocupados en las actividades del periodo',
   returnRatePct: 'Asistencias de personas que ya habían venido antes',
@@ -64,6 +64,8 @@ async function OverviewData({ period }: { period: string }) {
         <StatCardWithInfo
           label="Asistencias del periodo"
           value={numero(data.attendance.current)}
+          secondary={data.attendance.records !== undefined && data.attendance.records !== data.attendance.current
+            ? `(${numero(data.attendance.records)} ${data.attendance.records === 1 ? 'registro' : 'registros'})` : undefined}
           trend={toTrend(data.attendance.deltaPct)}
           tooltipText={KPI_DEFS.attendance}
         />

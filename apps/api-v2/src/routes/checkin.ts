@@ -109,10 +109,12 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     // Inicio del día en la tz de app (timestamptz de la medianoche local de hoy).
     const todayStart = sql`(date_trunc('day', now() AT TIME ZONE ${sql.lit(CHECKIN_TZ)}) AT TIME ZONE ${sql.lit(CHECKIN_TZ)})`;
     // Una sola consulta (subqueries) → sin N+1.
-    const res = await sql<{ today: string; last10: string; uniq: string; active: string }>`
+    const res = await sql<{ today: string; today_rec: string; last10: string; uniq: string; active: string }>`
       SELECT
         (SELECT count(*) + coalesce(sum(companions_children + companions_adults), 0) FROM attendance
            WHERE organization_id = ${orgId} AND checked_in_at >= ${todayStart}) AS today,
+        (SELECT count(*) FROM attendance
+           WHERE organization_id = ${orgId} AND checked_in_at >= ${todayStart}) AS today_rec,
         (SELECT count(*) + coalesce(sum(companions_children + companions_adults), 0) FROM attendance
            WHERE organization_id = ${orgId} AND checked_in_at >= now() - interval '10 minutes') AS last10,
         ((SELECT count(DISTINCT user_id) FROM attendance
@@ -127,6 +129,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     const body: CheckinMetricsResponse = {
       metrics: {
         checkinsToday: Number(m.today),
+        checkinsTodayRecords: Number(m.today_rec),
         checkinsLast10Min: Number(m.last10),
         uniqueVisitorsToday: Number(m.uniq),
         activeActivities: Number(m.active),

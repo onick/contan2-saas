@@ -195,8 +195,9 @@ export function KioskClient({
     const r = await postCheckin(activity.id, who, found.companionsChildren, activity.audience ?? 'adultos');
     setSubmitting(false);
     if (r.ok) {
-      // Código real (el mismo que ya tenía) + conteo de visitas actualizado.
-      confirmVisitor({ ...found, code: r.data.code, visitCount: r.data.visitCount });
+      // 6.21: el servidor solo devuelve el code si el visitante se identificó por código;
+      // por sugerencia de nombre llega sin code → code '' → confirmación sin QR.
+      confirmVisitor({ ...found, code: r.data.code ?? '', visitCount: r.data.visitCount });
     } else {
       setErrorMsg(r.message); setScreen('error');
     }
@@ -224,7 +225,7 @@ export function KioskClient({
     if (r.ok) {
       confirmVisitor({
         firstName: f.firstName, lastName: f.lastName,
-        code: r.data.code, visitCount: r.data.visitCount, isNew: true, companionsChildren: f.children,
+        code: r.data.code ?? '', visitCount: r.data.visitCount, isNew: true, companionsChildren: f.children,
       });
     } else {
       setErrorMsg(r.message); setScreen('error');

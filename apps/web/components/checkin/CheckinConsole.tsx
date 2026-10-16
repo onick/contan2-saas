@@ -276,6 +276,10 @@ export function CheckinConsole() {
                     : <span className="inline-block h-4 w-6 animate-pulse rounded bg-surface-container align-middle" />}
                 </span>
                 {m.label}
+                {m.key === 'checkinsToday' && metrics.data?.checkinsTodayRecords !== undefined
+                  && metrics.data.checkinsTodayRecords !== metrics.data.checkinsToday ? (
+                  <span className="text-[12px] text-faint">({metrics.data.checkinsTodayRecords} {metrics.data.checkinsTodayRecords === 1 ? 'registro' : 'registros'})</span>
+                ) : null}
               </span>
             ))
           )}

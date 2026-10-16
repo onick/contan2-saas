@@ -62,7 +62,10 @@ export function toKioskVisitor(v: PublicVisitor): KioskVisitor {
   return {
     firstName: v.firstName,
     lastName: v.lastName,
-    code: v.code,
+    // 6.21: sin `code` (búsqueda por correo/teléfono/nombre) → '' + pista + id opaco.
+    code: v.code ?? '',
+    ...(v.codeHint ? { codeHint: v.codeHint } : {}),
+    ...(v.suggestionId ? { suggestionId: v.suggestionId } : {}),
     visitCount: v.visitCount,
     isNew: false,
     companionsChildren: 0,

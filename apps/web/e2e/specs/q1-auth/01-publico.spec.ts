@@ -114,10 +114,10 @@ test.describe('Q1 publico', () => {
     test.skip(testInfo.project.name !== 'desktop-1440', 'inspeccion de landing: un solo viewport');
     const mk = marketingBase(baseURL!);
     await page.goto(`${mk}/`);
-    // SignupModal/SignupTrigger existen en el codigo, pero la landing solo ofrece demo (#contacto) y /login.
+    // SignupModal/SignupTrigger se eliminaron (codigo muerto, Q8-71): la landing solo ofrece demo (#contacto) y /login.
     const triggers = page.getByRole('button', { name: /registr|crear cuenta|empezar gratis|prueba gratis/i });
     const n = await triggers.count();
-    note(testInfo, 'hallazgo-S3', `SignupTrigger/SignupModal sin punto de entrada en la landing (botones de registro: ${n}); codigo muerto o flujo oculto`);
+    note(testInfo, 'hallazgo-S3', `sin punto de entrada de registro en la landing (botones de registro: ${n})`);
     expect(n).toBe(0);
   });
 });

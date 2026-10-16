@@ -185,14 +185,20 @@ run('slice público read-only (kiosko)', () => {
     const res = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('carmen objio')}`, hostA); // sin acento
     expect(res.statusCode).toBe(200);
     const out = PublicVisitorLookupResponseSchema.parse(res.json());
-    expect('visitor' in out ? out.visitor.code : null).toBe(codeU1);
+    // 6.21: por nombre NO sale el code; llega pista + id opaco.
+    const v = 'visitor' in out ? out.visitor : null;
+    expect(v?.code).toBeUndefined();
+    expect(v?.codeHint).toMatch(/^•••/);
+    expect(v?.suggestionId).toMatch(/^sg1\./);
+    expect(res.body).not.toContain(codeU1);
   });
 
   it('nombre con apellido ABREVIADO/compuesto: "marcelino francisco" encuentra a "Marcelino Francisco M." (bug 2026-06-11)', async () => {
     const res = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('marcelino francisco')}`, hostA);
     expect(res.statusCode).toBe(200);
     const out = PublicVisitorLookupResponseSchema.parse(res.json());
-    expect('visitor' in out ? out.visitor.code : null).toBe('CCB-MAR001');
+    expect('visitor' in out ? out.visitor.code : 'x').toBeUndefined(); // 6.21: sin code
+    expect(res.body).not.toContain('CCB-MAR001');
     // prefijos también valen: "marc fran" lo encuentra; el orden de palabras no importa
     const pre = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('fran marcelino')}`, hostA);
     expect('visitor' in PublicVisitorLookupResponseSchema.parse(pre.json()) ? true : false).toBe(true);
@@ -270,7 +276,10 @@ run('slice público read-only (kiosko)', () => {
     expect(ana!.suggestionId).not.toContain('ANA001');
     const res = await postCheckin({ activityId: await visibleActivity(), visitor: { suggestionId: ana!.suggestionId } });
     expect(res.statusCode).toBe(200);
-    expect(res.json().code).toBe('CCB-ANA001');
+    // 6.21: por sugerencia de nombre el servidor NO devuelve el code (la confirmación va sin QR).
+    expect(res.json().code).toBeUndefined();
+    expect(res.json().codeHint).toBe('•••001');
+    expect(res.body).not.toContain('CCB-ANA001');
   });
 
   it('suggestionId inventado o adulterado → 410, sin check-in', async () => {
@@ -297,6 +306,7 @@ run('slice público read-only (kiosko)', () => {
   it('check-in por code sigue funcionando (kioskos viejos / código tecleado)', async () => {
     const res = await postCheckin({ activityId: await visibleActivity(), visitor: { code: 'CCB-ANA002' } });
     expect(res.statusCode).toBe(200);
+    expect(res.json().code).toBe('CCB-ANA002'); // identificado por código → el QR sí se muestra
   });
 
   it('lookup por TELÉFONO exacto (normalizado, tolera 1 de país) → { visitor }; no-match → 404; incompleto → 400', async () => {
@@ -304,7 +314,9 @@ run('slice público read-only (kiosko)', () => {
       const res = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent(q)}`, hostA);
       expect(res.statusCode).toBe(200);
       const out = PublicVisitorLookupResponseSchema.parse(res.json());
-      expect('visitor' in out ? out.visitor.code : null).toBe(codeU1);
+      expect('visitor' in out ? out.visitor.code : 'x').toBeUndefined(); // 6.21: sin code
+      expect('visitor' in out ? out.visitor.suggestionId : null).toMatch(/^sg1\./);
+      expect(res.body).not.toContain(codeU1);
       expect(res.body).not.toContain('809-555'); // shape mínimo sin PII
     }
     expect((await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('809-555-9999')}`, hostA)).statusCode).toBe(404);
@@ -316,7 +328,12 @@ run('slice público read-only (kiosko)', () => {
     const res = await get(`/api/v2/public/users/lookup?q=${encodeURIComponent('ana perez')}`, hostA);
     expect(res.statusCode).toBe(200);
     const out = PublicVisitorLookupResponseSchema.parse(res.json());
-    expect('matches' in out ? out.matches.map((m) => m.code) : []).toEqual(['CCB-ANA001', 'CCB-ANA002']);
+    // 6.21: los homónimos NO exponen su code (ni el del otro): solo pista + id opaco.
+    const ms = 'matches' in out ? out.matches : [];
+    expect(ms).toHaveLength(2);
+    expect(ms.every((m) => m.code === undefined && /^sg1\./.test(m.suggestionId ?? ''))).toBe(true);
+    expect(res.body).not.toContain('CCB-ANA001');
+    expect(res.body).not.toContain('CCB-ANA002');
   });
 
   it('nombre de visitante de OTRO tenant → 404 (aislamiento)', async () => {

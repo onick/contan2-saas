@@ -5,7 +5,9 @@
 
 // Respuesta de éxito de POST /api/v2/public/checkin (forma de @contan2/contracts).
 export interface KioskCheckinResult {
-  code: string;
+  // Ausente si el visitante entró por sugerencia de nombre (6.21): sin QR en la confirmación.
+  code?: string;
+  codeHint?: string;
   visitCount: number;
   partySize: number;
   activity: { id: string; name: string };

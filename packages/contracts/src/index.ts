@@ -165,6 +165,8 @@ export const ShellSummaryResponseSchema = z.object({
   badges: z.object({
     activeActivities: z.number().int(),
     checkinsToday: z.number().int(),
+    // Filas de asistencia de hoy (registros) — cifra secundaria; checkinsToday = personas.
+    checkinsTodayRecords: z.number().int().optional(),
     protocolPending: z.number().int(),
   }),
 });
@@ -999,10 +1001,16 @@ export type PublicBrandingResponse = z.infer<typeof PublicBrandingResponseSchema
 
 // Lookup público de visitante: SOLO lo mínimo para confirmar identidad en el
 // kiosko. NUNCA email, phone, id ni tokens (anti-enumeración/leak de PII).
+//
+// Decisión 6.21: `code` solo viaja si el visitante buscó por su CÓDIGO. Por correo,
+// teléfono o nombre llegan `codeHint` + `suggestionId` (id opaco que /public/checkin
+// resuelve), sin la credencial del QR.
 export const PublicVisitorSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
-  code: z.string(),
+  code: z.string().optional(),
+  codeHint: z.string().optional(),
+  suggestionId: z.string().optional(),
   visitCount: z.number().int(),
 });
 export type PublicVisitor = z.infer<typeof PublicVisitorSchema>;
@@ -1077,7 +1085,8 @@ export const ProtocolBadgeSchema = z.object({
 export type ProtocolBadge = z.infer<typeof ProtocolBadgeSchema>;
 
 export const PublicCheckinResponseSchema = z.object({
-  code: z.string(),          // código real del visitante (QR = este valor)
+  code: z.string().optional(), // código real (QR = este valor); AUSENTE si entró por sugerencia de nombre (6.21)
+  codeHint: z.string().optional(), // pista parcial ("•••K2P") cuando no se devuelve el code
   firstName: z.string().optional(), // nombre para el mensaje del scanner
   visitCount: z.number().int(),
   partySize: z.number().int(), // 1 + companionsChildren + companionsAdults (cupos descontados)
@@ -1095,6 +1104,8 @@ export type PublicCheckinResponse = z.infer<typeof PublicCheckinResponseSchema>;
 export const CheckinMetricsResponseSchema = z.object({
   metrics: z.object({
     checkinsToday: z.number().int(),
+    // Registros (filas con check-in) de hoy; checkinsToday = personas (filas + acompañantes).
+    checkinsTodayRecords: z.number().int().optional(),
     checkinsLast10Min: z.number().int(),
     uniqueVisitorsToday: z.number().int(),
     activeActivities: z.number().int(),
@@ -1220,7 +1231,8 @@ const OverviewActivitySchema = z.object({
 export const DashboardOverviewResponseSchema = z.object({
   period: z.enum(['today', '7d', '30d', '90d']),
   series: z.array(z.object({ date: z.string(), value: z.number().int() })),
-  attendance: OverviewMetricSchema,
+  // attendance = PERSONAS (filas + acompañantes); records = registros (filas) del período actual.
+  attendance: OverviewMetricSchema.extend({ records: z.number().int().optional() }),
   newVisitors: OverviewMetricSchema,
   avgOccupancyPct: OverviewMetricSchema,
   returnRatePct: OverviewMetricSchema,
