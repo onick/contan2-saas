@@ -47,7 +47,7 @@ test.describe('ADM-01 · dashboard = metricas = badges del shell', () => {
   test.describe.configure({ mode: 'serial' });
   const d = { dash: -1, metrics: -1, badge: -1, active: -1 };
 
-  test('ADM-01a [S1] 3 check-ins [E2E] (5 personas): dashboard "Hoy" y badge del sidebar suben 3 (filas) y las activas +1', { tag: '@write' }, async ({ page }, testInfo) => {
+  test('ADM-01a [S1] 3 check-ins [E2E] (5 personas): dashboard "Hoy", consola y badge del sidebar suben 5 (personas) y las activas +1', { tag: '@write' }, async ({ page }, testInfo) => {
     const base = { dash: await dashboardAttendanceToday(page), m: await metricsToday(), b: await badges() };
     const act = await createActivity(api, 'Dashboard metricas', { capacity: 30 });
     const a = await createVisitor(api, 71, 'Dash A');
@@ -60,8 +60,8 @@ test.describe('ADM-01 · dashboard = metricas = badges del shell', () => {
     const after = { dash: await dashboardAttendanceToday(page), m: await metricsToday(), b: await badges() };
     Object.assign(d, { dash: after.dash - base.dash, metrics: after.m.checkinsToday - base.m.checkinsToday, badge: after.b.checkinsToday - base.b.checkinsToday, active: after.m.activeActivities - base.m.activeActivities });
     test.info().annotations.push({ type: 'deltas', description: JSON.stringify(d) });
-    expect(d.dash, `KPI "Asistencias del periodo" (Hoy) cuenta filas (${JSON.stringify(d)})`).toBe(3);
-    expect(d.badge, `badge del sidebar cuenta filas (${JSON.stringify(d)})`).toBe(3);
+    expect(d.dash, `KPI "Asistencias del periodo" (Hoy) cuenta PERSONAS (${JSON.stringify(d)})`).toBe(5);
+    expect(d.badge, `badge del sidebar cuenta PERSONAS (${JSON.stringify(d)})`).toBe(5);
     expect(d.active, 'actividades activas +1 (la mia)').toBe(1);
     await page.goto('/app/check-in');
     await settle(page);
@@ -71,7 +71,7 @@ test.describe('ADM-01 · dashboard = metricas = badges del shell', () => {
 
   test('ADM-01b [S2] "check-ins hoy" de la consola = badge del sidebar = dashboard (misma etiqueta, mismo numero)', async () => {
     test.skip(d.metrics < 0, 'depende de ADM-01a');
-    expect(d.metrics, `la consola cuenta PERSONAS (con acompanantes) y el sidebar/dashboard cuentan FILAS: ${JSON.stringify(d)}`).toBe(d.badge);
+    expect(d.metrics, `consola, sidebar y dashboard cuentan PERSONAS (decision 6.5): ${JSON.stringify(d)}`).toBe(d.badge);
   });
 });
 

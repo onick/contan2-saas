@@ -21,6 +21,12 @@ describe('StatCardWithInfo', () => {
     expect(screen.getByText('1 234')).toBeInTheDocument();
   });
 
+  it('muestra la cifra secundaria (registros) bajo el valor principal (personas)', () => {
+    render(<StatCardWithInfo label="Asistencias del periodo" value="5" secondary="(3 registros)" tooltipText="Personas." />);
+    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('(3 registros)')).toBeInTheDocument();
+  });
+
   it('renderiza sin icon (prop opcional)', () => {
     render(
       <StatCardWithInfo

@@ -39,6 +39,13 @@ const okMetrics = () => J(200, metricsBody);
 const okActs = (items = [act1]) => () => J(200, { items, serverNow: metricsBody.serverNow });
 
 describe('CheckinConsole', () => {
+  it('muestra personas y, si difiere, "(N registros)" como cifra secundaria', async () => {
+    installFetch({ metrics: () => J(200, { ...metricsBody, metrics: { ...metricsBody.metrics, checkinsToday: 9, checkinsTodayRecords: 3 } }), activities: okActs() });
+    render(<CheckinConsole />);
+    await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument());
+    expect(screen.getByText('(3 registros)')).toBeInTheDocument();
+  });
+
   it('métricas + actividades REALES se renderizan', async () => {
     installFetch({ metrics: okMetrics, activities: okActs() });
     render(<CheckinConsole />);
