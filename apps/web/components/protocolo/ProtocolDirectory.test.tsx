@@ -22,7 +22,7 @@ describe('ProtocolDirectory', () => {
   it('operator (403) → mensaje honesto de permisos', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ error: 'no' }, 403)));
     render(<ProtocolDirectory />);
-    await waitFor(() => expect(screen.getByText('Necesitás permisos de administración')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Necesitas permisos de administración')).toBeInTheDocument());
   });
 
   it('vacío → empty state con invitación a designar', async () => {

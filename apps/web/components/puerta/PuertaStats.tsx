@@ -297,7 +297,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
         </div>
 
         <p className="mt-6 text-[12.5px] text-muted">
-          El Excel del botón de arriba respeta la sala y el rango elegidos. ¿Necesitás todo el histórico?{' '}
+          El Excel del botón de arriba respeta la sala y el rango elegidos. ¿Necesitas todo el histórico?{' '}
           <a className="font-semibold text-brand-text hover:underline" href={`/app/puerta/api/export${sala !== 'all' ? `?sala=${sala}` : ''}`}>Descargar Excel completo</a>.
         </p>
       </div>

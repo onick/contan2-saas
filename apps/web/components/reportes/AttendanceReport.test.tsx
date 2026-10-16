@@ -17,7 +17,7 @@ const J = (status: number, body: unknown) => new Response(JSON.stringify(body), 
 describe('AttendanceReport', () => {
   it('inicial: descargas deshabilitadas + hint', () => {
     render(<AttendanceReport />);
-    expect(screen.getByText(/Elegí un rango y generá/i)).toBeInTheDocument();
+    expect(screen.getByText(/Elige un rango y genera/i)).toBeInTheDocument();
     // no hay enlaces de descarga aún (sólo spans deshabilitados)
     expect(screen.queryByRole('link', { name: /CSV/i })).toBeNull();
   });
@@ -44,6 +44,6 @@ describe('AttendanceReport', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(403, { error: 'no' })));
     render(<AttendanceReport />);
     fireEvent.click(screen.getByRole('button', { name: /Generar/i }));
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/No tenés permiso/i));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/No tienes permiso/i));
   });
 });

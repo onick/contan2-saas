@@ -38,7 +38,7 @@ export default async function PuertaReportesPage() {
   );
 
   if (!data) {
-    return shell(<Unavailable inline title="Reportes no disponibles" description="No pudimos calcular las estadísticas de la Puerta. Reintentá en unos segundos." />);
+    return shell(<Unavailable inline title="Reportes no disponibles" description="No pudimos calcular las estadísticas de la Puerta. Reintenta en unos segundos." />);
   }
 
   return shell(<PuertaStats initial={data} initialRange={range} />);

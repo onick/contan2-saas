@@ -350,7 +350,7 @@ export function ReportesDashboard({ initial, initialRange, canExport = true }: R
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr_1fr]">
           <Card padding="lg">
             <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Informe por actividad</h2>
-            <p className="text-[12px] text-muted">Elegí una actividad para ver su desempeño en el período.</p>
+            <p className="text-[12px] text-muted">Elige una actividad para ver su desempeño en el período.</p>
             {data.topActivities.length === 0 ? <p className="mt-5 text-[13px] text-muted">Sin actividades.</p> : (
               <>
                 <select aria-label="Actividad a analizar" value={selAct} onChange={(e) => setSelAct(Number(e.target.value))} className={cn('mt-3 w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink', focusRing)}>
@@ -430,7 +430,7 @@ export function CategoryReport({ range }: { range: { from: string; to: string } 
             <Layers size={16} strokeWidth={2} className="text-brand-text" /> Reporte por ciclo o categoría
           </h2>
           <p className="mt-1 text-[13px] text-muted">
-            Descargá el detalle de un ciclo (ej.{' '}
+            Descarga el detalle de un ciclo (ej.{' '}
             <span className="font-semibold text-ink">5to ciclo de cine dominicano</span>) o categoría, dentro del período elegido arriba
             <span className="whitespace-nowrap font-semibold text-ink"> ({range.from} – {range.to})</span>.
           </p>
@@ -501,7 +501,7 @@ function MonthlyRegisterCard() {
             <Calendar size={16} strokeWidth={2} className="text-brand-text" /> Reporte mensual (formato registro)
           </h2>
           <p className="mt-1 text-[13px] text-muted">
-            Descargá el mes tabulado con las mismas columnas del registro del departamento (No., Fecha, Mes, Semana, Tipo, Programa, Nombre y Asistencia), con Total y resumen. Fechas y asistencia reales del sistema.
+            Descarga el mes tabulado con las mismas columnas del registro del departamento (No., Fecha, Mes, Semana, Tipo, Programa, Nombre y Asistencia), con Total y resumen. Fechas y asistencia reales del sistema.
           </p>
         </div>
         <div className="flex flex-none flex-wrap items-end gap-3">

@@ -68,12 +68,12 @@ export function ReportsAgent() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.kind) {
-        setMsgs((m) => [...m, { role: 'agent', error: data?.error ?? 'No pude procesar la consulta. Probá de nuevo.' }]);
+        setMsgs((m) => [...m, { role: 'agent', error: data?.error ?? 'No pude procesar la consulta. Prueba de nuevo.' }]);
       } else {
         setMsgs((m) => [...m, { role: 'agent', res: data as ReportsAgentResponse }]);
       }
     } catch {
-      setMsgs((m) => [...m, { role: 'agent', error: 'Problema de red. Reintentá.' }]);
+      setMsgs((m) => [...m, { role: 'agent', error: 'Problema de red. Reintenta.' }]);
     } finally {
       setBusy(false);
       inputRef.current?.focus();
@@ -234,7 +234,7 @@ export function ReportsAgent() {
             <form className="flex items-center gap-2 border-t border-line px-4 py-3"
               onSubmit={(e) => { e.preventDefault(); void send(input); }}>
               <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
-                placeholder="Escribí qué necesitás… (ej. compara julio con junio)"
+                placeholder="Escribe qué necesitas… (ej. compara julio con junio)"
                 aria-label="Consulta para el asistente de reportes"
                 className={cn('min-h-11 flex-1 rounded-xl border border-line bg-surface px-3.5 text-[14px] text-ink placeholder:text-faint', focusRing)} />
               <Button type="submit" variant="primary" disabled={busy || input.trim().length < 2} aria-label="Enviar consulta">
