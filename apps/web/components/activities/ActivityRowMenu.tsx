@@ -19,6 +19,8 @@ import type { Activity } from '../../lib/activities/demoData';
 import { STATUS_ACTIONS, StatusConfirmDialog, type ActionDef } from './StatusActions';
 import { IconButton, Button, cn, focusRing } from '../ui';
 
+const SCROLL_GRACE_MS = 300;
+
 interface MenuItem {
   key: string;
   label: string;
@@ -70,7 +72,10 @@ export function ActivityRowMenu({ activity, onView, onEdit, onChanged }: Activit
       if (!menuRef.current?.contains(t) && !btnRef.current?.contains(t)) close();
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { close(); } };
-    const onAway = () => close();
+    // Ventana de gracia: el focus() del primer ítem (y el reacomodo del viewport
+    // móvil al abrir) dispara 'scroll' propio; sin esto el menú se cerraba solo en 390.
+    const openedAt = Date.now();
+    const onAway = () => { if (Date.now() - openedAt > SCROLL_GRACE_MS) close(); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     window.addEventListener('scroll', onAway, true);
@@ -85,7 +90,8 @@ export function ActivityRowMenu({ activity, onView, onEdit, onChanged }: Activit
 
   // Foco al primer item al abrir; flechas ↑↓ + Home/End navegan.
   useEffect(() => {
-    if (open) menuRef.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus();
+    // preventScroll: enfocar no debe desplazar la página (en móvil dispara 'scroll').
+    if (open) menuRef.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus({ preventScroll: true });
   }, [open]);
   const onMenuKey = (e: React.KeyboardEvent) => {
     const els = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role=menuitem]') ?? []);
