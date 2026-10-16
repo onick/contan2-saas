@@ -9,7 +9,6 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Minus, Plus } from 'lucide-react';
-import { cn, focusRing } from '../../cn';
 
 export type NumberFieldSize = 'sm' | 'md' | 'kiosk';
 
@@ -35,6 +34,11 @@ export interface NumberFieldProps {
   id?: string;
   className?: string;
 }
+
+// Sin `cn` (tailwind-merge): el kiosko no debe cargarlo. Mismo anillo que `focusRing` de cn.ts.
+const cn = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' ');
+const focusRing =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
 
 const KIOSK_FOCUS =
   'outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-page';
