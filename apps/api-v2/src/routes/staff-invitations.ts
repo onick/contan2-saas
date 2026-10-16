@@ -36,9 +36,14 @@ const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 const inviteLimiter = createRateLimiter({ max: 20, windowMs: 60 * 60 * 1000, prefix: endpointPrefix('staff-invite') });
 const acceptLimiter = createRateLimiter({ max: 10, windowMs: 60 * 60 * 1000, prefix: endpointPrefix('invite-accept') });
 
+// Enmascarado para auditoría y logs: j***@d***.com (usuario y dominio parciales).
 const maskEmail = (email: string): string => {
   const at = email.indexOf('@');
-  return at <= 0 ? '***' : `${email.slice(0, 1)}***@${email.slice(at + 1)}`;
+  if (at <= 0) return '***';
+  const domain = email.slice(at + 1);
+  const dot = domain.indexOf('.');
+  const maskedDomain = dot <= 0 ? `${domain.slice(0, 1)}***` : `${domain.slice(0, 1)}***${domain.slice(dot)}`;
+  return `${email.slice(0, 1)}***@${maskedDomain}`;
 };
 
 interface InvRow {
@@ -134,7 +139,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
         .executeTakeFirstOrThrow();
     });
 
-    await writeAudit(db, orgId, guard.ctx.staff, 'staff.invited', inv.id, email, { role });
+    await writeAudit(db, orgId, guard.ctx.staff, 'staff.invited', inv.id, maskEmail(email), { role });
 
     // Envío REAL del correo (Resend) si hay RESEND_API_KEY; si no, dry-run honesto.
     // Best-effort post-commit (la invitación ya existe): si el email falla, el admin
@@ -194,7 +199,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
       .executeTakeFirst();
     if (!updated) { reply.code(404); return { error: 'Invitación no encontrada o ya no está pendiente.' }; }
 
-    await writeAudit(db, guard.ctx.org.id, guard.ctx.staff, 'staff.invitation_revoked', id, updated.email, {});
+    await writeAudit(db, guard.ctx.org.id, guard.ctx.staff, 'staff.invitation_revoked', id, maskEmail(updated.email), {});
     return { ok: true, invitation: toPublic(updated as InvRow) };
     });
   });

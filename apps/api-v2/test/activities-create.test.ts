@@ -76,6 +76,7 @@ run('POST /activities · escritura', () => {
     if (app) await app.close();
     for (const id of [orgAId, orgBId]) {
       if (!id) continue;
+      await db.deleteFrom('tenant_audit_log').where('organization_id', '=', id).execute();
       await db.deleteFrom('activities').where('organization_id', '=', id).execute();
       await db.deleteFrom('staff_members').where('organization_id', '=', id).execute();
       await db.deleteFrom('organizations').where('id', '=', id).execute();
@@ -116,6 +117,42 @@ run('POST /activities · escritura', () => {
     expect(dbRow.status).toBe('activa');
     expect(dbRow.enrolled_count).toBe(0);
     expect(dbRow.image_url).toBe(null);
+  });
+
+  it('auditoría: create/update/status/delete dejan filas con target_id correcto y KPI "Actividades creadas" >= 1', async () => {
+    const hdr = (method: 'PATCH' | 'DELETE', url: string, payload?: object) =>
+      app.inject({ method, url, headers: { host: hostA, ...(payload ? { 'content-type': 'application/json' } : {}) }, cookies: { contan2_session: TOK.owner }, ...(payload ? { payload } : {}) });
+    const c = await post(validBody({ name: 'Auditada Uno', description: 'privado juan@correo.com' }), hostA, TOK.owner);
+    expect(c.statusCode).toBe(201);
+    const id = ActivityCreateResponseSchema.parse(c.json()).activity.id;
+
+    expect((await hdr('PATCH', `/api/v2/activities/${id}`, { location: 'Sala 9', capacity: 90 })).statusCode).toBe(200);
+    expect((await hdr('PATCH', `/api/v2/activities/${id}/status`, { status: 'cancelada' })).statusCode).toBe(200);
+    // Mismo estado (idempotente) → no genera fila nueva.
+    expect((await hdr('PATCH', `/api/v2/activities/${id}/status`, { status: 'cancelada' })).statusCode).toBe(200);
+
+    const rows = await db.selectFrom('tenant_audit_log')
+      .select(['action', 'target_type', 'target_id', 'target_label', 'actor_role', 'metadata'])
+      .where('organization_id', '=', orgAId).where('target_id', '=', id).orderBy('id').execute();
+    expect(rows.map((r) => r.action)).toEqual(['activity.created', 'activity.updated', 'activity.status_changed']);
+    for (const r of rows) {
+      expect(r.target_type).toBe('activity');
+      expect(r.target_label).toBe('Auditada Uno');
+      expect(r.actor_role).toBe('owner');
+      expect(JSON.stringify(r)).not.toMatch(/@/); // sin correos en claro
+    }
+    expect(rows[1].metadata).toEqual({ changedFields: ['location', 'capacity'] });
+    expect(rows[2].metadata).toEqual({ from: 'activa', to: 'cancelada' });
+
+    const ov = await app.inject({ method: 'GET', url: '/api/v2/org/audit/overview', headers: { host: hostA }, cookies: { contan2_session: TOK.owner } });
+    expect(ov.statusCode).toBe(200);
+    // Otras creaciones de este archivo suman en el mismo tenant: al menos 1.
+    expect(ov.json().kpis.activitiesToday).toBeGreaterThanOrEqual(1);
+
+    expect((await hdr('DELETE', `/api/v2/activities/${id}`)).statusCode).toBe(204);
+    const del = await db.selectFrom('tenant_audit_log').select('target_label')
+      .where('organization_id', '=', orgAId).where('target_id', '=', id).where('action', '=', 'activity.deleted').executeTakeFirstOrThrow();
+    expect(del.target_label).toBe('Auditada Uno');
   });
 
   it('owner también puede crear → 201; endDate >= date se persiste', async () => {

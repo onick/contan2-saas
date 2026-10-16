@@ -99,6 +99,14 @@ run('staff invitations · invitar/aceptar', () => {
     const audit = await db.selectFrom('tenant_audit_log').select('id')
       .where('organization_id', '=', orgAId).where('action', '=', 'staff.invited').execute();
     expect(audit.length).toBeGreaterThanOrEqual(2);
+    // Sin correos en claro: target_label enmascarado (j***@d***.com).
+    const labels = await db.selectFrom('tenant_audit_log').select(['target_label', 'metadata'])
+      .where('organization_id', '=', orgAId).where('action', '=', 'staff.invited').execute();
+    for (const l of labels) {
+      expect(l.target_label).toMatch(/^[^@]\*\*\*@[^@]\*\*\*\.\S+$/);
+      expect(JSON.stringify(l)).not.toContain(`nuevo-${stamp}@test.local`);
+    }
+    expect(labels.some((l) => l.target_label === 'n***@t***.local')).toBe(true);
   });
 
   it('email de staff existente → 409; segunda invitación al mismo email revoca la primera', async () => {
