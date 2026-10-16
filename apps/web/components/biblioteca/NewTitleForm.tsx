@@ -225,7 +225,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
       </div>
 
       {/* ── Tabs del registro ── */}
-      <div className="app-reveal mt-4 flex gap-1 overflow-x-auto border-b border-line" style={{ animationDelay: '30ms' }} role="tablist" aria-label="Secciones del registro">
+      <div className="app-reveal mt-4 flex gap-1 overflow-x-auto border-b border-line" style={{ animationDelay: '30ms' }} role="tablist" tabIndex={0} aria-label="Secciones del formulario" aria-label="Secciones del registro">
         <span role="tab" aria-selected="true" className="flex-none border-b-2 border-brand px-3.5 py-2 text-[13.5px] font-bold text-brand">Información bibliográfica</span>
         <span role="tab" aria-selected="false" aria-disabled="true" title="Los ejemplares se agregan en la ficha, después de guardar"
           className="flex-none cursor-default px-3.5 py-2 text-[13.5px] font-medium text-faint/70">Ejemplares (0)</span>
