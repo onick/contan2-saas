@@ -37,7 +37,15 @@ export async function proxyLogin(body: unknown): Promise<Response> {
     headers: { 'content-type': up.headers.get('content-type') ?? 'application/json' },
   });
   for (const c of up.headers.getSetCookie()) res.headers.append('set-cookie', c);
+  relayRetryAfter(up, res);
   return res;
+}
+
+// El 429 del rate-limit trae Retry-After (segundos): el proxy lo relaya para que
+// el navegador/cliente sepa cuánto esperar (Q8-69). Sin header → no inventa uno.
+function relayRetryAfter(from: Response, to: Response): void {
+  const ra = from.headers.get('retry-after');
+  if (ra) to.headers.set('retry-after', ra);
 }
 
 // Proxy del logout: reenvía la cookie de sesión a api-v2 (que REVOCA en DB sólo
@@ -99,8 +107,10 @@ export async function proxyAuth(
   }
   if (upstream.status === 204) return new Response(null, { status: 204 });
   const text = await upstream.text();
-  return new Response(text, {
+  const res = new Response(text, {
     status: upstream.status,
     headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
   });
+  relayRetryAfter(upstream, res);
+  return res;
 }

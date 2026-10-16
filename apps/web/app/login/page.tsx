@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { CSSProperties } from 'react';
-import { getLocalBranding } from '../../lib/branding/config';
+import { resolvePublicBrandView } from '../../lib/branding/public-brand';
 import { brandingToCssVars } from '../../lib/branding/theme';
 import { getPublicBranding } from '../../lib/api/kiosko';
 import { sanitizeNext } from '../../lib/auth/session';
@@ -57,12 +57,11 @@ export default async function LoginPage({
     );
   }
 
-  const branding = getLocalBranding();
-  const themeVars = brandingToCssVars(branding) as CSSProperties;
-  // Logo/nombre real del tenant desde la API pública; cae al branding local.
+    // Logo/nombre real del tenant desde la API pública; cae al branding local.
   const pub = await getPublicBranding();
-  const brandName = pub?.name ?? branding.name;
-  const logoUrl = pub?.logoUrl ?? null;
+  // Host sin organización → marca neutra, nunca la del CCB (Q8-65).
+  const { branding, name: brandName, logoUrl } = resolvePublicBrandView(pub);
+  const themeVars = brandingToCssVars(branding) as CSSProperties;
 
   const words = brandName.split(/\s+/).filter(Boolean);
   const nameLine1 = words.slice(0, 2).join(' ');

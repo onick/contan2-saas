@@ -3,7 +3,7 @@
 // components/shell/TopbarUserMenu.tsx · menú de usuario REAL del Topbar.
 // Identidad de la SESIÓN (nombre/email/rol del staff, vía /app/cuenta/api/me),
 // links a Mi cuenta e Historial (este último solo owner/admin: el endpoint da
-// 403 a operator) y Cerrar sesión (form-post sin JS). Usa el DropdownMenu del
+// 403 a operator) y Cerrar sesión (POST por fetch en onSelect). Usa el DropdownMenu del
 // kit (Radix) para el panel desplegable.
 //
 // Nota de interacción: Radix DropdownMenu abre en onPointerDown, no en onClick.
@@ -19,6 +19,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import * as RadixDropdown from '@radix-ui/react-dropdown-menu';
 import { UserRound, History, LogOut } from 'lucide-react';
 import {
@@ -51,6 +52,23 @@ function initials(name: string): string {
 export function TopbarUserMenu({ orgName }: { orgName: string }) {
   const [open, setOpen] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
+  const router = useRouter();
+
+  // Radix desmonta el menú al seleccionar un ítem; un <form> dentro del
+  // contenido se destruye antes del submit (el clic no cerraba la sesión,
+  // Q8-63). Por eso el POST sale desde onSelect (clic, Enter y Espacio lo
+  // disparan por igual) y la navegación a /login la hacemos nosotros.
+  async function logout(event: Event) {
+    event.preventDefault();
+    setOpen(false);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', redirect: 'manual', cache: 'no-store' });
+    } catch {
+      // Sin red igual vamos a /login: el gate de /app no deja pasar sin sesión.
+    }
+    router.replace('/login');
+    router.refresh();
+  }
 
   useEffect(() => {
     let ignore = false;
@@ -120,14 +138,10 @@ export function TopbarUserMenu({ orgName }: { orgName: string }) {
 
           <DropdownMenuSeparator />
 
-          <form action="/api/auth/logout" method="post">
-            <RadixDropdown.Item asChild className={itemCls}>
-              <button type="submit" role="menuitem" className="flex w-full text-danger-fg">
-                <LogOut size={15} strokeWidth={2} aria-hidden="true" />
-                Cerrar sesión
-              </button>
-            </RadixDropdown.Item>
-          </form>
+          <RadixDropdown.Item className={itemCls} onSelect={logout}>
+            <LogOut size={15} strokeWidth={2} aria-hidden="true" className="text-danger-fg" />
+            <span className="text-danger-fg">Cerrar sesión</span>
+          </RadixDropdown.Item>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

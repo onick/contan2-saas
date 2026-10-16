@@ -3,11 +3,22 @@
 
 process.env.ROOT_DOMAIN = 'contan2.com';
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 import { createDb, type Database } from '@contan2/db';
 import { buildApp } from '../src/server.js';
+
+// Permite forzar el fallo de envío (con RESEND_API_KEY seteada) sin tocar Resend real.
+const sendControl = { fail: false };
+vi.mock('../src/services/email.js', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('../src/services/email.js')>();
+  return {
+    ...orig,
+    resendSend: async (...a: Parameters<typeof orig.resendSend>) =>
+      sendControl.fail ? { error: 'resend caído (test)' } : orig.resendSend(...a),
+  };
+});
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const run = DATABASE_URL ? describe : describe.skip;
@@ -82,6 +93,45 @@ run('Signup de 2 pasos: formulario → verificación email → cuenta', () => {
     expect(verif).toBeTruthy();
     expect(verif!.code).toHaveLength(6);
     expect(verif!.slug).toBe(slug);
+  });
+
+  it('paso 1: contraseña de 8 dígitos o <10 caracteres → 400 y no deja fila (Q8-66)', async () => {
+    for (const pw of ['12345678', 'Corta1!ab']) {
+      const res = await signup({
+        organizationName: `${slugPrefix}-weak`,
+        fullName: 'John Doe',
+        email: `weak-${stamp}@test.local`,
+        password: pw,
+        confirmPassword: pw,
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/Contraseña débil/);
+    }
+    const rows = await db.selectFrom('signup_verifications').select('id')
+      .where('email', '=', `weak-${stamp}@test.local`).execute();
+    expect(rows).toHaveLength(0);
+  });
+
+  it('paso 1: si falla el envío del correo → 502 y se borra la fila de signup_verifications (Q8-66)', async () => {
+    const prevKey = process.env.RESEND_API_KEY;
+    process.env.RESEND_API_KEY = 're_test_dummy';
+    sendControl.fail = true;
+    try {
+      const mail = `mailfail-${stamp}@test.local`;
+      const res = await signup({
+        organizationName: `${slugPrefix}-mailfail`,
+        fullName: 'John Doe',
+        email: mail,
+        password: 'SuperSecurePassword123!',
+        confirmPassword: 'SuperSecurePassword123!',
+      });
+      expect(res.statusCode).toBe(502);
+      const rows = await db.selectFrom('signup_verifications').select('id').where('email', '=', mail).execute();
+      expect(rows).toHaveLength(0);
+    } finally {
+      sendControl.fail = false;
+      if (prevKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = prevKey;
+    }
   });
 
   it('paso 1: contraseñas no coinciden → 400', async () => {

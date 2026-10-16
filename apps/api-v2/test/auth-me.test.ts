@@ -1,6 +1,8 @@
 // apps/api-v2/test/auth-me.test.ts · integration (skip sin DATABASE_URL).
 // Verifica el endpoint GET /api/v2/auth/me end-to-end con cookie real.
 
+process.env.ROOT_DOMAIN = 'contan2.com';
+
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
@@ -16,6 +18,12 @@ run('GET /api/v2/auth/me', () => {
   let app: FastifyInstance;
   let orgId: string;
   let staffId: string;
+  let otherOrgId: string;
+  const stamp = Date.now();
+  const slug = `authme-${stamp}`;
+  const otherSlug = `authme-o-${stamp}`;
+  const host = `${slug}.contan2.com`;
+  const otherHost = `${otherSlug}.contan2.com`;
 
   const T = { valid: 'authme-valid-token', revoked: 'authme-revoked-token' };
 
@@ -23,10 +31,16 @@ run('GET /api/v2/auth/me', () => {
     db = createDb(DATABASE_URL);
     const org = await db
       .insertInto('organizations')
-      .values({ slug: `authme-${Date.now()}`, name: 'AuthMe Org' })
+      .values({ slug, name: 'AuthMe Org' })
       .returning('id')
       .executeTakeFirstOrThrow();
     orgId = org.id;
+    const other = await db
+      .insertInto('organizations')
+      .values({ slug: otherSlug, name: 'AuthMe Other Org' })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    otherOrgId = other.id;
 
     const staff = await db
       .insertInto('staff_members')
@@ -63,9 +77,10 @@ run('GET /api/v2/auth/me', () => {
 
   afterAll(async () => {
     if (app) await app.close();
-    if (orgId) {
-      await db.deleteFrom('staff_members').where('organization_id', '=', orgId).execute();
-      await db.deleteFrom('organizations').where('id', '=', orgId).execute();
+    for (const id of [orgId, otherOrgId]) {
+      if (!id) continue;
+      await db.deleteFrom('staff_members').where('organization_id', '=', id).execute();
+      await db.deleteFrom('organizations').where('id', '=', id).execute();
     }
     await db.destroy();
   });
@@ -79,6 +94,7 @@ run('GET /api/v2/auth/me', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v2/auth/me',
+      headers: { host },
       cookies: { contan2_session: 'no-such-token' },
     });
     expect(res.statusCode).toBe(401);
@@ -88,7 +104,28 @@ run('GET /api/v2/auth/me', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v2/auth/me',
+      headers: { host },
       cookies: { contan2_session: T.revoked },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('sesión de otro tenant (host de otra org) → 401 (Q8-64)', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v2/auth/me',
+      headers: { host: otherHost },
+      cookies: { contan2_session: T.valid },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('sesión válida en host sin tenant (inexistente) → 401', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v2/auth/me',
+      headers: { host: `nope-${stamp}.contan2.com` },
+      cookies: { contan2_session: T.valid },
     });
     expect(res.statusCode).toBe(401);
   });
@@ -97,6 +134,7 @@ run('GET /api/v2/auth/me', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v2/auth/me',
+      headers: { host },
       cookies: { contan2_session: T.valid },
     });
     expect(res.statusCode).toBe(200);

@@ -24,6 +24,11 @@ const SESSION_COOKIE = 'contan2_session';
 const ADMIN_COOKIE = 'contan2_admin_session';
 const LANDING_CACHE = 'public, s-maxage=300, stale-while-revalidate=86400';
 
+const PUBLIC_AUTH_PREFIXES = ['/login', '/recuperar', '/reset', '/invite'];
+function isPublicAuthPath(pathname: string): boolean {
+  return PUBLIC_AUTH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 export function proxy(req: NextRequest): NextResponse {
   const { pathname, search } = req.nextUrl;
   const host = getRequestHost(req.headers) ?? req.nextUrl.hostname.toLowerCase();
@@ -65,6 +70,11 @@ export function proxy(req: NextRequest): NextResponse {
     return isMarketingHost(host, root) ? redirectTo('/', 308) : redirectTo('/login');
   }
 
+  // ── Pantallas públicas de auth (noindex en staging, Q8-71) ─────────────────
+  // Solo se suma el X-Robots-Tag: no hay gate ni reescritura; cada página y su
+  // BFF siguen siendo públicos como antes.
+  if (isPublicAuthPath(pathname)) return done(NextResponse.next());
+
   // ── Área del PLATFORM ADMIN ────────────────────────────────────────────────
   if (pathname.startsWith('/platform')) {
     // Login y BFF son públicos (el login inicia la sesión).
@@ -97,6 +107,11 @@ export const config = {
     '/landing',
     '/app/:path*',
     '/platform/:path*',
+    // Auth pública: solo para el noindex de staging.
+    '/login/:path*',
+    '/recuperar/:path*',
+    '/reset/:path*',
+    '/invite/:path*',
     // www.* → raíz (308) para CUALQUIER ruta salvo assets de Next. El host se
     // evalúa en el matcher (regex); el dominio exacto lo valida el proxy.
     { source: '/((?!_next/).*)', has: [{ type: 'host', value: 'www\\..+' }] },

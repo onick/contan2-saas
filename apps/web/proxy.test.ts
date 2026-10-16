@@ -121,6 +121,25 @@ describe('proxy · staging', () => {
   });
 });
 
+describe('proxy · pantallas públicas de auth (Q8-71)', () => {
+  const paths = ['/login', '/recuperar', '/reset/abc', '/invite/tok', '/login/api/find', '/invite/api'];
+  it.each(paths)('staging: %s responde x-robots-tag noindex y NO redirige', (p) => {
+    process.env.ROOT_DOMAIN = 'stg.contan2.com';
+    const res = proxy(mkReq(`https://ccb.stg.contan2.com${p}`));
+    expect(res.headers.get('location')).toBeNull();
+    expect(res.headers.get('x-robots-tag')).toBe('noindex');
+  });
+  it('prod: no agrega x-robots-tag', () => {
+    const res = proxy(mkReq('https://ccb.contan2.com/login'));
+    expect(res.headers.get('x-robots-tag')).toBeNull();
+    expect(res.headers.get('location')).toBeNull();
+  });
+  it('el matcher incluye las rutas públicas de auth', () => {
+    const sources = config.matcher.map((m) => (typeof m === 'string' ? m : m.source));
+    for (const s of ['/login/:path*', '/recuperar/:path*', '/reset/:path*', '/invite/:path*']) expect(sources).toContain(s);
+  });
+});
+
 describe('proxy · matcher', () => {
   const sources = config.matcher.map((m) => (typeof m === 'string' ? m : m.source));
 

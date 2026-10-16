@@ -184,13 +184,21 @@ run('POST /auth/login + /auth/logout', () => {
   it('rate-limit · 10 intentos OK por IP, el 11º → 429', async () => {
     const rlIp = ip(200);
     const codes: number[] = [];
+    let last429: { headers: Record<string, unknown> } | null = null;
     for (let i = 0; i < 11; i += 1) {
       // Emails INEXISTENTES (cada uno distinto): así medimos el límite por IP
       // sin disparar el lockout por CUENTA (S1), que bloquea al 5º fallo.
-      codes.push((await login({ email: `rl-${stamp}-${i}@test.local`, password: 'x' }, hostA, rlIp)).statusCode);
+      const r = await login({ email: `rl-${stamp}-${i}@test.local`, password: 'x' }, hostA, rlIp);
+      codes.push(r.statusCode);
+      if (r.statusCode === 429) last429 = r;
     }
     expect(codes.slice(0, 10).every((c) => c === 401)).toBe(true);
     expect(codes[10]).toBe(429);
+    // Q8-69: Retry-After en segundos restantes (entero > 0, ≤ la ventana).
+    const retry = Number(last429!.headers['retry-after']);
+    expect(Number.isInteger(retry)).toBe(true);
+    expect(retry).toBeGreaterThan(0);
+    expect(retry).toBeLessThanOrEqual(15 * 60);
   });
 
   it('logout · revoca la sesión y limpia la cookie', async () => {

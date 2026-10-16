@@ -12,6 +12,7 @@ import { findOrgBySlug } from '@contan2/db';
 import { hashStaffPassword } from '../services/password.js';
 import { RESERVED_SUBDOMAINS } from '../tenant.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
+import { validatePasswordStrength } from '../services/password-policy.js';
 import { resendSend, escapeHtml, type SendMessage } from '../services/email.js';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -113,7 +114,7 @@ export const authSignupRoute: FastifyPluginAsync = async (app) => {
     // Rate limit por IP
     if ((await signupLimiter.hit(req.ip ?? '0.0.0.0')).limited) {
       reply.code(429);
-      return { error: 'Demasiados intentos. Esperá un momento.' };
+      return { error: 'Demasiados intentos. Espera un momento.' };
     }
 
     const db = getDb();
@@ -126,6 +127,14 @@ export const authSignupRoute: FastifyPluginAsync = async (app) => {
     }
 
     const { organizationName, fullName, email, password } = parsed.data;
+
+    // Misma política que invitación/reset (≥10, no solo dígitos, no común):
+    // el schema de contratos solo pide ≥8 (Q8-66).
+    const strength = validatePasswordStrength(password);
+    if (strength.length > 0) {
+      reply.code(400);
+      return { error: `Contraseña débil: ${strength.join('; ')}.` };
+    }
 
     // 2) Generar y validar slug
     const slug = slugify(organizationName);
@@ -160,7 +169,7 @@ export const authSignupRoute: FastifyPluginAsync = async (app) => {
       .execute();
 
     // 5) Guardar verificación pendiente
-    await db
+    const pending = await db
       .insertInto('signup_verifications')
       .values({
         email: email.toLowerCase(),
@@ -171,14 +180,22 @@ export const authSignupRoute: FastifyPluginAsync = async (app) => {
         password_hash: passwordHash,
         expires_at: expiresAt,
       })
-      .execute();
+      .returning('id')
+      .executeTakeFirstOrThrow();
 
     // 6) Enviar email con código
-    const emailResult = await sendVerificationEmail(email, code, organizationName);
+    let emailResult: { sent: boolean; error?: string };
+    try {
+      emailResult = await sendVerificationEmail(email, code, organizationName);
+    } catch (e) {
+      emailResult = { sent: false, error: e instanceof Error ? e.message : String(e) };
+    }
     if (!emailResult.sent) {
       req.log.error({ error: emailResult.error }, 'fallo al enviar email de verificación');
-      reply.code(500);
-      return { error: 'No pudimos enviar el correo de verificación. Intentá de nuevo.' };
+      // Sin correo no hay forma de verificar: no dejamos la fila pendiente.
+      await db.deleteFrom('signup_verifications').where('id', '=', pending.id).execute();
+      reply.code(502);
+      return { error: 'No pudimos enviar el correo de verificación. Intenta de nuevo en unos minutos.' };
     }
 
     reply.code(200);
@@ -195,7 +212,7 @@ export const authSignupRoute: FastifyPluginAsync = async (app) => {
   app.post('/auth/signup/verify', async (req: FastifyRequest, reply) => {
     if ((await verifyLimiter.hit(req.ip ?? '0.0.0.0')).limited) {
       reply.code(429);
-      return { error: 'Demasiados intentos. Esperá un momento.' };
+      return { error: 'Demasiados intentos. Espera un momento.' };
     }
 
     const db = getDb();
@@ -223,7 +240,7 @@ export const authSignupRoute: FastifyPluginAsync = async (app) => {
 
     if (!verification) {
       reply.code(400);
-      return { error: 'No se encontró una verificación pendiente. Es posible que el código haya expirado o se hayan agotado los intentos. Solicitá un nuevo código.' };
+      return { error: 'No se encontró una verificación pendiente. Es posible que el código haya expirado o se hayan agotado los intentos. Solicita un nuevo código.' };
     }
 
     // 3) Verificar código
@@ -240,7 +257,7 @@ export const authSignupRoute: FastifyPluginAsync = async (app) => {
       return {
         error: remaining > 0
           ? `Código incorrecto. Te quedan ${remaining} ${remaining === 1 ? 'intento' : 'intentos'}.`
-          : 'Código incorrecto. Se agotaron los intentos. Solicitá un nuevo código.',
+          : 'Código incorrecto. Se agotaron los intentos. Solicita un nuevo código.',
       };
     }
 
@@ -255,7 +272,7 @@ export const authSignupRoute: FastifyPluginAsync = async (app) => {
     const existingOrg = await findOrgBySlug(db, verification.slug);
     if (existingOrg) {
       reply.code(400);
-      return { error: 'Mientras verificabas, alguien registró una organización con el mismo nombre. Intentá con otro nombre.' };
+      return { error: 'Mientras verificabas, alguien registró una organización con el mismo nombre. Intenta con otro nombre.' };
     }
 
     // 6) Crear organización y usuario en transacción atómica

@@ -25,8 +25,8 @@ export function signScannerSession(orgId: string, now: number = Date.now()): str
   return `${payloadB64}.${hmac(payloadB64)}`;
 }
 
-/** Verifica firma + expiración; devuelve { orgId } o null. Timing-safe. */
-export function verifyScannerSession(value: string | undefined, now: number = Date.now()): { orgId: string } | null {
+/** Verifica firma + expiración; devuelve { orgId, exp } o null. Timing-safe. */
+export function verifyScannerSession(value: string | undefined, now: number = Date.now()): { orgId: string; exp: number } | null {
   if (!value) return null;
   const dot = value.lastIndexOf('.');
   if (dot <= 0) return null;
@@ -42,5 +42,5 @@ export function verifyScannerSession(value: string | undefined, now: number = Da
   const orgId = payload.slice(0, sep);
   const exp = Number(payload.slice(sep + 1));
   if (!orgId || !Number.isFinite(exp) || now >= exp) return null;
-  return { orgId };
+  return { orgId, exp };
 }

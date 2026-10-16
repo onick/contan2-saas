@@ -66,7 +66,7 @@ export const authLoginRoute: FastifyPluginAsync = async (app) => {
     if (rl.limited) {
       reply.code(429);
       reply.header('retry-after', Math.ceil(rl.retryAfterMs / 1000));
-      return { error: 'Demasiados intentos. Espera unos minutos e intentá de nuevo.' };
+      return { error: 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.' };
     }
 
     // 3) Body válido.

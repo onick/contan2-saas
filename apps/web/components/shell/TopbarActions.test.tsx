@@ -11,6 +11,10 @@ import { ShellDataProvider } from './ShellData';
 
 // El window del entorno de test no trae un localStorage completo → stub
 // determinista respaldado por un Map (el componente igual es resiliente).
+const replace = vi.fn();
+const refresh = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace, refresh }) }));
+
 const store = new Map<string, string>();
 beforeEach(() => {
   store.clear();
@@ -29,6 +33,23 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 describe('TopbarUserMenu', () => {
+  it('Cerrar sesión: el clic envía POST /api/auth/logout y navega a /login (Q8-63)', async () => {
+    replace.mockClear();
+    const fetchMock = vi.fn().mockImplementation(async (url: string) =>
+      url.includes('/api/auth/logout')
+        ? new Response(null, { status: 200 })
+        : json({ staff: { fullName: 'Ana Pérez', email: 'ana@ccb.do', role: 'admin' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<TopbarUserMenu orgName="Centro Cultural" />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Menú de usuario' })).toHaveTextContent('AP'));
+    fireEvent.click(screen.getByRole('button', { name: 'Menú de usuario' }));
+    const item = screen.getByRole('menuitem', { name: 'Cerrar sesión' });
+    fireEvent.click(item);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'));
+    const call = fetchMock.mock.calls.find(([u]) => String(u).includes('/api/auth/logout'));
+    expect(call?.[1]?.method).toBe('POST');
+  });
+
   it('muestra identidad de la sesión + Mi cuenta + Cerrar sesión; Historial para admin', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
       staff: { fullName: 'Ana Pérez', email: 'ana@ccb.do', role: 'admin' },
