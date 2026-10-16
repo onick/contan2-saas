@@ -37,7 +37,7 @@ export type KioskSource = 'api' | 'demo';
 // Lookup DEMO (solo en modo demo): reconoce el visitante demo por código/email.
 function demoLookup(query: string): KioskVisitor | null {
   const q = query.trim().toUpperCase();
-  if (q === KIOSK_KNOWN_VISITOR.code.toUpperCase()) return KIOSK_KNOWN_VISITOR;
+  if (q === (KIOSK_KNOWN_VISITOR.code ?? '').toUpperCase()) return KIOSK_KNOWN_VISITOR;
   if (q === KIOSK_KNOWN_EMAIL.toUpperCase()) return KIOSK_KNOWN_VISITOR;
   return null;
 }
@@ -191,13 +191,13 @@ export function KioskClient({
     if (!activity || submitting) return;
     setSubmitting(true);
     // Sugerencia del typeahead → id opaco (el code real lo resuelve el servidor).
-    const who: CheckinVisitor = found.suggestionId ? { suggestionId: found.suggestionId } : { code: found.code };
+    const who: CheckinVisitor = found.suggestionId ? { suggestionId: found.suggestionId } : { code: found.code ?? '' };
     const r = await postCheckin(activity.id, who, found.companionsChildren, activity.audience ?? 'adultos');
     setSubmitting(false);
     if (r.ok) {
       // 6.21: el servidor solo devuelve el code si el visitante se identificó por código;
-      // por sugerencia de nombre llega sin code → code '' → confirmación sin QR.
-      confirmVisitor({ ...found, code: r.data.code ?? '', visitCount: r.data.visitCount });
+      // por sugerencia de nombre llega sin code → code undefined → confirmación sin QR.
+      confirmVisitor({ ...found, code: r.data.code, visitCount: r.data.visitCount });
     } else {
       setErrorMsg(r.message); setScreen('error');
     }

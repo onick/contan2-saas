@@ -38,7 +38,8 @@ export interface KioskActivity {
 export interface KioskVisitor {
   firstName: string;
   lastName: string;
-  code: string;
+  // Opcional: las sugerencias del typeahead (KIO-03) NO traen el code; solo existe tras identificarse por código o registrarse.
+  code?: string;
   visitCount: number;
   isNew: boolean;
   // Niños acompañantes asociados al ADULTO responsable (este visitante). Un solo

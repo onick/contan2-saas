@@ -91,8 +91,8 @@ describe('suggestKioskVisitors', () => {
       { firstName: 'Ana', lastName: 'P.', codeHint: '•••222', suggestionId: 'sg1.bbb', visitCount: 1 },
     ] });
     const out = await suggestKioskVisitors('ana');
-    // KIO-03: sin code (queda vacío); pista parcial + id opaco
-    expect(out.map((v) => v.code)).toEqual(['', '']);
+    // KIO-03: la clave `code` no existe (ni vacía); pista parcial + id opaco
+    expect(out.every((v) => !('code' in v))).toBe(true);
     expect(out.map((v) => v.codeHint)).toEqual(['•••111', '•••222']);
     expect(out.map((v) => v.suggestionId)).toEqual(['sg1.aaa', 'sg1.bbb']);
     expect(out[0]!.isNew).toBe(false);

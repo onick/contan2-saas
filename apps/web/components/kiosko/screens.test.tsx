@@ -22,7 +22,7 @@ describe('RealQr', () => {
 });
 
 describe('ConfirmationScreen · QR solo si el visitante se identificó por código o es nuevo (6.21)', () => {
-  const base: KioskVisitor = { firstName: 'Ana', lastName: 'P.', code: '', visitCount: 6, isNew: false, companionsChildren: 1 };
+  const base: KioskVisitor = { firstName: 'Ana', lastName: 'P.', visitCount: 6, isNew: false, companionsChildren: 1 };
   const renderIt = (v: KioskVisitor) =>
     render(<ConfirmationScreen visitor={v} activityName="Cine" real secondsLeft={15} onHome={() => {}} />);
 
