@@ -1001,10 +1001,16 @@ export type PublicBrandingResponse = z.infer<typeof PublicBrandingResponseSchema
 
 // Lookup público de visitante: SOLO lo mínimo para confirmar identidad en el
 // kiosko. NUNCA email, phone, id ni tokens (anti-enumeración/leak de PII).
+//
+// Decisión 6.21: `code` solo viaja si el visitante buscó por su CÓDIGO. Por correo,
+// teléfono o nombre llegan `codeHint` + `suggestionId` (id opaco que /public/checkin
+// resuelve), sin la credencial del QR.
 export const PublicVisitorSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
-  code: z.string(),
+  code: z.string().optional(),
+  codeHint: z.string().optional(),
+  suggestionId: z.string().optional(),
   visitCount: z.number().int(),
 });
 export type PublicVisitor = z.infer<typeof PublicVisitorSchema>;
@@ -1079,7 +1085,8 @@ export const ProtocolBadgeSchema = z.object({
 export type ProtocolBadge = z.infer<typeof ProtocolBadgeSchema>;
 
 export const PublicCheckinResponseSchema = z.object({
-  code: z.string(),          // código real del visitante (QR = este valor)
+  code: z.string().optional(), // código real (QR = este valor); AUSENTE si entró por sugerencia de nombre (6.21)
+  codeHint: z.string().optional(), // pista parcial ("•••K2P") cuando no se devuelve el code
   firstName: z.string().optional(), // nombre para el mensaje del scanner
   visitCount: z.number().int(),
   partySize: z.number().int(), // 1 + companionsChildren + companionsAdults (cupos descontados)

@@ -175,9 +175,18 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       return { error: 'Falta el parámetro q (código o correo).' };
     }
 
-    const toVisitor = (r: { code: string; first_name: string; last_name: string; visit_count: number }) => ({
-      firstName: r.first_name, lastName: r.last_name, code: r.code, visitCount: r.visit_count,
-    });
+    // Decisión 6.21: el `code` (credencial del QR) solo sale cuando el visitante lo
+    // tecleó él mismo (búsqueda por CÓDIGO). Por correo, teléfono o nombre —donde puede
+    // elegir a otra persona o aparecer un homónimo— se devuelve pista parcial + id opaco
+    // sellado (igual que /suggest) y la confirmación del kiosko no muestra QR.
+    let revealCode = false;
+    const toVisitor = (r: { code: string; first_name: string; last_name: string; visit_count: number }) =>
+      revealCode
+        ? { firstName: r.first_name, lastName: r.last_name, code: r.code, visitCount: r.visit_count }
+        : {
+          firstName: r.first_name, lastName: r.last_name, codeHint: codeHint(r.code),
+          suggestionId: sealSuggestion(t.orgId, r.code), visitCount: r.visit_count,
+        };
 
     let row: { code: string; first_name: string; last_name: string; visit_count: number } | undefined;
     if (q.includes('@')) {
@@ -192,6 +201,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       // (lógica en @contan2/codes · resolveTenantCode, fuente del contrato).
       const code = resolveTenantCode(q, t.codePrefix);
       if (code) {
+        revealCode = true;
         row = await db
           .selectFrom('users')
           .select(['code', 'first_name', 'last_name', 'visit_count'])
@@ -366,7 +376,9 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
     }
     const { activityId, companionsChildren, companionsAdults } = parsed.data;
     let visitor: Exclude<typeof parsed.data.visitor, { suggestionId: string }>;
+    let viaSuggestion = false;
     if ('suggestionId' in parsed.data.visitor) {
+      viaSuggestion = true;
       // Id opaco del typeahead → code real (solo el servidor sabe abrirlo).
       const code = openSuggestion(parsed.data.visitor.suggestionId, t.orgId);
       if (!code) {
@@ -412,7 +424,10 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       }
 
       const body: PublicCheckinResponse = {
-        code: result.code, visitCount: result.visitCount, partySize: result.partySize,
+        // Decisión 6.21: identificado por sugerencia de nombre → NO se devuelve el code
+        // (la confirmación no muestra QR); solo una pista parcial.
+        ...(viaSuggestion ? { codeHint: codeHint(result.code) } : { code: result.code }),
+        visitCount: result.visitCount, partySize: result.partySize,
         activity: result.activity, protocol,
         ...(named?.first_name ? { firstName: named.first_name } : {}),
       };

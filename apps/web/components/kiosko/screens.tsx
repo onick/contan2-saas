@@ -516,14 +516,14 @@ export function CodeScreen({
             <div className="mt-4 flex flex-col gap-2">
               {matches.map((m) => (
                 <button
-                  key={m.code}
+                  key={m.suggestionId ?? m.code}
                   type="button"
                   onClick={() => { setMatches(null); setResult(m); }}
                   className="flex items-center justify-between gap-3 rounded-xl border border-line bg-subtle px-4 py-3 text-left motion-safe:transition hover:border-brand/30 hover:bg-surface"
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold text-ink">{m.firstName} {m.lastName}</span>
-                    <span className="num block text-sm text-muted">{m.code}</span>
+                    <span className="num block text-sm text-muted">{m.code || m.codeHint}</span>
                   </span>
                   <span className="num shrink-0 text-sm text-muted">{m.visitCount} {m.visitCount === 1 ? 'visita' : 'visitas'}</span>
                 </button>
@@ -674,6 +674,9 @@ export function ConfirmationScreen({
 }: { visitor: KioskVisitor; activityName: string; real: boolean; secondsLeft: number; onHome: () => void; audience?: ActivityAudience }) {
   const party = partySize(visitor);
   const companions = companionsLabel(visitor, audience);
+  // 6.21: sin `code` (entró por sugerencia de nombre) no hay QR ni código en pantalla:
+  // evita que alguien elija a otra persona y vea su credencial.
+  const showCred = !!visitor.code;
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Animación de entrada — datos-anim PRESERVADOS exactamente.
@@ -704,19 +707,23 @@ export function ConfirmationScreen({
         gsap.set('[data-anim="greet"]', { opacity: 1 });
         gsap.set(chars, { opacity: 0, y: 14, rotateX: -40 });
         gsap.set('[data-anim="sub"]', { opacity: 0, y: 10 });
-        gsap.set('[data-anim="cred"]', { opacity: 0, y: 22, scale: 0.97 });
-        gsap.set('[data-anim="qr"]', { opacity: 0, scale: 0.8 });
+        if (showCred) {
+          gsap.set('[data-anim="cred"]', { opacity: 0, y: 22, scale: 0.97 });
+          gsap.set('[data-anim="qr"]', { opacity: 0, scale: 0.8 });
+        }
         gsap.set('[data-anim="badge"]', { opacity: 0, y: 8, scale: 0.9 });
 
         const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
         tl.to('[data-anim="eyebrow"]', { opacity: 1, y: 0, duration: 0.5 })
           .to('[data-anim="listo"]', { opacity: 1, y: 0, scale: 1, duration: 0.7 }, '-=0.15');
         if (chars.length) tl.to(chars, { opacity: 1, y: 0, rotateX: 0, duration: 0.6, stagger: 0.022 }, '-=0.35');
-        tl.to('[data-anim="sub"]', { opacity: 1, y: 0, duration: 0.5 }, '-=0.25')
-          .to('[data-anim="cred"]', { opacity: 1, y: 0, scale: 1, duration: 0.7 }, '-=0.3')
-          .to('[data-anim="qr"]', { opacity: 1, scale: 1, duration: 0.5, ease: 'back.out(1.7)' }, '-=0.45')
-          .to('[data-anim="code"]', { duration: 0.9, scrambleText: { text: visitor.code, chars: 'upperCase', speed: 0.4, revealDelay: 0.2 } }, '-=0.4')
-          .to('[data-anim="badge"]', { opacity: 1, y: 0, scale: 1, stagger: 0.1, duration: 0.4 }, '-=0.35');
+        tl.to('[data-anim="sub"]', { opacity: 1, y: 0, duration: 0.5 }, '-=0.25');
+        if (showCred) {
+          tl.to('[data-anim="cred"]', { opacity: 1, y: 0, scale: 1, duration: 0.7 }, '-=0.3')
+            .to('[data-anim="qr"]', { opacity: 1, scale: 1, duration: 0.5, ease: 'back.out(1.7)' }, '-=0.45')
+            .to('[data-anim="code"]', { duration: 0.9, scrambleText: { text: visitor.code, chars: 'upperCase', speed: 0.4, revealDelay: 0.2 } }, '-=0.4');
+        }
+        tl.to('[data-anim="badge"]', { opacity: 1, y: 0, scale: 1, stagger: 0.1, duration: 0.4 }, '-=0.35');
       }, root);
     });
 
@@ -727,7 +734,7 @@ export function ConfirmationScreen({
       ctx?.revert();
       reveal();
     };
-  }, [visitor.code]);
+  }, [visitor.code, showCred]);
 
   return (
     <div data-testid="kiosk-step-confirm" ref={rootRef} className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
@@ -751,23 +758,37 @@ export function ConfirmationScreen({
           </p>
         </div>
 
-        {/* Credencial: fondo blanco, margen de silencio preservado en p-3 del QR */}
-        <div data-anim="cred" className="mt-8 flex flex-col items-center gap-6 rounded-card border border-line bg-surface p-8 text-center">
-          <div data-anim="qr">{real ? <RealQr code={visitor.code} /> : <FauxQr code={visitor.code} />}</div>
-          <div className="flex flex-col items-center gap-2">
-            <p data-anim="code" className="num text-2xl font-bold tracking-[0.08em] text-ink">{visitor.code}</p>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <span data-anim="badge" className="inline-flex items-center gap-2 rounded-full bg-subtle px-3 py-1 text-sm text-muted">
-                {visitor.isNew ? 'Tu primera visita' : `Visita número ${visitor.visitCount}`}
-              </span>
-              {party > 1 ? (
-                <span data-anim="badge" className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1 text-sm font-medium text-brand-text">
-                  Ocupa {party} cupos
+        {showCred ? (
+          <>
+          {/* Credencial: fondo blanco, margen de silencio preservado en p-3 del QR */}
+          <div data-anim="cred" className="mt-8 flex flex-col items-center gap-6 rounded-card border border-line bg-surface p-8 text-center">
+            <div data-anim="qr">{real ? <RealQr code={visitor.code} /> : <FauxQr code={visitor.code} />}</div>
+            <div className="flex flex-col items-center gap-2">
+              <p data-anim="code" className="num text-2xl font-bold tracking-[0.08em] text-ink">{visitor.code}</p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <span data-anim="badge" className="inline-flex items-center gap-2 rounded-full bg-subtle px-3 py-1 text-sm text-muted">
+                  {visitor.isNew ? 'Tu primera visita' : `Visita número ${visitor.visitCount}`}
                 </span>
-              ) : null}
+                {party > 1 ? (
+                  <span data-anim="badge" className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1 text-sm font-medium text-brand-text">
+                    Ocupa {party} cupos
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
+          </>
+        ) : (
+          // Sin QR (6.21): confirmación mínima con nombre y cupos.
+          <div data-testid="kiosk-confirm-no-qr" className="mt-8 flex flex-col items-center gap-3 rounded-card border border-line bg-surface p-8 text-center">
+            <p className="text-xl font-bold text-ink md:text-2xl">
+              Listo, {visitor.firstName}. {party === 1 ? 'Entrará 1 persona.' : `Entrarán ${party} personas.`}
+            </p>
+            <span data-anim="badge" className="inline-flex items-center gap-2 rounded-full bg-subtle px-3 py-1 text-sm text-muted">
+              {`Visita número ${visitor.visitCount}`}
+            </span>
+          </div>
+        )}
 
         <p className="mx-auto mt-6 flex max-w-md items-center justify-center gap-2 rounded-xl bg-subtle px-4 py-2.5 text-center text-sm text-muted">
           <UserPlus size={16} aria-hidden="true" className="flex-none text-brand" />
@@ -776,7 +797,7 @@ export function ConfirmationScreen({
 
         <p className="mx-auto mt-3 max-w-md text-center text-xs text-muted">
           {real
-            ? 'Tu asistencia quedó registrada. Guarda tu código para tu próxima visita.'
+            ? (showCred ? 'Tu asistencia quedó registrada. Guarda tu código para tu próxima visita.' : 'Tu asistencia quedó registrada.')
             : 'Vista previa. El código y el QR definitivos los emite el servidor con la misma secuencia que v1.'}
         </p>
 
