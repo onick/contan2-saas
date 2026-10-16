@@ -6,7 +6,7 @@ import { getBiblioLoans, getBiblioLoansSummary } from '../../../../lib/api/bibli
 // Biblioteca · CIRCULACIÓN (F2): prestar/devolver en dos escaneos, renovaciones,
 // consulta en sala, resumen del día y alertas. Modelo aprobado por el usuario.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Biblioteca · Circulación',
+  title: 'Biblioteca · Circulación',
   description: 'Circulación de la biblioteca: préstamos, devoluciones y renovaciones',
 };
 export const dynamic = 'force-dynamic';

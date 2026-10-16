@@ -30,7 +30,7 @@ import {
 import { USERS } from '../../../lib/usuarios/demoData';
 
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Usuarios',
+  title: 'Usuarios',
   description: 'Visitantes registrados del centro cultural',
 };
 

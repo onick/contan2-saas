@@ -9,7 +9,7 @@ import { PublicAppsHub } from '../../../components/modo-publico/PublicAppsHub';
 // copiar/abrir/QR (generado localmente, sin terceros), stat viva del día y la
 // guía de setup de la tablet. El nav apuntaba a '#' (control inerte) hasta hoy.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Modo público',
+  title: 'Modo público',
   description: 'Apps de lobby: kiosko de auto-registro y scanner de check-in',
 };
 

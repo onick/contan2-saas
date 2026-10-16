@@ -7,7 +7,7 @@ import { getBiblioTitles, getBiblioSites, getBiblioFacets } from '../../../../li
 // modelo aprobado por el usuario). El shell lo pone el layout de /app/biblioteca.
 // Acepta ?q= (lo manda la búsqueda global del topbar del BiblioShell).
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Biblioteca · Catálogo',
+  title: 'Biblioteca · Catálogo',
   description: 'Catálogo de la biblioteca: títulos y ejemplares',
 };
 export const dynamic = 'force-dynamic';

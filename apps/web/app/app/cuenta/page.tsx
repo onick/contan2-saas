@@ -6,7 +6,7 @@ import { ChangePasswordCard, SessionsCard } from '../../../components/cuenta/Acc
 
 // Mi cuenta (S1): cambio de contraseña + sesiones activas del staff logueado.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Mi cuenta',
+  title: 'Mi cuenta',
   description: 'Seguridad de tu cuenta: contraseña y sesiones',
 };
 

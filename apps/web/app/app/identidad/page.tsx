@@ -9,7 +9,7 @@ import { getAdminGate } from '../../../lib/auth/session';
 // api-v2 (PATCH /org/branding) vía BFF, con preview en vivo + contraste AA. Sin
 // datos demo ni dominio/DNS. owner/admin editan; operator ve en solo lectura.
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Identidad',
+  title: 'Identidad',
   description: 'Marca de la organización: nombre, logo, colores y menú',
 };
 

@@ -6,7 +6,7 @@ import { getBiblioReservations, getBiblioReservationsSummary } from '../../../..
 // Biblioteca · RESERVAS (F5): cola FIFO por título con expiración. Modelo
 // aprobado por el usuario (captura "Reservas").
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Biblioteca · Reservas',
+  title: 'Biblioteca · Reservas',
   description: 'Reservas de la biblioteca: cola de espera y listas para retirar',
 };
 export const dynamic = 'force-dynamic';

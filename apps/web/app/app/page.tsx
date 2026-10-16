@@ -15,14 +15,7 @@ import { getDashboardOverview } from '../../lib/api/dashboard';
 import { fechaHora, numero } from '../../lib/format';
 import type { DashboardOverviewResponse } from '@contan2/contracts';
 
-export async function generateMetadata(): Promise<Metadata> {
-  try {
-    const b = await getTenantBranding();
-    return { title: `Inicio · ${b.name}` };
-  } catch {
-    return { title: 'Inicio' };
-  }
-}
+export const metadata: Metadata = { title: 'Inicio' };
 
 export const dynamic = 'force-dynamic';
 

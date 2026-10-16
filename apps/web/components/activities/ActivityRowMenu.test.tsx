@@ -105,3 +105,25 @@ describe('ActivityRowMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 });
+
+describe('ActivityRowMenu · scroll al abrir (ADM-04m)', () => {
+  it('un scroll inmediato tras abrir (el del focus del 1er ítem) NO cierra; Esc sí', () => {
+    renderMenu();
+    fireEvent.click(trigger());
+    fireEvent.scroll(window);
+    expect(screen.getByRole('menu')).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('un scroll real posterior a la ventana de gracia sí cierra', () => {
+    vi.useFakeTimers();
+    try {
+      renderMenu();
+      fireEvent.click(trigger());
+      vi.setSystemTime(Date.now() + 1000);
+      fireEvent.scroll(window);
+      expect(screen.queryByRole('menu')).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+});

@@ -15,7 +15,7 @@ import { REPORT_ROLES } from '../../../lib/shell/nav';
 // layout rico + animaciones GSAP viven en el client component; AppShell intacto.
 // Export Excel/PDF reusa la reportería branded existente (/reports/period.*).
 export const metadata: Metadata = {
-  title: 'Contan2 v2 · Reportes',
+  title: 'Reportes',
   description: 'Resumen ejecutivo de la operación cultural, con comparación de período',
 };
 
