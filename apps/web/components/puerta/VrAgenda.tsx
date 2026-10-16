@@ -10,6 +10,7 @@ import { CalendarPlus, Loader2, X, MailCheck, UserCheck, CalendarClock } from 'l
 import type { PuertaBookingFull } from '@contan2/contracts';
 import { Card, Button, Field, Chip, EmptyState, ErrorState, IconButton, type ChipTone } from '../ui';
 import { DoorButton } from './DoorButton';
+import { NumberField } from '../ui/arc/number-field/NumberField';
 import { hora } from '../../lib/format';
 
 const TZ = 'America/Santo_Domingo';
@@ -135,7 +136,9 @@ export function VrAgenda({ salaId, salaName, aforo = null }: { salaId: string; s
             <Field label="Fecha y hora" type="datetime-local" required value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} />
             <Field label={kindSel === 'Colegio' ? 'Colegio' : 'Nombre del grupo'} required value={form.colegio} onChange={(e) => setForm({ ...form, colegio: e.target.value })} />
             <Field label={kindSel === 'Colegio' ? 'Nivel / grado' : 'Detalle (opcional)'} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} placeholder={kindSel === 'Colegio' ? '5.º primaria' : 'Sector, edades, comunidad…'} />
-            <Field label={kindSel === 'Colegio' ? 'Cantidad de alumnos' : 'Cantidad de integrantes'} type="number" min={0} value={form.studentCount} onChange={(e) => setForm({ ...form, studentCount: Number(e.target.value) })} />
+            <NumberField block editable size="md" label={kindSel === 'Colegio' ? 'Cantidad de alumnos' : 'Cantidad de integrantes'} value={form.studentCount}
+              onValueChange={(n) => setForm({ ...form, studentCount: n })} min={0} max={2000}
+              decrementLabel={kindSel === 'Colegio' ? 'Menos alumnos' : 'Menos integrantes'} incrementLabel={kindSel === 'Colegio' ? 'Más alumnos' : 'Más integrantes'} />
             <Field label={kindSel === 'Colegio' ? 'Profesor responsable' : 'Responsable'} required value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
             <Field label={kindSel === 'Colegio' ? 'Email del profesor' : 'Email del responsable'} type="email" value={form.contactEmail} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} placeholder="para la confirmación" />
             <Field label="Teléfono (opcional)" value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} />
