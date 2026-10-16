@@ -189,3 +189,14 @@ export async function cachedFixture<T>(name: string, factory: () => Promise<T>):
   writeFileSync(file, JSON.stringify(value));
   return value;
 }
+
+/**
+ * Reintenta UNA vez tras 62 s si el rate limit por minuto (import 3/min, export 6/min, etc.) responde 429.
+ * Es un limite de la API compartido con otros agentes, no un defecto: no cuenta como fallo.
+ */
+export async function withRateLimitRetry(call: () => Promise<APIResponse>): Promise<APIResponse> {
+  const first = await call();
+  if (first.status() !== 429) return first;
+  await new Promise((r) => setTimeout(r, 62_000));
+  return call();
+}

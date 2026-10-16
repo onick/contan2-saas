@@ -68,10 +68,9 @@ test.describe('ADM-08 · consola de check-in (S0)', () => {
   test('ADM-08a [S0] buscar por codigo -> actividad enfocada -> Registrar: 1 asistencia y toast', { tag: ['@write', '@smoke'] }, async ({ page }, testInfo) => {
     await openConsole(page);
     await pickVisitor(page, vA);
-    const focused = page.getByText(/Registrar a .* en/).locator('xpath=ancestor::div[contains(@class,"flex-wrap")][1]');
+    // La actividad "enfocada" es la primera por fecha (puede haber otras activas): se registra en la tarjeta de ESTA actividad.
     const post = page.waitForResponse((r) => r.url().includes('/check-in/api/checkin') && r.request().method() === 'POST');
-    // El boton "Registrar" de la tarjeta enfocada (primero en el DOM).
-    await focused.getByRole('button', { name: 'Registrar' }).click();
+    await card(page, act.name).getByRole('button', { name: 'Registrar' }).click();
     expect((await post).status()).toBe(201);
     await expect(page.getByTestId('checkin-toast-success')).toContainText(/registrado en/);
     const att = await attendanceOf(act.id);

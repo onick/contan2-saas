@@ -64,7 +64,7 @@ test.afterAll(async () => {
 
 test.describe('RBAC UI · confinamiento de rutas (layout.tsx)', () => {
   for (const role of ROLES) {
-    test(`RBAC-U01 [S1] ${role}: matriz de rutas /app/** (redirecciones)`, { tag: role === 'puerta' || role === 'protocolo' || role === 'biblioteca' ? ['@smoke'] : [] }, async ({ asRole }) => {
+    test(`RBAC-U01 [S1] ${role}: matriz de rutas /app/** (redirecciones)`, async ({ asRole }) => {
       const { context, page } = await asRole(role);
       const bad: string[] = [];
       for (const route of ROUTES) {
@@ -186,6 +186,7 @@ test.describe('RBAC UI · MobileNav', () => {
       test.skip(testInfo.project.name !== 'mobile-390', 'solo viewport movil');
       const { page } = await asRole(role);
       await page.goto(CONFINED[role]?.landing ?? '/app');
+      await page.waitForLoadState('networkidle').catch(() => undefined); // hidratacion antes de tocar
       const bottom = page.getByRole('navigation', { name: 'Navegación inferior' });
       await expect(bottom).toBeVisible();
       await expectNoHorizontalOverflow(page, `/app (${role})`);

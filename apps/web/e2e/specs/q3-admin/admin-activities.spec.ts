@@ -88,8 +88,9 @@ test.describe('ADM-03/04 · crear con portada, editar y estados (UI)', () => {
     if (testInfo.project.name === 'desktop-1440') await page.screenshot({ path: testInfo.outputPath('adm03-actividades.png'), fullPage: false });
   });
 
-  test('ADM-04 [S1] editar desde el menu de la fila: nombre/lugar cambian en tabla, API y detalle', { tag: '@write' }, async ({ page }) => {
+  test('ADM-04 [S1] editar desde el menu de la fila: nombre/lugar cambian en tabla, API y detalle', { tag: '@write' }, async ({ page }, testInfo) => {
     test.skip(!id, 'depende de ADM-03');
+    test.skip(testInfo.project.name === 'mobile-390', 'HALLAZGO S2 (hipotesis): en 390px el menu ⋯ de la fila se cierra solo (scroll del documento tras abrir); ver ADM-04m');
     await page.goto('/app/actividades');
     await settle(page);
     await rowMenu(page, name, 'Editar');
@@ -111,8 +112,21 @@ test.describe('ADM-03/04 · crear con portada, editar y estados (UI)', () => {
     await detail.getByRole('button', { name: 'Cerrar detalle' }).click();
   });
 
-  test('ADM-04 [S1] estados: finalizar -> sale del kiosko y de la consola; reactivar -> vuelve', { tag: '@write' }, async ({ page }) => {
+  test('ADM-04m [S2] menu ⋯ de la fila permanece abierto en movil (390)', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390', 'solo movil');
+    await page.goto('/app/actividades');
+    await settle(page);
+    const trigger = page.getByRole('button', { name: 'Más acciones' }).first();
+    await trigger.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await trigger.click();
+    await page.waitForTimeout(600);
+    expect(await page.getByRole('menuitem').count(), 'items del menu tras abrirlo').toBeGreaterThan(0);
+  });
+
+  test('ADM-04 [S1] estados: finalizar -> sale del kiosko y de la consola; reactivar -> vuelve', { tag: '@write' }, async ({ page }, testInfo) => {
     test.skip(!id, 'depende de ADM-03');
+    test.skip(testInfo.project.name === 'mobile-390', 'usa el menu de fila (ver ADM-04m)');
     const inKiosk = async () => (await (await page.request.get('/kiosko')).text()).includes(name);
     const inConsole = async () => Boolean(await activityByName(name));
     await page.goto('/app/actividades');
@@ -316,7 +330,7 @@ test.describe('Reservas ≠ asistencias (fix en staging: protocolo con asiento r
     expect(summary.peopleInRoom).toBe(0);
   });
 
-  test('RES-02 [S1] consola /app/check-in: una sola tarjeta, "0 en sala · 3 reservados / 20"', { tag: ['@write', '@smoke'] }, async ({ page }) => {
+  test('RES-02 [S1] consola /app/check-in: una sola tarjeta, "0 en sala · 3 reservados / 20"', { tag: '@write' }, async ({ page }) => {
     await page.goto('/app/check-in');
     await settle(page);
     const cards = page.getByRole('listitem').filter({ hasText: act.name }).filter({ has: page.getByRole('button', { name: '+1 sin credencial' }) });

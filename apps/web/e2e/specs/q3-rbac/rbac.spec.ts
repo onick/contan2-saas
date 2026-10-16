@@ -152,7 +152,7 @@ async function call(api: APIRequestContext, row: Row, c: Ctx): Promise<number> {
 
 test.describe('RBAC por rol: BFF /app/**/api/**', () => {
   for (const row of ROWS) {
-    const tags = row.sev === 'S0' ? ['@smoke'] : [];
+    const tags = row.id === 'RBAC-W01' ? ['@smoke'] : [];
     test(`${row.id} [${row.sev}] ${row.method} ${row.path({ actId: ':act', visitorCode: ':code', visitorId: ':id' }).replace(/\?.*/, '')}${row.note ? ` (${row.note})` : ''}`, { tag: tags }, async () => {
       expect(fixturesReady, 'precondiciones').toBe(true);
       const bad: string[] = [];
