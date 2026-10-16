@@ -248,6 +248,15 @@ test.describe('PRO-03 invitación a actividad [E2E] con +N acompañantes', { tag
 });
 
 test.describe('PRO-04 puerta/check-in y export', { tag: '@write' }, () => {
+  // PRO-04 es autosuficiente (corre también solo, con --grep @smoke): asegura la
+  // designación de p1 como invitado de protocolo (upsert idempotente, 201) sin
+  // depender de PRO-02a.
+  test.beforeAll(async () => {
+    const r = await api.post('/app/protocolo/api', { data: { userId: fx.p1.id, category: 'diplomatico', honorific: 'Sr. Embajador' } });
+    expect([200, 201]).toContain(r.status());
+    trackProtocol(fx.p1.id, 'designacion protocolo [E2E] p1 (PRO-04)');
+  });
+
   async function pick(page: Page, code: string) {
     await page.goto('/app/check-in');
     await settle(page);
