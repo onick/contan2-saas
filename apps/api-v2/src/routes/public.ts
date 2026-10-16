@@ -30,6 +30,7 @@ import { protocolBadgeFor } from '../services/protocol-info.js';
 // Núcleo transaccional COMPARTIDO (público/scanner/admin): resuelve/crea visitante,
 // reserva cupo atómica y registra asistencia idempotente. CheckinError → ROLLBACK.
 import { CheckinError, checkinIdentified } from '../services/checkin-core.js';
+import { sealSuggestion, openSuggestion, abbreviateLastName, codeHint } from '../services/kiosk-suggestion.js';
 
 // Rate-limit detrás del limiter compartido: Redis (estado entre réplicas) si hay
 // REDIS_URL, in-memory con degradación grácil si no. Buckets SEPARADOS por
@@ -278,7 +279,7 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
   // PREFIJO de nombre (una sola palabra basta) o de email. A diferencia del
   // lookup (Buscar, match exacto), esto sugiere mientras el visitante escribe.
   // Guardrails de privacidad: umbral mínimo de 3 caracteres, tope 8, SÓLO
-  // nombre + código + visitas (nunca email/teléfono), rate-limit compartido y
+  // nombre abreviado + pista de código + id opaco (nunca code/email/teléfono), rate-limit compartido y
   // excluye archivados. LIKE-safe (escapa %_\ y sanea el nombre).
   app.get('/public/users/suggest', async (req, reply) => {
     const db = getDb();
@@ -294,8 +295,10 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       const empty: PublicVisitorSuggestResponse = { suggestions: [] };
       if (q.length < SUGGEST_MIN) return empty;
 
+      // KIO-03: el code NUNCA sale; va sellado en un id opaco (2 min, ligado a la org).
       const toVisitor = (r: { code: string; first_name: string; last_name: string; visit_count: number }) => ({
-        firstName: r.first_name, lastName: r.last_name, code: r.code, visitCount: r.visit_count,
+        firstName: r.first_name, lastName: abbreviateLastName(r.last_name), codeHint: codeHint(r.code),
+        suggestionId: sealSuggestion(t.orgId, r.code), visitCount: r.visit_count,
       });
 
       let rows: { code: string; first_name: string; last_name: string; visit_count: number }[];
@@ -361,7 +364,19 @@ export const publicRoute: FastifyPluginAsync = async (app) => {
       reply.code(400);
       return { error: 'Datos de check-in inválidos.' };
     }
-    const { activityId, visitor, companionsChildren, companionsAdults } = parsed.data;
+    const { activityId, companionsChildren, companionsAdults } = parsed.data;
+    let visitor: Exclude<typeof parsed.data.visitor, { suggestionId: string }>;
+    if ('suggestionId' in parsed.data.visitor) {
+      // Id opaco del typeahead → code real (solo el servidor sabe abrirlo).
+      const code = openSuggestion(parsed.data.visitor.suggestionId, t.orgId);
+      if (!code) {
+        reply.code(410);
+        return { error: 'La sugerencia venció. Vuelve a buscar tu nombre.' };
+      }
+      visitor = { code };
+    } else {
+      visitor = parsed.data.visitor;
+    }
     const orgId = t.orgId;
     // Visitante NUEVO con email → tras el commit se le entrega la credencial por
     // correo (best-effort, fuera de la tx). El visitante EXISTENTE no reenvía.

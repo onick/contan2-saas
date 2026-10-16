@@ -237,13 +237,20 @@ export function ActivityScreen({
         <h1 className="text-[clamp(2.25rem,5.5vw,4rem)] font-extrabold uppercase leading-[0.95] tracking-[-0.03em] text-ink">
           Elige tu actividad
         </h1>
-        <p className="mt-3 text-muted md:text-lg">Estas son las actividades con cupo disponible hoy</p>
+        {activities.length > 0 ? <p className="mt-3 text-muted md:text-lg">Estas son las actividades con cupo disponible hoy</p> : null}
       </div>
-      <div ref={gridRef} className="kiosk-focus-grid mt-9 grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(min(290px,100%),1fr))]">
-        {activities.map((a, i) => (
-          <ActivityCard key={a.id} activity={a} index={i} onSelect={onSelect} />
-        ))}
-      </div>
+      {activities.length === 0 ? (
+        <div role="status" data-testid="kiosk-activities-empty" className="mx-auto mt-16 flex w-full max-w-xl flex-col items-center rounded-card border border-line bg-surface px-6 py-12 text-center">
+          <p className="text-xl font-bold text-ink">Hoy no hay actividades con cupo disponible.</p>
+          <p className="mt-2 text-muted md:text-lg">Pregunta en la recepción.</p>
+        </div>
+      ) : (
+        <div ref={gridRef} className="kiosk-focus-grid mt-9 grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(min(290px,100%),1fr))]">
+          {activities.map((a, i) => (
+            <ActivityCard key={a.id} activity={a} index={i} onSelect={onSelect} />
+          ))}
+        </div>
+      )}
       <KioskBackPill label="Volver al inicio" onClick={onHome} />
     </div>
   );
@@ -392,6 +399,7 @@ export function CodeScreen({
   const [hint, setHint] = useState<string | null>(null);
   const [suggests, setSuggests] = useState<KioskVisitor[] | null>(null);
   const suggestSeq = useRef(0);
+  const [activeIdx, setActiveIdx] = useState(-1); // opción resaltada con flechas (combobox)
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [kids, setKids] = useState(0);
@@ -421,10 +429,23 @@ export function CodeScreen({
       const list = await onSuggest(q);
       if (mySeq !== suggestSeq.current) return;
       setSuggests(list.length ? list : null);
+      setActiveIdx(-1);
     }, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
+
+  const listOpen = !!suggests && !matches && !result;
+  const pickSuggestion = (m: KioskVisitor) => { suggestSeq.current += 1; setSuggests(null); setActiveIdx(-1); setResult(m); };
+  // Teclado del combobox: ↓/↑ mueven la opción activa, Enter la elige (si no hay
+  // activa, Enter sigue siendo "Buscar"), Esc cierra la lista.
+  const onComboKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!listOpen || !suggests) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx((i) => (i + 1) % suggests.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx((i) => (i <= 0 ? suggests.length - 1 : i - 1)); }
+    else if (e.key === 'Enter' && activeIdx >= 0 && suggests[activeIdx]) { e.preventDefault(); pickSuggestion(suggests[activeIdx]!); }
+    else if (e.key === 'Escape') { e.preventDefault(); suggestSeq.current += 1; setSuggests(null); setActiveIdx(-1); }
+  };
 
   return (
     <div data-testid="kiosk-step-code" className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
@@ -445,6 +466,12 @@ export function CodeScreen({
               onChange={(e) => { setQuery(e.target.value); setNotFound(false); setResult(null); setMatches(null); setError(false); }}
               placeholder="Ana Pérez · ana@mail.com · 809-555-0000 · CCB-7F3K2P"
               autoComplete="off"
+              role="combobox"
+              aria-expanded={listOpen}
+              aria-controls="k-suggest-list"
+              aria-autocomplete="list"
+              aria-activedescendant={listOpen && activeIdx >= 0 ? `k-suggest-${activeIdx}` : undefined}
+              onKeyDown={onComboKey}
               className={inputCls}
             />
             <KioskButton type="submit" disabled={query.trim().length < 3 || loading} className="shrink-0">
@@ -452,6 +479,10 @@ export function CodeScreen({
             </KioskButton>
           </div>
         </form>
+
+        <p aria-live="polite" className="sr-only">
+          {suggests && listOpen ? `${suggests.length} ${suggests.length === 1 ? 'resultado' : 'resultados'}` : ''}
+        </p>
 
         {result ? (
           <div className="mt-6 rounded-card border border-success-fg/20 bg-success-bg p-5">
@@ -461,7 +492,7 @@ export function CodeScreen({
               </span>
               <div>
                 <p className="text-lg font-semibold text-ink">{result.firstName} {result.lastName}</p>
-                <p className="num text-sm text-muted">{result.code} · {result.visitCount} visitas</p>
+                <p className="num text-sm text-muted">{result.code || result.codeHint} · {result.visitCount} visitas</p>
               </div>
             </div>
             <div className="mt-4">
@@ -501,21 +532,24 @@ export function CodeScreen({
           </div>
         ) : null}
 
-        {suggests && !matches && !result ? (
+        {listOpen && suggests ? (
           <div className="mt-6 rounded-card border-2 border-info-text/30 bg-info-soft p-5">
             <p className="text-center text-xl font-bold text-ink">¿Eres tú?</p>
             <p className="mt-1 text-center text-muted">Sugerencias mientras escribes, toca una para continuar.</p>
-            <div className="mt-4 flex flex-col gap-2">
-              {suggests.map((m) => (
+            <div id="k-suggest-list" role="listbox" aria-label="Sugerencias" className="mt-4 flex flex-col gap-2">
+              {suggests.map((m, i) => (
                 <button
-                  key={m.code}
+                  key={m.suggestionId ?? m.code}
+                  id={`k-suggest-${i}`}
                   type="button"
-                  onClick={() => { suggestSeq.current += 1; setSuggests(null); setResult(m); }}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-line bg-subtle px-4 py-3 text-left motion-safe:transition hover:border-brand/30 hover:bg-surface"
+                  role="option"
+                  aria-selected={i === activeIdx}
+                  onClick={() => pickSuggestion(m)}
+                  className={`flex items-center justify-between gap-3 rounded-xl border bg-subtle px-4 py-3 text-left motion-safe:transition hover:border-brand/30 hover:bg-surface ${i === activeIdx ? 'border-brand ring-2 ring-brand/40' : 'border-line'}`}
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold text-ink">{m.firstName} {m.lastName}</span>
-                    <span className="num block text-sm text-muted">{m.code}</span>
+                    <span className="num block text-sm text-muted">{m.codeHint ?? m.code}</span>
                   </span>
                   <span className="num shrink-0 text-sm text-muted">{m.visitCount} {m.visitCount === 1 ? 'visita' : 'visitas'}</span>
                 </button>
@@ -544,7 +578,7 @@ export function CodeScreen({
         {error ? (
           <div className="mt-6 rounded-card border border-warning-fg/20 bg-warning-bg p-5 text-center">
             <p className="text-ink">No pudimos consultar el registro.</p>
-            <p className="mt-1 text-sm text-muted">Revisá tu conexión e intentá de nuevo.</p>
+            <p className="mt-1 text-sm text-muted">Revisa tu conexión e inténtalo de nuevo.</p>
           </div>
         ) : null}
 

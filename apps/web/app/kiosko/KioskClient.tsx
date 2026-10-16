@@ -26,6 +26,11 @@ import { checkinErrorMessage, type KioskCheckinResult } from '../../lib/kiosko/c
 import type { ActivityAudience } from '@contan2/contracts';
 
 const CONFIRM_SECONDS = 15;
+// Inactividad GLOBAL (KIO-10b, privacidad): en cualquier pantalla distinta de la
+// bienvenida y la confirmación (que tiene su propio temporizador de 15 s), 60 s sin
+// tocar nada → vuelve a la bienvenida y se descarta lo tecleado. Aviso los últimos 10 s.
+export const IDLE_SECONDS = 60;
+const IDLE_WARN_SECONDS = 10;
 
 export type KioskSource = 'api' | 'demo';
 
@@ -72,6 +77,7 @@ async function apiSuggest(query: string): Promise<KioskVisitor[]> {
 // se registra como nuevo. Un solo adulto por check-in; sólo niños acompañantes.
 type CheckinVisitor =
   | { code: string }
+  | { suggestionId: string }
   | { new: { firstName: string; lastName: string; email?: string; phone?: string } };
 
 // POST real al proxy del check-in. Devuelve un resultado discriminado (sin throw).
@@ -109,12 +115,13 @@ async function postCheckin(
 }
 
 export function KioskClient({
-  activities, source, brandName, logoUrl,
+  activities, source, brandName, logoUrl, idleSeconds = IDLE_SECONDS,
 }: {
   activities: KioskActivity[];
   source: KioskSource;
   brandName: string;
   logoUrl: string | null;
+  idleSeconds?: number;
 }) {
   const [screen, setScreen] = useState<KioskScreen>('welcome');
   const [activity, setActivity] = useState<KioskActivity | null>(null);
@@ -122,6 +129,10 @@ export function KioskClient({
   const [countdown, setCountdown] = useState(CONFIRM_SECONDS);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [idleWarn, setIdleWarn] = useState<number | null>(null);
+  const lastTouch = useRef(Date.now());
+  const submittingRef = useRef(false);
+  submittingRef.current = submitting;
 
   const reset = useRef(() => {});
   reset.current = () => {
@@ -130,7 +141,29 @@ export function KioskClient({
     setVisitor(null);
     setCountdown(CONFIRM_SECONDS);
     setErrorMsg(null);
+    setIdleWarn(null);
   };
+
+  // Inactividad global: cualquier pointer/teclado/touch renueva el reloj; un tic de
+  // 1 s compara contra el límite. No corre en bienvenida ni confirmación, y no
+  // interrumpe un check-in en vuelo.
+  useEffect(() => {
+    if (screen === 'welcome' || screen === 'confirmation') { setIdleWarn(null); return; }
+    lastTouch.current = Date.now();
+    const touch = () => { lastTouch.current = Date.now(); setIdleWarn(null); };
+    const events = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'wheel'] as const;
+    events.forEach((e) => window.addEventListener(e, touch, { passive: true }));
+    const tick = setInterval(() => {
+      if (submittingRef.current) { lastTouch.current = Date.now(); return; }
+      const left = idleSeconds - (Date.now() - lastTouch.current) / 1000;
+      if (left <= 0) { clearInterval(tick); reset.current(); return; }
+      setIdleWarn(left <= IDLE_WARN_SECONDS ? Math.ceil(left) : null);
+    }, 1000);
+    return () => {
+      clearInterval(tick);
+      events.forEach((e) => window.removeEventListener(e, touch));
+    };
+  }, [screen, idleSeconds]);
 
   // Autoretorno al inicio desde la confirmación (como el kiosko v1).
   useEffect(() => {
@@ -157,7 +190,9 @@ export function KioskClient({
     if (source !== 'api') { confirmVisitor(found); return; }
     if (!activity || submitting) return;
     setSubmitting(true);
-    const r = await postCheckin(activity.id, { code: found.code }, found.companionsChildren, activity.audience ?? 'adultos');
+    // Sugerencia del typeahead → id opaco (el code real lo resuelve el servidor).
+    const who: CheckinVisitor = found.suggestionId ? { suggestionId: found.suggestionId } : { code: found.code };
+    const r = await postCheckin(activity.id, who, found.companionsChildren, activity.audience ?? 'adultos');
     setSubmitting(false);
     if (r.ok) {
       // Código real (el mismo que ya tenía) + conteo de visitas actualizado.
@@ -252,6 +287,16 @@ export function KioskClient({
           onRetry={() => { setErrorMsg(null); setScreen('identify'); }}
           onHome={() => reset.current()}
         />
+      )}
+      {idleWarn !== null && screen !== 'welcome' && screen !== 'confirmation' && (
+        <div
+          role="status"
+          data-testid="kiosk-idle-warning"
+          className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl rounded-card border border-line bg-surface px-5 py-4 text-center shadow-lg motion-safe:animate-pulse"
+        >
+          <p className="font-semibold text-ink">¿Sigues ahí?</p>
+          <p className="text-sm text-muted">Volveremos al inicio en {idleWarn} s. Toca la pantalla para continuar.</p>
+        </div>
       )}
     </>
   );

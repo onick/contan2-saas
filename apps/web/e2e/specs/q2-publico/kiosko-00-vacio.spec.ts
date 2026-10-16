@@ -19,8 +19,7 @@ test('KIO-00 sin actividades abiertas la cartelera explica que no hay (B18)', as
   await page.getByRole('button', { name: 'Toca para registrarte' }).click();
   await page.getByTestId('kiosk-step-activity').waitFor();
   const step = page.getByTestId('kiosk-step-activity');
-  // BUG B18 (S2): el visitante ve "Elige tu actividad" sobre un espacio en blanco, sin explicacion ni salida clara.
-  test.fail(true, 'BUG B18 (S2): ActivityScreen no tiene estado vacio (components/kiosko/screens.tsx)');
+  // B18 corregido (PR-15): estado vacío honesto "Hoy no hay actividades con cupo disponible. Pregunta en la recepción."
   note(testInfo, 'KIO-00/B18', 'S2', 'cartelera vacia sin mensaje');
   await expect(step.getByText(/no hay actividades|sin actividades|vuelve más tarde|por ahora no/i)).toBeVisible({ timeout: 2_000 });
 });

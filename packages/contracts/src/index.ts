@@ -1018,8 +1018,21 @@ export type PublicVisitorLookupResponse = z.infer<typeof PublicVisitorLookupResp
 // Sugerencias del typeahead del kiosko: lista (0..8) por PREFIJO de nombre (una
 // sola palabra basta) o de email. Sólo nombre + código + visitas (nunca
 // email/teléfono). Umbral mínimo de longitud y rate-limit en el endpoint.
+//
+// PRIVACIDAD (KIO-03): la sugerencia NO lleva el `code` (credencial del QR). Trae
+// el apellido abreviado ("P."), una pista parcial del código ("•••K2P") y un id
+// opaco de corta vida (`suggestionId`, ~2 min) que el cliente envía al elegir; el
+// servidor lo resuelve al código real en /public/checkin.
+export const PublicVisitorSuggestionSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(), // abreviado: "P."
+  codeHint: z.string(), // "•••" + últimos 3
+  suggestionId: z.string(),
+  visitCount: z.number().int(),
+});
+export type PublicVisitorSuggestion = z.infer<typeof PublicVisitorSuggestionSchema>;
 export const PublicVisitorSuggestResponseSchema = z.object({
-  suggestions: z.array(PublicVisitorSchema).max(8),
+  suggestions: z.array(PublicVisitorSuggestionSchema).max(8),
 });
 export type PublicVisitorSuggestResponse = z.infer<typeof PublicVisitorSuggestResponseSchema>;
 
@@ -1034,6 +1047,8 @@ export const PublicCheckinRequestSchema = z.object({
   activityId: z.string().min(1),
   visitor: z.union([
     z.object({ code: z.string().min(1) }),
+    // Id opaco del typeahead (KIO-03): el servidor lo resuelve al code real.
+    z.object({ suggestionId: z.string().min(1).max(512) }),
     z.object({ email: z.string().email() }),
     z.object({
       new: z.object({
