@@ -60,7 +60,7 @@
   --color-danger-fg: #b91c1c;
   --color-danger-bg: #fef2f2;
   /* warning-fg es semántico (estado) y NO sigue al tenant; siempre fijo. */
-  --color-warning-fg: #b45f0a;
+  --color-warning-fg: #9a4f06; /* 5.53:1 sobre warning-bg (el #b45f0a anterior daba 4.22:1, falla AA) */
   --color-warning-bg: #fef4e8;
 
   /* Geometría. */
