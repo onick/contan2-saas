@@ -12,7 +12,7 @@ import {
   type AdminCheckinResponse,
   type AdminAnonymousCheckinResponse,
 } from '@contan2/contracts';
-import { requireTenantStaff } from '../guard.js';
+import { requireRole, requireTenantStaff } from '../guard.js';
 import { protocolBadgeFor, protocolMarksFor } from '../services/protocol-info.js';
 import { invitedActivitiesFor, guestListStatsFor } from '../services/checkin-invites.js';
 import { parseSearch, likeContains } from '../query.js';
@@ -62,6 +62,8 @@ async function ensureInvitationOnAdmit(tx: DbClient, orgId: string, activityId: 
 // multi-tenant cross-tz haría falta una columna `timezone` por org (migración
 // futura). Los "últimos 10 min" son absolutos (now() - interval), tz-independientes.
 // Las métricas/movimiento cuentan check-ins REALES (checked_in_at IS NOT NULL).
+// Escrituras de puerta (check-in). protocolo/consulta/biblioteca no registran entradas.
+const DOOR_WRITE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'operator', 'puerta']);
 const DEFAULT_CHECKIN_TZ = 'America/Santo_Domingo';
 
 // Valida CHECKIN_TZ contra las zonas IANA del runtime. Un valor inválido NO
@@ -283,7 +285,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
   // tx → si falla, rollback completo. organizationId/actor jamás del cliente.
   app.post('/checkin', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para registrar entradas.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
@@ -335,7 +337,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
   // índice único (el 2º insert bloquea hasta el commit del 1º).
   app.post('/checkin/anonymous', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para registrar entradas.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {

@@ -9,7 +9,7 @@ import type {
 } from '@contan2/contracts';
 import { AdminUserUpdateRequestSchema, AdminUserCreateRequestSchema } from '@contan2/contracts';
 import type { AdminCredentialResendResponse, AdminCredentialResendResult, AdminUserArchiveResponse, AdminUserCreateResponse } from '@contan2/contracts';
-import { requireTenantStaff } from '../guard.js';
+import { requireRole, requireTenantStaff } from '../guard.js';
 import { writeUserAudit } from '../services/user-audit.js';
 import { deliverCredential } from '../services/credential-delivery.js';
 import { cohortCondition, statusCondition } from '../services/users-query.js';
@@ -21,6 +21,10 @@ import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { parsePage, parseSearch, parseCohort, parseUserStatusFilter, likeContains } from '../query.js';
 
 // Editar/archivar/reenviar credencial es administrativo: sólo owner/admin (operator → 403).
+// Lecturas del padrón (datos personales). protocolo/biblioteca NO: el módulo
+// Protocolo busca candidatos por /checkin/visitors (respuesta mínima) y sus
+// propios endpoints, y Biblioteca por sus lectores; ninguno usa /users.
+const PADRON_READ_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'operator', 'consulta', 'puerta']);
 const CAN_WRITE_USER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 
 // Reenvío de credencial: idempotencia en checkin_idempotency (endpoint dedicado) +
@@ -95,7 +99,7 @@ function toListItem(r: ListRow): UserListItem {
 export const usersRoute: FastifyPluginAsync = async (app) => {
   app.get('/users', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para ver el padrón de visitantes.');
     if (!guard.ok) {
       reply.code(guard.status);
       return { error: guard.error };
@@ -185,7 +189,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
   // Una sola query con `count(*) filter (where …)` + el join de última visita.
   app.get('/users/facets', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para ver el padrón de visitantes.');
     if (!guard.ok) {
       reply.code(guard.status);
       return { error: guard.error };
@@ -399,7 +403,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
   // credencial, estado). Misma agregación de última visita que el listado.
   app.get('/users/:code', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para ver el padrón de visitantes.');
     if (!guard.ok) {
       reply.code(guard.status);
       return { error: guard.error };
@@ -440,7 +444,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
   // asistencias; checkedInAt null = registró pero no asistió). Una query + count.
   app.get('/users/:code/activities', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para ver el padrón de visitantes.');
     if (!guard.ok) {
       reply.code(guard.status);
       return { error: guard.error };
@@ -509,7 +513,7 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
   // materializar ni cachear PII.
   app.get('/users/:code/affinity', async (req, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para ver el padrón de visitantes.');
     if (!guard.ok) {
       reply.code(guard.status);
       return { error: guard.error };
