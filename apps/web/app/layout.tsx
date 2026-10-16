@@ -18,8 +18,8 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Contan2 v2',
-  description: 'contan2 · plataforma v2 · skeleton responsive',
+  title: 'contan2',
+  description: 'contan2 · registro de visitantes, acceso y reportes para centros culturales.',
 };
 
 export const viewport: Viewport = {
