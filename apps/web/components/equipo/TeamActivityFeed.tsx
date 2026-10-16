@@ -18,6 +18,8 @@ const ACTION_META: Record<string, Meta> = {
   'staff.status_changed': { label: 'Cambió el estado de un miembro', Icon: UserCog, tint: 'bg-[#e7effe] text-[#2563eb]' },
   'activity.created': { label: 'Creó la actividad', Icon: CalendarPlus, tint: 'bg-success-bg text-success-fg' },
   'activity.updated': { label: 'Actualizó la actividad', Icon: CalendarPlus, tint: 'bg-success-bg text-success-fg' },
+  'activity.status_changed': { label: 'Cambió el estado de una actividad', Icon: CalendarPlus, tint: 'bg-success-bg text-success-fg' },
+  'staff.invited': { label: 'Invitó a un miembro', Icon: Mail, tint: 'bg-[#e7effe] text-[#2563eb]' },
   'activity.deleted': { label: 'Eliminó una actividad', Icon: Trash2, tint: 'bg-danger-bg text-danger-fg' },
   'activity.audience_invited': { label: 'Invitó audiencia', Icon: Mail, tint: 'bg-brand/10 text-brand' },
   'activity.protocol_invited': { label: 'Invitó protocolo', Icon: Medal, tint: 'bg-[#fbf2dc] text-[#c98a16]' },

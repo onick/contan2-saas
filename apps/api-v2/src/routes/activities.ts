@@ -26,6 +26,7 @@ import {
   CoverError,
 } from '../services/cover-upload.js';
 import { ensureWritableRoot, deletePreviousCoverIfV2, StorageError } from '../storage.js';
+import { writeActivityAudit } from '../services/audit-activity.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 
 // Escrituras admin de actividades: 30/min por org+IP (auditoría 2026-06-10:
@@ -196,6 +197,11 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       .returning(ACTIVITY_DETAIL_COLUMNS)
       .executeTakeFirstOrThrow();
 
+    await writeActivityAudit(db, {
+      orgId, staff: guard.ctx.staff, action: 'activity.created',
+      activityId: row.id, name: row.name, metadata: { type: row.type, via: 'json' },
+    });
+
     reply.code(201);
     const body: ActivityCreateResponse = { activity: mapActivityDetailRow(row) };
     return body;
@@ -343,7 +349,17 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
               status: 'activa',
             })
             .returning(ACTIVITY_DETAIL_COLUMNS)
-            .executeTakeFirst(),
+            .executeTakeFirst()
+            .then(async (created) => {
+              // Auditoría en la misma tx; si falla, persistCover borra el archivo nuevo.
+              if (created) {
+                await writeActivityAudit(db, {
+                  orgId, staff: guard.ctx.staff, action: 'activity.created',
+                  activityId: created.id, name: created.name, metadata: { type: created.type, via: 'with-cover' },
+                });
+              }
+              return created;
+            }),
       });
       reply.code(201);
       const body: ActivityCreateResponse = { activity: mapActivityDetailRow(row) };
@@ -517,7 +533,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     // Cargar la actividad DENTRO del tenant (cross-tenant / inexistente → 404).
     const existing = await db
       .selectFrom('activities')
-      .select(['status', 'date', 'end_date', 'capacity', 'enrolled_count'])
+      .select(['name', 'status', 'date', 'end_date', 'capacity', 'enrolled_count'])
       .where('organization_id', '=', orgId)
       .where('id', '=', id)
       .executeTakeFirst();
@@ -568,6 +584,13 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       reply.code(409);
       return { error: 'La capacidad no puede ser menor que la cantidad de inscritos.' };
     }
+
+    await writeActivityAudit(db, {
+      orgId, staff: guard.ctx.staff, action: 'activity.updated',
+      activityId: id, name: row.name,
+      // Sólo nombres de campos tocados (nunca valores: descripción/lugar son texto libre).
+      metadata: { changedFields: Object.keys(setFields) },
+    });
 
     // TODO Redis C-C: invalidar la cache pública del tenant aquí
     // (DEL `${env}:pubacts:${orgId}`). Sin cache aún → no-op.
@@ -637,6 +660,11 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
       .where('id', '=', id)
       .returning(ACTIVITY_DETAIL_COLUMNS)
       .executeTakeFirstOrThrow();
+
+    await writeActivityAudit(db, {
+      orgId, staff: guard.ctx.staff, action: 'activity.status_changed',
+      activityId: id, name: row.name, metadata: { from: existing.status, to: target },
+    });
 
     // TODO Redis C-C: invalidar cache pública del tenant (DEL pubacts:${orgId}).
 
@@ -819,6 +847,7 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
           action: 'activity.deleted',
           target_type: 'activity',
           target_id: id,
+          target_label: existing.name,
           metadata: JSON.stringify({ name: existing.name, attendancePurged: attendanceCount }),
         })
         .execute();
