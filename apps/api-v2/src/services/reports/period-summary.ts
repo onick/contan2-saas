@@ -8,6 +8,7 @@
 import { sql, type DbClient } from '@contan2/db';
 import { type ReportRange } from '../report-data.js';
 import { normCategory, normCategorySql } from '../category-norm.js';
+import { REPORT_TZ, ymdAddDays, zonedMidnight } from './fmt.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const pct = (a: number, b: number): number => (b > 0 ? Math.round((a / b) * 100) : 0);
@@ -15,11 +16,11 @@ const deltaPct = (cur: number, prev: number): number | null => (prev <= 0 ? null
 
 // Período inmediatamente anterior, de la misma duración.
 export function previousRange(r: ReportRange): ReportRange {
-  const days = Math.round((r.toExclusive.getTime() - r.fromDate.getTime()) / DAY_MS);
-  const toExclusive = new Date(r.fromDate.getTime()); // exclusivo = inicio del actual
-  const fromDate = new Date(r.fromDate.getTime() - days * DAY_MS);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { from: iso(fromDate), to: iso(new Date(toExclusive.getTime() - DAY_MS)), fromDate, toExclusive };
+  // Aritmética de calendario sobre los días locales (from/to son YYYY-MM-DD del tenant).
+  const days = Math.round((Date.parse(`${r.to}T00:00:00Z`) - Date.parse(`${r.from}T00:00:00Z`)) / DAY_MS) + 1;
+  const from = ymdAddDays(r.from, -days);
+  const to = ymdAddDays(r.from, -1);
+  return { from, to, fromDate: zonedMidnight(from), toExclusive: new Date(r.fromDate.getTime()) };
 }
 
 export interface PeriodSummary {
@@ -100,7 +101,7 @@ export async function periodSummary(
     return Number(row.n);
   }
 
-  // Por DÍA (date_trunc UTC): asistencias + visitantes únicos + actividades.
+  // Por DÍA local del tenant (date_trunc sobre AT TIME ZONE): asistencias + visitantes únicos + actividades.
   async function daily(r: ReportRange) {
     const rows = await db
       .selectFrom('attendance as att')
@@ -112,12 +113,12 @@ export async function periodSummary(
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
       .$if(hasCats, (qb) => qb.where(catCond()))
       .select([
-        sql<string>`to_char(date_trunc('day', a.date), 'YYYY-MM-DD')`.as('d'),
+        sql<string>`to_char(date_trunc('day', a.date AT TIME ZONE ${sql.lit(REPORT_TZ)}), 'YYYY-MM-DD')`.as('d'),
         sql<string>`count(att.id)`.as('att'),
         sql<string>`count(distinct att.user_id)`.as('visitors'),
         sql<string>`count(distinct a.id)`.as('activities'),
       ])
-      .groupBy(sql`date_trunc('day', a.date)`)
+      .groupBy(sql`date_trunc('day', a.date AT TIME ZONE ${sql.lit(REPORT_TZ)})`)
       .execute();
     const m = new Map<string, { att: number; visitors: number; activities: number }>();
     for (const x of rows) m.set(x.d, { att: Number(x.att), visitors: Number(x.visitors), activities: Number(x.activities) });
@@ -136,11 +137,11 @@ export async function periodSummary(
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
       .$if(hasCats, (qb) => qb.where(catCond()))
       .select([
-        sql<number>`extract(hour from att.checked_in_at)`.as('hour'),
-        sql<number>`extract(dow from att.checked_in_at)`.as('dow'),
+        sql<number>`extract(hour from att.checked_in_at AT TIME ZONE ${sql.lit(REPORT_TZ)})`.as('hour'),
+        sql<number>`extract(dow from att.checked_in_at AT TIME ZONE ${sql.lit(REPORT_TZ)})`.as('dow'),
         sql<string>`count(att.id)`.as('n'),
       ])
-      .groupBy([sql`extract(hour from att.checked_in_at)`, sql`extract(dow from att.checked_in_at)`])
+      .groupBy([sql`extract(hour from att.checked_in_at AT TIME ZONE ${sql.lit(REPORT_TZ)})`, sql`extract(dow from att.checked_in_at AT TIME ZONE ${sql.lit(REPORT_TZ)})`])
       .execute();
     const hours = new Map<number, number>(), days = new Map<number, number>();
     for (const x of rows) {
@@ -195,15 +196,15 @@ export async function periodSummary(
     .slice(0, 8);
 
   // Serie diaria alineada por índice (día 0..N-1 de cada período).
-  const days = Math.round((range.toExclusive.getTime() - range.fromDate.getTime()) / DAY_MS);
-  const dayKey = (base: Date, i: number) => new Date(base.getTime() + i * DAY_MS).toISOString().slice(0, 10);
+  const days = Math.round((Date.parse(`${range.to}T00:00:00Z`) - Date.parse(`${range.from}T00:00:00Z`)) / DAY_MS) + 1;
+  const dayKey = (baseYmd: string, i: number) => ymdAddDays(baseYmd, i);
   const fmtLabel = (d: string) => { const dt = new Date(`${d}T00:00:00Z`); return `${dt.getUTCDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][dt.getUTCMonth()]}`; };
   const dailySeries = Array.from({ length: days }, (_, i) => {
-    const c = curDaily.get(dayKey(range.fromDate, i));
+    const c = curDaily.get(dayKey(range.from, i));
     return {
-      label: fmtLabel(dayKey(range.fromDate, i)),
+      label: fmtLabel(dayKey(range.from, i)),
       current: c?.att ?? 0,
-      previous: prevDaily.get(dayKey(prevR.fromDate, i))?.att ?? 0,
+      previous: prevDaily.get(dayKey(prevR.from, i))?.att ?? 0,
       visitors: c?.visitors ?? 0,
       activities: c?.activities ?? 0,
     };

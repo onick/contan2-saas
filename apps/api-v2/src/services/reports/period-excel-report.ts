@@ -14,6 +14,7 @@
 import ExcelJS from 'exceljs';
 import { generatePalette, textArgb } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
+import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
 
 
 const STATUS_LABELS = { activa: 'Activa', finalizada: 'Finalizada', cancelada: 'Cancelada', borrador: 'Borrador' };
@@ -22,14 +23,13 @@ function fmtDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' });
+  return fmtDateTz(d);
 }
 function fmtDateTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' })
-    + ' · ' + d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+  return fmtDateTz(d) + ' · ' + fmtTimeTz(d);
 }
 function rangeLabel(from, to) {
   return `${fmtDate(from)} → ${fmtDate(new Date(new Date(to).getTime() - 86400000))}`;

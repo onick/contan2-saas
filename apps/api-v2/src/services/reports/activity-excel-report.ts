@@ -15,6 +15,7 @@
 import ExcelJS from 'exceljs';
 import { generatePalette, textArgb } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
+import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
 
 
 const TYPE_LABELS = {
@@ -42,17 +43,17 @@ function fmtDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-    + ' · ' + d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+  return fmtDateTz(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    + ' · ' + fmtTimeTz(d);
 }
 function fmtTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+  return fmtTimeTz(d);
 }
 function fmtTimestamp(date = new Date()) {
-  return date.toLocaleString('es-DO', { dateStyle: 'long', timeStyle: 'short' });
+  return fmtDateTz(date, { dateStyle: 'long', timeStyle: 'short' });
 }
 
 function hexToARGB(hex) {
@@ -391,7 +392,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
     const iso = att.checkedInAt;
     const d = new Date(iso);
     if (isNaN(d.getTime())) continue;
-    const h = d.getHours();
+    const h = hourInTz(d);
     byHour.set(h, (byHour.get(h) || 0) + 1);
   }
   const maxHourCount = byHour.size ? Math.max(...byHour.values()) : 0;

@@ -12,7 +12,10 @@ import { apiGet } from './client';
 import { toApiQuery } from '../admin/list-params';
 import type { AttendanceRecord } from '../registros/demoData';
 
+// Hora en la zona del tenant: esto corre en el servidor de Next (UTC), así que
+// sin timeZone explícito la fila mostraría la hora UTC (15:17 en vez de 11:17).
 const DT_FMT = new Intl.DateTimeFormat('es', {
+  timeZone: 'America/Santo_Domingo',
   day: 'numeric',
   month: 'short',
   year: 'numeric',

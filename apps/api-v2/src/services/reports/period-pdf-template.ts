@@ -13,6 +13,7 @@
 
 import { generatePalette, pickOn } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
+import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
 
 
 const esc = s => String(s ?? '')
@@ -22,14 +23,13 @@ const esc = s => String(s ?? '')
 function fmtDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' });
+  return isNaN(d.getTime()) ? '—' : fmtDateTz(d);
 }
 function fmtDateTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   return isNaN(d.getTime()) ? '—'
-    : d.toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }) +
-      ' · ' + d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+    : fmtDateTz(d) + ' · ' + fmtTimeTz(d);
 }
 function rangeLabel(from, to) {
   return `${fmtDate(from)} → ${fmtDate(new Date(new Date(to).getTime() - 86400000))}`;

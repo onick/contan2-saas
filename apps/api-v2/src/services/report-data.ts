@@ -7,6 +7,7 @@
 
 import { sql, type DbClient } from '@contan2/db';
 import { normCategory, normCategorySql } from './category-norm.js';
+import { zonedMidnight, ymdAddDays } from './reports/fmt.js';
 
 export const MAX_REPORT_RANGE_DAYS = 366;
 export const MAX_REPORT_ROWS = 5000;
@@ -26,30 +27,31 @@ export class ReportError extends Error {
 export interface ReportRange {
   from: string; // YYYY-MM-DD (inclusive)
   to: string; // YYYY-MM-DD (inclusive)
-  fromDate: Date; // 00:00:00Z del día `from`
-  toExclusive: Date; // 00:00:00Z del día siguiente a `to`
+  fromDate: Date; // instante en que empieza (00:00 hora del tenant) el día `from`
+  toExclusive: Date; // instante en que empieza (00:00 hora del tenant) el día siguiente a `to`
 }
 
-// Parsea/valida from y to (YYYY-MM-DD). El rango es [from 00:00Z, to+1día 00:00Z).
+// Parsea/valida from y to (YYYY-MM-DD). El rango es [from 00:00 DR, to+1día 00:00 DR) en la zona del tenant.
 export function parseRange(fromRaw: unknown, toRaw: unknown): ReportRange {
   const from = String(fromRaw ?? '');
   const to = String(toRaw ?? '');
   if (!DATE_RE.test(from) || !DATE_RE.test(to)) {
     throw new ReportError(400, 'Rango inválido: usá from y to en formato YYYY-MM-DD.');
   }
-  const fromDate = new Date(`${from}T00:00:00.000Z`);
-  const toDate = new Date(`${to}T00:00:00.000Z`);
-  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+  // Validez de calendario y conteo de días con aritmética UTC pura.
+  const fromUtc = new Date(`${from}T00:00:00.000Z`);
+  const toUtc = new Date(`${to}T00:00:00.000Z`);
+  if (Number.isNaN(fromUtc.getTime()) || Number.isNaN(toUtc.getTime())) {
     throw new ReportError(400, 'Rango inválido: fechas no válidas.');
   }
-  if (fromDate.getTime() > toDate.getTime()) {
+  if (fromUtc.getTime() > toUtc.getTime()) {
     throw new ReportError(400, 'Rango inválido: "from" debe ser anterior o igual a "to".');
   }
-  const days = Math.round((toDate.getTime() - fromDate.getTime()) / DAY_MS) + 1;
+  const days = Math.round((toUtc.getTime() - fromUtc.getTime()) / DAY_MS) + 1;
   if (days > MAX_REPORT_RANGE_DAYS) {
     throw new ReportError(400, `Rango demasiado amplio (máx ${MAX_REPORT_RANGE_DAYS} días). Acotá el período.`);
   }
-  return { from, to, fromDate, toExclusive: new Date(toDate.getTime() + DAY_MS) };
+  return { from, to, fromDate: zonedMidnight(from), toExclusive: zonedMidnight(ymdAddDays(to, 1)) };
 }
 
 export interface AttendanceByActivityRow {
