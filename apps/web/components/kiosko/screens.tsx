@@ -134,19 +134,20 @@ export function WelcomeScreen({
 }: { brandName: string; logoUrl: string | null; onStart: () => void }) {
   return (
     <div data-testid="kiosk-step-welcome" className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-6 py-8 md:py-12">
-      {/* Cabecera: logo del tenant o iniciales + título */}
-      <div className="flex items-center gap-4 pb-4">
+      {/* Cabecera centrada, coherente con el contenido (reloj, bienvenida y CTA van
+          centrados): logo vertical del tenant grande, con el título debajo. */}
+      <div className="flex flex-col items-center gap-3 pb-4 text-center">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={logoUrl}
             alt={brandName}
-            width={48}
-            height={48}
-            className="h-12 w-auto object-contain"
+            width={112}
+            height={112}
+            className="h-24 w-auto max-w-[260px] object-contain md:h-28"
           />
         ) : (
-          <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-brand text-brand-fg text-xl font-bold">
+          <span className="grid h-20 w-20 flex-none place-items-center rounded-2xl bg-brand text-brand-fg text-3xl font-bold">
             {initials(brandName)}
           </span>
         )}
