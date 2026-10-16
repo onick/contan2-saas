@@ -29,7 +29,6 @@ export async function settle(page: Page): Promise<void> {
 
 /** Abre el menu "Mas acciones" de una fila y pulsa un item. */
 export async function rowMenu(page: Page, name: string, item: string | RegExp): Promise<void> {
-  test.skip((page.viewportSize()?.width ?? 1440) < 500, 'menu de fila en 390px: ver hallazgo ADM-04m (se cierra al abrir)');
   const row = activityRow(page, name);
   await expect(row).toBeVisible();
   const trigger = row.getByRole('button', { name: 'Más acciones' });

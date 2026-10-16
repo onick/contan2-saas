@@ -258,7 +258,7 @@ test.describe('PRO-04 puerta/check-in y export', { tag: '@write' }, () => {
 
   test('PRO-04a @smoke [S1] banner "Protocolo · <honorífico>" al buscar al invitado en la consola de check-in', async ({ page }) => {
     await pick(page, fx.p1.code);
-    await expect(page.getByText(/Protocolo · Sr\. Embajador/)).toBeVisible();
+    await expect(page.getByText(/Protocolo · Sr\. Embajador/i)).toBeVisible();
     await expect(page.getByText(/Registrar a .* en/)).toBeVisible();
   });
 

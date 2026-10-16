@@ -26,8 +26,25 @@ run('auto-finalize por hora de cierre (end_date)', () => {
       id: randomUUID(), organization_id: orgId, name, type: 'cine', location: 'Sala',
       capacity: 50, enrolled_count: 0, status: 'activa', date, end_date: endDate,
     }).returning('id').executeTakeFirstOrThrow()).id;
-  const statusOf = async (id: string) =>
-    (await db.selectFrom('activities').select('status').where('id', '=', id).executeTakeFirstOrThrow()).status;
+  // `finalizePastActivities` barre TODAS las orgs (es global por diseño). Si lo corriéramos
+  // commiteado, finalizaría las actividades `activa` con fecha <= ahora que otros archivos de
+  // test siembran en paralelo (flaky: "expected 0 to be 1" en reads/public-reads). Por eso el barrido
+  // y la lectura ocurren dentro de una transacción que SIEMPRE se revierte: el efecto nunca es visible
+  // para otro archivo.
+  class Rollback extends Error {}
+  const sweepAndStatus = async (id: string): Promise<string> => {
+    let status = '';
+    try {
+      await db.transaction().execute(async (trx) => {
+        await finalizePastActivities(trx);
+        status = (await trx.selectFrom('activities').select('status').where('id', '=', id).executeTakeFirstOrThrow()).status;
+        throw new Rollback();
+      });
+    } catch (e) {
+      if (!(e instanceof Rollback)) throw e;
+    }
+    return status;
+  };
 
   beforeAll(async () => {
     db = createDb(DATABASE_URL!);
@@ -41,25 +58,21 @@ run('auto-finalize por hora de cierre (end_date)', () => {
 
   it('EMPEZADA pero cierre futuro → sigue activa (el fix)', async () => {
     const a = await mkAct('en curso', past, future);
-    await finalizePastActivities(db);
-    expect(await statusOf(a)).toBe('activa');
+    expect(await sweepAndStatus(a)).toBe('activa');
   });
 
   it('hora de cierre ya pasó → finalizada', async () => {
     const a = await mkAct('cerrada', past, past);
-    await finalizePastActivities(db);
-    expect(await statusOf(a)).toBe('finalizada');
+    expect(await sweepAndStatus(a)).toBe('finalizada');
   });
 
   it('sin end_date → cae a la fecha de inicio (date pasada) → finalizada', async () => {
     const a = await mkAct('sin cierre', past, null);
-    await finalizePastActivities(db);
-    expect(await statusOf(a)).toBe('finalizada');
+    expect(await sweepAndStatus(a)).toBe('finalizada');
   });
 
   it('inicio y cierre futuros → intacta', async () => {
     const a = await mkAct('futura', future, future);
-    await finalizePastActivities(db);
-    expect(await statusOf(a)).toBe('activa');
+    expect(await sweepAndStatus(a)).toBe('activa');
   });
 });

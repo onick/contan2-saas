@@ -1,0 +1,248 @@
+# .github/workflows/e2e-staging.yml
+# QA end-to-end (Playwright) contra STAGING (ccb.stg.contan2.com) + humo de solo lectura contra prod.
+# No gatea PRs. Ver apps/web/e2e/README.md y docs/plans/2026-10-16-qa-consolidado.md (5.2 y 5.3).
+#
+# - smoke         : cada disparo. `--grep @smoke` en desktop-1440 (incluye @write -> 1 worker).
+# - nightly-full  : solo schedule o dispatch con full=true. RBAC + calidad (3 viewports) + kiosko/escaner en
+#                   iPad (WebKit) + z-identity-last y, al final, z-rate-limit (bloquea la IP unos 15 min).
+# - prod-readonly : diario, sin secretos ni login (solo GET/HEAD).
+#
+# Disparadores:
+#   workflow_dispatch      (expected_sha opcional, full opcional)
+#   schedule 0 7 * * *     = 03:00 en Republica Dominicana (UTC-4, sin DST)
+#   repository_dispatch    types: [staging-deployed] (lo puede emitir scripts/release/deploy-coolify.mjs con
+#                          client_payload.sha); el auto-deploy de staging esta apagado.
+
+name: e2e-staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'SHA que debe estar desplegado en staging (vacio = no comprobar)'
+        required: false
+        default: ''
+      full:
+        description: 'Correr tambien nightly-full'
+        type: boolean
+        required: false
+        default: false
+  schedule:
+    - cron: '0 7 * * *'
+  repository_dispatch:
+    types: [staging-deployed]
+
+# Dos corridas seguidas comparten los rate limits por IP de staging: nunca en paralelo, nunca cancelar.
+concurrency:
+  group: e2e-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CI: '1'
+  E2E_BASE_URL: ${{ vars.E2E_BASE_URL || 'https://ccb.stg.contan2.com' }}
+  E2E_PLATFORM_URL: ${{ vars.E2E_PLATFORM_URL || 'https://admin.stg.contan2.com' }}
+  E2E_PROD_URL: ${{ vars.E2E_PROD_URL || 'https://ccb.contan2.com' }}
+  # Rate limits por IP: UN worker siempre (el smoke escribe: ADM-03/08a/12, KIO-02, SCN-07, AUTH-01).
+  E2E_WORKERS: '1'
+  # Sin trazas/video/screenshots: staging tiene datos reales copiados (E-07) y los artefactos de CI pueden ser
+  # visibles. Los reportes se pasan por e2e/support/scrub-report.mjs (misma logica que support/mask.ts).
+  E2E_NO_MEDIA: '1'
+  EXPECTED_SHA: ${{ inputs.expected_sha || github.event.client_payload.sha || '' }}
+
+jobs:
+  smoke:
+    name: smoke (@smoke · desktop-1440)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
+      E2E_OWNER_PASSWORD: ${{ secrets.E2E_OWNER_PASSWORD }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_OPERATOR_PASSWORD: ${{ secrets.E2E_OPERATOR_PASSWORD }}
+      E2E_CONSULTA_PASSWORD: ${{ secrets.E2E_CONSULTA_PASSWORD }}
+      E2E_PUERTA_PASSWORD: ${{ secrets.E2E_PUERTA_PASSWORD }}
+      E2E_PROTOCOLO_PASSWORD: ${{ secrets.E2E_PROTOCOLO_PASSWORD }}
+      E2E_BIBLIOTECA_PASSWORD: ${{ secrets.E2E_BIBLIOTECA_PASSWORD }}
+      E2E_SCANNER_PIN: ${{ secrets.E2E_SCANNER_PIN }}
+      # 7 roles de staff + el PIN del escaner = 7 logins (< 10/15 min por IP del runner).
+      E2E_ROLES: owner,admin,operator,consulta,puerta,protocolo,biblioteca,scanner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "./packages/*" build
+
+      - name: Instalar Chromium y WebKit
+        run: pnpm --filter @contan2/web exec playwright install --with-deps chromium webkit
+
+      - name: Comprobar el SHA desplegado en staging (si se pidio)
+        if: env.EXPECTED_SHA != ''
+        run: |
+          got=$(curl -fsS "${E2E_BASE_URL}/api/version" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).buildSha))')
+          echo "staging buildSha=${got} esperado=${EXPECTED_SHA}"
+          case "${got}" in "${EXPECTED_SHA}"*) ;; *) echo "::error::staging no esta en el SHA esperado"; exit 1 ;; esac
+
+      - name: Smoke @smoke (setup + desktop-1440)
+        run: pnpm --filter @contan2/web e2e:smoke
+
+      - name: Limpiar el reporte (sin PII)
+        if: always()
+        run: node apps/web/e2e/support/scrub-report.mjs
+
+      - name: Artefactos (14 dias, sin PII)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-smoke-${{ github.run_id }}
+          path: |
+            apps/web/e2e/.artifacts/report.scrubbed.json
+            apps/web/e2e/.artifacts/*/teardown-report.json
+            apps/web/e2e/.artifacts/*/uncleaned.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  nightly-full:
+    name: nightly-full (RBAC · calidad · kiosko/escaner iPad)
+    needs: smoke
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full)
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
+      E2E_OWNER_PASSWORD: ${{ secrets.E2E_OWNER_PASSWORD }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_OPERATOR_PASSWORD: ${{ secrets.E2E_OPERATOR_PASSWORD }}
+      E2E_CONSULTA_PASSWORD: ${{ secrets.E2E_CONSULTA_PASSWORD }}
+      E2E_PUERTA_PASSWORD: ${{ secrets.E2E_PUERTA_PASSWORD }}
+      E2E_PROTOCOLO_PASSWORD: ${{ secrets.E2E_PROTOCOLO_PASSWORD }}
+      E2E_BIBLIOTECA_PASSWORD: ${{ secrets.E2E_BIBLIOTECA_PASSWORD }}
+      E2E_SCANNER_PIN: ${{ secrets.E2E_SCANNER_PIN }}
+      # Semillas de provision/seed-staging.sql (tokens RSVP, reset, invitacion, test-tenant).
+      E2E_RSVP_TOKEN: ${{ secrets.E2E_RSVP_TOKEN }}
+      E2E_RESET_TOKEN: ${{ secrets.E2E_RESET_TOKEN }}
+      E2E_INVITE_TOKEN: ${{ secrets.E2E_INVITE_TOKEN }}
+      E2E_INVITE_PASSWORD: ${{ secrets.E2E_INVITE_PASSWORD }}
+      E2E_TEST_TENANT_OWNER_PASSWORD: ${{ secrets.E2E_TEST_TENANT_OWNER_PASSWORD }}
+      E2E_ROLES: owner,admin,operator,consulta,puerta,protocolo,biblioteca,scanner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "./packages/*" build
+      - name: Instalar Chromium y WebKit
+        run: pnpm --filter @contan2/web exec playwright install --with-deps chromium webkit
+
+      # Los pasos siguientes comparten sesiones (.auth/ se reutiliza mientras sea valida) y NO hacen logins
+      # nuevos salvo cuando una sesion vence. Un paso rojo no impide los demas (se agrega al final).
+      - name: RBAC (API + UI por rol) · desktop-1440
+        id: rbac
+        continue-on-error: true
+        run: >
+          pnpm --filter @contan2/web exec playwright test -c e2e/playwright.config.ts
+          --project=setup --project=desktop-1440
+          specs/q3-rbac specs/q4-reportes-protocolo-puerta/rep-agent-rbac.spec.ts specs/q5-biblioteca/bib-rbac.spec.ts
+
+      - name: Calidad (a11y · teclado · responsive) · 3 viewports
+        id: quality
+        continue-on-error: true
+        run: >
+          pnpm --filter @contan2/web exec playwright test -c e2e/playwright.config.ts
+          --project=setup --project=desktop-1440 --project=tablet-820 --project=mobile-390
+          specs/q7-quality
+
+      - name: Kiosko y escaner en iPad (WebKit) · PIN real
+        id: ipad
+        continue-on-error: true
+        env:
+          Q2_RUN_PIN: '1'
+        run: >
+          pnpm --filter @contan2/web exec playwright test -c e2e/playwright.config.ts
+          --project=setup --project=webkit-tablet
+          specs/q2-publico
+
+      - name: Identidad (se ejecuta al final de q3-admin)
+        id: identity
+        continue-on-error: true
+        run: >
+          pnpm --filter @contan2/web exec playwright test -c e2e/playwright.config.ts
+          --project=setup --project=desktop-1440
+          specs/q3-admin/z-identity-last.spec.ts
+
+      # ULTIMO: z-rate-limit deja la IP del runner limitada ~15 min (AUTH-14).
+      - name: Rate limit de auth (z-rate-limit · SIEMPRE el ultimo)
+        id: ratelimit
+        continue-on-error: true
+        run: >
+          pnpm --filter @contan2/web exec playwright test -c e2e/playwright.config.ts
+          --project=setup --project=desktop-1440
+          specs/q1-auth/z-rate-limit.spec.ts
+
+      - name: Limpiar el reporte (sin PII)
+        if: always()
+        run: node apps/web/e2e/support/scrub-report.mjs
+
+      - name: Artefactos (14 dias, sin PII)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-nightly-${{ github.run_id }}
+          path: |
+            apps/web/e2e/.artifacts/report.scrubbed.json
+            apps/web/e2e/.artifacts/*/teardown-report.json
+            apps/web/e2e/.artifacts/*/uncleaned.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Fallar si algun bloque fallo
+        if: always()
+        run: |
+          echo "rbac=${{ steps.rbac.outcome }} quality=${{ steps.quality.outcome }} ipad=${{ steps.ipad.outcome }} identity=${{ steps.identity.outcome }} ratelimit=${{ steps.ratelimit.outcome }}"
+          for o in "${{ steps.rbac.outcome }}" "${{ steps.quality.outcome }}" "${{ steps.ipad.outcome }}" "${{ steps.identity.outcome }}" "${{ steps.ratelimit.outcome }}"; do
+            if [ "$o" = "failure" ]; then exit 1; fi
+          done
+
+  prod-readonly:
+    name: prod-readonly (solo GET/HEAD)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Sin secretos ni login: fixtures/test.ts aborta cualquier escritura.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "./packages/*" build
+      - run: pnpm --filter @contan2/web exec playwright install --with-deps chromium
+      - name: Humo de solo lectura en produccion
+        run: pnpm --filter @contan2/web e2e:prod-ro
+      - name: Limpiar el reporte (sin PII)
+        if: always()
+        run: node apps/web/e2e/support/scrub-report.mjs
+      - name: Artefactos (14 dias)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-prod-ro-${{ github.run_id }}
+          path: apps/web/e2e/.artifacts/report.scrubbed.json
+          retention-days: 14
+          if-no-files-found: ignore

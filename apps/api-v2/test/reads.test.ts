@@ -78,9 +78,11 @@ run('endpoints read-only de negocio', () => {
     }).execute();
 
     act1Id = randomUUID();
+    // Las activas llevan fecha/cierre FUTUROS: el job global de auto-finalize (otros archivos) no debe poder cerrarlas.
+    const future = new Date(Date.now() + 24 * 3_600_000).toISOString();
     const act2 = randomUUID();
     await db.insertInto('activities').values([
-      { id: act1Id, organization_id: orgAId, name: 'Concierto Los Congos', type: 'Concierto', location: 'Sala 1', date: new Date().toISOString(), capacity: 100, status: 'activa', image_url: '/uploads/v2-activity-congos.webp' },
+      { id: act1Id, organization_id: orgAId, name: 'Concierto Los Congos', type: 'Concierto', location: 'Sala 1', date: future, end_date: future, capacity: 100, status: 'activa', image_url: '/uploads/v2-activity-congos.webp' },
       { id: act2, organization_id: orgAId, name: 'Cine Foro', type: 'Cine', location: 'Sala 2', date: new Date().toISOString(), capacity: 50, status: 'finalizada' },
     ]).execute();
 

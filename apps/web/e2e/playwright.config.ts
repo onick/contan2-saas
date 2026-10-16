@@ -11,9 +11,14 @@ assertStaging(BASE_URL);
 const DR = { locale: 'es-DO', timezoneId: 'America/Santo_Domingo' } as const;
 const ownerState = statePath('owner');
 
-// Rate limits por IP: con @write (escrituras) un solo worker; si no, pocos workers.
-const writing = process.argv.some((a) => a.includes('@write'));
-const workers = Number(process.env.E2E_WORKERS) || (writing ? 1 : 2);
+// Rate limits por IP: con escrituras un solo worker; si no, pocos workers.
+// `--grep @smoke` TAMBIEN escribe (ADM-03/08a/12, KIO-02, SCN-07, AUTH-01 llevan @write ademas de @smoke),
+// asi que cuenta como escritura. E2E_WORKERS manda siempre (CI lo fija en 1).
+function isWriting(argv: string[] = process.argv): boolean {
+  const grep = argv.filter((a, i) => a.startsWith('--grep') || argv[i - 1] === '--grep' || argv[i - 1] === '-g');
+  return /@write|@smoke/.test(grep.join(' '));
+}
+const workers = Number(process.env.E2E_WORKERS) || (isWriting() ? 1 : 2);
 
 export default defineConfig({
   testDir: path.join(E2E_DIR, 'specs'),
@@ -34,9 +39,10 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
     ...DR,
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    // E2E_NO_MEDIA=1 (CI): staging tiene datos reales copiados -> sin trazas, video ni screenshots.
+    trace: process.env.E2E_NO_MEDIA ? 'off' : 'retain-on-failure',
+    screenshot: process.env.E2E_NO_MEDIA ? 'off' : 'only-on-failure',
+    video: process.env.E2E_NO_MEDIA ? 'off' : 'retain-on-failure',
     actionTimeout: 12_000,
     navigationTimeout: 30_000,
   },

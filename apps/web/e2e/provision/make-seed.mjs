@@ -4,7 +4,7 @@
 // - Hash de passwords con la MISMA funcion que la API: @node-rs/argon2, argon2id m=19456,t=2,p=1
 //   (apps/api-v2/src/services/password.ts :: hashStaffPassword).
 // - Tokens: sha256 hex como hashToken de @contan2/auth (packages/auth/src/tokens.ts).
-// - Si faltan E2E_RESET_TOKEN / E2E_INVITE_TOKEN los genera y los AGREGA a .env.e2e (gitignored).
+// - Si faltan E2E_RESET_TOKEN / E2E_INVITE_TOKEN / E2E_RSVP_TOKEN / E2E_TEST_TENANT_OWNER_PASSWORD los genera y los AGREGA a .env.e2e (gitignored).
 // - El SQL de salida NO contiene passwords ni tokens en claro (se verifica antes de escribir).
 // No escribe en ninguna base de datos.
 import { createHash, randomBytes } from 'node:crypto';
@@ -58,6 +58,15 @@ function tokenFor(name) {
 }
 const resetToken = tokenFor('E2E_RESET_TOKEN');
 const inviteToken = tokenFor('E2E_INVITE_TOKEN');
+const rsvpBase = tokenFor('E2E_RSVP_TOKEN'); // base: tokens RSVP = sha256(base:slot), ver fixtures/rsvp-seed.ts
+function genPassword(name) {
+  if (env[name]) return env[name];
+  const p = randomBytes(18).toString('base64url') + 'aA1!';
+  env[name] = p;
+  generated.push(`${name}=${p}`);
+  return p;
+}
+const testTenantPassword = genPassword('E2E_TEST_TENANT_OWNER_PASSWORD');
 if (generated.length) {
   appendFileSync(envFile, `\n# generado por make-seed.mjs\n${generated.join('\n')}\n`);
   console.log(`Tokens generados y agregados a .env.e2e: ${generated.map((g) => g.split('=')[0]).join(', ')}`);
@@ -68,6 +77,8 @@ for (const r of ROLES) subst[`HASH_${r}`] = await argonHash(env[`E2E_${r}_PASSWO
 // Password aleatoria y descartada para la cuenta de reset.
 subst.HASH_RESET_ACCOUNT = await argonHash(randomBytes(24).toString('base64url'), ARGON2_OPTS);
 subst.RESET_TOKEN_HASH = sha256(resetToken);
+subst.HASH_TEST_TENANT_OWNER = await argonHash(testTenantPassword, ARGON2_OPTS);
+for (let slot = 1; slot <= 6; slot++) subst[`RSVP_TOKEN_${slot}`] = sha256(`${rsvpBase}:${slot}`);
 subst.INVITE_TOKEN_HASH = sha256(inviteToken);
 if (env.E2E_PLATFORM_PASSWORD) subst.HASH_PLATFORM = await argonHash(env.E2E_PLATFORM_PASSWORD, ARGON2_OPTS);
 
@@ -80,6 +91,8 @@ const secrets = [
   env.E2E_PLATFORM_PASSWORD,
   resetToken,
   inviteToken,
+  rsvpBase,
+  testTenantPassword,
 ].filter((s) => s && s.length >= 4);
 for (const s of secrets) {
   if (sql.includes(s)) {
@@ -97,5 +110,6 @@ if (leftovers.length) {
 const out = path.join(here, 'seed-staging.sql');
 writeFileSync(out, sql);
 console.log(`OK: ${out}`);
+console.log('RSVP: 6 invitaciones sembradas (tokens = sha256(E2E_RSVP_TOKEN:slot)); test-tenant owner: e2e-owner@test-tenant.local');
 console.log('Cuentas: e2e-{admin,operator,consulta,puerta,protocolo,biblioteca,reset}@test.local + invitacion e2e-invitado@test.local');
 console.log(env.E2E_PLATFORM_PASSWORD ? 'Plataforma: hash incluido en el bloque COMENTADO.' : 'Plataforma: sin E2E_PLATFORM_PASSWORD (bloque comentado sin hash).');

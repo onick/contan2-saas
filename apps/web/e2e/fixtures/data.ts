@@ -13,6 +13,8 @@ export function newRunId(now = new Date()): string {
 
 export function runId(): string {
   const id = process.env.E2E_RUN_ID;
+  // `playwright test --list` carga los specs sin correr global-setup: un runId ficticio basta (no escribe nada).
+  if (!id && process.argv.includes('--list')) return 'E2E-LIST';
   if (!id) throw new Error('E2E_RUN_ID no definido: global-setup no corrio.');
   return id;
 }

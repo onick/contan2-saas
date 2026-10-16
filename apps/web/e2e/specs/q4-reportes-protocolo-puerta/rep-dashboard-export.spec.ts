@@ -288,21 +288,26 @@ test.describe('REP-03 Excel', { tag: '@write' }, () => {
     expect(mine![4]).toBe('Otras Actividades');
     expect(mine![7], 'Asistencia = personas reales en sala (2 check-ins + 1 acompañante), sin la reserva').toBe(3);
     expect(ws.rows.some((r) => r && r[6] === 'Total:' && typeof r[7] === 'number')).toBe(true);
-    expect(sheetText(ws)).toContain('Resumen del mes');
-    expect(sheetText(ws)).toContain('Por tipo');
-    expect(sheetText(ws)).toContain('Por programa');
+    // PR-9: el resumen vive en su propia hoja "Resumen Mensual" (pivote por Tipo y por Programa).
+    const rm = sheetOf(wb, 'Resumen Mensual');
+    expect(rm, 'hoja Resumen Mensual').toBeDefined();
+    const rmText = sheetText(rm!);
+    expect(rmText).toContain('Tipo de actividad');
+    expect(rmText).toContain('Programa');
+    expect(rmText).toContain('Total general');
+    expect(rmText).toContain(fx.category);
     void now;
   });
 
   test('REP-03e [S3] formato oficial del departamento: hoja "Resumen Mensual" y listas ocultas como dropdowns', async () => {
     // Memoria "Registro_Actividades_Culturales": plantilla por mes + hoja "Resumen Mensual" (pivote por tipo)
-    // + listas ocultas que alimentan dropdowns de Tipo/Programa. v2 trae un bloque "Resumen del mes" en la misma hoja.
+    // + listas ocultas que alimentan dropdowns de Tipo/Programa (PR-9 lo reproduce).
     const dr = ymdDR().split('-').map(Number);
     const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/month?year=${dr[0]}&month=${dr[1]}`));
     const wb = await parseXlsx(await res.body());
-    expect.soft(wb.sheets.some((s) => /resumen mensual/i.test(s.name)), 'hoja Resumen Mensual (pivote por tipo)').toBe(true);
-    expect.soft(wb.sheets.some((s) => s.state && s.state !== 'visible'), 'hoja(s) oculta(s) con las listas').toBe(true);
-    expect.soft(wb.sheets[0]!.dataValidations.length, 'dropdowns (data validation) en Tipo/Programa').toBeGreaterThan(0);
+    expect(wb.sheets.some((s) => /resumen mensual/i.test(s.name)), 'hoja Resumen Mensual (pivote por tipo)').toBe(true);
+    expect(wb.sheets.some((s) => s.state && s.state !== 'visible'), 'hoja(s) oculta(s) con las listas').toBe(true);
+    expect(wb.sheets[0]!.dataValidations.length, 'dropdowns (data validation) en Tipo/Programa').toBeGreaterThan(0);
   });
 
   test('REP-03f [S2] mes sin actividades y mes inválido: Excel vacío válido / 400, nunca 500', async () => {

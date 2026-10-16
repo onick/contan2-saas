@@ -244,5 +244,39 @@ test.describe('Q1 sesion', () => {
     }
   });
 
+  test('AUTH-15c: la sesion de test-tenant (direccion pedida) no entra a ccb; en su propio host si', { tag: '@write' }, async ({ browser, baseURL }) => {
+    // Requiere el tenant semilla (provision/seed-staging.sql, seccion 6) y E2E_TEST_TENANT_OWNER_PASSWORD.
+    const pw = env('E2E_TEST_TENANT_OWNER_PASSWORD');
+    test.skip(!pw, 'sin E2E_TEST_TENANT_OWNER_PASSWORD (tenant semilla test-tenant no sembrado)');
+    const other = baseURL!.replace('//ccb.', '//test-tenant.');
+    test.skip(other === baseURL, 'baseURL no es ccb.*');
+    spendLogin('AUTH-15c login owner test-tenant');
+    const own = await browser.newContext({ baseURL: other, storageState: EMPTY });
+    try {
+      const login = await own.request.post(`${other}/api/auth/login`, {
+        data: { email: 'e2e-owner@test-tenant.local', password: pw, rememberMe: false },
+      });
+      test.skip(login.status() === 404 || login.status() === 503, `test-tenant no existe/disponible (${login.status()}): aplicar el seed`);
+      expect(login.status(), 'login del owner de test-tenant').toBe(200);
+      const token = (await own.cookies(other)).find((c) => c.name === SESSION_COOKIE)?.value;
+      expect(token, 'cookie de sesion en test-tenant').toBeTruthy();
+      expect((await own.request.get(`${other}/app/cuenta/api/me`)).status(), '/me en su propio host').toBe(200);
+
+      // La misma cookie presentada en ccb: rechazada (cross-tenant), sin filtrar datos.
+      const ccb = await browser.newContext({ baseURL: baseURL!, storageState: EMPTY });
+      try {
+        await ccb.addCookies([{ name: SESSION_COOKIE, value: token!, url: baseURL!, httpOnly: true, secure: true, sameSite: 'Lax' }]);
+        expect((await ccb.request.get(`${baseURL}/app/cuenta/api/me`)).status(), '/me en ccb con sesion de test-tenant').toBe(401);
+        const page = await ccb.newPage();
+        await page.goto('/app');
+        await expect(page).toHaveURL(/\/login(\?|$)/);
+      } finally {
+        await ccb.close();
+      }
+    } finally {
+      await own.close();
+    }
+  });
+
   // AUTH-07 (logout + back) vive en 05-cuenta.spec.ts: usa una sesion de e2e-reset abierta para ese fin.
 });
