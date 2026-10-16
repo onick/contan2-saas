@@ -85,10 +85,12 @@ run('GET /segments (+/:id) · afinidad', () => {
     } as never).execute();
     return id;
   };
-  const attend = async (org: string, activityId: string, userId: string, at: string) => {
+  // hold=true → RESERVA (checked_in_at NULL, `at` = hora de la invitación): no es asistencia.
+  const attend = async (org: string, activityId: string, userId: string, at: string, hold = false) => {
     await db.insertInto('attendance').values({
       id: randomUUID(), organization_id: org, user_id: userId, activity_id: activityId,
       activity_name: 'x', user_code: null, anonymous: false, companions_children: 0, registered_at: at,
+      checked_in_at: hold ? null : at,
     } as never).execute();
   };
 
@@ -124,6 +126,10 @@ run('GET /segments (+/:id) · afinidad', () => {
 
     uCiclo = await mkUser(orgAId);
     await attend(orgAId, await mkActivity(orgAId, 'cine', 'ciclo jazz 2026'), uCiclo, daysAgo(2));
+
+    // Reservas (holds) recientes: NO deben cambiar conteos, 'activo/dormido' ni fans.
+    await attend(orgAId, await mkActivity(orgAId, 'taller'), uDormido, daysAgo(1), true);
+    await attend(orgAId, await mkActivity(orgAId, 'concierto'), uNuevo, daysAgo(0), true);
 
     const uArch = await mkUser(orgAId, { deleted_at: new Date().toISOString() });
     await attend(orgAId, await mkActivity(orgAId, 'cine'), uArch, daysAgo(1));

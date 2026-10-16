@@ -113,11 +113,13 @@ async function affinityBase(db: DbClient, orgId: string, before?: string): Promi
   const rows = await db
     .selectFrom('attendance as a')
     .innerJoin('users as u', (join) => join.onRef('u.id', '=', 'a.user_id'))
-    .select(['a.user_id', sql<number>`count(*)`.as('n'), sql<Date>`max(a.registered_at)`.as('last_at')])
+    .select(['a.user_id', sql<number>`count(*)`.as('n'), sql<Date>`max(a.checked_in_at)`.as('last_at')])
     .where('a.organization_id', '=', orgId)
+    // Solo check-ins reales: las reservas (checked_in_at NULL) no cuentan como visita.
+    .where('a.checked_in_at', 'is not', null)
     .where('a.user_id', 'is not', null)
     .where('u.deleted_at', 'is', null)
-    .$if(before != null, (qb) => qb.where(sql<boolean>`a.registered_at <= ${before}`))
+    .$if(before != null, (qb) => qb.where(sql<boolean>`a.checked_in_at <= ${before}`))
     .groupBy('a.user_id')
     .execute();
   return rows as AffinityRow[];
@@ -133,10 +135,11 @@ async function fanPairs(db: DbClient, orgId: string, key: 'type' | 'category', b
     .innerJoin('users as u', (join) => join.onRef('u.id', '=', 'a.user_id'))
     .select([sql<string>`${sql.ref(col)}`.as('k'), 'a.user_id', sql<number>`count(*)`.as('n')])
     .where('a.organization_id', '=', orgId)
+    .where('a.checked_in_at', 'is not', null)
     .where('a.user_id', 'is not', null)
     .where('u.deleted_at', 'is', null)
     .$if(key === 'category', (qb) => qb.where('act.category', 'is not', null))
-    .$if(before != null, (qb) => qb.where(sql<boolean>`a.registered_at <= ${before}`))
+    .$if(before != null, (qb) => qb.where(sql<boolean>`a.checked_in_at <= ${before}`))
     .groupBy([sql`${sql.ref(col)}`, 'a.user_id'])
     .execute();
   return rows as Array<{ user_id: string; k: string; n: number }>;

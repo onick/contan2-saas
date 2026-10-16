@@ -99,7 +99,8 @@ run('RSVP · invitar audiencia segmentada', () => {
     uFan2 = await mkUser(`f2-${stamp}@t.local`);
     uFan3 = await mkUser(`f3-${stamp}@t.local`);
     uSinEmail = await mkUser(null);
-    for (const u of [uFan1, uFan2, uFan3, uSinEmail]) await attend(past, u);
+    // Historial = check-ins reales (las filas sin checked_in_at son reservas y no cuentan como visita).
+    for (const u of [uFan1, uFan2, uFan3, uSinEmail]) await attendCheckedIn(past, u);
     actCine = await mkAct({ category: 'ciclo jazz', capacity: 2 });
     app = buildApp();
     await app.ready();
@@ -124,9 +125,13 @@ run('RSVP · invitar audiencia segmentada', () => {
     await attend(actCine, uFan3);
     await db.updateTable('activities').set({ enrolled_count: 1 }).where('id', '=', actCine).execute();
 
+    // Reservas extra (holds) de uFan1 en otras actividades: NO suben su afinidad.
+    for (let i = 0; i < 2; i++) await attend(await mkAct({ status: 'finalizada' }), uFan1);
+
     const res = await call('GET', `/api/v2/activities/${actCine}/invite-candidates`, undefined, TOK.admin);
     expect(res.statusCode).toBe(200);
     const body = InviteCandidatesResponseSchema.parse(res.json());
+    expect(body.candidates.find((c) => c.id === uFan1)?.totalAttendances).toBe(1); // solo el check-in
     expect(body.suggestedSegmentId).toBe('fans-cat-ciclo-jazz');
     expect(body.segment.id).toBe('fans-cat-ciclo-jazz');
     const ids = body.candidates.map((c) => c.id);

@@ -65,6 +65,7 @@ export interface AttendanceByActivityRow {
   people: number; // 1 + acompañantes niños por asistencia
   anonymous: number; // asistencias anónimas (+1 sin credencial)
   occupancyPct: number; // people / capacity
+  reserved: number; // reservas (holds) sin check-in: NO cuentan en attendances/people
 }
 
 export interface AttendanceByActivityReport {
@@ -119,9 +120,13 @@ export async function attendanceByActivity(
       'a.capacity as capacity',
       'a.enrolled_count as enrolledCount',
     ])
-    .select((eb) => eb.fn.count('att.id').as('attendances'))
-    .select(sql<string>`coalesce(sum(1 + att.companions_children + att.companions_adults), 0)`.as('people'))
-    .select(sql<string>`count(att.id) filter (where att.anonymous)`.as('anonymous'))
+    // Asistencia = check-in real (checked_in_at no nulo). Las filas con
+    // checked_in_at NULL son reservas (holds): se cuentan aparte en `reserved`.
+    // El filtro va en el agregado (no en el WHERE) para no perder actividades.
+    .select(sql<string>`count(att.id) filter (where att.checked_in_at is not null)`.as('attendances'))
+    .select(sql<string>`coalesce(sum(1 + att.companions_children + att.companions_adults) filter (where att.checked_in_at is not null), 0)`.as('people'))
+    .select(sql<string>`count(att.id) filter (where att.anonymous and att.checked_in_at is not null)`.as('anonymous'))
+    .select(sql<string>`count(att.id) filter (where att.checked_in_at is null)`.as('reserved'))
     .orderBy('a.date', 'desc')
     .execute();
 
@@ -141,6 +146,7 @@ export async function attendanceByActivity(
       attendances: Number(r.attendances),
       people,
       anonymous: Number(r.anonymous),
+      reserved: Number(r.reserved),
       occupancyPct: pct(people, capacity),
     };
   });

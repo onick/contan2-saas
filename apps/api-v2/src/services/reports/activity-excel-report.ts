@@ -194,16 +194,26 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   s1.getRow(row).height = 22;
   row++;
 
-  const totalAtt = attendances.length;
-  const newcomers = affinities.filter(a => a.totalAttendances === 1).length;
+  // Asistencia = check-in real (checkedInAt). Las filas sin checkedInAt son
+  // RESERVAS (holds de protocolo/RSVP): se listan aparte y NO entran a los KPIs.
+  // `affinities` está alineada por índice con `attendances` → filtramos por índice.
+  const isSeated = (a) => !!a.checkedInAt;
+  const seatedIdx = [];
+  attendances.forEach((a, i) => { if (isSeated(a)) seatedIdx.push(i); });
+  const totalAtt = seatedIdx.length;
+  const heldCount = attendances.length - totalAtt;
+  const peopleInRoom = seatedIdx.reduce((n, i) => n + 1 + (attendances[i].companionsChildren || 0) + (attendances[i].companionsAdults || 0), 0);
+  const newcomers = seatedIdx.filter(i => affinities[i]?.totalAttendances === 1).length;
   const returning = totalAtt - newcomers;
-  const vip = affinities.filter(a => a.totalAttendances >= 10).length;
-  const showUpPct = activity.capacity ? Math.round((totalAtt / activity.capacity) * 100) : 0;
+  const vip = seatedIdx.filter(i => (affinities[i]?.totalAttendances || 0) >= 10).length;
+  const roomPct = activity.capacity ? Math.round((peopleInRoom / activity.capacity) * 100) : 0;
 
   const kpis = [
-    { label: 'Inscritos', value: activity.enrolledCount, accent: false },
+    { label: 'Aforo comprometido', value: activity.enrolledCount, accent: false },
     { label: 'Asistencias', value: totalAtt, accent: true },
-    { label: '% Ocupación', value: `${showUpPct}%`, accent: false },
+    { label: '% En sala', value: `${roomPct}%`, accent: false },
+    { label: 'Reservados (en lista)', value: heldCount, accent: false },
+    { label: 'Personas en sala', value: peopleInRoom, accent: false },
     { label: 'Primera visita', value: newcomers, accent: false },
     { label: 'Recurrentes', value: returning, accent: false },
     { label: 'VIP (10+)', value: vip, accent: false },
@@ -213,7 +223,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   // Span: cada KPI ocupa 1 columna. Usamos B..E (4 cols pero solo 3 KPIs por fila visible),
   // así que va de 3 por fila con merge BC, D, E? Mejor 3 KPIs por fila: B+C, D, E → no es simétrico.
   // Simplificamos: 2 KPIs por fila con merge BC y DE (2 columnas cada uno) → 3 filas total.
-  const pairs = [[0, 1], [2, 3], [4, 5]];
+  const pairs = [[0, 1], [2, 3], [4, 5], [6, 7]];
   for (const [li, ri] of pairs) {
     const left = kpis[li], right = kpis[ri];
     // Left card
@@ -266,6 +276,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
     { header: 'Email', key: 'email', width: 30 },
     { header: 'Teléfono', key: 'phone', width: 16 },
     { header: 'Hora check-in', key: 'checkin', width: 16 },
+    { header: 'Estado', key: 'status', width: 14 },
     { header: 'Asistencias previas', key: 'prior', width: 18 },
     { header: 'Categoría', key: 'category', width: 16 },
   ];
@@ -286,7 +297,8 @@ export async function buildActivityExcelReport({ organization, activity, attenda
     const u = users.find(x => x.id === att.userId);
     const aff = affinities[i];
     const prior = aff ? Math.max(0, aff.totalAttendances - 1) : 0;
-    const cat = categoryFor(prior);
+    const seated = isSeated(att);
+    const cat = seated ? categoryFor(prior) : '—';
     const dataRow = s2.addRow({
       idx: i + 1,
       code: u?.code || att.userCode || '—',
@@ -294,7 +306,9 @@ export async function buildActivityExcelReport({ organization, activity, attenda
       lastName: u?.lastName || '—',
       email: u?.email || '—',
       phone: u?.phone || '—',
-      checkin: fmtTime(att.checkedInAt || att.registeredAt),
+      // La reserva NO tiene hora de check-in (registeredAt es la hora de la invitación).
+      checkin: seated ? fmtTime(att.checkedInAt) : '—',
+      status: seated ? 'Asistió' : 'Reservado',
       prior,
       category: cat,
     });
@@ -373,8 +387,8 @@ export async function buildActivityExcelReport({ organization, activity, attenda
 
   const byHour = new Map();
   for (const att of attendances) {
-    const iso = att.checkedInAt || att.registeredAt;
-    if (!iso) continue;
+    if (!isSeated(att)) continue; // las reservas no hicieron check-in
+    const iso = att.checkedInAt;
     const d = new Date(iso);
     if (isNaN(d.getTime())) continue;
     const h = d.getHours();

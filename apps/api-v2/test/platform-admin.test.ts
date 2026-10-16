@@ -1,6 +1,7 @@
 // apps/api-v2/test/platform-admin.test.ts · KPIs + lista de tenants del panel.
 // deriveHealth se testea puro (sin DB). Los endpoints requieren cookie de admin.
 
+import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { createDb, type Database } from '@contan2/db';
@@ -69,6 +70,9 @@ run('platform · kpis + tenants (auth)', () => {
     if (app) await app.close();
     await db.deleteFrom('platform_audit_log').where('target_id', '=', tempOrgId).execute();
     await db.deleteFrom('tenant_audit_log').where('organization_id', '=', tempOrgId).execute();
+    await db.deleteFrom('attendance').where('organization_id', '=', tempOrgId).execute();
+    await db.deleteFrom('activities').where('organization_id', '=', tempOrgId).execute();
+    await db.deleteFrom('users').where('organization_id', '=', tempOrgId).execute();
     await db.deleteFrom('organizations').where('id', '=', tempOrgId).execute();
     await db.deleteFrom('platform_sessions').where('platform_admin_id', '=', adminId).execute();
     await db.deleteFrom('platform_admins').where('id', '=', adminId).execute();
@@ -140,6 +144,34 @@ run('platform · kpis + tenants (auth)', () => {
     expect(Number(pAudit.n)).toBeGreaterThanOrEqual(5); // suspend+reactivate+plan+trial+notes
     const tAudit = await db.selectFrom('tenant_audit_log').select(db.fn.countAll<number>().as('n')).where('organization_id', '=', tempOrgId).where('actor_role', '=', 'platform_admin').executeTakeFirstOrThrow();
     expect(Number(tAudit.n)).toBeGreaterThanOrEqual(5); // espejo en el Historial del tenant
+  });
+
+  it('telemetría por tenant: asistencias 7d/30d y última actividad solo cuentan check-ins (la reserva no)', async () => {
+    const actId = (await db.insertInto('activities').values({
+      id: randomUUID(), organization_id: tempOrgId, name: 'Telemetría', type: 'concierto', location: 'Sala',
+      date: new Date().toISOString(), capacity: 50, enrolled_count: 2, status: 'activa',
+    } as never).returning('id').executeTakeFirstOrThrow()).id;
+    const mkU = async (n: string) => (await db.insertInto('users').values({
+      id: randomUUID(), organization_id: tempOrgId, code: `PA-${n}-${stamp}`.slice(0, 16), first_name: 'T', last_name: n, email: null, phone: null, visit_count: 0,
+    } as never).returning('id').executeTakeFirstOrThrow()).id;
+    const uIn = await mkU('IN'); const uHold = await mkU('HOLD');
+    const checkedInAt = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    await db.insertInto('attendance').values({
+      id: randomUUID(), organization_id: tempOrgId, activity_id: actId, activity_name: 'x', user_id: uIn, user_code: null,
+      anonymous: false, companions_children: 0, registered_at: checkedInAt, checked_in_at: checkedInAt,
+    } as never).execute();
+    // Reserva creada AHORA (invitación reciente), sin check-in.
+    await db.insertInto('attendance').values({
+      id: randomUUID(), organization_id: tempOrgId, activity_id: actId, activity_name: 'x', user_id: uHold, user_code: null,
+      anonymous: false, companions_children: 0, registered_at: new Date().toISOString(), checked_in_at: null,
+    } as never).execute();
+
+    const j = (await authed(`/api/v2/platform/tenants/${tempOrgId}`)).json();
+    expect(j.tenant.attendances7d).toBe(1);
+    expect(j.tenant.attendances30d).toBe(1);
+    expect(new Date(j.tenant.lastActivityAt).getTime()).toBe(new Date(checkedInAt).getTime()); // no la hora de la reserva
+    const list = (await authed(`/api/v2/platform/tenants?q=pa-tmp-${stamp}`)).json().tenants[0];
+    expect(list).toMatchObject({ attendances7d: 1, attendances30d: 1 });
   });
 
   it('audit-log global: 401 sin cookie; 200 con entradas + filtro por tenant', async () => {

@@ -47,12 +47,12 @@ run('GET /reports/month.xlsx', () => {
     const u = await db.insertInto('users').values({ id: randomUUID(), organization_id: orgId, code, first_name: 'V', last_name: 'T', email: `${code.toLowerCase()}@mreg.do`, phone: '809-0', visit_count: 1 }).returning('id').executeTakeFirstOrThrow();
     return { id: u.id, code };
   };
-  const mkAtt = async (orgId: string, activityId: string, opts: { anonymous?: boolean; children?: number; adults?: number; userId?: string; userCode?: string } = {}) =>
+  const mkAtt = async (orgId: string, activityId: string, opts: { anonymous?: boolean; children?: number; adults?: number; userId?: string; userCode?: string; hold?: boolean } = {}) =>
     db.insertInto('attendance').values({
       id: randomUUID(), organization_id: orgId, activity_id: activityId, activity_name: 'x',
       user_id: opts.anonymous ? null : (opts.userId ?? null), user_code: opts.anonymous ? null : (opts.userCode ?? null),
       anonymous: opts.anonymous ?? false, companions_children: opts.children ?? 0, companions_adults: opts.adults ?? 0,
-      checked_in_at: new Date().toISOString(),
+      checked_in_at: opts.hold ? null : new Date().toISOString(),
     }).execute();
 
   let actCine: string, actTeatro: string, actCharla: string;
@@ -79,6 +79,9 @@ run('GET /reports/month.xlsx', () => {
     await mkAtt(orgAId, actCine, { userId: u1.id, userCode: u1.code });
     await mkAtt(orgAId, actCine, { userId: u2.id, userCode: u2.code, children: 2 });
     await mkAtt(orgAId, actCine, { anonymous: true });
+    // Reserva (hold de protocolo/RSVP, sin check-in) con 2 adultos: NO suma al headcount.
+    const uHold = await mkUser(orgAId);
+    await mkAtt(orgAId, actCine, { userId: uHold.id, userCode: uHold.code, adults: 2, hold: true });
     // Teatro: 1 con 1 adulto acompañante = headcount 2.
     const u3 = await mkUser(orgAId);
     await mkAtt(orgAId, actTeatro, { userId: u3.id, userCode: u3.code, adults: 1 });

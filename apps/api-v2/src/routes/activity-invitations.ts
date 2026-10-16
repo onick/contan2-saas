@@ -113,6 +113,8 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     const counts = await db.selectFrom('attendance')
       .select(['user_id', db.fn.countAll<number>().as('n')])
       .where('organization_id', '=', orgId).where('user_id', 'in', ids)
+      // Afinidad = visitas reales (solo check-ins; las reservas no suman).
+      .where('checked_in_at', 'is not', null)
       .groupBy('user_id').execute();
     const nById = new Map(counts.map((c) => [c.user_id, Number(c.n)]));
 

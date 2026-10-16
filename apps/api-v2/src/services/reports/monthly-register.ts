@@ -95,8 +95,11 @@ export async function monthlyRegister(
 
   const rows = await db
     .selectFrom('activities as a')
+    // Solo check-ins reales: las reservas (checked_in_at NULL) no son asistencia. El
+    // filtro va en el ON para no perder actividades sin asistencia.
     .leftJoin('attendance as att', (j) =>
-      j.onRef('att.activity_id', '=', 'a.id').onRef('att.organization_id', '=', 'a.organization_id'),
+      j.onRef('att.activity_id', '=', 'a.id').onRef('att.organization_id', '=', 'a.organization_id')
+        .on('att.checked_in_at', 'is not', null),
     )
     .where('a.organization_id', '=', orgId)
     .where('a.is_permanent', '=', false)

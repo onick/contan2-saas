@@ -71,7 +71,7 @@ export async function protocolDashboard(db: DbClient, orgId: string): Promise<Pr
       from attendance att
       join activities a on a.id = att.activity_id
       join protocol_profiles p on p.user_id = att.user_id and p.organization_id = att.organization_id
-      where att.organization_id = ${orgId} and att.user_id is not null and p.active = true
+      where att.organization_id = ${orgId} and att.user_id is not null and att.checked_in_at is not null and p.active = true
     `.execute(db),
     // Actividad reciente (invitaciones de protocolo, más recientes primero).
     db.selectFrom('invitations as i')

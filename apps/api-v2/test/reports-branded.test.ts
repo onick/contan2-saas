@@ -18,6 +18,7 @@ import ExcelJS from 'exceljs';
 import { createDb, type Database } from '@contan2/db';
 import { hashToken } from '@contan2/auth';
 import { buildApp } from '../src/server.js';
+import { buildActivityPdfHtml } from '../src/services/reports/activity-pdf-template.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const run = DATABASE_URL ? describe : describe.skip;
@@ -72,10 +73,13 @@ run('reportería branded · period/activity xlsx+pdf+preview', () => {
     } as never).execute();
     return id;
   };
-  const attend = async (org: string, act: string, user: string | null, at: string) => {
+  // checkedIn=true (default): check-in real (checked_in_at = at). checkedIn=false:
+  // RESERVA (hold de protocolo/RSVP): checked_in_at NULL, `at` = hora de la invitación.
+  const attend = async (org: string, act: string, user: string | null, at: string, checkedIn = true) => {
     await db.insertInto('attendance').values({
       id: randomUUID(), organization_id: org, user_id: user, activity_id: act,
       activity_name: 'x', user_code: null, anonymous: user === null, companions_children: 0, registered_at: at,
+      checked_in_at: checkedIn ? at : null,
     } as never).execute();
   };
 
@@ -113,6 +117,9 @@ run('reportería branded · period/activity xlsx+pdf+preview', () => {
     await attend(orgAId, actConcierto, u2, '2026-03-10T20:15:00Z');
     await attend(orgAId, actConcierto, null, '2026-03-10T20:20:00Z'); // walk-in
     await attend(orgAId, actCine, u1, '2026-03-20T19:05:00Z');
+    // Reserva (hold) en el concierto, invitada el 9 de marzo: NO es asistencia.
+    const uHold = await mkUser(orgAId);
+    await attend(orgAId, actConcierto, uHold, '2026-03-09T15:00:00Z', false);
     // Ruido de otro tenant en el mismo rango.
     const actB = await mkActivity(orgBId, 'concierto', '2026-03-10T20:00:00Z', 10);
     await attend(orgBId, actB, await mkUser(orgBId), '2026-03-10T20:00:00Z');
@@ -149,6 +156,8 @@ run('reportería branded · period/activity xlsx+pdf+preview', () => {
     expect(j.byType.find((t: { type: string }) => t.type === 'concierto').attendances).toBe(3);
     expect(j.byDay).toHaveLength(31); // marzo completo, días sin actividad en 0
     expect(j.byDay.find((d: { date: string }) => d.date === '2026-03-10').attendances).toBe(3);
+    // La reserva (invitada el 9) no cuenta ni en su día de invitación.
+    expect(j.byDay.find((d: { date: string }) => d.date === '2026-03-09').attendances).toBe(0);
     // deltas vs febrero (1 actividad, 1 asistencia): 2 act → +100%, 4 att → +300%
     expect(j.comparison.deltas.activitiesCount).toBe(100);
     expect(j.comparison.deltas.attendancesCount).toBe(300);
@@ -193,8 +202,55 @@ run('reportería branded · period/activity xlsx+pdf+preview', () => {
     await wb.xlsx.load(res.rawPayload);
     expect(wb.worksheets.length).toBeGreaterThanOrEqual(2);
 
+    // --- Hold vs check-in (fix reservas): re-parseo del xlsx (plantilla @ts-nocheck) ---
+    // Hoja Resumen: cada KPI es una celda-etiqueta con su valor en la fila de abajo.
+    const resumen = wb.getWorksheet('Resumen')!;
+    const kpi = (label: string) => {
+      let v: unknown;
+      resumen.eachRow((row, r) => row.eachCell((cell, c) => {
+        if (cell.value === label) v = resumen.getCell(r + 1, c).value;
+      }));
+      return v;
+    };
+    expect(kpi('Asistencias')).toBe(3);            // solo check-ins (no la reserva)
+    expect(kpi('Reservados (en lista)')).toBe(1);
+    expect(kpi('Personas en sala')).toBe(3);
+    expect(kpi('Aforo comprometido')).toBe(0);     // enrolled_count del fixture
+    expect(kpi('% En sala')).toBe('3%');           // 3 personas / cap 100
+    expect(kpi('Primera visita')).toBe(0);         // u1 y u2 ya tenían otra visita (cine / febrero); el anónimo cuenta 0
+    expect(kpi('Recurrentes')).toBe(3);
+    // Hoja Asistentes: columna Estado + Hora check-in vacía ('—') para la reserva.
+    const asist = wb.getWorksheet('Asistentes')!;
+    const headers = (asist.getRow(1).values as unknown[]).slice(1) as string[];
+    const iEstado = headers.indexOf('Estado') + 1;
+    const iHora = headers.indexOf('Hora check-in') + 1;
+    expect(iEstado).toBeGreaterThan(0);
+    expect(iHora).toBeGreaterThan(0);
+    const dataRows = [2, 3, 4, 5].map((r) => ({ estado: asist.getRow(r).getCell(iEstado).value, hora: asist.getRow(r).getCell(iHora).value }));
+    expect(dataRows.map((d) => d.estado)).toEqual(['Asistió', 'Asistió', 'Asistió', 'Reservado']); // check-ins primero
+    expect(dataRows[3].hora).toBe('—');
+    expect(dataRows[0].hora).not.toBe('—');
+    expect(asist.getRow(6).getCell(iEstado).value).toBeNull(); // sin filas de más
+
     expect((await get(`/api/v2/reports/activity/${randomUUID()}.xlsx`)).statusCode).toBe(404);
     expect((await get(`/api/v2/reports/activity/${actConcierto}.docx`)).statusCode).toBe(400);
+  });
+
+  it('plantilla PDF de actividad: total = check-ins, la reserva sale con Estado "Reservado" y sin hora', async () => {
+    const html = await buildActivityPdfHtml({
+      organization: { name: 'Org', primaryColor: '#0182a2', logoUrl: null },
+      activity: { id: 'a', name: 'Act', type: 'concierto', location: 'Sala', date: '2026-03-10T20:00:00Z', capacity: 100, enrolledCount: 2, status: 'finalizada' },
+      attendances: [
+        { userId: null, userCode: 'X-1', registeredAt: '2026-03-10T20:10:00Z', checkedInAt: '2026-03-10T20:10:00Z', anonymous: false, companionsChildren: 0, companionsAdults: 0 },
+        { userId: null, userCode: 'X-2', registeredAt: '2026-03-09T15:00:00Z', checkedInAt: null, anonymous: false, companionsChildren: 0, companionsAdults: 0 },
+      ],
+      users: [], affinities: [{ totalAttendances: 1 }, { totalAttendances: 0 }],
+      protocol: { rows: [], summary: { invited: 0, confirmed: 0, attended: 0, totalParty: 0 } },
+    });
+    expect(html).toContain('<h2>Asistentes (1)</h2>');
+    expect(html).toContain('Reservados (en lista)');
+    expect(html).toContain('>Reservado</td>');
+    expect(html).toContain('>Asistió</td>');
   });
 
   it('RBAC: operator → 403 en preview/xlsx; rango inválido → 400', async () => {
