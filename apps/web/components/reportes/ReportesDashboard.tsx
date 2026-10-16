@@ -78,6 +78,7 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
   const [cats, setCats] = useState<string[]>([]);
   const [catList, setCatList] = useState<CatItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [summaryErr, setSummaryErr] = useState(false);
   const [ddOpen, setDdOpen] = useState(false);
   const [ddCatOpen, setDdCatOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -88,10 +89,11 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
     if (first.current) { first.current = false; return; }
     let cancel = false;
     setLoading(true);
+    setSummaryErr(false);
     fetch(`/app/reportes/api/summary?${reportsQuery(range.from, range.to, types, cats)}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (!cancel && j && j.kpis) setData(j as PeriodSummaryResponse); })
-      .catch(() => {})
+      .then((j) => { if (cancel) return; if (j && j.kpis) setData(j as PeriodSummaryResponse); else setSummaryErr(true); })
+      .catch(() => { if (!cancel) setSummaryErr(true); })
       .finally(() => { if (!cancel) setLoading(false); });
     return () => { cancel = true; };
   }, [range, types, cats]);
@@ -249,6 +251,12 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
       {/* registro mensual tabulado en el formato del departamento */}
       <MonthlyRegisterCard />
 
+      {summaryErr ? (
+        <p role="alert" className="mt-5 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-medium text-danger-fg">
+          No pudimos actualizar los datos para este filtro; las cifras de abajo son del período anterior.
+        </p>
+      ) : null}
+
       <div className={cn('transition-opacity', loading && 'opacity-50')}>
         {/* KPIs (ícono izquierda, info derecha) */}
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -377,17 +385,27 @@ export function ReportesDashboard({ initial, initialRange }: ReportesDashboardPr
 // (xlsx/csv/pdf) contra el mismo endpoint de asistencia-por-actividad, con el
 // filtro `category`. Sin categoría = todo el período (equivale al export general).
 interface CatItem { category: string; activities: number }
-function CategoryReport({ range }: { range: { from: string; to: string } }) {
+export function CategoryReport({ range }: { range: { from: string; to: string } }) {
   const [cats, setCats] = useState<CatItem[] | null>(null);
   const [cat, setCat] = useState('');
+  // Error de carga ≠ lista vacía: si la API falla NO decimos "no hay categorías".
+  const [catErr, setCatErr] = useState<'error' | 'forbidden' | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let cancel = false;
+    setCatErr(null);
     fetch('/app/reportes/api/categories', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (!cancel) setCats(j && Array.isArray(j.categories) ? (j.categories as CatItem[]) : []); })
-      .catch(() => { if (!cancel) setCats([]); });
+      .then(async (r) => {
+        if (cancel) return;
+        if (r.ok) {
+          const j = await r.json().catch(() => null);
+          if (j && Array.isArray(j.categories)) setCats(j.categories as CatItem[]);
+          else setCatErr('error');
+        } else setCatErr(r.status === 403 ? 'forbidden' : 'error');
+      })
+      .catch(() => { if (!cancel) setCatErr('error'); });
     return () => { cancel = true; };
-  }, []);
+  }, [attempt]);
 
   const href = (format: string) => {
     const p = new URLSearchParams({ from: range.from, to: range.to, format });
@@ -417,7 +435,19 @@ function CategoryReport({ range }: { range: { from: string; to: string } }) {
           </select>
         </label>
       </div>
-      {cats !== null && cats.length === 0 ? (
+      {catErr ? (
+        <div role="alert" className="mt-3.5 flex flex-wrap items-center gap-2 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-medium text-danger-fg">
+          <span className="flex-1">
+            {catErr === 'forbidden'
+              ? 'No tienes permiso para ver las categorías.'
+              : 'No pudimos cargar las categorías. Esto no significa que no existan.'}
+          </span>
+          {catErr === 'error' ? (
+            <button type="button" onClick={() => setAttempt((n) => n + 1)} className={cn('rounded-lg border border-current px-2.5 py-1 font-bold', focusRing)}>Reintentar</button>
+          ) : null}
+        </div>
+      ) : null}
+      {!catErr && cats !== null && cats.length === 0 ? (
         <p className="mt-3.5 text-[12px] text-muted">Todavía no hay actividades con categoría para agrupar.</p>
       ) : (
         <div className="mt-4 flex flex-wrap gap-2.5">

@@ -11,7 +11,7 @@ afterEach(cleanup);
 
 describe('Sidebar', () => {
   it('renderiza todos los nav items, incluido "Mi equipo" (no "Staff")', () => {
-    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" />);
+    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" role="owner" />);
     for (const item of NAV_ITEMS) {
       expect(screen.getByRole('link', { name: item.label })).toBeInTheDocument();
     }
@@ -20,19 +20,19 @@ describe('Sidebar', () => {
   });
 
   it('marca el item activo (según activeKey) con aria-current="page"', () => {
-    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="actividades" />);
+    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="actividades" role="owner" />);
     expect(screen.getByRole('link', { name: 'Actividades' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Inicio' })).not.toHaveAttribute('aria-current');
   });
 
   it('usa hrefs reales para Inicio y Actividades', () => {
-    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" />);
+    render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" role="owner" />);
     expect(screen.getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/app');
     expect(screen.getByRole('link', { name: 'Actividades' })).toHaveAttribute('href', '/app/actividades');
   });
 
   it('sin logo → iniciales', () => {
-    render(<Sidebar branding={{ ...DEFAULT_BRANDING, logoUrl: null }} activeKey="dashboard" />);
+    render(<Sidebar branding={{ ...DEFAULT_BRANDING, logoUrl: null }} activeKey="dashboard" role="owner" />);
     const chip = screen.getByTestId('brand-chip');
     expect(chip).toBeInTheDocument();
     // Sin SVG propio: siempre iniciales del nombre (CC para "Centro Cultural Banreservas").
@@ -41,7 +41,7 @@ describe('Sidebar', () => {
   });
 
   it('tenant sin icono registrado: el chip cae a iniciales', () => {
-    render(<Sidebar branding={{ ...DEFAULT_BRANDING, slug: 'otro-tenant', name: 'Museo de Arte Moderno' }} activeKey="dashboard" />);
+    render(<Sidebar branding={{ ...DEFAULT_BRANDING, slug: 'otro-tenant', name: 'Museo de Arte Moderno' }} activeKey="dashboard" role="owner" />);
     const chips = screen.getAllByTestId('brand-chip');
     expect(chips[0]?.textContent).toBe('MD');
     // Dos líneas de nombre en el sidebar expandido.
@@ -71,10 +71,10 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('link', { name: 'Inicio' })).not.toBeInTheDocument();
   });
 
-  it('role=null → sin confinamiento, todos los ítems de nav visibles', () => {
+  it('role=null → fail-closed: solo Mi cuenta, no se lista todo', () => {
     render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" role={null} />);
-    for (const item of NAV_ITEMS) {
-      expect(screen.getByRole('link', { name: item.label })).toBeInTheDocument();
-    }
+    expect(screen.getByRole('link', { name: 'Mi cuenta' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Usuarios' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Mi equipo' })).not.toBeInTheDocument();
   });
 });

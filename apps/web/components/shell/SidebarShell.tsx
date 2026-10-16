@@ -33,7 +33,7 @@ interface SidebarCtx { collapsed: boolean; toggle: () => void }
 const Ctx = createContext<SidebarCtx>({ collapsed: false, toggle: () => {} });
 export function useSidebar(): SidebarCtx { return useContext(Ctx); }
 
-export function SidebarShell({ children }: { children: ReactNode }) {
+export function SidebarShell({ children, role = null }: { children: ReactNode; role?: string | null }) {
   // Initializer (no effect): en hidratación el estado ya es el de la cookie →
   // coincide con el DOM que el script inline corrigió pre-paint.
   const [collapsed, setCollapsed] = useState(readCookie);
@@ -62,7 +62,7 @@ export function SidebarShell({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider value={{ collapsed, toggle }}>
-      <ShellDataProvider>
+      <ShellDataProvider initialRole={role}>
         <div
           data-sidebar={collapsed ? 'collapsed' : 'expanded'}
           suppressHydrationWarning

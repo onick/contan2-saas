@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarPlus, Loader2, X, MailCheck, UserCheck, CalendarClock } from 'lucide-react';
 import type { PuertaBookingFull } from '@contan2/contracts';
-import { Card, Button, Field, Chip, EmptyState, IconButton, type ChipTone } from '../ui';
+import { Card, Button, Field, Chip, EmptyState, ErrorState, IconButton, type ChipTone } from '../ui';
 import { DoorButton } from './DoorButton';
 
 const TZ = 'America/Santo_Domingo';
@@ -40,13 +40,20 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  // Resultado de la última acción sobre una reserva (confirmar/cancelar/check-in).
+  const [actMsg, setActMsg] = useState<{ k: 'ok' | 'err'; t: string } | null>(null);
+  // Estado de la carga de la lista: error/sin permiso ≠ "sin reservas".
+  const [loadErr, setLoadErr] = useState<'error' | 'forbidden' | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const r = await fetch(`/app/puerta/api/bookings?salaId=${encodeURIComponent(salaId)}`, { cache: 'no-store' });
-      const j = r.ok ? await r.json() : null;
-      setBookings(j && Array.isArray(j.bookings) ? j.bookings : []);
-    } catch { setBookings([]); }
+      if (r.ok) {
+        const j = await r.json().catch(() => null);
+        if (j && Array.isArray(j.bookings)) { setBookings(j.bookings); setLoadErr(null); }
+        else setLoadErr('error');
+      } else setLoadErr(r.status === 403 ? 'forbidden' : 'error');
+    } catch { setLoadErr('error'); }
   }, [salaId]);
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -72,11 +79,20 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
   }
 
   async function act(id: string, action: 'confirm' | 'cancel' | 'no_show', checkin = false) {
-    setActingId(id);
+    setActingId(id); setActMsg(null);
     try {
       const url = checkin ? `/app/puerta/api/bookings/${id}/checkin` : `/app/puerta/api/bookings/${id}`;
-      await fetch(url, { method: checkin ? 'POST' : 'PATCH', headers: { 'content-type': 'application/json' }, body: checkin ? undefined : JSON.stringify({ action }) });
+      const r = await fetch(url, { method: checkin ? 'POST' : 'PATCH', headers: { 'content-type': 'application/json' }, body: checkin ? undefined : JSON.stringify({ action }) });
+      if (!r.ok) {
+        // 409 (check-in repetido, estado inválido), 403, 5xx…: mostramos el mensaje del servidor.
+        const j = await r.json().catch(() => ({} as { error?: string }));
+        setActMsg({ k: 'err', t: j.error ?? (r.status === 403 ? 'No tienes permiso para esta acción.' : 'No se pudo completar la acción. Intenta de nuevo.') });
+      } else {
+        setActMsg({ k: 'ok', t: checkin ? 'Check-in registrado.' : action === 'confirm' ? 'Reserva confirmada.' : action === 'cancel' ? 'Reserva cancelada.' : 'Reserva actualizada.' });
+      }
       await refresh();
+    } catch {
+      setActMsg({ k: 'err', t: 'Problema de red. Intenta de nuevo.' });
     } finally { setActingId(null); }
   }
 
@@ -127,9 +143,20 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
         </form>
       )}
 
+      {actMsg ? (
+        <p role={actMsg.k === 'err' ? 'alert' : 'status'} className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-[12.5px] font-medium ${actMsg.k === 'err' ? 'bg-danger-bg text-danger-fg' : 'bg-success-bg text-success-fg'}`}>
+          <span className="flex-1">{actMsg.t}</span>
+          <button type="button" aria-label="Cerrar aviso" onClick={() => setActMsg(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
+        </p>
+      ) : null}
+
       <div className="mt-4">
-        {bookings === null ? (
+        {bookings === null && loadErr === null ? (
           <p className="py-6 text-center text-[13px] text-muted">Cargando…</p>
+        ) : bookings === null || (loadErr !== null && days.length === 0) ? (
+          loadErr === 'forbidden'
+            ? <ErrorState kind="forbidden" title="No tienes permiso para ver la agenda" />
+            : <ErrorState title="No pudimos cargar la agenda" description="La conexión con el servidor falló. Esto no significa que no haya reservas." onRetry={() => { void refresh(); }} />
         ) : days.length === 0 ? (
           <EmptyState icon={CalendarClock} title="Sin reservas próximas" description="Agendá la primera visita de un colegio." action={<DoorButton tone="vr" onClick={() => setOpen(true)}><CalendarPlus size={16} /> Nueva reserva</DoorButton>} />
         ) : days.map((d) => (

@@ -572,11 +572,14 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
     try {
       created = await withTenant(db, org.id, async (tx) => {
         if (email) {
-          const exists = await tx
-            .selectFrom('users').select('id')
+          const matches = await tx
+            .selectFrom('users').select(['id', 'deleted_at'])
             .where('organization_id', '=', org.id).where('email', '=', email)
-            .executeTakeFirst();
-          if (exists) throw new Error('EMAIL_TAKEN');
+            .execute();
+          // Activa gana: si hay alguna activa con ese correo, "ya registrado".
+          // Si solo hay archivadas, el mensaje lo dice (Q8-52) en vez del genérico.
+          if (matches.some((m) => m.deleted_at === null)) throw new Error('EMAIL_TAKEN');
+          if (matches.length > 0) throw new Error('EMAIL_ARCHIVED');
         }
         let row: { id: string; code: string } | undefined;
         for (let attempt = 0; attempt < 5 && !row; attempt += 1) {
@@ -608,6 +611,10 @@ export const usersRoute: FastifyPluginAsync = async (app) => {
       if (e instanceof Error && e.message === 'EMAIL_TAKEN') {
         reply.code(409);
         return { error: 'Ese correo ya está registrado en la organización.' };
+      }
+      if (e instanceof Error && e.message === 'EMAIL_ARCHIVED') {
+        reply.code(409);
+        return { error: 'Ese correo pertenece a una persona archivada. Reactívala desde su perfil.' };
       }
       if (e instanceof Error && e.message === 'CODE_EXHAUSTED') {
         reply.code(500);

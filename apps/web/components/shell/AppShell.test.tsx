@@ -8,7 +8,7 @@ afterEach(cleanup);
 
 describe('AppShell', () => {
   it('renderiza sidebar (nav principal), topbar (breadcrumb) y el contenido en <main>', async () => {
-    const ui = await AppShell({ branding: DEFAULT_BRANDING, title: 'Inicio', role: null, children: <p>contenido hijo</p> });
+    const ui = await AppShell({ branding: DEFAULT_BRANDING, title: 'Inicio', role: 'owner', children: <p>contenido hijo</p> });
     render(ui);
 
     // Navegación del sidebar (única con nombre "Navegación principal" — la barra
