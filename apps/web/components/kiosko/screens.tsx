@@ -133,7 +133,7 @@ export function WelcomeScreen({
   brandName, logoUrl, onStart,
 }: { brandName: string; logoUrl: string | null; onStart: () => void }) {
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-6 py-8 md:py-12">
+    <div data-testid="kiosk-step-welcome" className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-6 py-8 md:py-12">
       {/* Cabecera: logo del tenant o iniciales + título */}
       <div className="flex items-center gap-4 pb-4">
         {logoUrl ? (
@@ -230,7 +230,7 @@ export function ActivityScreen({
   }, [activities.length]);
 
   return (
-    <div className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
+    <div data-testid="kiosk-step-activity" className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
       <KioskHeader />
       <div className="mt-8">
         <p className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-text">Cartelera de hoy</p>
@@ -330,7 +330,7 @@ export function IdentifyScreen({
   activityName, onHasCode, onNew, onBack,
 }: { activityName: string; onHasCode: () => void; onNew: () => void; onBack: () => void }) {
   return (
-    <div className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
+    <div data-testid="kiosk-step-identify" className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
       <KioskHeader />
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
         <div className="mt-8">
@@ -427,7 +427,7 @@ export function CodeScreen({
   }, [query]);
 
   return (
-    <div className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
+    <div data-testid="kiosk-step-code" className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
       <KioskHeader />
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
         <div className="mt-8">
@@ -582,7 +582,7 @@ export function NewVisitorScreen({
   };
 
   return (
-    <div className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
+    <div data-testid="kiosk-step-new" className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
       <KioskHeader />
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
         <div className="mt-8">
@@ -696,7 +696,7 @@ export function ConfirmationScreen({
   }, [visitor.code]);
 
   return (
-    <div ref={rootRef} className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
+    <div data-testid="kiosk-step-confirm" ref={rootRef} className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
       <KioskHeader />
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
         <div className="mt-8">
@@ -761,7 +761,7 @@ export function CheckinErrorScreen({
   message, onRetry, onHome,
 }: { message: string; onRetry: () => void; onHome: () => void }) {
   return (
-    <div className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
+    <div data-testid="kiosk-step-error" className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
       <KioskHeader />
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center">
         <div className="kiosk-card-in rounded-card border border-danger-fg/20 bg-danger-bg p-8 text-center">

@@ -358,6 +358,16 @@ const PROTOCOL_CATEGORY: Record<string, string> = {
   patrocinador: 'Patrocinador', directivo: 'Directivo', artista: 'Artista', otro: 'Invitado especial',
 };
 
+// Sufijo estable de data-testid para e2e (scanner-result-{ok|dup|invalid|full|error}).
+const TESTID_BY_KIND: Record<CheckinOutcome['kind'], string> = {
+  success: 'ok',
+  already: 'dup',
+  full: 'full',
+  'not-found': 'invalid',
+  invalid: 'invalid',
+  error: 'error',
+};
+
 function OutcomeBanner({ outcome }: { outcome: CheckinOutcome }) {
   type StyleEntry = { box: string; icon: string; Icon: typeof CircleCheck };
   const styles: Record<CheckinOutcome['kind'], StyleEntry> = {
@@ -394,7 +404,10 @@ function OutcomeBanner({ outcome }: { outcome: CheckinOutcome }) {
   };
   const { box, icon, Icon } = styles[outcome.kind];
   return (
-    <div role="status" className={`mt-4 flex items-start gap-3 rounded-xl px-4 py-3 ${box}`}>
+    <div
+      role="status"
+      data-testid={`scanner-result-${TESTID_BY_KIND[outcome.kind]}`}
+      className={`mt-4 flex items-start gap-3 rounded-xl px-4 py-3 ${box}`}>
       <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${icon}`} aria-hidden="true" />
       <div className="min-w-0">
         {/* PROTOCOLO (PR-5): recibimiento distinguido, antes que el resto. */}
