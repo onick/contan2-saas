@@ -10,10 +10,10 @@ import { CalendarPlus, Loader2, X, MailCheck, UserCheck, CalendarClock } from 'l
 import type { PuertaBookingFull } from '@contan2/contracts';
 import { Card, Button, Field, Chip, EmptyState, ErrorState, IconButton, type ChipTone } from '../ui';
 import { DoorButton } from './DoorButton';
+import { hora } from '../../lib/format';
 
 const TZ = 'America/Santo_Domingo';
 const DAY_FMT = new Intl.DateTimeFormat('es-DO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ });
-const TIME_FMT = new Intl.DateTimeFormat('es-DO', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TZ });
 const dayKey = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(iso));
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -31,7 +31,7 @@ const EMPTY = { scheduledAt: '', colegio: '', level: '', contactName: '', contac
 const GROUP_KINDS = ['Colegio', 'Grupo comunitario', 'Empresa / institución', 'Otro'] as const;
 type GroupKindSel = (typeof GROUP_KINDS)[number];
 
-export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: string }) {
+export function VrAgenda({ salaId, salaName, aforo = null }: { salaId: string; salaName: string; aforo?: number | null }) {
   const [bookings, setBookings] = useState<PuertaBookingFull[] | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
@@ -43,6 +43,8 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
   // Resultado de la última acción sobre una reserva (confirmar/cancelar/check-in).
   const [actMsg, setActMsg] = useState<{ k: 'ok' | 'err'; t: string } | null>(null);
   // Estado de la carga de la lista: error/sin permiso ≠ "sin reservas".
+  // Las reservas canceladas no cuentan como activas: ocultas salvo que se pidan.
+  const [showCancelled, setShowCancelled] = useState(false);
   const [loadErr, setLoadErr] = useState<'error' | 'forbidden' | null>(null);
 
   const refresh = useCallback(async () => {
@@ -96,7 +98,11 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
     } finally { setActingId(null); }
   }
 
-  const list = bookings ?? [];
+  const all = bookings ?? [];
+  const cancelledCount = all.filter((b) => b.status === 'cancelled').length;
+  const list = showCancelled ? all : all.filter((b) => b.status !== 'cancelled');
+  // Aviso no bloqueante: la API no valida el aforo (decisión pendiente del owner).
+  const overCapacity = aforo !== null && form.studentCount > aforo;
   const groups = list.reduce<Record<string, PuertaBookingFull[]>>((acc, b) => { (acc[dayKey(b.scheduledAt)] ??= []).push(b); return acc; }, {});
   const days = Object.keys(groups).sort();
 
@@ -135,6 +141,7 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
             <Field label="Teléfono (opcional)" value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} />
             <Field label="Notas (opcional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
+          {overCapacity ? <p role="status" className="mt-2 rounded-lg bg-warning-bg px-3 py-2 text-[12.5px] font-medium text-warning-fg">Supera el aforo de la sala ({aforo}). Se dividirá en turnos.</p> : null}
           {err && <p role="alert" className="mt-2 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-medium text-danger-fg">{err}</p>}
           <div className="mt-3 flex gap-2">
             <Button variant="secondary" onClick={() => { setOpen(false); setErr(null); }}>Cancelar</Button>
@@ -148,6 +155,14 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
           <span className="flex-1">{actMsg.t}</span>
           <button type="button" aria-label="Cerrar aviso" onClick={() => setActMsg(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
         </p>
+      ) : null}
+
+      {cancelledCount > 0 ? (
+        <div className="mt-3">
+          <Button variant="pill" size="sm" selected={showCancelled} onClick={() => setShowCancelled((v) => !v)}>
+            {showCancelled ? 'Ocultar canceladas' : 'Mostrar canceladas'} ({cancelledCount})
+          </Button>
+        </div>
       ) : null}
 
       <div className="mt-4">
@@ -169,7 +184,7 @@ export function VrAgenda({ salaId, salaName }: { salaId: string; salaName: strin
                 const acting = actingId === b.id;
                 return (
                   <div key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line p-3">
-                    <span className="font-mono text-[13px] font-bold tabular-nums text-info-text">{TIME_FMT.format(new Date(b.scheduledAt))}</span>
+                    <span className="font-mono text-[13px] font-bold tabular-nums text-info-text">{hora(b.scheduledAt, { timeZone: TZ })}</span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[14px] font-semibold text-ink">{b.colegio}{b.level ? ` · ${b.level}` : ''}</div>
                       <div className="text-[12px] text-muted">{b.kind ? `${b.kind} · ` : ''}{b.contactName} · {b.studentCount} {b.kind ? `integrante${b.studentCount === 1 ? '' : 's'}` : `alumno${b.studentCount === 1 ? '' : 's'}`}{b.notifiedAt ? ' · ✉ avisado' : ''}</div>

@@ -442,8 +442,8 @@ test.describe('PUE-04 flag de producción (solo lectura de código)', () => {
     expect(reportes).toContain('if (!PUERTA_ENABLED) notFound()');
     for (const f of ['registrar', 'salas', 'bookings', 'stats', 'export']) {
       const src = readFileSync(path.join(web, `app/app/puerta/api/${f}/route.ts`), 'utf8');
-      // El flag NO protege los BFF: con el flag apagado el módulo sigue accesible por API (S3, hipótesis de diseño).
-      expect(src, `BFF ${f} no consulta el flag`).not.toContain('PUERTA_ENABLED');
+      // PR-10: el BFF respeta el flag (404 apagado). La API api-v2 /puerta/* sigue sin consultarlo (decisión del owner).
+      expect(src, `BFF ${f} consulta el flag`).toContain('puertaEnabled()');
     }
     test.info().annotations.push({
       type: 'puerta-flag',
