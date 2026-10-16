@@ -19,9 +19,9 @@ export interface LoginFormProps {
   defaultEmail?: string;
 }
 
-const GENERIC_ERROR = 'Credenciales inválidas. Revisá tu correo y contraseña.';
-const RATE_ERROR = 'Demasiados intentos. Esperá unos minutos e intentá de nuevo.';
-const NET_ERROR = 'No pudimos conectar. Intentá de nuevo en un momento.';
+const GENERIC_ERROR = 'Credenciales inválidas. Revisa tu correo y contraseña.';
+const RATE_ERROR = 'Demasiados intentos. Espera unos minutos e intenta de nuevo.';
+const NET_ERROR = 'No pudimos conectar. Intenta de nuevo en un momento.';
 
 export function LoginForm({ next, defaultEmail }: LoginFormProps) {
   const [loading, setLoading] = useState(false);

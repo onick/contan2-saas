@@ -31,7 +31,7 @@ export default async function SegmentosPage() {
 
   if (!data) {
     return shell(
-      <Unavailable inline title="Segmentos no disponibles" description="No pudimos calcular los segmentos. Reintentá en unos segundos." />,
+      <Unavailable inline title="Segmentos no disponibles" description="No pudimos calcular los segmentos. Reintenta en unos segundos." />,
     );
   }
 

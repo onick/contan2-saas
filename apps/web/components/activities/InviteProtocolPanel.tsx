@@ -67,7 +67,7 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
       setPicked(new Map()); // protocolo se elige a mano (lotes chicos, con +N)
       setPhase('ready');
     } catch {
-      setError('Problema de red. Reintentá.');
+      setError('Problema de red. Reintenta.');
       setPhase('error');
     }
   }, [activityId]);
@@ -130,7 +130,7 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
       if (res.status === 201 && b?.summary) {
         const { created, noCapacity, dryRun } = b.summary;
         if (created === 0 && noCapacity > 0) {
-          setOutcome(`El aforo está lleno: ${noCapacity} ${noCapacity === 1 ? 'invitado no entró' : 'invitados no entraron'}. Subí la capacidad de la actividad y reinvitá.`);
+          setOutcome(`El aforo está lleno: ${noCapacity} ${noCapacity === 1 ? 'invitado no entró' : 'invitados no entraron'}. Sube la capacidad de la actividad y reinvita.`);
         } else {
           const verb = dryRun ? 'reservadas' : 'enviadas';
           const head = created === 1 ? `1 invitación de protocolo ${verb}` : `${created} invitaciones de protocolo ${verb}`;
@@ -144,7 +144,7 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
         setError(b?.error ?? 'No pudimos crear las invitaciones.');
       }
     } catch {
-      setError('Problema de red. Reintentá.');
+      setError('Problema de red. Reintenta.');
     } finally {
       setBusy(false);
     }
@@ -255,7 +255,7 @@ export function InviteProtocolPanel({ activityId, activityName, open, onClose, o
                 </>
               ) : (
                 <p className="rounded-lg bg-surface-container px-3 py-3 text-[13px] text-muted">
-                  No quedan designados invitables. Designá invitados en el módulo Protocolo o revisá los ya invitados en el seguimiento.
+                  No quedan designados invitables. Designa invitados en el módulo Protocolo o revisa los ya invitados en el seguimiento.
                 </p>
               )}
             </>

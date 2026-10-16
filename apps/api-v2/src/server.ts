@@ -165,7 +165,7 @@ async function assertPlatformPoolConfig(): Promise<void> {
     throw new Error(
       'El pool tenant está sujeto a RLS (rol sin BYPASSRLS) pero PLATFORM_DATABASE_URL ' +
         'no está seteada: platform-admin y auto-finalize operarían cross-org bajo RLS y ' +
-        'fallarían en silencio. Seteá PLATFORM_DATABASE_URL al rol owner/bypass.',
+        'fallarían en silencio. Setea PLATFORM_DATABASE_URL al rol owner/bypass.',
     );
   }
 }

@@ -44,7 +44,7 @@ export default async function SegmentMembersPage({ params }: { params: Promise<{
     <AppShell branding={branding} title="Segmentos" activeKey="segmentos">
       <div className="mx-auto w-full max-w-[1600px]">
         {!result.ok ? (
-          <Unavailable inline title="Segmento no disponible" description="No pudimos cargar los miembros. Reintentá en unos segundos." />
+          <Unavailable inline title="Segmento no disponible" description="No pudimos cargar los miembros. Reintenta en unos segundos." />
         ) : (
           <>
             {/* relative z-20: el menú "Exportar" (dropdown absolute) debe pintar por

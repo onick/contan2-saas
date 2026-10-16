@@ -100,7 +100,7 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
-    if ((await bookingsLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas reservas seguidas. Esperá un momento.' }; }
+    if ((await bookingsLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas reservas seguidas. Espera un momento.' }; }
 
     const parsed = PuertaBookingCreateRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Datos de reserva inválidos.' }; }

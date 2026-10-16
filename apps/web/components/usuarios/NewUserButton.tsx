@@ -20,8 +20,8 @@ const EMPTY: Form = { firstName: '', lastName: '', email: '', phone: '' };
 const CRED_MSG: Record<string, string> = {
   sent: 'Credencial enviada a su email.',
   'dry-run': 'Credencial pendiente de envío (modo prueba).',
-  skipped: 'Sin email: podés enviarle la credencial luego desde su perfil.',
-  error: 'No se pudo enviar la credencial; reintentá desde su perfil.',
+  skipped: 'Sin email: puedes enviarle la credencial luego desde su perfil.',
+  error: 'No se pudo enviar la credencial; reintenta desde su perfil.',
 };
 
 export function NewUserButton() {

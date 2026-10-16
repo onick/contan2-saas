@@ -66,7 +66,7 @@ export async function requireTenantStaff(
 export function requireRole(
   guard: GuardResult,
   roles: ReadonlySet<string>,
-  forbiddenMessage = 'No tenés permiso para esta acción.',
+  forbiddenMessage = 'No tienes permiso para esta acción.',
 ): GuardResult {
   if (!guard.ok) return guard;
   if (!roles.has(guard.ctx.staff.role)) {

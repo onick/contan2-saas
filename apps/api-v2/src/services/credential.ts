@@ -142,7 +142,7 @@ export async function generateCredentialPng(
 
   <text x="64" y="514" font-family="Liberation Mono, Menlo, Monaco, monospace" font-size="26" font-weight="700" fill="${INK}" letter-spacing="5">${escapeXml(user.code)}</text>
 
-  <text x="690" y="442" text-anchor="middle" font-family="Inter, Liberation Sans, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="${MUTED}" letter-spacing="1">Presentá este código QR en la entrada</text>
+  <text x="690" y="442" text-anchor="middle" font-family="Inter, Liberation Sans, Helvetica, Arial, sans-serif" font-size="12" font-weight="500" fill="${MUTED}" letter-spacing="1">Presenta este código QR en la entrada</text>
   <text x="690" y="464" text-anchor="middle" font-family="Inter, Liberation Sans, Helvetica, Arial, sans-serif" font-size="12" fill="${MUTED}" fill-opacity="0.8">${escapeXml(tokens.orgName)}</text>
 
   <!-- QR a la derecha, en panel blanco con borde fino (sin sombra) -->

@@ -50,7 +50,7 @@ export async function relayReport(path: string): Promise<Response> {
       cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'No pudimos generar el reporte. Reintentá.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos generar el reporte. Reintenta.' }, { status: 502 });
   }
   const headers = new Headers();
   for (const h of ['content-type', 'content-disposition', 'cache-control']) {

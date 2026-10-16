@@ -24,7 +24,7 @@ describe('AuditTimeline', () => {
   it('403 → mensaje honesto', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(403, { error: 'no' })));
     render(<AuditTimeline />);
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/No tenés permiso/i));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/No tienes permiso/i));
   });
 
   it('vacío → estado honesto (sin demo)', async () => {

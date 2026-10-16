@@ -111,7 +111,7 @@ export function VrAgenda({ salaId, salaName, aforo = null }: { salaId: string; s
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-[17px] font-bold tracking-tight text-ink"><CalendarClock size={18} className="text-info-text" /> Agenda · {salaName}</h2>
-          <p className="mt-0.5 text-[13px] text-muted">Reservas de grupos (colegios, comunidades, empresas). Confirmá para avisar al responsable por email; el día de la visita, hacé el check-in.</p>
+          <p className="mt-0.5 text-[13px] text-muted">Reservas de grupos (colegios, comunidades, empresas). Confirma para avisar al responsable por email; el día de la visita, haz el check-in.</p>
         </div>
         <DoorButton tone="vr" onClick={() => setOpen((v) => !v)}><CalendarPlus size={16} /> Nueva reserva</DoorButton>
       </div>
@@ -173,7 +173,7 @@ export function VrAgenda({ salaId, salaName, aforo = null }: { salaId: string; s
             ? <ErrorState kind="forbidden" title="No tienes permiso para ver la agenda" />
             : <ErrorState title="No pudimos cargar la agenda" description="La conexión con el servidor falló. Esto no significa que no haya reservas." onRetry={() => { void refresh(); }} />
         ) : days.length === 0 ? (
-          <EmptyState icon={CalendarClock} title="Sin reservas próximas" description="Agendá la primera visita de un colegio." action={<DoorButton tone="vr" onClick={() => setOpen(true)}><CalendarPlus size={16} /> Nueva reserva</DoorButton>} />
+          <EmptyState icon={CalendarClock} title="Sin reservas próximas" description="Agenda la primera visita de un colegio." action={<DoorButton tone="vr" onClick={() => setOpen(true)}><CalendarPlus size={16} /> Nueva reserva</DoorButton>} />
         ) : days.map((d) => (
           <div key={d} className="mb-4 last:mb-0">
             <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.07em] text-faint">{cap(DAY_FMT.format(new Date(groups[d]![0]!.scheduledAt)))}</div>

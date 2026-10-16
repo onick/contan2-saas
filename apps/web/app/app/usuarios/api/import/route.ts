@@ -30,7 +30,7 @@ export async function POST(req: Request): Promise<Response> {
       cache: 'no-store',
     });
   } catch {
-    return Response.json({ error: 'No pudimos procesar el archivo. Intentá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'No pudimos procesar el archivo. Intenta de nuevo.' }, { status: 502 });
   }
   const text = await upstream.text();
   return new Response(text, {

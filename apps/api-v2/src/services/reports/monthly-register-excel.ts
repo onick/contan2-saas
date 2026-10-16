@@ -90,13 +90,13 @@ export async function buildMonthlyRegisterWorkbook(
     ws.getCell(r, 5).dataValidation = {
       type: 'list', allowBlank: true, formulae: [tipoRef],
       showErrorMessage: true, errorStyle: 'stop',
-      errorTitle: 'Tipo no válido', error: 'Elegí un tipo de la lista.',
+      errorTitle: 'Tipo no válido', error: 'Elige un tipo de la lista.',
     };
     if (programasLista.length > 0) {
       ws.getCell(r, 6).dataValidation = {
         type: 'list', allowBlank: true, formulae: [progRef],
         showErrorMessage: true, errorStyle: 'warning',
-        errorTitle: 'Programa fuera de la lista', error: 'Este programa no está en la lista. ¿Querés usarlo igual?',
+        errorTitle: 'Programa fuera de la lista', error: 'Este programa no está en la lista. ¿Quieres usarlo igual?',
       };
     }
   }

@@ -86,14 +86,14 @@ describe('ReportsAgent', () => {
 
   it('clarify: las opciones re-consultan al tocarlas', async () => {
     const fetchMock = installFetch({
-      kind: 'clarify', message: '¿Cuál querés?',
+      kind: 'clarify', message: '¿Cuál quieres?',
       options: [{ label: 'Concierto Estrella (2026-03-10)', query: '¿Cómo le fue a Concierto Estrella?' }],
     });
     await openDrawer();
     const input = screen.getByLabelText('Consulta para el asistente de reportes');
     fireEvent.change(input, { target: { value: 'estrella' } });
     fireEvent.submit(input.closest('form')!);
-    await waitFor(() => expect(screen.getByText('¿Cuál querés?')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('¿Cuál quieres?')).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: /Concierto Estrella \(2026-03-10\)/ }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const second = JSON.parse(fetchMock.mock.calls[1]![1]!.body!);
@@ -101,7 +101,7 @@ describe('ReportsAgent', () => {
   });
 
   it('error del server → mensaje de error en el hilo', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => J(429, { error: 'Demasiadas consultas seguidas. Esperá un momento.' })));
+    vi.stubGlobal('fetch', vi.fn(async () => J(429, { error: 'Demasiadas consultas seguidas. Espera un momento.' })));
     await openDrawer();
     const input = screen.getByLabelText('Consulta para el asistente de reportes');
     fireEvent.change(input, { target: { value: 'reporte de julio' } });

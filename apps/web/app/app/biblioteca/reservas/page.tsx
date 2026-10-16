@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export default async function BibliotecaReservasPage() {
   const [reservations, summary] = [await getBiblioReservations(), await getBiblioReservationsSummary()];
   if (reservations === null) {
-    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar las reservas. Reintentá en unos segundos." />;
+    return <Unavailable inline title="Biblioteca no disponible" description="No pudimos cargar las reservas. Reintenta en unos segundos." />;
   }
   return <ReservasClient initial={reservations} initialSummary={summary} />;
 }

@@ -57,7 +57,7 @@ test.describe('ADM-03/04 · crear con portada, editar y estados (UI)', () => {
     // Validacion de campos: capacidad vacia / tipo sin elegir -> mensajes visibles, sin request.
     await dialog.getByLabel('Nombre').fill(name);
     await dialog.getByRole('button', { name: 'Crear actividad' }).click();
-    await expect(dialog.getByText('Seleccioná un tipo')).toBeVisible();
+    await expect(dialog.getByText('Selecciona un tipo')).toBeVisible();
     await expect(dialog.getByText('Requerido').first()).toBeVisible();
 
     await dialog.getByLabel(/^Tipo(?! de)/).selectOption('otro');

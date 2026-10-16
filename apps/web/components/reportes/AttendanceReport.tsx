@@ -30,8 +30,8 @@ function defaultRange(): { from: string; to: string } {
 }
 
 const fmtErr = (status: number, fallback: string) =>
-  status === 403 ? 'No tenés permiso para generar reportes (solo owner/admin).'
-  : status === 429 ? 'Demasiados reportes en poco tiempo. Esperá un momento.'
+  status === 403 ? 'No tienes permiso para generar reportes (solo owner/admin).'
+  : status === 429 ? 'Demasiados reportes en poco tiempo. Espera un momento.'
   : fallback;
 
 export function AttendanceReport() {
@@ -52,7 +52,7 @@ export function AttendanceReport() {
       if (!res.ok) { setPreview({ phase: 'error', error: fmtErr(res.status, body.error ?? 'No pudimos generar el reporte.') }); return; }
       setPreview({ phase: 'ready', data: body as Report });
     } catch {
-      setPreview({ phase: 'error', error: 'No pudimos conectar. Intentá de nuevo.' });
+      setPreview({ phase: 'error', error: 'No pudimos conectar. Intenta de nuevo.' });
     }
   }, [from, to]);
 
@@ -89,7 +89,7 @@ export function AttendanceReport() {
               <Icon size={15} strokeWidth={1.75} aria-hidden="true" /> {label}
             </a>
           ) : (
-            <span key={f} aria-disabled="true" title="Generá un reporte primero"
+            <span key={f} aria-disabled="true" title="Genera un reporte primero"
               className="inline-flex min-h-9 cursor-not-allowed items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-[13px] font-semibold text-faint opacity-50">
               <Icon size={15} strokeWidth={1.75} aria-hidden="true" /> {label}
             </span>
@@ -156,7 +156,7 @@ export function AttendanceReport() {
           )}
         </div>
       ) : (
-        <p className="mt-4 text-[13px] text-faint">Elegí un rango y generá el reporte para ver el resumen y descargarlo.</p>
+        <p className="mt-4 text-[13px] text-faint">Elige un rango y genera el reporte para ver el resumen y descargarlo.</p>
       )}
     </Card>
   );

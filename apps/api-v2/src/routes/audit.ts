@@ -23,7 +23,7 @@ export const auditRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
-    if (!CAN_READ_AUDIT.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para ver el historial.' }; }
+    if (!CAN_READ_AUDIT.has(staff.role)) { reply.code(403); return { error: 'No tienes permiso para ver el historial.' }; }
     // tenant_audit_log tiene RLS: sin el GUC de org (withTenant), app_v2 hace
     // default-deny → 0 filas. Envolvemos la lectura para que las policies filtren
     // por la org de la sesión (mismo patrón que el resto de rutas tenant).
@@ -38,7 +38,7 @@ export const auditRoute: FastifyPluginAsync = async (app) => {
     const { org, staff } = guard.ctx;
     if (!CAN_READ_AUDIT.has(staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para ver el historial.' };
+      return { error: 'No tienes permiso para ver el historial.' };
     }
 
     const q = req.query as Record<string, unknown>;

@@ -57,7 +57,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
     return withTenant(db, org.id, async (db) => {
-    if (!CAN_EDIT_BRANDING.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para editar la identidad.' }; }
+    if (!CAN_EDIT_BRANDING.has(staff.role)) { reply.code(403); return { error: 'No tienes permiso para editar la identidad.' }; }
     if ((await writeLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' }; }
 
     const parsed = AdminBrandingUpdateRequestSchema.safeParse(req.body);
@@ -140,7 +140,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
-    if (!CAN_EDIT_BRANDING.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para editar la identidad.' }; }
+    if (!CAN_EDIT_BRANDING.has(staff.role)) { reply.code(403); return { error: 'No tienes permiso para editar la identidad.' }; }
     if ((await writeLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' }; }
 
     // Multipart: exactamente un archivo (igual patrón que la portada).
@@ -159,7 +159,7 @@ export const orgBrandingRoute: FastifyPluginAsync = async (app) => {
       else parseErr = true;
     }
     if (parseErr) { reply.code(400); return { error: 'Carga de archivo inválida.' }; }
-    if (fileCount > 1) { reply.code(400); return { error: 'Subí exactamente un archivo.' }; }
+    if (fileCount > 1) { reply.code(400); return { error: 'Sube exactamente un archivo.' }; }
     if (oversize || (buf && buf.length > MAX_LOGO_BYTES)) { reply.code(413); return { error: 'El logo supera el máximo de 2 MB.' }; }
     if (fileCount === 0 || !buf) { reply.code(400); return { error: 'Se requiere un archivo de logo.' }; }
 

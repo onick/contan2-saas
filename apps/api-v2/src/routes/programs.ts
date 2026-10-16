@@ -65,11 +65,11 @@ export const programsRoute: FastifyPluginAsync = async (app) => {
   // ── POST /programs (alta rápida) ────────────────────────────────────────────
   app.post('/programs', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tenés permiso para crear programas.');
+    const guard = requireRole(await requireTenantStaff(db, req), MANAGER_ROLES, 'No tienes permiso para crear programas.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
-    if ((await programsLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas altas seguidas. Esperá un momento.' }; }
+    if ((await programsLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas altas seguidas. Espera un momento.' }; }
 
     const parsed = ProgramCreateRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Datos de programa inválidos.' }; }

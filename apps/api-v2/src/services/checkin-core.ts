@@ -96,7 +96,7 @@ export async function checkinIdentified(
         .selectFrom('users').select('id')
         .where('organization_id', '=', orgId).where('email', '=', email)
         .executeTakeFirst();
-      if (exists) throw new CheckinError(409, 'Ese correo ya está registrado. Identificá al visitante con su código.');
+      if (exists) throw new CheckinError(409, 'Ese correo ya está registrado. Identifica al visitante con su código.');
     }
     let created: { id: string; code: string; visit_count: number } | undefined;
     for (let attempt = 0; attempt < 5 && !created; attempt += 1) {

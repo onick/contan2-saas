@@ -109,7 +109,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
-    if ((await puertaLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados registros seguidos. Esperá un momento.' }; }
+    if ((await puertaLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados registros seguidos. Espera un momento.' }; }
 
     const parsed = PuertaRegisterRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Datos de registro inválidos.' }; }
@@ -132,7 +132,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
       user = (await db.selectFrom('users').select(['id', 'code', 'first_name', 'last_name'])
         .where('organization_id', '=', orgId).where('code', '=', resolveCode(code, guard.ctx.org.codePrefix))
         .where('deleted_at', 'is', null).executeTakeFirst()) ?? null;
-      if (!user) { reply.code(404); return { error: 'No encontramos a nadie con ese código. Registrá como nuevo o sin datos.' }; }
+      if (!user) { reply.code(404); return { error: 'No encontramos a nadie con ese código. Registra como nuevo o sin datos.' }; }
       bumpExisting = true;
     } else if (mode === 'new') {
       if (!visitor) { reply.code(400); return { error: 'Faltan los datos del visitante.' }; }
@@ -169,7 +169,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
             .returning(['id', 'code', 'first_name', 'last_name']).executeTakeFirst();
           if (created) user = created;
         }
-        if (!user) { reply.code(500); return { error: 'No se pudo generar la credencial. Reintentá.' }; }
+        if (!user) { reply.code(500); return { error: 'No se pudo generar la credencial. Reintenta.' }; }
       }
     }
     if (mode === 'group' && !group) { reply.code(400); return { error: 'Faltan los datos del grupo.' }; }
@@ -254,7 +254,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
     return withTenant(db, org.id, async (db) => {
-    if ((await puertaLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas descargas seguidas. Esperá un momento.' }; }
+    if ((await puertaLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas descargas seguidas. Espera un momento.' }; }
 
     const q = req.query as Record<string, unknown>;
     const salaId = typeof q.sala === 'string' && q.sala.trim() ? q.sala.trim() : null;

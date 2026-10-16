@@ -37,7 +37,7 @@ export function PlatformLoginForm() {
       router.refresh();
     } catch {
       setPhase('idle');
-      setError('Problema de red. Reintentá.');
+      setError('Problema de red. Reintenta.');
     }
   }
 

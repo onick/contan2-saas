@@ -99,7 +99,7 @@ export function PeriodReport() {
         setPreview(body as Preview);
       }
     } catch {
-      if (mySeq === seq.current) setError('Problema de red. Reintentá.');
+      if (mySeq === seq.current) setError('Problema de red. Reintenta.');
     } finally {
       if (mySeq === seq.current) setBusy(false);
     }
@@ -250,7 +250,7 @@ export function PeriodReport() {
             )}
           </div>
         ) : (
-          <p className="py-6 text-center text-[13px] text-faint">Elegí un rango para ver la vista previa.</p>
+          <p className="py-6 text-center text-[13px] text-faint">Elige un rango para ver la vista previa.</p>
         )}
       </div>
     </Card>

@@ -72,7 +72,7 @@ export function ProtocolDirectory() {
       const r = await fetch(`/app/protocolo/api/${encodeURIComponent(p.userId)}`, { method: 'DELETE' });
       if (r.status === 204) await load();
       else setError(((await r.json().catch(() => null)) as { error?: string } | null)?.error ?? 'No pudimos desactivar la designación.');
-    } catch { setError('Problema de red. Intentá de nuevo.'); }
+    } catch { setError('Problema de red. Intenta de nuevo.'); }
     finally { setBusy(null); setConfirming(null); }
   }
 
@@ -86,7 +86,7 @@ export function ProtocolDirectory() {
   if (phase === 'forbidden') {
     return (
       <Card padding="md" className="mt-6">
-        <p className="text-sm font-semibold text-ink">Necesitás permisos de administración</p>
+        <p className="text-sm font-semibold text-ink">Necesitas permisos de administración</p>
         <p className="mt-1 text-[13px] text-muted">El módulo de protocolo lo gestionan owner y admin.</p>
       </Card>
     );
@@ -128,13 +128,13 @@ export function ProtocolDirectory() {
           <Loader2 size={15} strokeWidth={2} aria-hidden="true" className="animate-spin" /> Cargando directorio…
         </p>
       ) : phase === 'error' ? (
-        <Card padding="md" className="mt-6"><p className="text-[13px] text-muted">No pudimos cargar el directorio. Recargá la página.</p></Card>
+        <Card padding="md" className="mt-6"><p className="text-[13px] text-muted">No pudimos cargar el directorio. Recarga la página.</p></Card>
       ) : visible.length === 0 ? (
         <Card padding="md" className="mt-6 text-center">
           <Medal size={26} strokeWidth={1.5} aria-hidden="true" className="mx-auto text-faint" />
           <p className="mt-2 text-sm font-semibold text-ink">{profiles.length === 0 ? 'Aún no hay invitados de protocolo' : 'Sin resultados para tu búsqueda'}</p>
           {profiles.length === 0 ? (
-            <p className="mt-1 text-[13px] text-muted">Designá a las autoridades, prensa y aliados del centro para invitarlos con tratamiento especial.</p>
+            <p className="mt-1 text-[13px] text-muted">Designa a las autoridades, prensa y aliados del centro para invitarlos con tratamiento especial.</p>
           ) : null}
         </Card>
       ) : (
@@ -245,13 +245,13 @@ export function ActivityPicker({ onClose, onPick }: {
     <div className="fixed inset-0 z-[60] grid place-items-center p-4" role="dialog" aria-modal="true" aria-label="Elegir actividad">
       <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-ink/40" />
       <div className="relative w-full max-w-md rounded-2xl border border-line bg-surface p-5 shadow-xl">
-        <h3 className="text-base font-bold tracking-tight text-ink">¿A qué actividad invitás?</h3>
+        <h3 className="text-base font-bold tracking-tight text-ink">¿A qué actividad invitas?</h3>
         {phase === 'loading' ? (
           <p className="mt-3 flex items-center gap-2 text-[13px] text-faint" aria-busy="true">
             <Loader2 size={14} strokeWidth={2} aria-hidden="true" className="animate-spin" /> Cargando actividades activas…
           </p>
         ) : phase === 'error' ? (
-          <p className="mt-3 text-[13px] text-muted">No pudimos cargar las actividades. Reintentá.</p>
+          <p className="mt-3 text-[13px] text-muted">No pudimos cargar las actividades. Reintenta.</p>
         ) : items.length === 0 ? (
           <p className="mt-3 text-[13px] text-muted">No hay actividades activas ahora mismo.</p>
         ) : (
@@ -345,7 +345,7 @@ export function DesignateDrawer({ form, onClose, onSaved }: {
       });
       if (r.ok) { onSaved(); return; }
       setError(((await r.json().catch(() => null)) as { error?: string } | null)?.error ?? 'No pudimos guardar la designación.');
-    } catch { setError('Problema de red. Intentá de nuevo.'); }
+    } catch { setError('Problema de red. Intenta de nuevo.'); }
     finally { setSaving(false); }
   }
 
@@ -377,14 +377,14 @@ export function DesignateDrawer({ form, onClose, onSaved }: {
             ) : (
               <>
                 <input id="proto-user" value={query} onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Buscá por nombre, código o email…" autoFocus
+                  placeholder="Busca por nombre, código o email…" autoFocus
                   className={cn('mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13.5px] text-ink placeholder:text-faint', focusRing)} />
                 {searching ? <p className="mt-1.5 text-[12px] text-faint" aria-busy="true">Buscando…</p> : null}
                 {!searching && searched && results.length === 0 ? (
                   <p className="mt-1.5 rounded-lg bg-surface-container px-3 py-2 text-[12.5px] text-muted">
                     No encontramos a nadie con ese dato. El invitado debe existir como
-                    visitante primero: crealo en <strong>Usuarios → Nuevo visitante</strong> y
-                    volvé a buscarlo acá (su designación de protocolo se suma a su perfil).
+                    visitante primero: créalo en <strong>Usuarios → Nuevo visitante</strong> y
+                    vuelve a buscarlo acá (su designación de protocolo se suma a su perfil).
                   </p>
                 ) : null}
                 {results.length > 0 ? (

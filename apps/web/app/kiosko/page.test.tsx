@@ -99,7 +99,7 @@ describe('/kiosko · modo API (lookup real vía proxy /kiosko/lookup)', () => {
     expect(fetchMock).toHaveBeenCalledWith('/kiosko/lookup?q=CCB-PUB001', expect.anything());
   });
 
-  it('error de red (502) → muestra "intentá de nuevo" y NO cae a demo', async () => {
+  it('error de red (502) → muestra "intenta de nuevo" y NO cae a demo', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 502, json: async () => ({ error: 'x' }) });
     vi.stubGlobal('fetch', fetchMock);
 

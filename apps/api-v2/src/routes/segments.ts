@@ -379,7 +379,7 @@ export const segmentsRoute: FastifyPluginAsync = async (app) => {
   // A diferencia de la vista (tope 500), el export incluye TODOS los miembros.
   app.get('/segments/:id/export', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = requireRole(await requireTenantStaff(db, req), SEGMENT_EXPORT_ROLES, 'No tenés permiso para exportar segmentos.');
+    const guard = requireRole(await requireTenantStaff(db, req), SEGMENT_EXPORT_ROLES, 'No tienes permiso para exportar segmentos.');
     if (!guard.ok) {
       reply.code(guard.status);
       return { error: guard.error };

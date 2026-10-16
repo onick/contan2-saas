@@ -94,7 +94,7 @@ export default async function RegistrosPage({
   if (!view) {
     if (!isDemoFallbackAllowed()) {
       return shell(
-        <Unavailable inline title="Registros no disponibles" description="No pudimos cargar las asistencias. Reintentá en unos segundos." />,
+        <Unavailable inline title="Registros no disponibles" description="No pudimos cargar las asistencias. Reintenta en unos segundos." />,
       );
     }
     return shell(
@@ -124,7 +124,7 @@ export default async function RegistrosPage({
         </div>
         {rangeInverted ? (
           <p role="alert" className="mt-3 rounded-lg border border-[#e0b4b4] bg-[#fdf3f3] px-3.5 py-2 text-[13px] font-medium text-[#9b1c1c]">
-            El rango de fechas es inválido (desde es posterior a hasta). Ajustá las fechas.
+            El rango de fechas es inválido (desde es posterior a hasta). Ajusta las fechas.
           </p>
         ) : null}
       </Card>
@@ -134,7 +134,7 @@ export default async function RegistrosPage({
           <EmptyState
             icon={CalendarX}
             title="Sin registros"
-            description={q.trim() || activityId || apiFrom || apiTo ? 'No hay asistencias para estos filtros. Probá ajustarlos.' : 'Aún no hay registros de asistencia.'}
+            description={q.trim() || activityId || apiFrom || apiTo ? 'No hay asistencias para estos filtros. Prueba ajustarlos.' : 'Aún no hay registros de asistencia.'}
           />
         </Card>
       ) : (

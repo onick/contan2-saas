@@ -24,7 +24,7 @@ export default async function ModoPublicoPage() {
           <SectionHeader
             level={1}
             title="Modo público"
-            subtitle="Las pantallas que el público y el staff usan en la entrada. Configuralas una vez en cada tablet y dejalas corriendo."
+            subtitle="Las pantallas que el público y el staff usan en la entrada. Configúralas una vez en cada tablet y déjalas corriendo."
           />
         </div>
         <PublicAppsHub />

@@ -67,7 +67,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para invitar audiencia.' }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para invitar audiencia.' }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
@@ -148,7 +148,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para invitar audiencia.' }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para invitar audiencia.' }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
@@ -262,7 +262,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para agregar invitados.' }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para agregar invitados.' }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
@@ -417,7 +417,7 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar invitaciones.' }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para gestionar invitaciones.' }; }
     const { id, invId } = req.params as { id: string; invId: string };
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
@@ -454,12 +454,12 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar invitaciones.' }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para gestionar invitaciones.' }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
     if ((await guestsImportLimiter.hit(`${orgId}:${req.ip}`)).limited) {
-      reply.code(429); return { error: 'Demasiadas importaciones seguidas. Esperá un momento.' };
+      reply.code(429); return { error: 'Demasiadas importaciones seguidas. Espera un momento.' };
     }
     const commit = (req.query as Record<string, unknown>).commit === 'true';
 
@@ -488,9 +488,9 @@ export const activityInvitationsRoute: FastifyPluginAsync = async (app) => {
       else parseErr = true;
     }
     if (parseErr) { reply.code(400); return { error: 'Carga de archivo inválida.' }; }
-    if (fileCount > 1) { reply.code(400); return { error: 'Subí exactamente un archivo.' }; }
+    if (fileCount > 1) { reply.code(400); return { error: 'Sube exactamente un archivo.' }; }
     if (oversize) { reply.code(413); return { error: `El archivo supera el máximo de ${IMPORT_MAX_BYTES / (1024 * 1024)} MB.` }; }
-    if (!buf || buf.length === 0) { reply.code(400); return { error: 'Subí un archivo CSV o Excel.' }; }
+    if (!buf || buf.length === 0) { reply.code(400); return { error: 'Sube un archivo CSV o Excel.' }; }
 
     const parsed = await parseUsersFile(buf, filename);
     if (parsed.error) { reply.code(400); return { error: parsed.error }; }

@@ -29,7 +29,7 @@ export const credentialsBulkRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if (!MANAGER_ROLES.has(guard.ctx.staff.role)) {
-      reply.code(403); return { error: 'No tenés permiso para envíos masivos.' };
+      reply.code(403); return { error: 'No tienes permiso para envíos masivos.' };
     }
     const orgId = guard.ctx.org.id;
     if ((await bulkLimiter.hit(`${orgId}:${req.ip}`)).limited) {

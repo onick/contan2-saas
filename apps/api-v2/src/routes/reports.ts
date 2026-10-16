@@ -146,18 +146,18 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const { org, staff } = guard.ctx;
     if (!CAN_GENERATE_REPORTS.has(staff.role)) {
       reply.code(403);
-      return { error: 'No tenés permiso para generar reportes.' };
+      return { error: 'No tienes permiso para generar reportes.' };
     }
     if ((await reportLimiter.hit(`${org.id}:${req.ip}`)).limited) {
       reply.code(429);
-      return { error: 'Demasiados reportes en poco tiempo. Esperá un momento.' };
+      return { error: 'Demasiados reportes en poco tiempo. Espera un momento.' };
     }
 
     const q = req.query as Record<string, unknown>;
     const format = String(q.format ?? 'json').toLowerCase();
     if (!FORMATS.has(format)) {
       reply.code(400);
-      return { error: 'Formato inválido: usá json, csv, xlsx o pdf.' };
+      return { error: 'Formato inválido: usa json, csv, xlsx o pdf.' };
     }
 
     const category = typeof q.category === 'string' && q.category.trim() ? q.category.trim() : undefined;
@@ -237,8 +237,8 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     return withTenant(db, guard.ctx.org.id, async (db) => {
     const { org, staff } = guard.ctx;
-    if (!CAN_GENERATE_REPORTS.has(staff.role)) { reply.code(403); return { error: 'No tenés permiso para generar reportes.' }; }
-    if ((await reportLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes en poco tiempo. Esperá un momento.' }; }
+    if (!CAN_GENERATE_REPORTS.has(staff.role)) { reply.code(403); return { error: 'No tienes permiso para generar reportes.' }; }
+    if ((await reportLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes en poco tiempo. Espera un momento.' }; }
 
     const q = req.query as Record<string, unknown>;
     const year = Number(q.year);
@@ -278,7 +278,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     return withTenant(db, guard.ctx.org.id, async (db) => {
-    if (!CAN_GENERATE_REPORTS.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para generar reportes.' }; }
+    if (!CAN_GENERATE_REPORTS.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para generar reportes.' }; }
     if ((await reportLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes seguidos. Espera un momento.' }; }
 
     const m = ACT_FILE_RE.exec((req.params as { file: string }).file);
@@ -321,7 +321,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     return withTenant(db, guard.ctx.org.id, async (db) => {
-    if (!CAN_GENERATE_REPORTS.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para generar reportes.' }; }
+    if (!CAN_GENERATE_REPORTS.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para generar reportes.' }; }
     if ((await reportLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes seguidos. Espera un momento.' }; }
 
     const parsed = parsePeriodQuery(req.query as Record<string, unknown>);
@@ -374,7 +374,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       const guard = await requireTenantStaff(db, req);
       if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     return withTenant(db, guard.ctx.org.id, async (db) => {
-      if (!CAN_GENERATE_REPORTS.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para generar reportes.' }; }
+      if (!CAN_GENERATE_REPORTS.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para generar reportes.' }; }
       if ((await reportLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes seguidos. Espera un momento.' }; }
 
       const parsed = parsePeriodQuery(req.query as Record<string, unknown>);
@@ -415,7 +415,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
   // Accesible también al rol 'protocolo' (gestiona su módulo), no solo owner/admin.
   app.get('/reports/protocol.xlsx', async (req, reply) => {
     const db = getDb();
-    const guard = requireRole(await requireTenantStaff(db, req), PROTOCOL_REPORT_ROLES, 'No tenés permiso para exportar protocolo.');
+    const guard = requireRole(await requireTenantStaff(db, req), PROTOCOL_REPORT_ROLES, 'No tienes permiso para exportar protocolo.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     if ((await reportLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados reportes seguidos. Espera un momento.' }; }
     return withTenant(db, guard.ctx.org.id, async (db) => {

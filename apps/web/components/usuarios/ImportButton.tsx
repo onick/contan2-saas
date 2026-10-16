@@ -69,7 +69,7 @@ export function ImportButton() {
       setRows(body.rows); setSummary(body.summary); setTruncated(body.truncated);
       setPhase('preview');
     } catch {
-      setError('Problema de red al subir el archivo. Reintentá.'); setPhase('error');
+      setError('Problema de red al subir el archivo. Reintenta.'); setPhase('error');
     }
   }
 
@@ -87,7 +87,7 @@ export function ImportButton() {
       setPhase('done');
       router.refresh(); // el padrón cambió → refresca el listado/contadores
     } catch {
-      setError('Problema de red al importar. Reintentá.'); setPhase('error');
+      setError('Problema de red al importar. Reintenta.'); setPhase('error');
     }
   }
 
@@ -115,7 +115,7 @@ export function ImportButton() {
               {(phase === 'idle' || phase === 'uploading' || phase === 'error') ? (
                 <>
                   <p className="text-[13.5px] leading-relaxed text-muted">
-                    Subí un archivo <strong>CSV o Excel</strong> con columnas <em>Nombre, Apellido, Email, Teléfono</em>.
+                    Sube un archivo <strong>CSV o Excel</strong> con columnas <em>Nombre, Apellido, Email, Teléfono</em>.
                     Primero te mostramos una vista previa: nada se guarda hasta que confirmes.
                     Los visitantes que ya existan <strong>no se modifican</strong>.
                   </p>
@@ -135,7 +135,7 @@ export function ImportButton() {
                     {phase === 'uploading' ? (
                       <><Loader2 size={22} strokeWidth={2} aria-hidden="true" className="animate-spin text-muted" /><span className="text-[13px] text-muted">Leyendo {filename}…</span></>
                     ) : (
-                      <><FileSpreadsheet size={24} strokeWidth={1.75} aria-hidden="true" className="text-faint" /><span className="text-[13.5px] font-semibold text-ink">Elegí un archivo</span><span className="text-[12px] text-faint">CSV o Excel · hasta 5 MB · 1.000 filas</span></>
+                      <><FileSpreadsheet size={24} strokeWidth={1.75} aria-hidden="true" className="text-faint" /><span className="text-[13.5px] font-semibold text-ink">Elige un archivo</span><span className="text-[12px] text-faint">CSV o Excel · hasta 5 MB · 1.000 filas</span></>
                     )}
                   </label>
 
@@ -158,7 +158,7 @@ export function ImportButton() {
                   </div>
                   {truncated ? (
                     <p className="flex items-start gap-1.5 rounded-lg bg-surface-container px-3 py-2 text-[12.5px] text-muted">
-                      <Info size={14} strokeWidth={2} aria-hidden="true" className="mt-0.5 flex-none" /> El archivo tiene más de 1.000 filas; se procesan las primeras 1.000. Subí el resto en otro archivo.
+                      <Info size={14} strokeWidth={2} aria-hidden="true" className="mt-0.5 flex-none" /> El archivo tiene más de 1.000 filas; se procesan las primeras 1.000. Sube el resto en otro archivo.
                     </p>
                   ) : null}
                   {summary.new === 0 ? (
@@ -207,7 +207,7 @@ export function ImportButton() {
                     <p className="mt-0.5 text-[12.5px] text-success-fg/90">{commitResult.skipped + commitResult.failed} se omitieron (ya existían o hubo un conflicto).</p>
                   ) : null}
                   <p className="mt-3 text-[12.5px] text-muted">
-                    Para enviarles su credencial QR usá <strong>«Enviar credenciales a pendientes…»</strong> — el import no manda correos automáticamente.
+                    Para enviarles su credencial QR usa <strong>«Enviar credenciales a pendientes…»</strong> — el import no manda correos automáticamente.
                   </p>
                 </div>
               ) : null}

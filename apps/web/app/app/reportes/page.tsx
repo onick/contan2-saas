@@ -58,7 +58,7 @@ export default async function ReportesPage() {
   }
 
   if (!data) {
-    return shell(<Unavailable inline title="Reportes no disponibles" description="No pudimos calcular el resumen del período. Reintentá en unos segundos." />);
+    return shell(<Unavailable inline title="Reportes no disponibles" description="No pudimos calcular el resumen del período. Reintenta en unos segundos." />);
   }
 
   return shell(<ReportesDashboard initial={data} initialRange={range} canExport={canExport} />);

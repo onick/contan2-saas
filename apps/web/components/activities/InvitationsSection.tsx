@@ -63,7 +63,7 @@ export function InvitationsSection({ activityId, canManage, refreshKey }: {
         setError(b?.error ?? 'No pudimos cancelar la invitación.');
       }
     } catch {
-      setError('Problema de red. Intentá de nuevo.');
+      setError('Problema de red. Intenta de nuevo.');
     } finally {
       setBusy(null); setConfirming(null);
     }

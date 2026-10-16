@@ -93,7 +93,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar invitaciones.' }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para gestionar invitaciones.' }; }
 
     const rows = await db.selectFrom('staff_invitations')
       .select(['id', 'email', 'full_name', 'role', 'status', 'expires_at', 'created_at'])
@@ -109,7 +109,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para invitar.' }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para invitar.' }; }
     if ((await inviteLimiter.hit(`${guard.ctx.org.id}:${req.ip}`)).limited) {
       reply.code(429); return { error: 'Demasiadas invitaciones. Espera un momento.' };
     }
@@ -171,7 +171,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar invitaciones.' }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para gestionar invitaciones.' }; }
     const id = (req.params as { id: string }).id;
 
     const inv = await db.selectFrom('staff_invitations').select(['id', 'email', 'status'])
@@ -199,7 +199,7 @@ export const staffInvitationsRoute: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tenés permiso para gestionar invitaciones.' }; }
+    if (!MANAGER_ROLES.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para gestionar invitaciones.' }; }
     const id = (req.params as { id: string }).id;
     return withTenant(db, guard.ctx.org.id, async (db) => {
 

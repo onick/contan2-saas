@@ -57,7 +57,7 @@ export type CodecFactory = (file: Blob) => Promise<CoverCodec>;
 
 export function validateInput(file: { type: string; size: number }): OptimizeError | null {
   if (!(ACCEPTED_TYPES as readonly string[]).includes(file.type)) {
-    return new OptimizeError('bad_type', 'Formato no permitido. Usá JPEG, PNG o WebP.');
+    return new OptimizeError('bad_type', 'Formato no permitido. Usa JPEG, PNG o WebP.');
   }
   if (file.size > MAX_INPUT_BYTES) {
     return new OptimizeError('too_large_input', 'La imagen supera el máximo de 25 MB.');
@@ -93,7 +93,7 @@ export async function optimizeCover(file: File, makeCodec: CodecFactory = browse
       }
       if (i < QUALITY_LADDER.length - 1) await yieldToBrowser();
     }
-    throw new OptimizeError('cannot_reach_target', 'No pudimos optimizar la imagen por debajo de 5 MB. Probá con una imagen más liviana.');
+    throw new OptimizeError('cannot_reach_target', 'No pudimos optimizar la imagen por debajo de 5 MB. Prueba con una imagen más liviana.');
   } finally {
     codec.dispose();
   }

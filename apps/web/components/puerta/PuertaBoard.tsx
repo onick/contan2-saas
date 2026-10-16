@@ -259,7 +259,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
               </div>
               {dup.length > 0 ? (
                 <div className="mt-3 rounded-xl border border-line bg-surface-container/60 p-3">
-                  <p className="text-[12px] font-semibold text-ink">¿Ya está en el padrón? Usá su credencial (no crea duplicado):</p>
+                  <p className="text-[12px] font-semibold text-ink">¿Ya está en el padrón? Usa su credencial (no crea duplicado):</p>
                   <div className="mt-2 flex flex-col gap-1.5">
                     {dup.map((v) => (
                       <div key={v.code} className="flex items-center gap-2.5 rounded-lg bg-surface px-3 py-2">

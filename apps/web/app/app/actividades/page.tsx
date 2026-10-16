@@ -36,7 +36,7 @@ async function ActivitiesData() {
   const canWrite = gate.status === 'ok' && (gate.staff.role === 'owner' || gate.staff.role === 'admin');
   // api caída + demo no permitido (staging/prod) → indisponibilidad, NUNCA demo.
   if (!view && !isDemoFallbackAllowed()) {
-    return <Unavailable inline title="Actividades no disponibles" description="No pudimos cargar las actividades. Reintentá en unos segundos." />;
+    return <Unavailable inline title="Actividades no disponibles" description="No pudimos cargar las actividades. Reintenta en unos segundos." />;
   }
   const activities: Activity[] = view?.activities ?? ACTIVITIES;
   const total = view?.total ?? activities.length;
@@ -130,7 +130,7 @@ export default async function ActividadesPage() {
           <SectionHeader
             level={1}
             title="Actividades"
-            subtitle="Gestioná los eventos del centro cultural"
+            subtitle="Gestiona los eventos del centro cultural"
             actions={<NewActivityButton />}
           />
         </div>

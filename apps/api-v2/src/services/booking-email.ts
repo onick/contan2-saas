@@ -62,7 +62,7 @@ export function buildBookingHtml(to: string, b: BookingInfo, branding: OrgBrandi
         <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">${colegio}${level} · ${b.studentCount} ${b.kind?.trim() ? `integrante${b.studentCount === 1 ? '' : 's'}` : `alumno${b.studentCount === 1 ? '' : 's'}`}</p>
       </td></tr>
       <tr><td style="padding:18px 32px 28px;">
-        <p style="margin:0;color:#374151;font-size:15px;line-height:1.6;">${name}, quedó confirmada la visita de tu grupo. Te esperamos el día y la hora indicados. Si necesitás reprogramar o cancelar, respondé este correo.</p>
+        <p style="margin:0;color:#374151;font-size:15px;line-height:1.6;">${name}, quedó confirmada la visita de tu grupo. Te esperamos el día y la hora indicados. Si necesitas reprogramar o cancelar, responde este correo.</p>
       </td></tr>
     </table>
   </td></tr></table></body></html>`;

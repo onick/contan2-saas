@@ -25,14 +25,14 @@ export function ForgotForm() {
         body: JSON.stringify({ email: email.trim() }),
       });
       if (res.status === 429) {
-        setError('Demasiados intentos. Esperá unos minutos.');
+        setError('Demasiados intentos. Espera unos minutos.');
       } else if (!res.ok) {
-        setError('No pudimos procesar la solicitud. Intentá de nuevo.');
+        setError('No pudimos procesar la solicitud. Intenta de nuevo.');
       } else {
         setDone(true);
       }
     } catch {
-      setError('Problema de red. Revisá tu conexión.');
+      setError('Problema de red. Revisa tu conexión.');
     } finally {
       setBusy(false);
     }
@@ -42,7 +42,7 @@ export function ForgotForm() {
     return (
       <div className="flex flex-col items-center gap-2 py-4 text-center" role="status">
         <MailCheck size={28} strokeWidth={1.75} aria-hidden="true" className="text-success-fg" />
-        <p className="text-sm font-semibold text-ink">Revisá tu correo</p>
+        <p className="text-sm font-semibold text-ink">Revisa tu correo</p>
         <p className="text-[13px] text-muted">Si la cuenta existe, vas a recibir un enlace para crear una contraseña nueva. Vence en 1 hora.</p>
         <a href="/login" className={cn('mt-2 rounded text-[13px] font-semibold text-brand-text hover:underline', focusRing)}>Volver a ingresar</a>
       </div>

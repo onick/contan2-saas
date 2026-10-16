@@ -117,7 +117,7 @@ export function PuertaIdentify({ onRegister, busy, companions, onCompanions }: {
           ))}
         </ul>
       ) : q.trim().length >= 2 ? (
-        <p className="mt-3 px-1 text-[13px] text-muted">Sin resultados. Probá con el código o registrá como anónimo.</p>
+        <p className="mt-3 px-1 text-[13px] text-muted">Sin resultados. Prueba con el código o registra como anónimo.</p>
       ) : null}
 
       {/* Fallback: tipear el código directo */}

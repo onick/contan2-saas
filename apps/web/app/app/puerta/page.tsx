@@ -25,7 +25,7 @@ export default async function PuertaPage() {
           <SectionHeader
             level={1}
             title="Puerta · Salas permanentes"
-            subtitle="Elegí la sala (o ambas) y registrá al visitante. Cada entrada suma a la estadística de esa sala."
+            subtitle="Elige la sala (o ambas) y registra al visitante. Cada entrada suma a la estadística de esa sala."
             actions={
               <Link href="/app/puerta/reportes" className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
                 <BarChart3 size={16} strokeWidth={1.9} aria-hidden="true" /> Reportes y estadísticas

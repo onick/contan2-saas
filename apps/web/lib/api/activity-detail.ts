@@ -23,7 +23,7 @@ export async function fetchActivityDetail(id: string): Promise<ActivityDetailRes
     const msg = res.status === 404
       ? 'La actividad ya no existe o no pertenece a este centro.'
       : res.status === 401
-        ? 'Tu sesión expiró. Iniciá sesión de nuevo.'
+        ? 'Tu sesión expiró. Inicia sesión de nuevo.'
         : body?.error ?? 'No pudimos cargar la actividad.';
     return { ok: false, status: res.status, error: msg };
   }

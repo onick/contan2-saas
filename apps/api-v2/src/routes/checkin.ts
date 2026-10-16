@@ -316,7 +316,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     return withTenant(db, orgId, async (db) => {
     if ((await manualLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429);
-      return { error: 'Demasiados intentos. Esperá un momento e intentá de nuevo.' };
+      return { error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' };
     }
     const parsed = AdminCheckinRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Datos de check-in inválidos.' }; }
@@ -368,7 +368,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     return withTenant(db, orgId, async (db) => {
     if ((await anonLimiter.hit(`${orgId}:${req.ip}`)).limited) {
       reply.code(429);
-      return { error: 'Demasiados intentos. Esperá un momento e intentá de nuevo.' };
+      return { error: 'Demasiados intentos. Espera un momento e intenta de nuevo.' };
     }
     const key = String(req.headers['idempotency-key'] ?? '').trim();
     if (!key || key.length > 200) {

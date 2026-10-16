@@ -34,7 +34,7 @@ describe('TeamRowActions', () => {
   });
 
   it('error de la API se muestra (p. ej. último owner)', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(400, { error: 'No podés suspender al último propietario activo.' })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(400, { error: 'No puedes suspender al último propietario activo.' })));
     render(<TeamRowActions member={operator} currentStaffId="s1" currentRole="admin" onChanged={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /Acciones/i }));
     fireEvent.click(screen.getByText('Suspender'));

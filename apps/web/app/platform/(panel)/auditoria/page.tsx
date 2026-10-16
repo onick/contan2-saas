@@ -29,7 +29,7 @@ export default async function PlatformAuditoriaPage({ searchParams }: { searchPa
       <p className="mt-1 text-[14px] text-white/45">Bitácora global de las acciones del operador de la plataforma.</p>
 
       {!data ? (
-        <div className="mt-6 rounded-xl border border-red-400/20 bg-red-500/[0.06] p-6 text-[13.5px] text-red-200">No pudimos cargar la bitácora. Reintentá.</div>
+        <div className="mt-6 rounded-xl border border-red-400/20 bg-red-500/[0.06] p-6 text-[13.5px] text-red-200">No pudimos cargar la bitácora. Reintenta.</div>
       ) : data.entries.length === 0 ? (
         <div className="mt-6 flex flex-col items-center gap-2 rounded-xl border border-white/8 bg-white/[0.02] p-12 text-center">
           <ScrollText size={24} className="text-white/30" aria-hidden="true" />

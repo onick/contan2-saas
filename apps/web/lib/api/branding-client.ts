@@ -10,7 +10,7 @@ export async function updateBranding(patch: Record<string, unknown>): Promise<Re
   try {
     res = await fetch('/app/identidad/api/branding', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) });
   } catch {
-    return { ok: false, status: 0, error: 'No pudimos conectar. Intentá de nuevo.' };
+    return { ok: false, status: 0, error: 'No pudimos conectar. Intenta de nuevo.' };
   }
   const b = await res.json().catch(() => ({}));
   if (!res.ok) return { ok: false, status: res.status, error: (b as { error?: string }).error ?? 'No se pudo guardar.' };

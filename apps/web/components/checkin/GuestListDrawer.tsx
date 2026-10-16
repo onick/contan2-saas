@@ -340,7 +340,7 @@ export function GuestListDrawer({ activity, onClose, onArrival }: {
               </ul>
               ) : !searching ? (
                 <p className="px-3 py-8 text-center text-[13px] text-faint">
-                  {total === 0 ? 'Nadie en la lista todavía. Buscá arriba para agregar del padrón o crear un visitante y darle entrada.'
+                  {total === 0 ? 'Nadie en la lista todavía. Busca arriba para agregar del padrón o crear un visitante y darle entrada.'
                     : filter === 'pending' ? 'Todos los invitados ya llegaron 🎉' : 'Sin invitados.'}
                 </p>
               ) : null}

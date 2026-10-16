@@ -114,7 +114,7 @@ export function BrandingEditor({ initial, canEdit }: Props) {
 
             <LogoUploadField
               label="Logo vertical"
-              hint="Se usa en el kiosko y en la credencial (tarjeta de miembro). Si lo dejás vacío, se usa el horizontal."
+              hint="Se usa en el kiosko y en la credencial (tarjeta de miembro). Si lo dejas vacío, se usa el horizontal."
               previewLabel="Kiosko · credencial"
               previewBg="#ffffff"
               value={form.credentialLogoUrl}
@@ -128,7 +128,7 @@ export function BrandingEditor({ initial, canEdit }: Props) {
             </div>
 
             <div>
-              <span className="text-[12px] font-medium text-muted">Empezá con una paleta</span>
+              <span className="text-[12px] font-medium text-muted">Empieza con una paleta</span>
               <div className="mt-2">
                 <PalettePresets primary={form.primaryColor} accent={form.secondaryColor} onPick={pickPalette} disabled={!canEdit} />
               </div>

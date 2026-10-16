@@ -87,7 +87,7 @@ export function CoverReframe({ src, posY, onChange, disabled }: CoverReframeProp
         ref={boxRef}
         role="slider"
         tabIndex={disabled ? -1 : 0}
-        aria-label="Encuadre vertical de la portada (arrastrá la imagen, o usá las flechas arriba/abajo)"
+        aria-label="Encuadre vertical de la portada (arrastra la imagen, o usa las flechas arriba/abajo)"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={posY}
@@ -118,14 +118,14 @@ export function CoverReframe({ src, posY, onChange, disabled }: CoverReframeProp
             'pointer-events-none absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-full bg-ink/60 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm motion-safe:transition-opacity',
             dragging && 'opacity-0',
           )}>
-            <Move size={12} strokeWidth={2.25} aria-hidden="true" /> Arrastrá para reencuadrar
+            <Move size={12} strokeWidth={2.25} aria-hidden="true" /> Arrastra para reencuadrar
           </span>
         ) : null}
       </div>
       <p className="mt-1.5 text-[11px] text-faint" aria-live="polite">
         {canPan
           ? <>Encuadre: <span className="tabular-nums font-medium text-muted">{posY === 50 ? 'centro' : posY < 50 ? `↑ ${50 - posY}` : `↓ ${posY - 50}`}</span> · también con las flechas ↑↓ del teclado</>
-          : 'Esta imagen no tiene excedente vertical para reencuadrar. Cambiá la portada subiendo la imagen original (ya no se recorta al subirla).'}
+          : 'Esta imagen no tiene excedente vertical para reencuadrar. Cambia la portada subiendo la imagen original (ya no se recorta al subirla).'}
       </p>
     </div>
   );

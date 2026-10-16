@@ -250,7 +250,7 @@ function categoryLinks(c: AgentCategoryStats, format: 'pdf' | 'xlsx' | null): Re
 function clarifyCategories(phrase: string, cats: string[]): ReportsAgentResponse {
   return {
     kind: 'clarify',
-    message: `«${phrase.trim()}» matchea varios ciclos/categorías — ¿cuál querés?`,
+    message: `«${phrase.trim()}» matchea varios ciclos/categorías — ¿cuál quieres?`,
     options: cats.slice(0, 5).map((c) => ({ label: c, query: `Reporte completo de ${c}` })),
   };
 }
@@ -276,7 +276,7 @@ async function activityStats(db: DbClient, orgId: string, a: ActivityRow): Promi
 
 const HELP: ReportsAgentResponse = {
   kind: 'help',
-  message: 'Puedo ejecutar acciones de reportería por vos. Probá con una de estas:',
+  message: 'Puedo ejecutar acciones de reportería por ti. Prueba con una de estas:',
   options: [
     { label: 'Reporte de este mes en PDF', query: 'Emite el reporte de este mes en PDF' },
     { label: 'Comparar este mes vs anterior', query: 'Compara este mes con el mes anterior' },
@@ -289,7 +289,7 @@ const HELP: ReportsAgentResponse = {
 function clarify(phrase: string, candidates: ActivityRow[], otherPart?: string): ReportsAgentResponse {
   return {
     kind: 'clarify',
-    message: `Encontré varias actividades que matchean «${phrase.trim()}» — ¿cuál querés?`,
+    message: `Encontré varias actividades que matchean «${phrase.trim()}» — ¿cuál quieres?`,
     options: candidates.slice(0, 5).map((c) => ({
       label: `${c.name} (${new Date(c.date).toISOString().slice(0, 10)})`,
       query: otherPart ? `compara ${c.name} vs ${otherPart}` : `¿Cómo le fue a ${c.name}?`,
@@ -307,7 +307,7 @@ export async function runAgentQuery(db: DbClient, orgId: string, query: string, 
     const kpis = await periodKpis(db, orgId, intent.period);
     return {
       kind: 'period_report',
-      message: `Listo — ${intent.period.label} (${intent.period.from} a ${intent.period.to}): ${fmtNum(kpis.activities)} actividades, ${fmtNum(kpis.attendances)} asistencias, ${fmtNum(kpis.uniqueVisitors)} visitantes únicos y ${kpis.occupancyPct}% de ocupación. Descargá el informe:`,
+      message: `Listo — ${intent.period.label} (${intent.period.from} a ${intent.period.to}): ${fmtNum(kpis.activities)} actividades, ${fmtNum(kpis.attendances)} asistencias, ${fmtNum(kpis.uniqueVisitors)} visitantes únicos y ${kpis.occupancyPct}% de ocupación. Descarga el informe:`,
       period: { ...intent.period, kpis },
       links: periodLinks(intent.period, intent.format),
     };
@@ -393,7 +393,7 @@ export async function runAgentQuery(db: DbClient, orgId: string, query: string, 
     if (c.length === 0) {
       return {
         kind: 'clarify',
-        message: `No encontré ninguna actividad que matchee «${part.trim()}». Probá con otra parte del nombre.`,
+        message: `No encontré ninguna actividad que matchee «${part.trim()}». Prueba con otra parte del nombre.`,
         options: HELP.options,
       };
     }

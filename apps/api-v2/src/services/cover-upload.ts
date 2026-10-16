@@ -46,7 +46,7 @@ export function detectImageKind(buf: Buffer): ImageKind {
 export function assertAllowedImage(buf: Buffer): 'jpeg' | 'png' | 'webp' {
   const kind = detectImageKind(buf);
   if (kind === 'jpeg' || kind === 'png' || kind === 'webp') return kind;
-  throw new CoverError('unsupported_type', 'Formato no permitido. Usá JPEG, PNG o WebP.');
+  throw new CoverError('unsupported_type', 'Formato no permitido. Usa JPEG, PNG o WebP.');
 }
 
 // Decode REAL + normalización: auto-orient (EXIF) → inside 1600×2400 (SIN
@@ -63,7 +63,7 @@ export const LOGO_MAX_H = 400;
 export function assertLogoImage(buf: Buffer): 'jpeg' | 'png' | 'webp' | 'svg' {
   const kind = detectImageKind(buf);
   if (kind === 'jpeg' || kind === 'png' || kind === 'webp' || kind === 'svg') return kind;
-  throw new CoverError('unsupported_type', 'Formato no permitido. Usá PNG, SVG, JPEG o WebP.');
+  throw new CoverError('unsupported_type', 'Formato no permitido. Usa PNG, SVG, JPEG o WebP.');
 }
 
 // Decode REAL + normalización del logo → PNG (preserva transparencia), encajado

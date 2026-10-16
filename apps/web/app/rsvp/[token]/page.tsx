@@ -9,7 +9,7 @@ import { RsvpClient } from '../../../components/rsvp/RsvpClient';
 // host). Shell visual del login.
 export const metadata: Metadata = {
   title: 'Invitación · Contan2',
-  description: 'Confirmá tu asistencia',
+  description: 'Confirma tu asistencia',
 };
 
 export const dynamic = 'force-dynamic';

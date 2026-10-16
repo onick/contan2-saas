@@ -46,7 +46,7 @@ export function ChangePasswordCard() {
         setMsg({ kind: 'error', text: body?.error ?? 'No pudimos actualizar la contraseña.' });
       }
     } catch {
-      setMsg({ kind: 'error', text: 'Problema de red. Reintentá.' });
+      setMsg({ kind: 'error', text: 'Problema de red. Reintenta.' });
     } finally {
       setBusy(false);
     }

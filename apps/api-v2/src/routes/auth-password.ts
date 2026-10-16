@@ -125,7 +125,7 @@ export const authPasswordRoute: FastifyPluginAsync = async (app) => {
     // Token de otro tenant → mismo error genérico (no filtra existencia).
     if (!row || row.status !== 'active' || row.organization_id !== tenant.org.id) {
       reply.code(400);
-      return { error: 'Token inválido o expirado. Solicitá un nuevo enlace.' };
+      return { error: 'Token inválido o expirado. Solicita un nuevo enlace.' };
     }
 
     const newHash = await hashStaffPassword(parsed.data.newPassword);
@@ -141,7 +141,7 @@ export const authPasswordRoute: FastifyPluginAsync = async (app) => {
         .where('staff_member_id', '=', row.staff_id).where('revoked_at', 'is', null).execute();
     });
 
-    return { ok: true, message: 'Contraseña actualizada. Iniciá sesión con la nueva.' };
+    return { ok: true, message: 'Contraseña actualizada. Inicia sesión con la nueva.' };
   });
 
   app.post('/auth/change-password', async (req: FastifyRequest, reply) => {
@@ -224,7 +224,7 @@ export const authPasswordRoute: FastifyPluginAsync = async (app) => {
     const id = (req.params as { id: string }).id;
     if (id === guard.ctx.sessionId) {
       reply.code(400);
-      return { error: 'Usá /logout para cerrar tu sesión actual.' };
+      return { error: 'Usa /logout para cerrar tu sesión actual.' };
     }
     // Sólo sesiones PROPIAS (where staff_member_id) → la de otro staff es 404.
     const res = await db.updateTable('staff_auth_sessions').set({ revoked_at: sql<string>`now()` })

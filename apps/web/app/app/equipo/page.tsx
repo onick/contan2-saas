@@ -35,7 +35,7 @@ export default async function EquipoPage() {
       <Unavailable
         inline
         title="Acceso restringido"
-        description="La gestión del equipo es para propietarios y administradores. Si creés que es un error, pedile acceso a un administrador."
+        description="La gestión del equipo es para propietarios y administradores. Si crees que es un error, pídele acceso a un administrador."
       />,
     );
   }

@@ -58,14 +58,14 @@ export function TeamMembers({ currentStaffId, currentRole, onMutated }: {
       const body = await res.json().catch(() => ({}));
       if (id !== reqId.current) return;
       if (!res.ok) {
-        setError(res.status === 403 ? 'No tenés permiso para ver el equipo (solo owner/admin).' : (body.error ?? 'No pudimos cargar el equipo.'));
+        setError(res.status === 403 ? 'No tienes permiso para ver el equipo (solo owner/admin).' : (body.error ?? 'No pudimos cargar el equipo.'));
         setPhase('error'); return;
       }
       setItems((prev) => (cur ? [...prev, ...body.items] : body.items));
       setCursor(body.nextCursor ?? null);
       setPhase('ready');
     } catch {
-      if (id === reqId.current) { setError('Problema de red. Recargá.'); setPhase('error'); }
+      if (id === reqId.current) { setError('Problema de red. Recarga.'); setPhase('error'); }
     }
   }, [qs]);
 
