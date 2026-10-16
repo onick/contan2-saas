@@ -13,7 +13,7 @@
 //   · carril derecho: información rápida + CHECKLIST del registro en vivo +
 //     ayuda de ISBN + consejo
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -52,8 +52,10 @@ const EMPTY: FormState = {
   physicalFormat: '', binding: '', audience: '', acquisitionSource: '', acquiredOn: '',
 };
 
-export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
+export function NewTitleForm({ staffName, subjectSuggestions, sitesCount, initialFocus = 'isbn' }: {
   staffName: string | null; subjectSuggestions: string[]; sitesCount: number;
+  /** Campo que recibe el foco al montar (el CTA del catálogo elige ISBN o manual). */
+  initialFocus?: 'isbn' | 'title';
 }) {
   const router = useRouter();
   const [f, setF] = useState<FormState>(EMPTY);
@@ -70,6 +72,10 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null); // toast tras "Guardar y nuevo"
   const isbnRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    (initialFocus === 'title' ? titleRef : isbnRef).current?.focus();
+  }, [initialFocus]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -312,7 +318,7 @@ export function NewTitleForm({ staffName, subjectSuggestions, sitesCount }: {
                 <div className="mt-3 flex flex-col gap-3">
                   <label className="block">
                     <span className={labelCls}>Título <span className="text-danger-fg">*</span></span>
-                    <input value={f.title} onChange={set('title')} required className={inputCls} />
+                    <input ref={titleRef} value={f.title} onChange={set('title')} required className={inputCls} />
                   </label>
                   <Field label="Subtítulo (opcional)" value={f.subtitle} onChange={set('subtitle')} />
                 </div>
