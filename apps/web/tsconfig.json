@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "preserve",
-    "lib": ["dom", "dom.iterable", "es2022"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "es2022"
+    ],
     "module": "esnext",
     "moduleResolution": "bundler",
     "composite": false,
@@ -12,9 +16,26 @@
     "allowJs": true,
     "incremental": true,
     "verbatimModuleSyntax": false,
-    "plugins": [{ "name": "next" }],
-    "paths": { "@/*": ["./*"] }
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", ".next"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "e2e"
+  ]
 }

@@ -199,6 +199,7 @@ export function DataTableView<T>({
               rowsWithCells.map(({ row, id, cells }) => (
                 <tr
                   key={id}
+                  data-row-id={id}
                   {...rowInteractionProps(row)}
                   className={cn(
                     'border-b border-line last:border-0',
@@ -255,6 +256,7 @@ export function DataTableView<T>({
               return (
                 <li
                   key={id}
+                  data-row-id={id}
                   {...rowInteractionProps(row)}
                   className={cn(
                     'border-b border-line last:border-0',

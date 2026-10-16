@@ -8,8 +8,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "echo 'lint placeholder (eslint-config-next llega en PR siguiente)'",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "typecheck": "tsc --noEmit && tsc -p e2e/tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "e2e": "playwright test -c e2e/playwright.config.ts",
+    "e2e:smoke": "playwright test -c e2e/playwright.config.ts --project=setup --project=desktop-1440 --grep @smoke",
+    "e2e:prod-ro": "playwright test -c e2e/playwright.config.ts --project=prod-readonly",
+    "e2e:perf": "node e2e/perf/lh-run.mjs"
   },
   "dependencies": {
     "@contan2/contracts": "workspace:*",
@@ -33,6 +37,8 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4.3.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",

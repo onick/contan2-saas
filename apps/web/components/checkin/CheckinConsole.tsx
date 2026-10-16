@@ -533,7 +533,7 @@ export function CheckinConsole() {
         {/* Panel derecho: toast (si hay) + FEED de check-ins de hoy (paridad v1) */}
         <div className="min-w-0 space-y-4">
           {toast ? (
-            <div role="alert" className={cn('flex items-start gap-2 rounded-xl border px-4 py-3 text-[13px]', toast.kind === 'success' ? 'border-success-fg/30 bg-success-bg text-success-fg' : 'border-danger-fg/30 bg-danger-bg text-danger-fg')}>
+            <div role="alert" data-testid={`checkin-toast-${toast.kind}`} className={cn('flex items-start gap-2 rounded-xl border px-4 py-3 text-[13px]', toast.kind === 'success' ? 'border-success-fg/30 bg-success-bg text-success-fg' : 'border-danger-fg/30 bg-danger-bg text-danger-fg')}>
               {toast.kind === 'success' ? <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" className="mt-0.5 flex-none" /> : <AlertTriangle size={16} strokeWidth={2} aria-hidden="true" className="mt-0.5 flex-none" />}
               <span>{toast.msg}</span>
             </div>
