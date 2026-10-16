@@ -721,7 +721,7 @@ export function ConfirmationScreen({
         if (showCred) {
           tl.to('[data-anim="cred"]', { opacity: 1, y: 0, scale: 1, duration: 0.7 }, '-=0.3')
             .to('[data-anim="qr"]', { opacity: 1, scale: 1, duration: 0.5, ease: 'back.out(1.7)' }, '-=0.45')
-            .to('[data-anim="code"]', { duration: 0.9, scrambleText: { text: visitor.code, chars: 'upperCase', speed: 0.4, revealDelay: 0.2 } }, '-=0.4');
+            .to('[data-anim="code"]', { duration: 0.9, scrambleText: { text: visitor.code ?? '', chars: 'upperCase', speed: 0.4, revealDelay: 0.2 } }, '-=0.4');
         }
         tl.to('[data-anim="badge"]', { opacity: 1, y: 0, scale: 1, stagger: 0.1, duration: 0.4 }, '-=0.35');
       }, root);
@@ -762,7 +762,7 @@ export function ConfirmationScreen({
           <>
           {/* Credencial: fondo blanco, margen de silencio preservado en p-3 del QR */}
           <div data-anim="cred" className="mt-8 flex flex-col items-center gap-6 rounded-card border border-line bg-surface p-8 text-center">
-            <div data-anim="qr">{real ? <RealQr code={visitor.code} /> : <FauxQr code={visitor.code} />}</div>
+            <div data-anim="qr">{real ? <RealQr code={visitor.code ?? ''} /> : <FauxQr code={visitor.code ?? ''} />}</div>
             <div className="flex flex-col items-center gap-2">
               <p data-anim="code" className="num text-2xl font-bold tracking-[0.08em] text-ink">{visitor.code}</p>
               <div className="flex flex-wrap items-center justify-center gap-2">

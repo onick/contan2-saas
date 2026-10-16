@@ -197,6 +197,9 @@ export async function cachedFixture<T>(name: string, factory: () => Promise<T>):
 export async function withRateLimitRetry(call: () => Promise<APIResponse>): Promise<APIResponse> {
   const first = await call();
   if (first.status() !== 429) return first;
-  await new Promise((r) => setTimeout(r, 62_000));
+  // Respeta Retry-After (segundos) si viene; si no, espera una ventana completa del limite (60 s) + margen.
+  const ra = Number(first.headers()['retry-after']);
+  const waitMs = Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000 + 1_000, 90_000) : 62_000;
+  await new Promise((r) => setTimeout(r, waitMs));
   return call();
 }

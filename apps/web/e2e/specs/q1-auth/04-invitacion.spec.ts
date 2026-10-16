@@ -25,9 +25,11 @@ test.describe.configure({ mode: 'serial' });
 
 test.describe('Q1 invitacion', () => {
   test('AUTH-12 invitacion inexistente: estado honesto, sin formulario', async ({ page }, testInfo) => {
-    await page.goto('/invite/token-inventado-que-no-existe');
+    // Desde PR-16: 404 real con app/invite/[token]/not-found.tsx (copy neutro, igual para inexistente/usada/revocada/vencida).
+    const res = await page.goto('/invite/token-inventado-que-no-existe');
+    expect(res?.status(), 'status de una invitacion inexistente').toBe(404);
     await expect(page.getByRole('heading', { level: 1, name: 'Invitación' })).toBeVisible();
-    const alert = page.getByRole('alert').filter({ hasText: /Invitación no encontrada/ });
+    const alert = page.getByRole('alert').filter({ hasText: /no es válida/ });
     await expect(alert).toBeVisible();
     await expect(page.getByRole('button', { name: 'Crear mi cuenta' })).toHaveCount(0);
     await expect(page.getByLabel(/^Contraseña/)).toHaveCount(0);
@@ -42,12 +44,12 @@ test.describe('Q1 invitacion', () => {
     const password = env('E2E_INVITE_PASSWORD') || newStrongPassword();
 
     await page.goto(`/invite/${token}`);
-    const used = await page.getByText(/ya fue usada|no encontrada/).count();
+    const used = await page.getByText(/ya fue usada|no encontrada|no es válida/).count();
     if (readState().inviteConsumed || used) {
       writeState({ inviteConsumed: true });
       skipConsumed(testInfo, 'AUTH-11');
       // AUTH-12 con el token realmente usado: estado honesto, sin formulario, y la API tampoco lo acepta.
-      await expect(page.getByRole('alert').filter({ hasText: /ya fue usada|expir/ })).toBeVisible();
+      await expect(page.getByRole('alert').filter({ hasText: /ya fue usada|expir|no es válida/ })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Crear mi cuenta' })).toHaveCount(0);
       const again = await request.post('/invite/api', { data: { token, password: newStrongPassword(), fullName: 'Intruso' } });
       expect(again.status(), 'reuso del token de invitacion').toBe(410);
@@ -79,7 +81,7 @@ test.describe('Q1 invitacion', () => {
 
     // AUTH-12: el mismo enlace, ya usado -> estado honesto y sin formulario.
     await page.goto(`/invite/${token}`);
-    await expect(page.getByRole('alert').filter({ hasText: /ya fue usada|expir/ })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: /ya fue usada|expir|no es válida/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Crear mi cuenta' })).toHaveCount(0);
   });
 

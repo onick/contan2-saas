@@ -11,6 +11,7 @@ import {
 } from '../../support/q3-api';
 import { activityRow, localDateTime, rowMenu, settle } from '../../support/q3-ui';
 import { expectNoHorizontalOverflow } from '../../support/layout';
+import { withRateLimitRetry } from '../../support/q3-api';
 
 test.describe.configure({ mode: 'serial', retries: 0 });
 
@@ -236,12 +237,13 @@ test.describe('ADM-05/06/09 · eliminar, invitaciones y asistencia (API + UI)', 
     }).join(',');
     const csv = [header, row(1), row(2)].join('\n');
     const url = `${apiActivity(act.id)}/import-guests`;
-    const preview = await api.post(url, { multipart: { file: { name: 'invitados-e2e.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) } } });
+    // El import esta limitado a 3/min y el limite se comparte entre corridas: reintenta respetando Retry-After.
+    const preview = await withRateLimitRetry(() => api.post(url, { multipart: { file: { name: 'invitados-e2e.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) } } }));
     expect(preview.status(), 'import-guests preview').toBe(200);
     const pv = await jsonOf<{ mode: string; summary: Record<string, number> }>(preview);
     expect(pv.mode).toBe('preview');
     expect(JSON.stringify(pv.summary)).toMatch(/2/);
-    const commit = await api.post(`${url}?commit=true`, { multipart: { file: { name: 'invitados-e2e.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) } } });
+    const commit = await withRateLimitRetry(() => api.post(`${url}?commit=true`, { multipart: { file: { name: 'invitados-e2e.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) } } }));
     expect(commit.status(), 'import-guests commit').toBe(201);
     // registrar para limpieza: los 2 usuarios nuevos se archivan en el teardown.
     for (const n of [1, 2]) {

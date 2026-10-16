@@ -78,7 +78,6 @@ export function toKioskSuggestion(v: PublicVisitorSuggestion): KioskVisitor {
   return {
     firstName: v.firstName,
     lastName: v.lastName,
-    code: '',
     codeHint: v.codeHint,
     suggestionId: v.suggestionId,
     visitCount: v.visitCount,

@@ -47,7 +47,8 @@ function expectedLabels(role: Role): string[] | 'all' {
 async function sidebarLabels(page: Page): Promise<string[]> {
   const links = page.getByRole('navigation', { name: 'Navegación principal' }).getByRole('link');
   await expect(links.first()).toBeVisible();
-  return (await links.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''))).filter(Boolean);
+  // Desde PR-6 el enlace no lleva aria-label: su nombre es el texto del <span> (sr-only en el riel colapsado). textContent, no innerText.
+  return (await links.evaluateAll((els) => els.map((e) => (e.querySelector('span')?.textContent ?? e.getAttribute('title') ?? '').trim()))).filter(Boolean);
 }
 
 const sameSet = (a: string[], b: string[]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
@@ -126,7 +127,10 @@ test.describe('RBAC UI · sidebar y paleta', () => {
           });
         }
       } else {
-        expect(sameSet(labels, exp), `${role}: sidebar=${labels.join('|')} esperado=${exp.join('|')}`).toBe(true);
+        // Puerta y Biblioteca dependen de flags NEXT_PUBLIC_*_ENABLED del build: se ignoran salvo en su propio rol.
+        const optional = ['Puerta', 'Biblioteca'].filter((l) => !(role === 'puerta' && l === 'Puerta') && !(role === 'biblioteca' && l === 'Biblioteca'));
+        const strip = (xs: string[]) => xs.filter((l) => !optional.includes(l));
+        expect(sameSet(strip(labels), strip(exp)), `${role}: sidebar=${labels.join('|')} esperado=${exp.join('|')}`).toBe(true);
       }
     });
 

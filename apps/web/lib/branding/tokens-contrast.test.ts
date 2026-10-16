@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { contrastRatio, textShade } from './contrast';
 import { brandingToCssVars, CSS_VAR_BRAND_FG, CSS_VAR_BRAND_TEXT, CSS_VAR_INFO_TEXT, CSS_VAR_FOCUS, CSS_VAR_BRAND_STRONG } from './theme';
 import { DEFAULT_BRANDING } from './config';
@@ -103,4 +105,24 @@ describe('contraste de tokens derivados por tenant', () => {
       expect(contrastRatio(vars[CSS_VAR_BRAND_STRONG], BG_WHITE)).toBeGreaterThanOrEqual(contrastRatio(vars[CSS_VAR_BRAND_TEXT], BG_WHITE));
     });
   });
+});
+
+// Pares semánticos fijos (app/globals.css): texto de estado sobre su fondo, y sobre las superficies neutras donde se usan.
+describe('pares semánticos success/warning/danger (globals.css)', () => {
+  const css = readFileSync(resolve(__dirname, '../../app/globals.css'), 'utf8');
+  const tok = (name: string): string => {
+    const m = css.match(new RegExp(`--color-${name}:\\s*(#[0-9a-fA-F]{6})`));
+    if (!m) throw new Error(`token --color-${name} no encontrado en globals.css`);
+    return m[1]!;
+  };
+  for (const kind of ['success', 'warning', 'danger'] as const) {
+    it(`${kind}-fg sobre ${kind}-bg ≥4.5:1`, () => {
+      expect(contrastRatio(tok(`${kind}-fg`), tok(`${kind}-bg`))).toBeGreaterThanOrEqual(4.5);
+    });
+    it(`${kind}-fg sobre blanco, page y surface ≥4.5:1`, () => {
+      for (const bg of [BG_WHITE, BG_PAGE, BG_SURFACE]) {
+        expect(contrastRatio(tok(`${kind}-fg`), bg), `${kind}-fg sobre ${bg}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
 });

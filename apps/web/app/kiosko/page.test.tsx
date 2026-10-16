@@ -30,7 +30,7 @@ describe('/kiosko · flujo del visitante (modo demo)', () => {
     expect(await screen.findByText(`${KIOSK_KNOWN_VISITOR.firstName} ${KIOSK_KNOWN_VISITOR.lastName}`)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Sí, confirmar asistencia/ }));
     expect(screen.getByText(/Hola de nuevo/)).toBeInTheDocument();
-    expect(screen.getByText(KIOSK_KNOWN_VISITOR.code)).toBeInTheDocument();
+    expect(screen.getByText(KIOSK_KNOWN_VISITOR.code!)).toBeInTheDocument();
   });
 
   it('visitante nuevo: registro rápido genera código demo con formato v1', () => {
