@@ -18,6 +18,6 @@ export async function POST(req: Request): Promise<Response> {
     const text = await res.text();
     return new Response(text, { status: res.status, headers: { 'content-type': 'application/json' } });
   } catch {
-    return Response.json({ error: 'Servicio no disponible. Intentá de nuevo.' }, { status: 502 });
+    return Response.json({ error: 'Servicio no disponible. Inténtalo de nuevo.' }, { status: 502 });
   }
 }

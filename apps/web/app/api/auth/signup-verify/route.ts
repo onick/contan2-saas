@@ -25,7 +25,7 @@ export async function POST(req: Request): Promise<Response> {
     });
   } catch {
     return Response.json(
-      { error: 'No pudimos conectar con el servidor. Intentá de nuevo.' },
+      { error: 'No pudimos conectar con el servidor. Inténtalo de nuevo.' },
       { status: 502 },
     );
   }
