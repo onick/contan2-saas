@@ -7,6 +7,10 @@
 process.env.ROOT_DOMAIN = 'contan2.com';
 process.env.TRUST_PROXY = '1';
 
+// La TZ del centro se fija antes de importar src: REPORT_TZ se evalúa al cargar el
+// módulo y otro archivo del mismo worker (checkin-tz.test.ts) la cambia a UTC.
+process.env.CHECKIN_TZ = 'America/Santo_Domingo';
+
 import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
