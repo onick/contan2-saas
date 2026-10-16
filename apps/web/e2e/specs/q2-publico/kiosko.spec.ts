@@ -280,9 +280,10 @@ test('KIO-05a actividad de adultos: acompañantes adultos, "Entrarán N personas
   await page.getByRole('button', { name: 'Agregar adultos' }).click();
   await expect(page.getByText(/Entrarán\s+3 personas/)).toBeVisible();
   await expect(page.getByText(/tú \+ 2 acompañantes/)).toBeVisible();
-  // tope de 6 y piso de 0
-  for (let i = 0; i < 6; i++) await page.getByRole('button', { name: 'Agregar adultos' }).click({ trial: false }).catch(() => {});
+  // tope de 6 (aria-disabled: el botón sigue enfocable) y piso de 0. Ya van 2; 4 clics más llegan a 6.
+  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: 'Agregar adultos' }).click();
   await expect(page.getByRole('button', { name: 'Agregar adultos' })).toBeDisabled();
+  await expect(page.getByText('Máximo 6')).toBeVisible();
   for (let i = 0; i < 4; i++) await page.getByRole('button', { name: 'Quitar adultos' }).click();
   await expect(page.getByText(/Entrarán\s+3 personas/)).toBeVisible();
 
