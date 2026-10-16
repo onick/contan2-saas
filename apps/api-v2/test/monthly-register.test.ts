@@ -148,6 +148,51 @@ run('GET /reports/month.xlsx', () => {
     expect(ws.getCell(5, 1).value).toBe(3); // charla es la 3ra fila (No. 3)
   });
 
+  it('formato oficial: hoja del mes + "Resumen Mensual" (pivote) + "Listas" oculta + dropdowns de Tipo/Programa', async () => {
+    const res = await get('?year=2026&month=6', TOK.admin);
+    expect(res.statusCode).toBe(200);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(res.rawPayload);
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Junio 2026', 'Resumen Mensual', 'Listas']);
+    const [ws, rs, listas] = wb.worksheets;
+
+    // Hoja 1: 8 columnas, 3 filas de datos, fila Total y SIN bloque de resumen debajo.
+    expect(ws.getCell(6, 7).value).toBe('Total:');
+    expect(ws.getCell(6, 8).value).toBe(7); // 2 + 5 + 0
+    expect(ws.rowCount).toBe(6);
+
+    // Listas oculta, con los 5 tipos del depto y los programas del mes.
+    expect(listas.state).toBe('hidden');
+    const tipos = [2, 3, 4, 5, 6].map((r) => String(listas.getCell(r, 1).value));
+    expect(tipos).toEqual(['Cine', 'Teatro', 'Talleres', 'Charlas', 'Otras Actividades']);
+    const progs: string[] = [];
+    listas.getColumn(2).eachCell((c, n) => { if (n > 1 && c.value != null) progs.push(String(c.value)); });
+    expect(progs).toEqual(['Ciclo de Cine Clásico', 'Temporada de Teatro', 'Actividades Especiales']);
+
+    // Validación de datos (lista) en Tipo (col 5) y Programa (col 6) de cada fila de datos.
+    for (const r of [3, 4, 5]) {
+      const vt = ws.getCell(r, 5).dataValidation;
+      expect(vt.type).toBe('list');
+      expect(vt.formulae).toEqual(['Listas!$A$2:$A$6']);
+      const vp = ws.getCell(r, 6).dataValidation;
+      expect(vp.type).toBe('list');
+      expect(vp.formulae).toEqual([`Listas!$B$2:$B$${progs.length + 1}`]);
+    }
+
+    // Pivote por tipo: filas = tipos con actividad; cuadra con la hoja 1 y con el total general.
+    const pivot: Record<string, [number, number]> = {};
+    let r = 3;
+    while (rs.getCell(r, 1).value && rs.getCell(r, 1).value !== 'Total general') {
+      pivot[String(rs.getCell(r, 1).value)] = [Number(rs.getCell(r, 2).value), Number(rs.getCell(r, 3).value)];
+      r++;
+    }
+    expect(rs.getCell(2, 2).value).toBe('Actividades');
+    expect(rs.getCell(2, 3).value).toBe('Asistencia total');
+    expect(pivot).toEqual({ Teatro: [1, 2], Cine: [1, 5], Charlas: [1, 0] });
+    expect(rs.getCell(r, 2).value).toBe(3);
+    expect(rs.getCell(r, 3).value).toBe(ws.getCell(6, 8).value);
+  });
+
   it('conferencia se mapea a "Charlas" y la fila Total suma el headcount del mes', async () => {
     const res = await get('?year=2026&month=6', TOK.admin);
     const wb = new ExcelJS.Workbook();
