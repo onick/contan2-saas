@@ -27,6 +27,7 @@ import { buildActivityPdfHtml, pdfHeaderFooter, pdfFilename } from '../services/
 import { buildPeriodExcelReport, periodFilename } from '../services/reports/period-excel-report.js';
 import { buildPeriodPdfHtml, periodPdfHeaderFooter, periodPdfFilename } from '../services/reports/period-pdf-template.js';
 import { renderHtmlToPdf } from '../services/reports/pdf-renderer.js';
+import { zonedMidnight, ymdAddDays } from '../services/reports/fmt.js';
 import { loadProtocolReportData, buildProtocolExcelReport, protocolReportFilename } from '../services/reports/protocol-report.js';
 
 const VALID_TYPES = new Set<string>(ACTIVITY_TYPES); // deriva del enum, no duplicar
@@ -50,10 +51,12 @@ function parsePeriodQuery(query: Record<string, unknown>):
   const toRaw = String(query.to ?? '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fromRaw)) return { ok: false, error: 'from inválido (YYYY-MM-DD)' };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(toRaw)) return { ok: false, error: 'to inválido (YYYY-MM-DD)' };
-  const from = new Date(`${fromRaw}T00:00:00Z`).toISOString();
-  const toDate = new Date(`${toRaw}T00:00:00Z`);
-  toDate.setUTCDate(toDate.getUTCDate() + 1);
-  const to = toDate.toISOString();
+  // Límites en la zona del tenant: [from 00:00 DR, to+1 00:00 DR).
+  if (Number.isNaN(Date.parse(`${fromRaw}T00:00:00Z`)) || Number.isNaN(Date.parse(`${toRaw}T00:00:00Z`))) {
+    return { ok: false, error: 'Fecha inválida' };
+  }
+  const from = zonedMidnight(fromRaw).toISOString();
+  const to = zonedMidnight(ymdAddDays(toRaw, 1)).toISOString();
   if (new Date(from) > new Date(to)) return { ok: false, error: 'from debe ser <= to' };
 
   let types: string[] | null = null;

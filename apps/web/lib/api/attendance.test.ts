@@ -29,6 +29,13 @@ function mockBoth(items: unknown[]) {
 }
 
 describe('getAttendancePage', () => {
+  it('formatea la fecha/hora en America/Santo_Domingo (15:17Z -> 11:17), no en UTC', async () => {
+    mockBoth([{ ...base, checkedInAt: '2026-10-16T15:17:00.000Z' }]);
+    const v = (await getAttendancePage({ limit: 20, offset: 0 }))!;
+    expect(v.records[0]!.datetime).toMatch(/11:17/);
+    expect(v.records[0]!.datetime).not.toMatch(/15:17|3:17/);
+  });
+
   it('combina tabla (/attendance) + tasa real (/dashboard/metrics)', async () => {
     mockBoth([base]);
     const v = (await getAttendancePage({ limit: 20, offset: 0 }))!;

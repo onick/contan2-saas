@@ -2,10 +2,11 @@
 // reportería (S2). Reescritura SET-BASED del periodAggregator.js y del loader
 // de actividad de v1 (que hacían N+1 por asistente/actividad), conservando el
 // CONTRATO DE SALIDA EXACTO que consumen las plantillas portadas (Excel/PDF).
-// Fechas en UTC (paridad v1: month/day keys con getUTC*).
+// Día/mes de agrupación en la zona del tenant (ver ./fmt.ts), no en UTC.
 
 import { sql, type DbClient } from '@contan2/db';
 import { normCategory, normCategorySql } from '../category-norm.js';
+import { monthKeyInTz, ymdAddDays, ymdInTz, zonedMidnight } from './fmt.js';
 
 const TYPE_LABELS: Record<string, string> = {
   exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
@@ -14,19 +15,16 @@ const TYPE_LABELS: Record<string, string> = {
   otro: 'Otro',
 };
 
-const dayKey = (d: Date): string =>
-  `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-const monthKey = (d: Date): string =>
-  `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+const dayKey = (d: Date): string => ymdInTz(d);
+const monthKey = (d: Date): string => monthKeyInTz(d);
 function monthLabel(key: string): string {
   const [y, m] = key.split('-');
   return new Date(Date.UTC(Number(y), Number(m) - 1, 1)).toLocaleDateString('es-DO', { month: 'long', year: 'numeric' });
 }
 function daysBetween(fromIso: string, toIso: string): string[] {
   const out: string[] = [];
-  const start = new Date(fromIso); start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(toIso); end.setUTCHours(0, 0, 0, 0);
-  for (let t = start.getTime(); t <= end.getTime(); t += 86_400_000) out.push(dayKey(new Date(t)));
+  const end = ymdInTz(new Date(toIso));
+  for (let d = ymdInTz(new Date(fromIso)); d <= end; d = ymdAddDays(d, 1)) out.push(d);
   return out;
 }
 
@@ -128,7 +126,7 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
   const byMonth = [...byMonthMap.values()].sort((a, b) => a.key.localeCompare(b.key));
 
   // byDay sobre el rango VISIBLE (to es exclusivo → restamos 1 día para el eje).
-  const lastDay = new Date(new Date(q.to).getTime() - 86_400_000).toISOString();
+  const lastDay = zonedMidnight(ymdAddDays(ymdInTz(new Date(q.to)), -1)).toISOString();
   const byDay = daysBetween(q.from, lastDay).map((d) => ({ date: d, attendances: byDayMap.get(d) ?? 0 }));
 
   // Top 20 visitantes del período, hidratados en UN query.

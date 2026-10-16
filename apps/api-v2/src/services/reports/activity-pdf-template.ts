@@ -14,6 +14,7 @@
 
 import { generatePalette, pickOn } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
+import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
 
 
 const TYPE_LABELS = {
@@ -34,18 +35,18 @@ function fmtDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
-  const date = d.toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const time = d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+  const date = fmtDateTz(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const time = fmtTimeTz(d);
   return `${date} · ${time}`;
 }
 function fmtTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+  return fmtTimeTz(d);
 }
 function fmtNow() {
-  return new Date().toLocaleString('es-DO', { dateStyle: 'long', timeStyle: 'short' });
+  return fmtNowTz();
 }
 
 
@@ -88,7 +89,8 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
     const iso = att.checkedInAt;
     const d = new Date(iso);
     if (isNaN(d.getTime())) continue;
-    byHour.set(d.getHours(), (byHour.get(d.getHours()) || 0) + 1);
+    const h = hourInTz(d);
+    byHour.set(h, (byHour.get(h) || 0) + 1);
   }
   const hourEntries = [...byHour.entries()].sort((a, b) => a[0] - b[0]);
   const maxHour = hourEntries.length ? Math.max(...hourEntries.map(([, c]) => c)) : 0;

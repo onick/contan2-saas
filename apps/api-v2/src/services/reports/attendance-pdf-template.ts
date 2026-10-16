@@ -8,6 +8,7 @@
 import { generatePalette, pickOn } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
 import type { AttendanceByActivityReport } from '../report-data.js';
+import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
 
 export interface AttendancePdfOrg {
   name: string;
@@ -29,14 +30,14 @@ const STATUS_CLS: Record<string, string> = { activa: 'ok', finalizada: 'muted', 
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' });
+  return Number.isNaN(d.getTime()) ? '—' : fmtDateTz(d);
 }
 function fmtDay(ymd: string): string {
   const d = new Date(`${ymd}T12:00:00Z`);
   return Number.isNaN(d.getTime()) ? ymd : d.toLocaleDateString('es-DO', { day: '2-digit', month: 'short' });
 }
 function fmtNow(): string {
-  return new Date().toLocaleString('es-DO', { dateStyle: 'long', timeStyle: 'short' });
+  return fmtNowTz();
 }
 
 // Donut SVG estático (misma geometría que los dashboards web: r=15.91549).
