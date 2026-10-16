@@ -1,1 +1,42 @@
-/* components/ui/arc/otp-input/otp-input.css · estilos del porte (keyframes, @starting-style y estados compuestos). Lo llena el bloque correspondiente. */
+/* components/ui/arc/otp-input/otp-input.css · porte de arc-library (MIT © 2026 Elia Kuratli, ver ../ATTRIBUTION.md).
+   Solo keyframes y movimiento; los colores salen de las utilidades de marca en OtpInput.tsx. */
+.arc-otp-slot {
+  transition: box-shadow var(--arc-dur-instant) var(--arc-ease-standard),
+    border-color var(--arc-dur-fast) var(--arc-ease-standard),
+    background-color var(--arc-dur-fast) var(--arc-ease-standard);
+}
+
+/* El dígito (o '•') sube al aparecer. */
+.arc-otp-glyph {
+  display: inline-block;
+  animation: arc-otp-pop var(--arc-dur-fast) var(--arc-ease-enter) both;
+}
+
+/* Un PIN rechazado sacude las casillas una vez. */
+.arc-otp[data-shake="true"] .arc-otp-slots {
+  animation: arc-otp-shake 360ms var(--arc-ease-standard) both;
+}
+
+@keyframes arc-otp-pop {
+  from { opacity: 0; transform: translateY(0.35em); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes arc-otp-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  45% { transform: translateX(5px); }
+  70% { transform: translateX(-3px); }
+  88% { transform: translateX(2px); }
+}
+
+@media (forced-colors: active) {
+  .arc-otp-slot[data-active="true"] { outline: 2px solid CanvasText; }
+}
+
+/* Reduced motion: sin shake ni subida; el error se ve solo por el color. */
+@media (prefers-reduced-motion: reduce) {
+  .arc-otp-slot { transition: none; }
+  .arc-otp-glyph,
+  .arc-otp[data-shake="true"] .arc-otp-slots { animation: none; }
+}

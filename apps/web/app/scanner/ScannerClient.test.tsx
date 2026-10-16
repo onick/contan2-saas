@@ -3,7 +3,7 @@
 // de cámara y la entrada manual maneja los casos de check-in (mismo handler que
 // la cámara: normaliza → valida → postea → clasifica).
 
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { ScannerClient } from './ScannerClient';
 import type { ScannerActivity } from '../../lib/scanner/types';
@@ -53,6 +53,71 @@ describe('/scanner · PIN', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('PIN incorrecto');
     expect(screen.getByLabelText('PIN del centro')).toBeInTheDocument();
+  });
+});
+
+describe('/scanner · PIN (OtpInput)', () => {
+  // Este jsdom no expone localStorage: shim en memoria (el código de producción ya tolera su ausencia).
+  const store = new Map<string, string>();
+  beforeEach(() => {
+    store.clear();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+  });
+
+  it('autoenvía al completar la longitud aprendida', async () => {
+    localStorage.setItem('scanner:pinLength', '4');
+    const fetchMock = vi.fn().mockResolvedValue(res(200, { ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
+    fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '1234' } });
+    expect(await screen.findByText('¿Qué vas a escanear?')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin longitud aprendida no autoenvía; tras 200 la aprende', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(res(200, { ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
+    fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '123456' } });
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+    await screen.findByText('¿Qué vas a escanear?');
+    expect(localStorage.getItem('scanner:pinLength')).toBe('6');
+  });
+
+  it('401: aria-invalid, limpia el PIN, olvida la longitud y devuelve el foco', async () => {
+    localStorage.setItem('scanner:pinLength', '4');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(res(401, { error: 'x' })));
+    render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
+    fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '0000' } });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('PIN incorrecto');
+    const input = screen.getByLabelText('PIN del centro');
+    expect(input).toHaveValue('');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('aria-describedby', alert.id);
+    expect(input).toHaveFocus();
+    expect(localStorage.getItem('scanner:pinLength')).toBeNull();
+  });
+
+  it('429: mensaje de espera, sin sacudir', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(res(429, {})));
+    const { container } = render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
+    fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '1234' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByLabelText('PIN del centro')).not.toHaveAttribute('aria-invalid');
+    expect(container.querySelector('.arc-otp')).not.toHaveAttribute('data-shake');
+  });
+
+  it("'12ab' queda en '12'", () => {
+    render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
+    fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '12ab' } });
+    expect(screen.getByLabelText('PIN del centro')).toHaveValue('12');
   });
 });
 

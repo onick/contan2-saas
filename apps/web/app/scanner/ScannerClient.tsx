@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, CircleCheck, CircleX, Lock, LogOut, ScanLine, TriangleAlert } from 'lucide-react';
 import { isValidCode, normalizeScannedCode } from '../../lib/scanner/code';
 import { useQrCamera } from '../../lib/scanner/useQrCamera';
+import { OtpInput } from '../../components/ui/arc/otp-input/OtpInput';
 import { classifyCheckin, type CheckinOutcome } from '../../lib/scanner/checkin';
 import type { ScannerActivity } from '../../lib/scanner/types';
 
@@ -36,6 +37,27 @@ function pinErrorFor(status: number): string {
   return 'No pudimos conectar. Intenta de nuevo.';
 }
 
+// Longitud del PIN aprendida (se guarda tras un 200): habilita el autoenvío al completarla.
+const PIN_LENGTH_KEY = 'scanner:pinLength';
+
+function readPinLength(): number | null {
+  try {
+    const n = Number(window.localStorage.getItem(PIN_LENGTH_KEY));
+    return Number.isInteger(n) && n >= 4 && n <= 8 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePinLength(n: number | null): void {
+  try {
+    if (n === null) window.localStorage.removeItem(PIN_LENGTH_KEY);
+    else window.localStorage.setItem(PIN_LENGTH_KEY, String(n));
+  } catch {
+    /* almacenamiento bloqueado: sin autoenvío, el botón sigue funcionando */
+  }
+}
+
 function buzz(kind: 'ok' | 'bad'): void {
   if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
     navigator.vibrate(kind === 'ok' ? 70 : [50, 40, 50]);
@@ -50,6 +72,14 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinBusy, setPinBusy] = useState(false);
+  // 'wrong' = 401 (sacude y limpia); 'other' = 429/red (mensaje sin sacudir).
+  const [pinErrorKind, setPinErrorKind] = useState<'wrong' | 'other' | null>(null);
+  const [pinLength, setPinLength] = useState<number | null>(null);
+  const pinBusyRef = useRef(false);
+
+  useEffect(() => {
+    setPinLength(readPinLength());
+  }, []);
 
   // ─ Escaneo ─
   const [manual, setManual] = useState('');
@@ -63,24 +93,41 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
   // ── PIN: login ──────────────────────────────────────────────────────────
   async function submitPin(e: React.FormEvent) {
     e.preventDefault();
-    if (pinBusy) return;
+    await sendPin(pin);
+  }
+
+  async function sendPin(value: string) {
+    if (pinBusyRef.current) return;
+    pinBusyRef.current = true;
     setPinBusy(true);
     setPinError(null);
+    setPinErrorKind(null);
     try {
       const res = await fetch('/scanner/api/pin', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin: value }),
       });
       if (res.status === 200) {
+        writePinLength(value.length);
+        setPinLength(value.length);
         setPin('');
         setScreen('select');
       } else {
+        // PIN rechazado: la longitud aprendida ya no es de fiar.
+        if (res.status === 401) {
+          writePinLength(null);
+          setPinLength(null);
+          setPin(''); // límite 8/min por IP: no dejamos un PIN malo listo para reenviar
+        }
         setPinError(pinErrorFor(res.status));
+        setPinErrorKind(res.status === 401 ? 'wrong' : 'other');
       }
     } catch {
       setPinError(pinErrorFor(0));
+      setPinErrorKind('other');
     } finally {
+      pinBusyRef.current = false;
       setPinBusy(false);
     }
   }
@@ -161,7 +208,6 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (screen === 'pin') {
-    const slotCount = Math.max(4, pin.length);
     return (
       <div className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6 py-12">
         <div className="rounded-card border border-line bg-surface p-6 shadow-sm">
@@ -173,39 +219,27 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
           <h1 className="mb-1 text-center text-2xl font-semibold text-ink">Ingresa el PIN de puerta</h1>
           <p className="mb-5 text-center text-sm text-muted">Pídele el PIN a tu coordinador.</p>
 
-          {/* Casillas visuales dinámicas (aria-hidden): una por dígito tecleado, mínimo 4 */}
-          <div className="mb-4 flex justify-center gap-2" aria-hidden="true">
-            {Array.from({ length: slotCount }, (_, i) => (
-              <span
-                key={i}
-                className={
-                  'flex h-12 w-10 items-center justify-center rounded-lg border text-lg font-bold ' +
-                  (i < pin.length
-                    ? 'border-brand-text bg-brand-soft text-brand-text'
-                    : i === pin.length
-                    ? 'border-brand bg-surface text-transparent'
-                    : 'border-line bg-subtle text-transparent')
-                }
-              >
-                {i < pin.length ? '•' : ''}
-              </span>
-            ))}
-          </div>
-
           <form onSubmit={submitPin} className="space-y-4">
-            <input
+            <OtpInput
               autoFocus
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={8}
+              revealLast
+              label="PIN del centro"
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-              placeholder="••••"
-              aria-label="PIN del centro"
-              className="w-full rounded-xl border border-line bg-subtle px-4 py-3 text-center font-mono text-xl tracking-[0.4em] text-ink outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              onChange={(v) => {
+                setPin(v);
+                if (pinError) {
+                  setPinError(null);
+                  setPinErrorKind(null);
+                }
+              }}
+              error={pinErrorKind === 'wrong'}
+              errorId="scanner-pin-error"
+              completeLength={pinLength}
+              onComplete={(v) => void sendPin(v)}
+              className="mb-4"
             />
             {pinError && (
-              <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger-fg">
+              <p id="scanner-pin-error" role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger-fg">
                 {pinError}
               </p>
             )}
