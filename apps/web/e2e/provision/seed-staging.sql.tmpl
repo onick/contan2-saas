@@ -1,0 +1,94 @@
+-- ============================================================================
+-- seed-staging.sql · cuentas E2E por rol + tokens conocidos (SOLO STAGING)
+-- Generado por make-seed.mjs desde seed-staging.sql.tmpl. NO contiene passwords ni tokens
+-- en claro: solo hashes (argon2id params v1 / sha256 como hashToken de @contan2/auth).
+--
+-- Aplicar (lo hace el orquestador, con OK del owner), contra la DB de STAGING unicamente:
+--   ssh ... "docker exec -i <DB_STAGING> psql -U postgres -d postgres -v ON_ERROR_STOP=1" < seed-staging.sql
+-- Idempotente: re-ejecutar re-sincroniza hash/rol/estado y limpia lockouts de las cuentas e2e-*.
+-- Scope: organization_id = organizations.slug = 'ccb'. No toca ninguna otra fila.
+-- ============================================================================
+begin;
+
+-- Falla ruidosa si no hay tenant ccb (evita insertar con org nula).
+do $$
+begin
+  if not exists (select 1 from organizations where slug = 'ccb') then
+    raise exception 'organizations.slug=ccb no existe: abortando seed';
+  end if;
+end $$;
+
+-- 1) Cuentas de staff por rol ------------------------------------------------
+with org as (select id from organizations where slug = 'ccb')
+insert into staff_members (organization_id, email, password_hash, full_name, status, role, must_change_password)
+select org.id, v.email, v.password_hash, v.full_name, 'active', v.role, false
+from org,
+     (values
+       ('e2e-admin@test.local',      '{{HASH_ADMIN}}',      '[E2E] Admin',      'admin'),
+       ('e2e-operator@test.local',   '{{HASH_OPERATOR}}',   '[E2E] Operator',   'operator'),
+       ('e2e-consulta@test.local',   '{{HASH_CONSULTA}}',   '[E2E] Consulta',   'consulta'),
+       ('e2e-puerta@test.local',     '{{HASH_PUERTA}}',     '[E2E] Puerta',     'puerta'),
+       ('e2e-protocolo@test.local',  '{{HASH_PROTOCOLO}}',  '[E2E] Protocolo',  'protocolo'),
+       ('e2e-biblioteca@test.local', '{{HASH_BIBLIOTECA}}', '[E2E] Biblioteca', 'biblioteca'),
+       -- Cuenta dedicada al flujo de reset (AUTH-10): consumir el token CAMBIA su password, asi que
+       -- no se usa e2e-admin (rompería el login de las demas corridas). Password aleatoria descartada.
+       ('e2e-reset@test.local',      '{{HASH_RESET_ACCOUNT}}', '[E2E] Reset',    'operator')
+     ) as v(email, password_hash, full_name, role)
+on conflict (organization_id, email) where deleted_at is null
+do update set
+  password_hash        = excluded.password_hash,
+  full_name            = excluded.full_name,
+  role                 = excluded.role,
+  status               = 'active',
+  must_change_password = false,
+  failed_attempts      = 0,
+  locked_until         = null,
+  lock_level           = 0,
+  updated_at           = now();
+
+-- 2) Token de reset conocido (AUTH-09/10) -> e2e-reset@test.local ------------
+--    token plano en .env.e2e (E2E_RESET_TOKEN); aqui solo sha256. TTL largo; reusable por re-seed.
+insert into staff_password_resets (staff_member_id, token_hash, expires_at, used_at)
+select sm.id, '{{RESET_TOKEN_HASH}}', now() + interval '30 days', null
+from staff_members sm
+join organizations o on o.id = sm.organization_id and o.slug = 'ccb'
+where sm.email = 'e2e-reset@test.local' and sm.deleted_at is null
+on conflict (token_hash)
+do update set used_at = null, expires_at = now() + interval '30 days';
+
+-- 3) Invitacion de staff con token conocido (AUTH-11/12) ---------------------
+--    Email e2e-invitado@test.local, rol operator. Aceptarla crea ese staff; para repetir el flujo,
+--    ejecutar purge-staging.sql (seccion invitado) o archivar la cuenta y re-sembrar.
+with org as (select id from organizations where slug = 'ccb'),
+     inviter as (
+       select sm.id from staff_members sm, org
+       where sm.organization_id = org.id and sm.email = 'e2e-admin@test.local' and sm.deleted_at is null
+     )
+insert into staff_invitations (organization_id, email, role, full_name, token_hash, invited_by_staff_id, expires_at, status)
+select org.id, 'e2e-invitado@test.local', 'operator', '[E2E] Invitado',
+       '{{INVITE_TOKEN_HASH}}', (select id from inviter), now() + interval '30 days', 'pending'
+from org
+where not exists (
+  select 1 from staff_members sm
+  where sm.organization_id = org.id and sm.email = 'e2e-invitado@test.local' and sm.deleted_at is null
+)
+on conflict (organization_id, email) where status = 'pending'
+do update set token_hash = excluded.token_hash, expires_at = now() + interval '30 days', updated_at = now();
+
+-- 4) Plataforma (admin.stg.contan2.com) -- COMENTADO: decide el owner ---------
+--    platform_admins NO es por tenant (cross-tenant). Descomentar solo con OK explicito del owner
+--    y si E2E_PLATFORM_PASSWORD estaba definido al generar (si no, {{HASH_PLATFORM}} queda sin sustituir).
+-- insert into platform_admins (email, password_hash, full_name, status)
+-- values ('e2e-platform@test.local', '{{HASH_PLATFORM}}', '[E2E] Platform', 'active')
+-- on conflict (email) where deleted_at is null
+-- do update set password_hash = excluded.password_hash, status = 'active',
+--               failed_attempts = 0, locked_until = null, lock_level = 0, updated_at = now();
+
+-- Verificacion (sin PII): una fila por cuenta sembrada.
+select sm.email, sm.role, sm.status
+from staff_members sm
+join organizations o on o.id = sm.organization_id and o.slug = 'ccb'
+where sm.email like 'e2e-%@test.local' and sm.deleted_at is null
+order by sm.email;
+
+commit;
