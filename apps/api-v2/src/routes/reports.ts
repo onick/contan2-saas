@@ -87,7 +87,7 @@ const reportLimiter = createRateLimiter({ max: 20, windowMs: 60_000, prefix: end
 
 const CSV_HEADER = [
   'Actividad', 'Fecha', 'Lugar', 'Categoría', 'Estado',
-  'Capacidad', 'Inscritos', 'Check-ins', 'Personas', 'Anónimos', 'Ocupación %',
+  'Capacidad', 'Inscritos', 'Check-ins', 'Personas', 'Anónimos', 'Ocupación %', 'Reservados',
 ];
 
 export const reportsRoute: FastifyPluginAsync = async (app) => {
@@ -191,12 +191,12 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       for (const r of report.rows) {
         lines.push(csvRow([
           r.name, r.date.slice(0, 10), r.location, r.category ?? '', r.status,
-          r.capacity, r.enrolledCount, r.attendances, r.people, r.anonymous, r.occupancyPct,
+          r.capacity, r.enrolledCount, r.attendances, r.people, r.anonymous, r.occupancyPct, r.reserved,
         ]));
       }
       lines.push(csvRow([
         'TOTAL', '', '', '', '',
-        report.totals.capacity, '', report.totals.attendances, report.totals.people, report.totals.anonymous, report.totals.occupancyPct,
+        report.totals.capacity, '', report.totals.attendances, report.totals.people, report.totals.anonymous, report.totals.occupancyPct, report.totals.reserved,
       ]));
       const filename = safeFilename(`${base}.csv`);
       reply.header('content-type', 'text/csv; charset=utf-8');

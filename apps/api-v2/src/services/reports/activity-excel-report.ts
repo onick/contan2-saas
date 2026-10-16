@@ -16,6 +16,7 @@ import ExcelJS from 'exceljs';
 import { generatePalette, textArgb } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
 import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
+import { occupancyPct, peopleOf } from './metrics.js';
 
 
 const TYPE_LABELS = {
@@ -203,11 +204,11 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   attendances.forEach((a, i) => { if (isSeated(a)) seatedIdx.push(i); });
   const totalAtt = seatedIdx.length;
   const heldCount = attendances.length - totalAtt;
-  const peopleInRoom = seatedIdx.reduce((n, i) => n + 1 + (attendances[i].companionsChildren || 0) + (attendances[i].companionsAdults || 0), 0);
+  const peopleInRoom = seatedIdx.reduce((n, i) => n + peopleOf(attendances[i]), 0);
   const newcomers = seatedIdx.filter(i => affinities[i]?.totalAttendances === 1).length;
   const returning = totalAtt - newcomers;
   const vip = seatedIdx.filter(i => (affinities[i]?.totalAttendances || 0) >= 10).length;
-  const roomPct = activity.capacity ? Math.round((peopleInRoom / activity.capacity) * 100) : 0;
+  const roomPct = occupancyPct(peopleInRoom, activity.capacity);
 
   const kpis = [
     { label: 'Aforo comprometido', value: activity.enrolledCount, accent: false },
