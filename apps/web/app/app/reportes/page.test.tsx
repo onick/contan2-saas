@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { getPeriodSummary } from '../../../lib/api/reports';
 import { render, screen, cleanup } from '@testing-library/react';
 import type { PeriodSummaryResponse } from '@contan2/contracts';
 vi.mock('../../../lib/branding/tenant', () => ({
@@ -97,5 +98,21 @@ describe('/app/reportes · dashboard', () => {
     expect(screen.queryByRole('link', { name: /Descargar PDF/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /Exportar Excel/i })).toBeNull();
     expect(screen.queryByText('Evolución de asistencias')).toBeNull();
+  });
+
+  it('searchParams válidos: el resumen inicial usa ese rango y el trigger lo refleja', async () => {
+    render(await ReportesPage({ searchParams: Promise.resolve({ from: '2026-09-01', to: '2026-09-30', preset: 'mesPasado', types: 'cine' }) }));
+    expect(getPeriodSummary).toHaveBeenLastCalledWith('2026-09-01', '2026-09-30', ['cine']);
+    expect(screen.getByRole('button', { name: 'Período: Mes pasado · 1 – 30 sep 2026' })).toBeInTheDocument();
+  });
+
+  it('searchParams inválidos (from>to): cae a Este mes del hoy de Santo Domingo', async () => {
+    render(await ReportesPage({ searchParams: Promise.resolve({ from: '2026-09-30', to: '2026-09-01' }) }));
+    const [from, to] = vi.mocked(getPeriodSummary).mock.calls.at(-1)!;
+    const now = new Date();
+    const dr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santo_Domingo' }).format(now);
+    expect(to).toBe(dr);
+    expect(from).toBe(`${dr.slice(0, 7)}-01`);
+    expect(screen.getByText('Este mes')).toBeInTheDocument();
   });
 });

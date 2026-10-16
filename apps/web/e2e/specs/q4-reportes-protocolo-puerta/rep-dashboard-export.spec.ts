@@ -51,12 +51,18 @@ test.describe('REP-01 dashboard por periodo = period-summary', { tag: '@write' }
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/app/reportes');
     await expect(page.getByRole('heading', { name: 'Reportes', level: 1 })).toBeVisible();
-    const { from, to } = RANGE();
-    await page.getByLabel('Desde').fill(from);
+    // El selector no admite fechas futuras (max = hoy de Santo Domingo): ayer..hoy en RD cubre la actividad [E2E] creada ahora.
+    const from = ymdDR(-1), to = ymdDR(0);
+    // El rango se elige en el selector «Período»: Desde/Hasta viven dentro del panel y «Aplicar» confirma.
+    await page.getByRole('button', { name: /^Período/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Período' });
+    await expect(panel).toBeVisible();
+    await panel.getByLabel('Desde').fill(from);
+    await panel.getByLabel('Hasta').fill(to);
     const done = page.waitForResponse(
       (r) => r.url().includes('/app/reportes/api/summary') && r.url().includes(`from=${from}`) && r.url().includes(`to=${to}`),
     );
-    await page.getByLabel('Hasta').fill(to);
+    await panel.getByRole('button', { name: 'Aplicar' }).click();
     const body = (await (await done).json()) as { kpis: Record<string, number>; prev: Record<string, number>; deltas: Record<string, number | null> };
     await page.waitForTimeout(400);
     const shown = await page.locator('[data-count]').evaluateAll((els) => els.slice(0, 4).map((e) => Number((e as HTMLElement).dataset.count)));

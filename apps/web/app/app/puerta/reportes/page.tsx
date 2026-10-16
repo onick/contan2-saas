@@ -7,6 +7,8 @@ import { PuertaStats } from '../../../../components/puerta/PuertaStats';
 import { getTenantBranding } from '../../../../lib/branding/tenant';
 import { getPuertaStats } from '../../../../lib/api/puerta';
 import { PUERTA_ENABLED } from '../../../../lib/shell/nav';
+import { DEFAULT_PRESETS } from '../../../../components/ui/arc/date-range-picker/presets';
+import { DEFAULT_TZ, todayYmd } from '../../../../components/ui/arc/date-range-picker/ymd';
 
 // Puerta · Reportes y estadísticas propios del módulo (salas permanentes).
 // Carga inicial server-side ("Este mes"); los filtros (período/sala/rango)
@@ -17,18 +19,12 @@ export const metadata: Metadata = {
 };
 export const dynamic = 'force-dynamic';
 
-function thisMonthRange(): { from: string; to: string } {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return { from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)), to: ymd(now) };
-}
-
 export default async function PuertaReportesPage() {
   // Mismo guard de la Puerta: feature oculta salvo donde el flag esté encendido.
   if (!PUERTA_ENABLED) notFound();
   const branding = await getTenantBranding();
-  const range = thisMonthRange();
+  // «Este mes» sobre el hoy de Santo Domingo (no la zona del contenedor).
+  const range = DEFAULT_PRESETS.find((p) => p.key === 'mes')!.range(todayYmd(DEFAULT_TZ));
   const data = await getPuertaStats(range.from, range.to);
 
   const shell = (children: ReactNode) => (

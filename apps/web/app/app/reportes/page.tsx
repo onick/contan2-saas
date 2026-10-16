@@ -8,6 +8,8 @@ import { getPeriodSummary } from '../../../lib/api/reports';
 import { getAdminGate } from '../../../lib/auth/session';
 import { ErrorState } from '../../../components/ui';
 import { REPORT_EXPORT_ROLES, REPORT_ROLES } from '../../../lib/shell/nav';
+import { parseReportFilters } from '../../../components/reportes/filters';
+import { DEFAULT_TZ, todayYmd } from '../../../components/ui/arc/date-range-picker/ymd';
 
 // Reportes · dashboard ejecutivo. Resumen del período + comparación con el
 // anterior, todo desde datos REALES (period-summary). Carga inicial server-side
@@ -21,14 +23,9 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-function thisMonthRange(): { from: string; to: string } {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return { from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)), to: ymd(now) };
-}
+type SearchParams = Record<string, string | string[] | undefined>;
 
-export default async function ReportesPage() {
+export default async function ReportesPage({ searchParams }: { searchParams?: Promise<SearchParams> } = {}) {
   const branding = await getTenantBranding();
   const gate = await getAdminGate();
   const role = gate.status === 'ok' ? gate.staff.role : null;
@@ -36,10 +33,13 @@ export default async function ReportesPage() {
   // Exportar/generar: solo owner/admin/puerta (CAN_GENERATE_REPORTS). operator y
   // consulta ven el dashboard (period-summary es lectura para todo staff) sin botones.
   const canExport = !!role && REPORT_EXPORT_ROLES.has(role);
-  const range = thisMonthRange();
+  // «Hoy» y «Este mes» según la zona del tenant (no la del contenedor: entre 20:00 y 24:00 en RD ya era otro día en UTC).
+  // Los filtros de la URL (?from&to&preset&types&categories) se validan; lo inválido cae a «Este mes».
+  const filters = parseReportFilters(searchParams ? await searchParams : undefined, todayYmd(DEFAULT_TZ));
+  const range = filters.range;
   // Rol confinado (protocolo/biblioteca) o sin sesión: ni siquiera pedimos el
   // período; estado honesto en vez de KPIs en 0.
-  const data = canView ? await getPeriodSummary(range.from, range.to) : null;
+  const data = canView ? await getPeriodSummary(range.from, range.to, filters.types) : null;
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Reportes" activeKey="reportes">
@@ -61,5 +61,5 @@ export default async function ReportesPage() {
     return shell(<Unavailable inline title="Reportes no disponibles" description="No pudimos calcular el resumen del período. Reintenta en unos segundos." />);
   }
 
-  return shell(<ReportesDashboard initial={data} initialRange={range} canExport={canExport} />);
+  return shell(<ReportesDashboard initial={data} initialRange={range} canExport={canExport} initialFilters={{ preset: filters.preset, types: filters.types, categories: filters.categories }} />);
 }

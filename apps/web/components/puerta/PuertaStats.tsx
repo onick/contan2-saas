@@ -18,33 +18,11 @@ import { Card, Chip, cn, focusRing } from '../ui';
 import { DeltaPct, buildSlices, Donut, Bars, LineChart } from '../charts/primitives';
 import { useDataAnim } from '../charts/useDataAnim';
 import { salaColor, salaSeriesColors } from './salaColors';
+import { DateRangePicker } from '../ui/arc/date-range-picker/DateRangePicker';
+import { MAX_RANGE_DAYS } from '../reportes/filters';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
-const pad = (n: number) => String(n).padStart(2, '0');
-const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-
-type Preset = { key: string; label: string };
-const PRESETS: Preset[] = [
-  { key: 'hoy', label: 'Hoy' },
-  { key: '7d', label: 'Últimos 7 días' },
-  { key: 'mes', label: 'Este mes' },
-  { key: '30d', label: 'Últimos 30 días' },
-  { key: '90d', label: 'Últimos 90 días' },
-  { key: 'anio', label: 'Este año' },
-];
-function presetRange(key: string): { from: string; to: string } {
-  const now = new Date(); const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
-  const today = new Date(y, m, d);
-  switch (key) {
-    case 'hoy': return { from: ymd(today), to: ymd(today) };
-    case '7d': return { from: ymd(new Date(y, m, d - 6)), to: ymd(today) };
-    case '30d': return { from: ymd(new Date(y, m, d - 29)), to: ymd(today) };
-    case '90d': return { from: ymd(new Date(y, m, d - 89)), to: ymd(today) };
-    case 'anio': return { from: ymd(new Date(y, 0, 1)), to: ymd(today) };
-    default: return { from: ymd(new Date(y, m, 1)), to: ymd(today) };
-  }
-}
 
 const COMPOSITION_META: Record<string, { label: string; color: string }> = {
   identificados: { label: 'Identificados', color: '#10b981' },
@@ -67,7 +45,7 @@ export interface PuertaStatsProps {
 
 export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
   const [data, setData] = useState(initial);
-  const [periodKey, setPeriodKey] = useState('mes');
+  const [periodKey, setPeriodKey] = useState<string | null>('mes');
   const [range, setRange] = useState(initialRange);
   const [sala, setSala] = useState('all');
   const [loading, setLoading] = useState(false);
@@ -89,8 +67,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
     return () => { cancel = true; };
   }, [range, sala]);
 
-  function pickPreset(key: string) { setPeriodKey(key); setRange(presetRange(key)); }
-  function setDate(which: 'from' | 'to', v: string) { if (v) { setPeriodKey('custom'); setRange((r) => ({ ...r, [which]: v })); } }
+  function pickRange(r: { from: string; to: string }, key: string | null) { setPeriodKey(key); setRange(r); }
 
   useDataAnim(rootRef, data);
 
@@ -155,12 +132,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
 
       {/* filtros: períodos + salas + rango */}
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
-        {PRESETS.map((p) => (
-          <button key={p.key} type="button" onClick={() => pickPreset(p.key)}
-            className={cn('rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors', focusRing, periodKey === p.key ? 'bg-brand text-brand-fg' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
-            {p.label}
-          </button>
-        ))}
+        <DateRangePicker label="Período" value={range} presetKey={periodKey} onChange={pickRange} max="today" maxDays={MAX_RANGE_DAYS} />
         <span className="mx-0.5 hidden h-5 w-px bg-line sm:block" aria-hidden="true" />
         <button type="button" onClick={() => setSala('all')}
           className={cn('rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors', focusRing, sala === 'all' ? 'bg-ink text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
@@ -172,16 +144,6 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
             <span className="h-2 w-2 flex-none rounded-full" style={{ background: salaColor(s.aforo).c }} aria-hidden="true" /> {s.name}
           </button>
         ))}
-        <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Desde</span>
-            <input type="date" value={range.from} onChange={(e) => setDate('from', e.target.value)} className={cn('rounded-lg border border-border-strong bg-surface px-2.5 py-1.5 text-[13px] text-ink', focusRing)} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-faint">Hasta</span>
-            <input type="date" value={range.to} onChange={(e) => setDate('to', e.target.value)} className={cn('rounded-lg border border-border-strong bg-surface px-2.5 py-1.5 text-[13px] text-ink', focusRing)} />
-          </label>
-        </div>
       </div>
 
       <div className={cn('transition-opacity', loading && 'opacity-50')}>
