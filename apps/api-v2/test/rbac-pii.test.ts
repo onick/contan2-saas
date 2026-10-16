@@ -24,6 +24,7 @@ type Role = (typeof ROLES)[number];
 
 const DOOR_WRITE: ReadonlySet<Role> = new Set(['owner', 'admin', 'operator', 'puerta']);
 const PADRON_READ: ReadonlySet<Role> = new Set(['owner', 'admin', 'operator', 'consulta', 'puerta']);
+const USER_CREATE = new Set<Role>(['owner', 'admin', 'operator']);
 
 run('RBAC en la API · check-in / padrón / puerta', () => {
   let db: Kysely<Database>;
@@ -121,6 +122,10 @@ run('RBAC en la API · check-in / padrón / puerta', () => {
     await expectGate('GET', `/api/v2/users/${userCode}`, PADRON_READ);
     await expectGate('GET', `/api/v2/users/${userCode}/activities`, PADRON_READ);
     await expectGate('GET', `/api/v2/users/${userCode}/affinity`, PADRON_READ);
+  });
+
+  it('POST /users (crear persona en el padrón) → owner/admin/operator (paridad v1); el resto 403', async () => {
+    await expectGate('POST', '/api/v2/users', USER_CREATE);
   });
 
   it('el 403 no filtra datos del padrón', async () => {
