@@ -18,6 +18,7 @@ export type LandingSeo = {
     image: { url: string; width: number; height: number; alt: string };
   };
   twitter: { card: 'summary_large_image'; title: string; description: string; image: string };
+  jsonLd: Record<string, unknown>;
 };
 
 export function buildLandingSeo(c: LandingContent): LandingSeo {
@@ -36,5 +37,12 @@ export function buildLandingSeo(c: LandingContent): LandingSeo {
       image: ogImage,
     },
     twitter: { card: 'summary_large_image', title, description, image: ogImage.url },
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: 'contan2',
+      url: canonical,
+      logo: ogImage.url,
+    },
   };
 }

@@ -25,6 +25,11 @@ export function SeoHead({ seo }: { seo: LandingSeo }) {
       <meta name="twitter:title" content={seo.twitter.title} />
       <meta name="twitter:description" content={seo.twitter.description} />
       <meta name="twitter:image" content={seo.twitter.image} />
+      <script
+        type="application/ld+json"
+        // Escapa '<' para que ningún valor del contenido cierre el <script>.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(seo.jsonLd).replace(/</g, '\\u003c') }}
+      />
     </Head>
   );
 }

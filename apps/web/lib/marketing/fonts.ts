@@ -8,6 +8,9 @@ import { Fraunces } from 'next/font/google';
 export const fraunces = Fraunces({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
+  // Solo estilo normal: sumar 'italic' agrega un 2.º woff2 precargado y rompe el
+  // presupuesto (≤80 KB entre todas las fuentes precargadas). Si el mockup
+  // pide itálica, medir con scripts/landing/budget.mjs.
+  style: ['normal'],
   display: 'swap',
 });
