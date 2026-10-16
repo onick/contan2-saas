@@ -44,7 +44,7 @@ export interface OverviewActivity {
 export interface DashboardOverview {
   period: DashboardPeriod;
   series: { date: string; value: number }[];
-  attendance: { current: number; previous: number; deltaPct: number };
+  attendance: { current: number; previous: number; deltaPct: number; records?: number };
   newVisitors: { current: number; previous: number; deltaPct: number };
   avgOccupancyPct: { current: number; previous: number; deltaPct: number };
   returnRatePct: { current: number; previous: number; deltaPct: number };
