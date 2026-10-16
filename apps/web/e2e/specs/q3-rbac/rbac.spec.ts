@@ -70,7 +70,7 @@ const g = (p: string | ((c: Ctx) => string)) => (typeof p === 'string' ? () => p
 
 const ROWS: Row[] = [
   // ---- Lecturas: PII del padron (H2) ------------------------------------------------------------
-  { id: 'RBAC-R01', sev: 'S0', method: 'GET', path: (c) => `/app/check-in/api/visitors?q=${encodeURIComponent(c.visitorCode)}`, allowed: PADRON, forbidden: ['protocolo', 'biblioteca'], note: 'busqueda de visitantes devuelve nombre+email' },
+  { id: 'RBAC-R01', sev: 'S0', method: 'GET', path: (c) => `/app/check-in/api/visitors?q=${encodeURIComponent(c.visitorCode)}`, allowed: [...PADRON, 'protocolo'], forbidden: ['biblioteca'], note: 'busqueda de visitantes; protocolo recibe proyeccion SIN PII (ver RBAC-R01b)' },
   { id: 'RBAC-R02', sev: 'S0', method: 'GET', path: g('/app/check-in/api/recent'), allowed: PADRON, forbidden: ['protocolo', 'biblioteca'], note: 'feed de check-ins devuelve nombre+codigo' },
   { id: 'RBAC-R03', sev: 'S0', method: 'GET', path: (c) => `/app/usuarios/api/${c.visitorCode}/detail`, allowed: PADRON, forbidden: ['protocolo', 'biblioteca'] },
   { id: 'RBAC-R04', sev: 'S0', method: 'GET', path: (c) => `/app/usuarios/api/${c.visitorCode}/activities`, allowed: PADRON, forbidden: ['protocolo', 'biblioteca'] },
@@ -181,6 +181,34 @@ test.describe('RBAC: casos especiales', () => {
       const r = await apis[role].post('/app/equipo/api/invitations', { data: body });
       expect(r.status(), `${role} -> invitar`).toBe(403);
     }
+  });
+
+  test('RBAC-R01b [S0] protocolo busca visitantes: 200 con proyeccion sin PII (sin email, codigo enmascarado, solo por nombre)', async () => {
+    type Item = { id: string; code: string; firstName: string; lastName: string; email: string | null };
+    const own = await jsonOf<{ items: Item[] }>(await apis.owner.get(`/app/check-in/api/visitors?q=${encodeURIComponent(ctx.visitorCode)}`));
+    const me = own.items.find((v) => v.id === ctx.visitorId);
+    expect(me, 'control: owner ve al visitante [E2E] con codigo y correo completos').toBeTruthy();
+    expect(me!.email, 'control: owner ve el correo').toBeTruthy();
+
+    // 1) Por nombre: 200, ve a la persona pero sin email y con codigo enmascarado.
+    const byName = await apis.protocolo.get(`/app/check-in/api/visitors?q=${encodeURIComponent(me!.lastName)}`);
+    expect(byName.status(), 'protocolo -> busqueda por nombre').toBe(200);
+    const hit = (await jsonOf<{ items: Item[] }>(byName)).items.find((v) => v.id === ctx.visitorId);
+    expect(hit, 'protocolo encuentra a la persona por apellido').toBeTruthy();
+    expect(hit!.email, 'sin email').toBeNull();
+    expect(hit!.code, 'codigo enmascarado').toMatch(/^•••.{3}$/);
+    expect(hit!.code).toBe(`•••${ctx.visitorCode.slice(-3)}`);
+
+    // 2) Por codigo o correo completos: NO matchea (sin sondeo de PII).
+    for (const q of [ctx.visitorCode, me!.email!]) {
+      const r = await apis.protocolo.get(`/app/check-in/api/visitors?q=${encodeURIComponent(q)}`);
+      expect(r.status(), 'protocolo -> busqueda por codigo/correo').toBe(200);
+      const items = (await jsonOf<{ items: Item[] }>(r)).items;
+      expect(items.find((v) => v.id === ctx.visitorId), 'no debe encontrarlo por codigo/correo').toBeUndefined();
+      expect(JSON.stringify(items), 'ni el correo ni el codigo completo en la respuesta').not.toContain(ctx.visitorCode);
+    }
+    // 3) biblioteca: 403.
+    expect((await apis.biblioteca.get(`/app/check-in/api/visitors?q=${encodeURIComponent(me!.lastName)}`)).status()).toBe(403);
   });
 
   test('RBAC-X02 [S0] buscador global: protocolo/biblioteca no obtienen personas del padron', async () => {
