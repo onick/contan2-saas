@@ -76,7 +76,21 @@ describe('/app/reportes · dashboard', () => {
     expect(screen.getByRole('link', { name: /Descargar PDF/i })).toBeInTheDocument();
   });
 
-  it.each(['operator', 'consulta', 'protocolo', 'biblioteca'])('%s: «sin permiso» honesto, sin KPIs ni botones de export', async (role) => {
+  it.each(['operator', 'consulta'])('%s: ve el dashboard en SOLO LECTURA (KPIs y gráficas) sin botones de export ni Asistente', async (role) => {
+    mockRole = role;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ categories: [] }) }));
+    render(await ReportesPage());
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('Evolución de asistencias')).toBeInTheDocument();
+    expect(screen.getAllByText('238').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('link', { name: /Descargar PDF/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Exportar Excel/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Asistente/i })).toBeNull();
+    expect(screen.queryByText(/Reporte por ciclo o categoría/)).toBeNull();
+    expect(screen.queryByText(/Reporte mensual \(formato registro\)/)).toBeNull();
+  });
+
+  it.each(['protocolo', 'biblioteca'])('%s (confinado): «sin permiso» honesto, sin KPIs ni botones de export', async (role) => {
     mockRole = role;
     render(await ReportesPage());
     expect(screen.getByRole('alert')).toHaveTextContent(/No tienes permiso para ver Reportes/);

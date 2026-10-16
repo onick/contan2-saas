@@ -191,16 +191,24 @@ test.describe('REP-05 permisos de export (operator / consulta / puerta / protoco
     });
   }
 
-  test('REP-05-ui [S2] operator en /app/reportes: no ofrece botones de descarga que luego fallan (403) (ya visto en Q3 RBAC-U07: sigue igual)', async ({ asRole }) => {
-    const { page, context } = await asRole('operator');
-    await page.goto('/app/reportes');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
-    const bodyText = (await page.locator('main').innerText()).slice(0, 400);
-    const buttons = await page.getByRole('link', { name: /Exportar Excel|Descargar PDF/ }).count();
-    const honest = /sin permiso|no tienes permiso|no tenés permiso|no disponible/i.test(bodyText) || buttons === 0;
-    expect(honest, `operator ve ${buttons} botón(es) de export en una pantalla que da 403. Texto: ${bodyText.replace(/\s+/g, ' ').slice(0, 160)}`).toBe(true);
-    await context.close();
-  });
+  // PR-9 (decisión del owner): Reportes es de SOLO LECTURA para operator/consulta: el dashboard se ve
+  // (period-summary es lectura para todo staff) y el 403 queda únicamente en generar/exportar.
+  for (const role of ['operator', 'consulta'] as const) {
+    test(`REP-05-ui-${role} [S2] ${role} en /app/reportes: ve el dashboard sin botones de export ni Asistente`, async ({ asRole }) => {
+      const { page, context } = await asRole(role);
+      await page.goto('/app/reportes');
+      await page.waitForLoadState('networkidle').catch(() => undefined);
+      await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
+      await expect(page.getByText('Evolución de asistencias')).toBeVisible();
+      await expect(page.getByRole('link', { name: /Exportar Excel|Descargar PDF|Descargar Excel/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Asistente' })).toHaveCount(0);
+      await expect(page.getByText(/Reporte mensual \(formato registro\)|Reporte por ciclo o categoría/)).toHaveCount(0);
+      // La lectura funciona; solo la exportación da 403.
+      const summary = await page.request.get(`/app/reportes/api/summary?from=${from}&to=${to}`);
+      expect(summary.status(), `${role}: el resumen del dashboard es lectura`).toBe(200);
+      await context.close();
+    });
+  }
 
   test('REP-05-puerta [S1] puerta: descarga period/actividad/mes (permitido) pero NO el reporte de protocolo', async () => {
     const a = await apiFor('puerta');

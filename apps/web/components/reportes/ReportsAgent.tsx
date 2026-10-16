@@ -163,7 +163,7 @@ export function ReportsAgent() {
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             {res.options.map((o, i) => (
               <button key={i} type="button" onClick={() => send(o.query)} disabled={busy}
-                className={cn('rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink hover:border-brand hover:text-brand disabled:opacity-50', focusRing)}>
+                className={cn('rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink hover:border-brand hover:text-brand-text disabled:opacity-50', focusRing)}>
                 {o.label}
               </button>
             ))}
@@ -177,7 +177,7 @@ export function ReportsAgent() {
     <>
       <button type="button" onClick={() => setOpen(true)}
         className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
-        <Sparkles size={16} strokeWidth={1.9} className="text-brand" /> Asistente
+        <Sparkles size={16} strokeWidth={1.9} className="text-brand-text" /> Asistente
       </button>
 
       {mounted && typeof document !== 'undefined' ? createPortal(
@@ -190,7 +190,7 @@ export function ReportsAgent() {
             'flex flex-col', closing && 'drawer-panel--closing')}>
             <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
               <div className="min-w-0">
-                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><Sparkles size={12} className="text-brand" /> Reportes</p>
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint"><Sparkles size={12} className="text-brand-text" /> Reportes</p>
                 <h2 id={titleId} className="mt-1 text-lg font-bold leading-tight tracking-tight text-ink">Asistente de reportes</h2>
               </div>
               <IconButton label="Cerrar" variant="outline" size="sm" onClick={() => setOpen(false)}>
@@ -207,7 +207,7 @@ export function ReportsAgent() {
                   <div className="mt-3 flex flex-col items-start gap-1.5">
                     {SUGGESTIONS.map((s) => (
                       <button key={s} type="button" onClick={() => send(s)}
-                        className={cn('rounded-full border border-line bg-surface px-3 py-1.5 text-left text-[12.5px] font-semibold text-ink hover:border-brand hover:text-brand', focusRing)}>
+                        className={cn('rounded-full border border-line bg-surface px-3 py-1.5 text-left text-[12.5px] font-semibold text-ink hover:border-brand hover:text-brand-text', focusRing)}>
                         {s}
                       </button>
                     ))}
@@ -216,7 +216,7 @@ export function ReportsAgent() {
               ) : (
                 <div className="flex flex-col gap-3">
                   {msgs.map((m, i) => m.role === 'user' ? (
-                    <div key={i} className="ml-8 self-end rounded-2xl rounded-br-md bg-brand px-3.5 py-2 text-[13.5px] font-medium text-white">{m.text}</div>
+                    <div key={i} className="ml-8 self-end rounded-2xl rounded-br-md bg-brand px-3.5 py-2 text-[13.5px] font-medium text-brand-fg">{m.text}</div>
                   ) : (
                     <div key={i} className="mr-4 self-start rounded-2xl rounded-bl-md bg-surface-container px-3.5 py-2.5 w-fit max-w-full">
                       {'error' in m ? <p className="text-[13.5px] text-danger-fg">{m.error}</p> : <ResultCard res={m.res} />}

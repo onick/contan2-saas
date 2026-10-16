@@ -81,11 +81,12 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('link', { name: 'Mi equipo' })).not.toBeInTheDocument();
   });
 
-  it.each(['operator', 'consulta'])('role=%s → sin Mi equipo, Historial, Identidad, Reportes ni Biblioteca', (role) => {
+  it.each(['operator', 'consulta'])('role=%s → con Reportes (solo lectura), sin Mi equipo, Historial, Identidad ni Biblioteca', (role) => {
     render(<Sidebar branding={DEFAULT_BRANDING} activeKey="dashboard" role={role} />);
     expect(screen.getByRole('link', { name: 'Usuarios' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Mi cuenta' })).toBeInTheDocument();
-    for (const n of ['Mi equipo', 'Historial', 'Identidad', /Reportes/, 'Biblioteca', 'Protocolo']) {
+    expect(screen.getByRole('link', { name: /Reportes/ })).toBeInTheDocument();
+    for (const n of ['Mi equipo', 'Historial', 'Identidad', 'Biblioteca', 'Protocolo']) {
       expect(screen.queryByRole('link', { name: n })).not.toBeInTheDocument();
     }
   });

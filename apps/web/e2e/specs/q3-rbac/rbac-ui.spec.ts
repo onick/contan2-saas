@@ -32,9 +32,10 @@ const ALLOWLIST: Partial<Record<Role, string[]>> = {
   protocolo: ['protocolo', 'cuenta'],
   puerta: ['puerta', 'registros', 'protocolo', 'reportes', 'cuenta'],
   biblioteca: ['biblioteca', 'cuenta'],
-  // PR-5 (fix/rbac-ui-gates): UI = API. operator/consulta ya no ven equipo/historial/identidad/reportes/biblioteca/protocolo.
-  operator: ['dashboard', 'actividades', 'checkin', 'puerta', 'registros', 'usuarios', 'segmentos', 'modo-publico', 'cuenta'],
-  consulta: ['dashboard', 'actividades', 'registros', 'usuarios', 'segmentos', 'cuenta'],
+  // PR-5 (fix/rbac-ui-gates): UI = API. operator/consulta no ven equipo/historial/identidad/biblioteca/protocolo.
+  // PR-9 (decisión del owner): Reportes vuelve en SOLO LECTURA (dashboard sin export) -> operator 10 entradas, consulta 7.
+  operator: ['dashboard', 'actividades', 'checkin', 'puerta', 'registros', 'usuarios', 'segmentos', 'reportes', 'modo-publico', 'cuenta'],
+  consulta: ['dashboard', 'actividades', 'registros', 'usuarios', 'segmentos', 'reportes', 'cuenta'],
 };
 const ALL_LABELS = Object.values(LABELS);
 
@@ -224,15 +225,17 @@ test.describe('RBAC UI · estados honestos sin permiso', () => {
       });
     }
 
-    test(`RBAC-U07 [S2] ${role}: /app/reportes no ofrece exportar lo que la API niega (403)`, async ({ asRole }, testInfo) => {
+    test(`RBAC-U07 [S2] ${role}: /app/reportes es solo lectura: dashboard visible, sin exportar lo que la API niega (403)`, async ({ asRole }, testInfo) => {
       const { page } = await asRole(role);
       await page.goto('/app/reportes');
       const gen = await page.request.get('/app/reportes/api/month?month=10&year=2026');
       expect(gen.status(), 'la API niega el reporte mensual').toBe(403);
-      const offered = await page.getByRole('button', { name: /Descargar PDF|Exportar Excel|Descargar Excel/ }).count();
-      // PR-5: sin botones de export y estado «sin permiso» honesto (no KPIs en 0). Ya no es un hallazgo.
+      const offered = await page.getByRole('link', { name: /Descargar PDF|Exportar Excel|Descargar Excel/ }).count()
+        + await page.getByRole('button', { name: /Descargar PDF|Exportar Excel|Descargar Excel|Asistente/ }).count();
+      // PR-9: Reportes en solo lectura. El dashboard (period-summary) se ve; no hay export ni Asistente.
       expect(offered, `${role}: la UI ofrece ${offered} accion(es) de exportacion que fallaran con 403`).toBe(0);
-      await expect(page.getByRole('alert').filter({ hasText: /No tienes permiso para ver Reportes/ })).toBeVisible();
+      await expect(page.getByText('Evolución de asistencias')).toBeVisible();
+      await expect(page.getByRole('alert').filter({ hasText: /No tienes permiso para ver Reportes/ })).toHaveCount(0);
     });
   }
 
