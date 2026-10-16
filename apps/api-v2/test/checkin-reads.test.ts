@@ -209,6 +209,22 @@ run('GET /checkin/* · lectura', () => {
     expect(v2.invitedTo ?? []).toEqual([]); // invitación cancelada → no aparece
   });
 
+  it('personas ARCHIVADAS (deleted_at) no aparecen en la búsqueda ni en *protocolo', async () => {
+    const arch = await mkUser(orgAId, 'ARCH-ZZ9', 'Archivada', 'Zuleta', 'arch@ckitest.local', null, 9);
+    await db.insertInto('protocol_profiles').values({ user_id: arch, organization_id: orgAId, category: 'diplomatico', honorific: null, active: true } as never).execute();
+    try {
+      expect((await visitors('Zuleta')).items.some((v) => v.id === arch)).toBe(true); // viva: aparece
+      await db.updateTable('users').set({ deleted_at: new Date().toISOString() } as never).where('id', '=', arch).execute();
+      expect((await visitors('Zuleta')).items.some((v) => v.id === arch)).toBe(false);
+      expect((await visitors('ARCH-ZZ9')).items.some((v) => v.id === arch)).toBe(false);
+      const proto = CheckinVisitorsResponseSchema.parse((await get('/api/v2/checkin/visitors?protocol=1', hostA, TOK.admin)).json());
+      expect(proto.items.some((v) => v.id === arch)).toBe(false);
+    } finally {
+      await db.deleteFrom('protocol_profiles').where('user_id', '=', arch).execute();
+      await db.deleteFrom('users').where('id', '=', arch).execute();
+    }
+  });
+
   it('comando *protocolo: ?protocol=1 → solo invitados de protocolo (perfil activo), todos marcados', async () => {
     await db.insertInto('protocol_profiles').values({ user_id: u1, organization_id: orgAId, category: 'diplomatico', honorific: null, active: true } as never).execute();
     try {

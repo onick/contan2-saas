@@ -36,10 +36,13 @@ const STATUS_TONE: Record<UserStatus, ChipTone> = {
   inactivo: 'neutral',
 };
 
+// Solo reformatea ISO (con zona fija DR). Los textos ya formateados en servidor
+// ("hace 2 días", "13/10/2026", "Nunca") se muestran tal cual: re-parsearlos con
+// new Date() usa la TZ del proceso y difería entre SSR (UTC) y cliente (#418).
+const ISO_RE = /^\d{4}-\d{2}-\d{2}/;
 function safeDate(s: string): string {
   if (!s || s === '—') return '—';
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? s : fecha(d);
+  return ISO_RE.test(s) && !isNaN(new Date(s).getTime()) ? fecha(s) : s;
 }
 
 export interface UsersTableProps {

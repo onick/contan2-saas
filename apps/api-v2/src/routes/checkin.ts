@@ -251,6 +251,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
             .on('pp.active', '=', true))
           .select(['u.id as id', 'u.code as code', 'u.first_name as first_name', 'u.last_name as last_name', 'u.email as email', 'u.visit_count as visit_count'])
           .where('u.organization_id', '=', orgId)
+          .where('u.deleted_at', 'is', null) // archivados fuera
           .orderBy('u.first_name', 'asc').orderBy('u.last_name', 'asc').orderBy('u.id', 'asc')
           .limit(Number.isInteger(n) && n > 0 ? Math.min(n, PROTOCOL_MAX_LIMIT) : PROTOCOL_MAX_LIMIT)
           .execute()
@@ -258,6 +259,7 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
           .selectFrom('users')
           .select(['id', 'code', 'first_name', 'last_name', 'email', 'visit_count'])
           .where('organization_id', '=', orgId)
+          .where('deleted_at', 'is', null) // archivados fuera (no se les registra asistencia)
           .where((eb) =>
             eb.or([
               ...(restricted ? [] : [

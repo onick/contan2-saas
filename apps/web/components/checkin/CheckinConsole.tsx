@@ -39,12 +39,14 @@ function timeAgo(iso: string, skewMs: number): string {
 // "EN VIVO" vive SOLO en el pill del header de la página (estaba duplicado);
 // con ese espacio entra el reloj local compacto.
 // Actividad de HOY (fecha local del dispositivo) → chip naranja (paridad v1).
+// Zona fija (America/Santo_Domingo) en servidor y cliente: sin depender de la TZ
+// del proceso, así el HTML de SSR y el primer render de cliente coinciden.
+const TZ = 'America/Santo_Domingo';
+const dayKey = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 function isToday(iso: string): boolean {
-  const d = new Date(iso);
-  const n = new Date();
-  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+  return dayKey(new Date(iso)) === dayKey(new Date());
 }
-const fmtHour = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+const fmtHour = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
 
 const METRIC_LABELS: { key: keyof CheckinMetricsResponse['metrics']; label: string }[] = [
   { key: 'checkinsToday', label: 'check-ins hoy' },
@@ -56,13 +58,17 @@ const METRIC_LABELS: { key: keyof CheckinMetricsResponse['metrics']; label: stri
 
 
 // Reloj HH:MM local del dispositivo (la tablet de recepción). Tick 30s.
+// "Ahora" solo existe en el cliente: el SSR y el primer render del cliente pintan
+// el mismo placeholder y la hora real entra tras montar (evita el error #418).
+export const CLOCK_PLACEHOLDER = '--:--';
 function useLocalClock(): string {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    setNow(new Date());
     const t = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
-  return now.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+  return now ? now.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' }) : CLOCK_PLACEHOLDER;
 }
 
 export function CheckinConsole() {
@@ -72,6 +78,9 @@ export function CheckinConsole() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<{ phase: 'idle' | 'searching' | 'ready' | 'error'; items: CheckinVisitorItem[]; error?: string }>({ phase: 'idle', items: [] });
   const [selected, setSelected] = useState<CheckinVisitorItem | null>(null);
+  // Actividad elegida EXPLÍCITAMENTE por el staff para el visitante en curso; manda
+  // sobre la invitación/primera de la lista. Se resetea al cambiar/quitar visitante.
+  const [pickedActivityId, setPickedActivityId] = useState<string | null>(null);
   // Acompañantes del registro en curso (viajan con el POST; se resetean al
   // cambiar/limpiar el visitante). Sin fila propia: suman al partySize.
   const [compKids, setCompKids] = useState(0);
@@ -133,9 +142,11 @@ export function CheckinConsole() {
     if (!selected) return null;
     const acts = activities.data ?? [];
     if (acts.length === 0) return null;
+    const picked = pickedActivityId ? acts.find((a) => a.id === pickedActivityId) : undefined;
+    if (picked) return picked;
     const invitedIds = new Set((selected.invitedTo ?? []).map((x) => x.activityId));
     return acts.find((a) => invitedIds.has(a.id)) ?? acts[0] ?? null;
-  }, [selected, activities.data]);
+  }, [selected, activities.data, pickedActivityId]);
 
   const refreshLive = useCallback(() => { void loadMetrics(); void loadActivities(); void loadRecent(); }, [loadMetrics, loadActivities, loadRecent]);
 
@@ -177,7 +188,7 @@ export function CheckinConsole() {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  const selectVisitor = (v: CheckinVisitorItem) => { setSelected(v); setQuery(''); setResults({ phase: 'idle', items: [] }); resetCompanions(); };
+  const selectVisitor = (v: CheckinVisitorItem) => { setSelected(v); setPickedActivityId(null); setQuery(''); setResults({ phase: 'idle', items: [] }); resetCompanions(); };
 
   // ── Escaneo de credencial → resolver visitante ──
   // El QR no registra: trae el código y la consola lo busca. Coincidencia exacta
@@ -215,6 +226,7 @@ export function CheckinConsole() {
           : `${selected.firstName} registrado en "${act.name}"${compTxt}. Quedó auditado.`,
       });
       setSelected(null);
+      setPickedActivityId(null);
       resetCompanions();
       refreshLive();
     } else {
@@ -314,7 +326,7 @@ export function CheckinConsole() {
                       </p>
                     ) : null}
                   </div>
-                  <IconButton label="Quitar visitante" variant="outline" size="sm" onClick={() => { setSelected(null); resetCompanions(); }}>
+                  <IconButton label="Quitar visitante" variant="outline" size="sm" onClick={() => { setSelected(null); setPickedActivityId(null); resetCompanions(); }}>
                     <X size={16} strokeWidth={2} aria-hidden="true" />
                   </IconButton>
                 </div>
@@ -417,6 +429,18 @@ export function CheckinConsole() {
                       {focusedActivity.full ? <span className="font-semibold text-danger-fg">Lleno</span> : null}
                     </p>
                   </div>
+                  {(activities.data?.length ?? 0) > 1 ? (
+                    <label className="flex w-full flex-none items-center gap-2 text-xs text-muted sm:w-auto">
+                      <span>Actividad</span>
+                      <select
+                        value={focusedActivity.id}
+                        onChange={(e) => setPickedActivityId(e.target.value)}
+                        className={cn('h-9 min-w-0 max-w-[16rem] rounded-lg border border-line bg-surface px-2 text-[13px] text-ink', focusRing)}
+                      >
+                        {activities.data?.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </select>
+                    </label>
+                  ) : null}
                   <Button size="sm" className="flex-none" disabled={focusedActivity.full || busyActivity === focusedActivity.id}
                     onClick={() => registerExisting(focusedActivity)} style={{ backgroundColor: 'var(--color-brand-accent)' }}>
                     {busyActivity === focusedActivity.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Registrar
