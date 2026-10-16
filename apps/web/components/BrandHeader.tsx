@@ -22,7 +22,7 @@ export function BrandHeader({ branding }: BrandHeaderProps) {
           className="mt-1 h-10 w-auto md:h-12"
         />
       ) : (
-        <h1 className="mt-1 text-2xl font-bold text-brand md:text-3xl xl:text-4xl">
+        <h1 className="mt-1 text-2xl font-bold text-brand-text md:text-3xl xl:text-4xl">
           {branding.name}
         </h1>
       )}

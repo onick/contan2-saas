@@ -93,7 +93,7 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
   const kpis = [
     { label: 'Invitados especiales', value: k.guests, delta: dl.guests, sub: 'Total registrados', tint: 'bg-[#e0f5fa] text-[#0891b2]', Icon: Users },
     { label: 'Categorías activas', value: k.activeCategories, delta: dl.activeCategories, sub: `De ${CAT_ORDER.length} disponibles`, tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: FolderOpen },
-    { label: 'Invitaciones pendientes', value: k.pendingInvites, delta: dl.pendingInvites, sub: 'Por confirmar', tint: 'bg-brand/10 text-brand', Icon: Send },
+    { label: 'Invitaciones pendientes', value: k.pendingInvites, delta: dl.pendingInvites, sub: 'Por confirmar', tint: 'bg-brand/10 text-brand-text', Icon: Send },
     { label: 'Tasa de asistencia', value: k.attendanceRate, suffix: '%', delta: dl.attendanceRate, sub: 'Promedio general', tint: 'bg-success-bg text-success-fg', Icon: TrendingUp },
   ];
 
@@ -224,7 +224,7 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
             <Send size={16} strokeWidth={1.9} /> Invitar a actividad
           </button>
           <button type="button" onClick={() => setDesignate({ ...EMPTY_FORM })}
-            className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
+            className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-brand-fg hover:brightness-95', focusRing)}>
             <Plus size={16} strokeWidth={2.2} /> Designar invitado
           </button>
         </div>
@@ -404,7 +404,7 @@ export function ProtocolDashboard({ initial }: { initial: ProtocolDashboardRespo
               const d = new Date(e.date);
               return (
                 <div key={e.id} data-anim="ev" className="flex gap-3 border-t border-line py-2.5 first:border-t-0">
-                  <div className="w-11 flex-none rounded-lg bg-brand/10 py-1.5 text-center"><div className="text-[16px] font-extrabold leading-none text-brand">{d.getUTCDate()}</div><div className="text-[9px] font-bold uppercase text-brand">{MES[d.getUTCMonth()]}</div></div>
+                  <div className="w-11 flex-none rounded-lg bg-brand/10 py-1.5 text-center"><div className="text-[16px] font-extrabold leading-none text-brand-text">{d.getUTCDate()}</div><div className="text-[9px] font-bold uppercase text-brand-text">{MES[d.getUTCMonth()]}</div></div>
                   <div className="min-w-0"><p className="truncate text-[13px] font-bold text-ink">{e.name}</p><p className="truncate text-[11.5px] text-muted">{e.location}</p><p className="text-[11px] font-semibold" style={{ color: TEAL }}>{e.confirmed > 0 ? `${e.confirmed} confirmados` : `${e.pending} pendientes`}</p></div>
                 </div>
               );

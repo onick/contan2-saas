@@ -33,7 +33,7 @@ export function UserStatusFilter() {
       {OPTS.map((o) => (
         <button key={o.key} type="button" aria-pressed={o.key === active} onClick={() => select(o.key)}
           className={cn('rounded-md px-3 py-1 text-[13px] font-semibold transition-colors', focusRing,
-            o.key === active ? 'bg-brand text-white' : 'text-muted hover:text-ink')}>
+            o.key === active ? 'bg-brand text-brand-fg' : 'text-muted hover:text-ink')}>
           {o.label}
         </button>
       ))}

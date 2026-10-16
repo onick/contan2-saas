@@ -94,7 +94,7 @@ export function LectoresClient({ initial, initialStats }: {
   const pct = stats && stats.total > 0 ? Math.round((stats.active / stats.total) * 1000) / 10 : null;
 
   const kpis = stats ? [
-    { label: 'Lectores totales', value: stats.total, Icon: Users, tint: 'bg-brand/10 text-brand', foot: 'Ver todos', onClick: limpiar },
+    { label: 'Lectores totales', value: stats.total, Icon: Users, tint: 'bg-brand/10 text-brand-text', foot: 'Ver todos', onClick: limpiar },
     { label: 'Activos', value: stats.active, Icon: UserCheck, tint: 'bg-success-bg text-success-fg', foot: pct !== null ? `${pct}% del total` : undefined },
     { label: 'Nuevos este mes', value: stats.newThisMonth, Icon: UserPlus, tint: 'bg-info-soft text-info-text' },
     { label: 'Suspendidos', value: stats.suspended, Icon: UserX, tint: 'bg-danger-bg text-danger-fg', foot: 'Ver lista', onClick: () => { setEstado('suspendido'); setPage(1); } },
@@ -108,7 +108,7 @@ export function LectoresClient({ initial, initialStats }: {
       header: 'Lector',
       cell: (r) => (
         <span className="flex items-center gap-3">
-          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(r.firstName, r.lastName)}</span>
+          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand-text">{initials(r.firstName, r.lastName)}</span>
           <span className="min-w-0">
             <span className="block max-w-[220px] truncate text-[13.5px] font-bold leading-tight text-ink">{r.firstName} {r.lastName}</span>
             <span className="block font-mono text-[11px] text-faint tabular-nums">
@@ -197,7 +197,7 @@ export function LectoresClient({ initial, initialStats }: {
                   <span className="block text-[22px] font-extrabold leading-tight tabular-nums text-ink">{fmt(k.value)}</span>
                   {k.foot ? (
                     k.onClick ? (
-                      <button type="button" onClick={k.onClick} className={cn('text-[11.5px] font-bold text-brand hover:underline', focusRing)}>{k.foot}</button>
+                      <button type="button" onClick={k.onClick} className={cn('text-[11.5px] font-bold text-brand-text hover:underline', focusRing)}>{k.foot}</button>
                     ) : (
                       <span className="text-[11.5px] font-semibold text-faint">{k.foot}</span>
                     )
@@ -262,7 +262,7 @@ export function LectoresClient({ initial, initialStats }: {
               const est = estadoDe(r);
               return (
                 <div className="flex items-center gap-3 p-4">
-                  <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(r.firstName, r.lastName)}</span>
+                  <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand-text">{initials(r.firstName, r.lastName)}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13.5px] font-bold text-ink">{r.firstName} {r.lastName}</p>
                     <p className="truncate font-mono text-[10.5px] text-faint tabular-nums">{r.code}{r.document ? ` · Céd. ${r.document}` : ''}</p>
@@ -303,7 +303,7 @@ export function LectoresClient({ initial, initialStats }: {
                   ) : (
                     <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === data.page ? 'page' : undefined}
                       className={cn('grid h-8 min-w-8 place-items-center rounded-lg px-1 text-[12.5px] font-bold tabular-nums', focusRing,
-                        p === data.page ? 'bg-brand text-white' : 'text-muted hover:bg-surface-container')}>
+                        p === data.page ? 'bg-brand text-brand-fg' : 'text-muted hover:bg-surface-container')}>
                       {p}
                     </button>
                   ))}
@@ -434,7 +434,7 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
       </div>
 
       <div className="mt-3 flex items-center gap-3">
-        <span className="grid h-12 w-12 flex-none place-items-center rounded-full bg-brand/10 text-[15px] font-extrabold text-brand">{initials(reader.firstName, reader.lastName)}</span>
+        <span className="grid h-12 w-12 flex-none place-items-center rounded-full bg-brand/10 text-[15px] font-extrabold text-brand-text">{initials(reader.firstName, reader.lastName)}</span>
         <span className="min-w-0">
           <span className="flex items-center gap-2">
             <span className="truncate text-[15px] font-extrabold leading-tight text-ink">{reader.firstName} {reader.lastName}</span>

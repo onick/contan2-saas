@@ -26,7 +26,7 @@ const ROLE_META: Record<string, RoleMeta> = {
   owner: { label: 'Propietario', desc: 'Acceso completo a todas las funciones', Icon: Crown, tint: 'bg-[#fbf2dc] text-[#c98a16]' },
   admin: { label: 'Administrador', desc: 'Gestiona usuarios, reportes y ajustes', Icon: Shield, tint: 'bg-success-bg text-success-fg' },
   operator: { label: 'Operador', desc: 'Gestiona actividades y registros', Icon: CalendarCog, tint: 'bg-[#e7effe] text-[#2563eb]' },
-  protocolo: { label: 'Protocolo', desc: 'Gestiona invitados de protocolo', Icon: Medal, tint: 'bg-brand/10 text-brand' },
+  protocolo: { label: 'Protocolo', desc: 'Gestiona invitados de protocolo', Icon: Medal, tint: 'bg-brand/10 text-brand-text' },
   consulta: { label: 'Consulta', desc: 'Solo lectura de información', Icon: Eye, tint: 'bg-surface-container text-muted' },
 };
 
@@ -60,7 +60,7 @@ export function TeamDashboard({ initialOverview, currentStaffId, currentRole, ca
 
   const k = overview.kpis;
   const kpis = [
-    { label: 'Miembros activos', value: k.activeMembers, sub: 'Con acceso a la organización', tint: 'bg-brand/10 text-brand', Icon: Users },
+    { label: 'Miembros activos', value: k.activeMembers, sub: 'Con acceso a la organización', tint: 'bg-brand/10 text-brand-text', Icon: Users },
     { label: 'Administradores', value: k.admins, sub: 'Propietarios + administradores', tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: ShieldCheck },
     { label: 'Invitaciones pendientes', value: k.pendingInvites, sub: 'Por aceptar', tint: 'bg-[#fff1e8] text-[#e65100]', Icon: Mail },
     { label: 'Actividad del equipo', value: k.activeThisWeekPct, suffix: '%', delta: k.activeDeltaPts, sub: 'Activos esta semana', tint: 'bg-success-bg text-success-fg', Icon: TrendingUp },
@@ -109,7 +109,7 @@ export function TeamDashboard({ initialOverview, currentStaffId, currentRole, ca
             <ShieldCheck size={16} strokeWidth={1.9} /> Roles y permisos
           </button>
           <button type="button" onClick={focusInvite}
-            className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-strong', focusRing)}>
+            className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-brand-fg hover:brightness-95', focusRing)}>
             <Plus size={16} strokeWidth={2.2} /> Invitar miembro
           </button>
         </div>
@@ -176,7 +176,7 @@ export function TeamDashboard({ initialOverview, currentStaffId, currentRole, ca
       <Card padding="md" className="mt-5">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-[15px] font-bold text-ink">Roles y permisos en la organización</h3>
-          <button type="button" onClick={() => setRolesOpen(true)} className={cn('text-[12.5px] font-semibold text-brand hover:underline', focusRing)}>Ver detalle</button>
+          <button type="button" onClick={() => setRolesOpen(true)} className={cn('text-[12.5px] font-semibold text-brand-text hover:underline', focusRing)}>Ver detalle</button>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {overview.roles.map((r) => {

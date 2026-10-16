@@ -97,7 +97,7 @@ export function ProgramPicker({ value, onChange, year, selectClassName = '', dis
           type="button"
           onClick={() => setCreating(true)}
           disabled={disabled}
-          className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-brand hover:text-brand-strong disabled:opacity-50"
+          className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-brand-text hover:text-brand-strong disabled:opacity-50"
         >
           <Plus size={13} strokeWidth={2.4} /> Nuevo programa
         </button>
@@ -136,7 +136,7 @@ export function ProgramPicker({ value, onChange, year, selectClassName = '', dis
             type="button"
             onClick={submitNew}
             disabled={busy}
-            className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-[12.5px] font-bold text-white hover:bg-brand-strong disabled:opacity-60"
+            className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-[12.5px] font-bold text-brand-fg hover:brightness-95 disabled:opacity-60"
           >
             {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} strokeWidth={2.4} />} Crear y usar
           </button>

@@ -18,7 +18,7 @@ export function InsightBanner({ insight }: { insight: DashboardOverviewResponse[
         <p className="text-sm font-semibold text-ink">{insight.title}</p>
         <p className="text-[13px] text-muted">{insight.message}</p>
       </div>
-      <a href="/app/actividades" className={cn('inline-flex flex-none items-center gap-1 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-brand hover:bg-surface-container', focusRing)}>
+      <a href="/app/actividades" className={cn('inline-flex flex-none items-center gap-1 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-brand-text hover:bg-surface-container', focusRing)}>
         Ver actividades <ChevronRight size={14} strokeWidth={2.25} aria-hidden="true" />
       </a>
     </div>

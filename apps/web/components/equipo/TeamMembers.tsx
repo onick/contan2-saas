@@ -118,7 +118,7 @@ export function TeamMembers({ currentStaffId, currentRole, onMutated }: {
               <div key={m.id} data-member className="relative rounded-xl border border-line bg-surface-container/40 p-4">
                 <div className="absolute right-2.5 top-2.5">{actions(m)}</div>
                 <div className="flex items-center gap-3 pr-6">
-                  <span className="grid h-12 w-12 flex-none place-items-center rounded-full bg-brand/10 text-[15px] font-extrabold text-brand">{initials(m.fullName)}</span>
+                  <span className="grid h-12 w-12 flex-none place-items-center rounded-full bg-brand/10 text-[15px] font-extrabold text-brand-text">{initials(m.fullName)}</span>
                   <div className="min-w-0">
                     <p className="truncate text-[14px] font-bold leading-tight text-ink">{m.fullName}</p>
                     <p className="truncate text-[12px] text-muted">{m.email}</p>
@@ -139,7 +139,7 @@ export function TeamMembers({ currentStaffId, currentRole, onMutated }: {
           <ul className="overflow-hidden rounded-xl border border-line">
             {items.map((m) => (
               <li key={m.id} data-member className="flex items-center gap-3 border-t border-line bg-surface px-4 py-3 first:border-t-0">
-                <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand">{initials(m.fullName)}</span>
+                <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-brand/10 text-[12px] font-extrabold text-brand-text">{initials(m.fullName)}</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13.5px] font-semibold text-ink">{m.fullName}</p>
                   <p className="truncate text-[12px] text-faint"><Mail size={11} className="mr-0.5 inline align-[-1px]" />{m.email}</p>

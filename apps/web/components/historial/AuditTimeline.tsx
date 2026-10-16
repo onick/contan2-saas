@@ -189,7 +189,7 @@ function CatTab({ label, Icon, active, onClick }: { label: string; Icon?: typeof
   return (
     <button type="button" onClick={onClick} aria-pressed={active}
       className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors', focusRing,
-        active ? 'bg-brand text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
+        active ? 'bg-brand text-brand-fg' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
       {Icon ? <Icon size={13} strokeWidth={1.9} aria-hidden="true" /> : null}{label}
     </button>
   );

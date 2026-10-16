@@ -43,7 +43,7 @@ export function ResetForm({ token }: { token: string }) {
         <ShieldCheck size={28} strokeWidth={1.75} aria-hidden="true" className="text-success-fg" />
         <p className="text-sm font-semibold text-ink">Contraseña actualizada</p>
         <p className="text-[13px] text-muted">Por seguridad cerramos todas tus sesiones. Ingresá con la contraseña nueva.</p>
-        <a href="/login" className={cn('mt-2 rounded text-[13px] font-semibold text-brand hover:underline', focusRing)}>Ir a ingresar</a>
+        <a href="/login" className={cn('mt-2 rounded text-[13px] font-semibold text-brand-text hover:underline', focusRing)}>Ir a ingresar</a>
       </div>
     );
   }
