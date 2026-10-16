@@ -207,8 +207,8 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
           subtitle="Títulos y ejemplares del acervo."
           actions={
             <>
-              <Button variant="secondary">
-                <Upload size={15} strokeWidth={2} /> Importar
+              <Button variant="secondary" disabled title="Llega con el import por lotes">
+                <Upload size={15} strokeWidth={2} /> Importar <Chip tone="neutral">Pronto</Chip>
               </Button>
               <Button variant="primary" onClick={() => router.push('/app/biblioteca/titulos/nuevo')}>
                 <BookPlus size={16} strokeWidth={2} /> Agregar libro
@@ -310,7 +310,7 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
               <div className="flex items-center gap-3 p-4">
                 <CoverThumb t={t} className="h-14 w-10" />
                 <div className="min-w-0 flex-1">
-                  <p className="line-clamp-3 break-words text-[13.5px] font-bold leading-tight text-ink">{t.title}</p>
+                  <p className="break-words text-[13.5px] font-bold leading-tight text-ink">{t.title}</p>
                   <p className="truncate text-[12px] text-muted">{t.authors[0] ?? '—'}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     <Badge tone="neutral">{KIND_META[t.kind]?.label ?? t.kind}</Badge>
@@ -393,7 +393,7 @@ function TitleCoverCard({ t }: { t: BiblioTitle }) {
           <span className="absolute left-1.5 top-1.5 rounded-md bg-success-fg px-1.5 py-0.5 text-[10px] font-bold text-white tabular-nums">{numero(libres)} disp.</span>
         )}
       </span>
-      <span className="mt-1.5 block line-clamp-3 break-words text-[12.5px] font-bold leading-tight text-ink" title={t.title}>{t.title}</span>
+      <span className="mt-1.5 block break-words text-[12.5px] font-bold leading-tight text-ink" title={t.title}>{t.title}</span>
       <span className="block truncate text-[11px] text-muted">{t.authors[0] ?? (t.year ? String(t.year) : KIND_META[t.kind]?.label ?? '')}</span>
     </Link>
   );
