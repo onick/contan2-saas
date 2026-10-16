@@ -252,7 +252,7 @@ test.describe('BIB-04 ficha y ejemplares', () => {
     await expect(row.getByRole('button', { name: 'Dar de baja' })).toHaveCount(0);
   });
 
-  test('HIPOTESIS: no se debe poder dar de baja un ejemplar con prestamo abierto', { tag: '@write' }, async () => {
+  test('no se puede dar de baja un ejemplar con prestamo abierto (409)', { tag: '@write' }, async () => {
     const t = await title('Delta');
     const it = await createItem(api, t.id, 8, await site());
     const l1 = await reader(2);
@@ -260,7 +260,7 @@ test.describe('BIB-04 ficha y ejemplares', () => {
       const loan = await lend(api, l1.code, it.code);
       expect(loan.status).toBe(201);
       const r = await api.patch(`/items/${it.id}`, { retiredReason: 'Prueba E2E: baja con prestamo abierto' });
-      expect(r.status, 'dar de baja un ejemplar prestado deberia rechazarse (409), no aceptarse').toBeGreaterThanOrEqual(400);
+      expect(r.status, 'dar de baja un ejemplar prestado se rechaza con 409').toBe(409);
     } finally {
       await giveBack(it.code);
     }
@@ -685,7 +685,7 @@ test.describe('BIB-07 reservas', () => {
 });
 
 // =============================================================================
-// BIB-02 · Catalogo con datos creados (filtros, estado, hipotesis de busqueda)
+// BIB-02 · Catalogo con datos creados (filtros, estado, busqueda)
 // =============================================================================
 test.describe('BIB-02 catalogo con datos E2E', () => {
   test('busqueda por [E2E] <runId>, disponibilidad en tabla y vista tarjetas', { tag: '@write' }, async ({ page }) => {

@@ -90,7 +90,6 @@ test.describe('ADM-03/04 · crear con portada, editar y estados (UI)', () => {
 
   test('ADM-04 [S1] editar desde el menu de la fila: nombre/lugar cambian en tabla, API y detalle', { tag: '@write' }, async ({ page }, testInfo) => {
     test.skip(!id, 'depende de ADM-03');
-    test.skip(testInfo.project.name === 'mobile-390', 'HALLAZGO S2 (hipotesis): en 390px el menu ⋯ de la fila se cierra solo (scroll del documento tras abrir); ver ADM-04m');
     await page.goto('/app/actividades');
     await settle(page);
     await rowMenu(page, name, 'Editar');
@@ -126,7 +125,6 @@ test.describe('ADM-03/04 · crear con portada, editar y estados (UI)', () => {
 
   test('ADM-04 [S1] estados: finalizar -> sale del kiosko y de la consola; reactivar -> vuelve', { tag: '@write' }, async ({ page }, testInfo) => {
     test.skip(!id, 'depende de ADM-03');
-    test.skip(testInfo.project.name === 'mobile-390', 'usa el menu de fila (ver ADM-04m)');
     const inKiosk = async () => (await (await page.request.get('/kiosko')).text()).includes(name);
     const inConsole = async () => Boolean(await activityByName(name));
     await page.goto('/app/actividades');
