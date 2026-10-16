@@ -90,6 +90,20 @@ run('POST /users · alta de visitante', () => {
     expect(after).toBe(before); // rollback: no quedó el usuario
   });
 
+  it('correo de una persona ARCHIVADA → 409 que lo dice (Q8-52); activa → mensaje genérico', async () => {
+    const archivedMail = `arch-${stamp}@uc.do`;
+    await db.insertInto('users').values({
+      id: crypto.randomUUID(), organization_id: orgAId, code: `UCA-ARC${String(stamp).slice(-4)}`, first_name: 'Ana', last_name: 'Archivada',
+      email: archivedMail, visit_count: 0, deleted_at: new Date().toISOString(),
+    }).execute();
+    const res = await post({ firstName: 'Otra', lastName: 'Persona', email: archivedMail.toUpperCase() }, TOK.admin);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('Ese correo pertenece a una persona archivada. Reactívala desde su perfil.');
+    const active = await post({ firstName: 'Dup', lastName: 'Activa', email: `eva-${stamp}@uc.do` }, TOK.admin);
+    expect(active.statusCode).toBe(409);
+    expect(active.json().error).toBe('Ese correo ya está registrado en la organización.');
+  });
+
   it('roles: owner, admin Y operator pueden crear (paridad v1)', async () => {
     for (const [i, t] of [TOK.owner, TOK.admin, TOK.operator].entries()) {
       const res = await post({ firstName: 'Rol', lastName: `Caso${i}` }, t);
