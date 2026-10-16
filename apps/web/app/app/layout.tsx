@@ -5,6 +5,7 @@ import { headers } from 'next/headers';
 import { getLocalBranding } from '../../lib/branding/config';
 import { brandingToCssVars } from '../../lib/branding/theme';
 import { getAdminGate, sanitizeNext } from '../../lib/auth/session';
+import { puertaEnabled, puertaRoleRoute } from '../../lib/puerta/flag';
 import { Unavailable } from '../../components/shell/Unavailable';
 import { TrialExpired } from '../../components/shell/TrialExpired';
 
@@ -70,7 +71,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
   if (gate.staff.role === 'puerta') {
     const path = (await headers()).get('x-pathname') ?? '';
-    if (!/^\/app\/(puerta|registros|protocolo|reportes|cuenta)(\/|$|\?)/.test(path)) redirect('/app/puerta');
+    const route = puertaRoleRoute(path, puertaEnabled());
+    if (route === 'redirect') redirect('/app/puerta');
+    // Módulo apagado en este tenant: estado honesto en vez de un 404 crudo.
+    if (route === 'unavailable') {
+      return <Unavailable title="Módulo no disponible" description="El módulo Puerta no está habilitado para este centro. Pide a un administrador que lo active." hideRetry />;
+    }
   }
 
   const themeVars = brandingToCssVars(gate.branding) as CSSProperties;
