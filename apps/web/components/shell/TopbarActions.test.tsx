@@ -7,6 +7,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { TopbarUserMenu } from './TopbarUserMenu';
 import { TopbarNotifications } from './TopbarNotifications';
+import { ShellDataProvider } from './ShellData';
 
 // El window del entorno de test no trae un localStorage completo → stub
 // determinista respaldado por un Map (el componente igual es resiliente).
@@ -60,9 +61,11 @@ describe('TopbarNotifications', () => {
     id, action: 'checkin.manual', actorEmailMasked: 'a***@ccb.do', targetLabel: 'Frank C.', createdAt,
   });
 
+  const renderBell = (role: string) => render(<ShellDataProvider initialRole={role}><TopbarNotifications /></ShellDataProvider>);
+
   it('con eventos nuevos: punto de no-leídas; abrir lista y marca visto', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ items: [item('e1', '2026-06-11T15:00:00.000Z')], nextCursor: null })));
-    render(<TopbarNotifications />);
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => json({ items: [item('e1', '2026-06-11T15:00:00.000Z')], nextCursor: null })));
+    renderBell('admin');
     // No-leídas honesto: el aria-label lo refleja.
     await waitFor(() => expect(screen.getByRole('button', { name: 'Notificaciones (hay novedades)' })).toBeInTheDocument());
 
@@ -77,21 +80,33 @@ describe('TopbarNotifications', () => {
 
   it('sin eventos nuevos (ya vistos): sin punto', async () => {
     store.set('contan2.notif.lastSeen', '2026-06-11T16:00:00.000Z');
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ items: [item('e1', '2026-06-11T15:00:00.000Z')], nextCursor: null })));
-    render(<TopbarNotifications />);
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => json({ items: [item('e1', '2026-06-11T15:00:00.000Z')], nextCursor: null })));
+    renderBell('admin');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Notificaciones' })).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Notificaciones (hay novedades)' })).toBeNull();
   });
 
   it('operator (403 del historial): la campana NO se renderiza', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ error: 'no' }, 403)));
-    const { container } = render(<TopbarNotifications />);
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => json({ error: 'no' }, 403)));
+    const { container } = renderBell('admin');
     await waitFor(() => expect(container.firstChild).toBeNull());
   });
 
+  it('operator/consulta/puerta: NO piden el audit (sin 403 ruidoso) y no hay campana', async () => {
+    for (const role of ['operator', 'consulta', 'puerta', 'protocolo', 'biblioteca']) {
+      const f = vi.fn().mockImplementation(async (u: string) => (String(u).includes('/historial/api/audit') ? json({ error: 'no' }, 403) : json({})));
+      vi.stubGlobal('fetch', f);
+      const { container } = renderBell(role);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(f.mock.calls.some((c) => String(c[0]).includes('/historial/api/audit')), role).toBe(false);
+      expect(container.querySelector('button')).toBeNull();
+      cleanup();
+    }
+  });
+
   it('feed vacío: estado honesto en el panel', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ items: [], nextCursor: null })));
-    render(<TopbarNotifications />);
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => json({ items: [], nextCursor: null })));
+    renderBell('admin');
     fireEvent.click(await screen.findByRole('button', { name: 'Notificaciones' }));
     expect(screen.getByText(/Sin actividad reciente/)).toBeInTheDocument();
   });

@@ -32,6 +32,9 @@ const ALLOWLIST: Partial<Record<Role, string[]>> = {
   protocolo: ['protocolo', 'cuenta'],
   puerta: ['puerta', 'registros', 'protocolo', 'reportes', 'cuenta'],
   biblioteca: ['biblioteca', 'cuenta'],
+  // PR-5 (fix/rbac-ui-gates): UI = API. operator/consulta ya no ven equipo/historial/identidad/reportes/biblioteca/protocolo.
+  operator: ['dashboard', 'actividades', 'checkin', 'puerta', 'registros', 'usuarios', 'segmentos', 'modo-publico', 'cuenta'],
+  consulta: ['dashboard', 'actividades', 'registros', 'usuarios', 'segmentos', 'cuenta'],
 };
 const ALL_LABELS = Object.values(LABELS);
 
@@ -227,12 +230,13 @@ test.describe('RBAC UI · estados honestos sin permiso', () => {
       const gen = await page.request.get('/app/reportes/api/month?month=10&year=2026');
       expect(gen.status(), 'la API niega el reporte mensual').toBe(403);
       const offered = await page.getByRole('button', { name: /Descargar PDF|Exportar Excel|Descargar Excel/ }).count();
-      testInfo.annotations.push({ type: 'hallazgo S2', description: `${role} ve ${offered} boton(es) de exportar en /app/reportes y la API responde 403; la pagina muestra KPIs en 0 en vez de "sin permiso".` });
-      expect.soft(offered, `${role}: la UI ofrece ${offered} accion(es) de exportacion que fallaran con 403`).toBe(0);
+      // PR-5: sin botones de export y estado «sin permiso» honesto (no KPIs en 0). Ya no es un hallazgo.
+      expect(offered, `${role}: la UI ofrece ${offered} accion(es) de exportacion que fallaran con 403`).toBe(0);
+      await expect(page.getByRole('alert').filter({ hasText: /No tienes permiso para ver Reportes/ })).toBeVisible();
     });
   }
 
-  test('RBAC-U08 [S3] consola: cada pagina /app dispara GET /historial/api/audit (403) para roles sin auditoria', async ({ asRole }, testInfo) => {
+  test('RBAC-U08 [S3] consola: ninguna pagina /app dispara GET /historial/api/audit (403) para roles sin auditoria', async ({ asRole }, testInfo) => {
     const hits: string[] = [];
     for (const role of ['operator', 'consulta'] as Role[]) {
       const { page } = await asRole(role);
@@ -242,7 +246,7 @@ test.describe('RBAC UI · estados honestos sin permiso', () => {
       await page.goto('/app/segmentos');
       await page.waitForLoadState('networkidle');
     }
-    testInfo.annotations.push({ type: 'hallazgo S3', description: `TopbarNotifications pide la auditoria sin comprobar el rol: ${hits.join('; ') || 'no reproducido'}` });
-    expect(hits.length).toBeGreaterThanOrEqual(0);
+    void testInfo;
+    expect(hits, 'TopbarNotifications no debe pedir la auditoria sin permiso').toEqual([]);
   });
 });

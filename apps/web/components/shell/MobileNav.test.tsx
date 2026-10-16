@@ -44,4 +44,12 @@ describe('MobileNav', () => {
     expect(screen.queryByRole('link', { name: /actividades/i })).not.toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /mi cuenta/i }).length).toBeGreaterThan(0);
   });
+
+  it.each(['operator', 'consulta'])('role=%s → sin Mi equipo, Historial, Identidad ni Reportes', (role) => {
+    render(<MobileNav activeKey="dashboard" role={role} />);
+    expect(screen.getAllByRole('link', { name: /usuarios/i }).length).toBeGreaterThan(0);
+    for (const n of [/mi equipo/i, /historial/i, /identidad/i, /reportes/i]) {
+      expect(screen.queryByRole('link', { name: n })).not.toBeInTheDocument();
+    }
+  });
 });
