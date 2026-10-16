@@ -60,6 +60,12 @@ con 401 hace un login nuevo (PIN del escáner o login de staff) **una sola vez p
 verificación de sesión del producto (p. ej. PR-16) invalida los `.auth/` antiguos: se renuevan solos en el siguiente
 arranque, pero si una corrida parcial (`E2E_ROLES`, `--grep`) no los toca, bórralos (`rm -rf e2e/.auth`) antes de repetir.
 
+**Regla: nunca cierres sesión ni revoques con un `storageState` compartido.** Desde PR-16 "Salir" del escáner revoca el token
+en el servidor (lista `scanner-revoked`): hacerlo con `.auth/scanner.json` deja inválida la sesión para el resto de la
+corrida y las siguientes. Por eso SCN-09 obtiene su propio token con `POST /scanner/api/pin` en un contexto sin estado
+(consume 1 intento del límite de PIN, solo con `Q2_RUN_PIN=1`) y está en un `describe` al final de `escaner.spec.ts`.
+AUTH-07 (cerrar/revocar sesiones) ya usa sesiones propias de la cuenta `e2e-reset`.
+
 ## Límites de staging (rate limits por IP)
 
 | Límite | Valor | Consecuencia |

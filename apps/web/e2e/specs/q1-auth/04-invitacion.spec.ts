@@ -102,8 +102,13 @@ test.describe('Q1 invitacion', () => {
     );
     try {
       await expect(page).toHaveURL(/\/app/);
+      // El rol real viene de la API de sesion; el menu de usuario lo muestra como "Operación" (TopbarUserMenu ROLE_LABEL),
+      // no como "Operador" (ese es el nombre del rol en Equipo/invitaciones).
+      const me = await context.request.get('/app/cuenta/api/me');
+      expect(me.status(), 'GET /app/cuenta/api/me').toBe(200);
+      expect(((await me.json()) as { staff?: { role?: string } }).staff?.role, 'rol de la cuenta invitada').toBe('operator');
       await page.getByRole('button', { name: 'Menú de usuario' }).click();
-      await expect(page.getByText('Operador', { exact: true })).toBeVisible();
+      await expect(page.getByText('Operación', { exact: true })).toBeVisible();
     } finally {
       await context.close();
     }
