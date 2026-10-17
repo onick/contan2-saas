@@ -24,6 +24,7 @@ describe('ReportesDashboard · solo lectura vs export', () => {
     expect(screen.getByText('Evolución de asistencias')).toBeInTheDocument();
     expect(screen.queryByText(/Exportar Excel/)).toBeNull();
     expect(screen.queryByText(/Descargar PDF/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Otros formatos de exportación' })).toBeNull();
     expect(screen.queryByText(/Asistente/)).toBeNull();
     expect(screen.queryByText(/Reporte por ciclo o categoría/)).toBeNull();
     expect(screen.queryByText(/Reporte mensual/)).toBeNull();
@@ -32,10 +33,37 @@ describe('ReportesDashboard · solo lectura vs export', () => {
   it('canExport=true: export, Asistente y tarjetas de descarga', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ categories: [] }) }));
     render(<ReportesDashboard initial={EMPTY} initialRange={EMPTY.range} canExport />);
-    expect(screen.getByText(/Exportar Excel/)).toBeInTheDocument();
-    expect(screen.getByText(/Descargar PDF/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Descargar PDF/ })).toHaveAttribute('href', expect.stringContaining('kind=pdf'));
+    // Excel/CSV viven en el menú del SplitButton: no están al render.
+    expect(screen.queryByText(/Exportar Excel/)).toBeNull();
     expect(screen.getByText(/Asistente/)).toBeInTheDocument();
     expect(screen.getByText(/Reporte mensual/)).toBeInTheDocument();
+  });
+
+  it('canExport=true: el menú "Otros formatos de exportación" ofrece Excel y CSV (habilitado sin filtros)', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ categories: [] }) }));
+    render(<ReportesDashboard initial={EMPTY} initialRange={EMPTY.range} canExport />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Otros formatos de exportación' }), { key: 'Enter' });
+    const xlsx = screen.getByRole('menuitem', { name: /Exportar Excel/ });
+    expect(xlsx).toHaveAttribute('href', expect.stringContaining('kind=xlsx'));
+    const csv = screen.getByRole('menuitem', { name: /Exportar CSV/ });
+    expect(csv).toHaveAttribute('href', '/app/reportes/api/attendance?from=2026-10-01&to=2026-10-16&format=csv');
+    expect(csv).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('canExport=true: con tipos en la URL el CSV queda deshabilitado con su nota', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ categories: [] }) }));
+    render(<ReportesDashboard initial={EMPTY} initialRange={EMPTY.range} canExport initialFilters={{ preset: null, types: ['cine'], categories: [] }} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Otros formatos de exportación' }), { key: 'Enter' });
+    expect(screen.getByRole('menuitem', { name: /Exportar CSV/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByText('No aplica filtros de tipo ni varios ciclos')).toBeInTheDocument();
+  });
+
+  it('canExport=true: con un solo ciclo el CSV lleva category', () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ categories: [] }) }));
+    render(<ReportesDashboard initial={EMPTY} initialRange={EMPTY.range} canExport initialFilters={{ preset: null, types: [], categories: ['Cine Club'] }} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Otros formatos de exportación' }), { key: 'Enter' });
+    expect(screen.getByRole('menuitem', { name: /Exportar CSV/ })).toHaveAttribute('href', expect.stringContaining('category=Cine+Club'));
   });
 });
 

@@ -235,7 +235,7 @@ test.describe('RBAC UI · estados honestos sin permiso', () => {
       const gen = await page.request.get('/app/reportes/api/month?month=10&year=2026');
       expect(gen.status(), 'la API niega el reporte mensual').toBe(403);
       const offered = await page.getByRole('link', { name: /Descargar PDF|Exportar Excel|Descargar Excel/ }).count()
-        + await page.getByRole('button', { name: /Descargar PDF|Exportar Excel|Descargar Excel|Asistente/ }).count();
+        + await page.getByRole('button', { name: /Descargar PDF|Exportar Excel|Descargar Excel|Asistente|Otros formatos de exportación/ }).count();
       // PR-9: Reportes en solo lectura. El dashboard (period-summary) se ve; no hay export ni Asistente.
       expect(offered, `${role}: la UI ofrece ${offered} accion(es) de exportacion que fallaran con 403`).toBe(0);
       await expect(page.getByText('Evolución de asistencias')).toBeVisible();

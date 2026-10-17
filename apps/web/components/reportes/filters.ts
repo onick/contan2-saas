@@ -63,3 +63,17 @@ export function filtersToSearch(f: ReportFilters): string {
   if (f.categories.length) p.set('categories', f.categories.join(','));
   return p.toString();
 }
+
+/**
+ * Exportación CSV «asistencia por actividad» (/reports/attendance-by-activity). Es otro reporte que el PDF/Excel del
+ * período: filtra por UN ciclo (`category`) y NO respeta `types`; con varios ciclos o con tipos no representa lo que se ve
+ * en pantalla, así que se deshabilita en vez de entregar un archivo distinto al filtrado.
+ */
+export function buildCsvExport(f: { from: string; to: string; types: string[]; cats: string[] }): { href: string; disabled: boolean } {
+  const p = new URLSearchParams({ from: f.from, to: f.to, format: 'csv' });
+  if (f.cats.length === 1) p.set('category', f.cats[0]!);
+  return {
+    href: `/app/reportes/api/attendance?${p.toString()}`,
+    disabled: f.types.length > 0 || f.cats.length > 1,
+  };
+}
