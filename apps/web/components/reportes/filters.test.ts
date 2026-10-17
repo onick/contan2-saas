@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defaultReportFilters, filtersToSearch, parseReportFilters } from './filters';
+import { buildCsvExport, defaultReportFilters, filtersToSearch, parseReportFilters } from './filters';
 
 const TODAY = '2026-10-16';
 
@@ -39,5 +39,22 @@ describe('parseReportFilters', () => {
   it('filtersToSearch es canónico', () => {
     expect(filtersToSearch({ range: { from: '2026-09-01', to: '2026-09-30' }, preset: 'mesPasado', types: ['cine'], categories: ['Cine Club'] }))
       .toBe('from=2026-09-01&to=2026-09-30&preset=mesPasado&types=cine&categories=Cine+Club');
+  });
+});
+
+describe('buildCsvExport', () => {
+  const base = { from: '2026-10-01', to: '2026-10-16', types: [], cats: [] as string[] };
+  it('sin filtros: rango + format=csv, habilitado', () => {
+    expect(buildCsvExport(base)).toEqual({ href: '/app/reportes/api/attendance?from=2026-10-01&to=2026-10-16&format=csv', disabled: false });
+  });
+  it('un solo ciclo: agrega category (codificado) y sigue habilitado', () => {
+    const r = buildCsvExport({ ...base, cats: ['Cine & Café'] });
+    expect(r.disabled).toBe(false);
+    expect(new URL(r.href, 'http://x').searchParams.get('category')).toBe('Cine & Café');
+  });
+  it('varios ciclos o tipos seleccionados: deshabilitado (el CSV no los respeta)', () => {
+    expect(buildCsvExport({ ...base, cats: ['A', 'B'] }).disabled).toBe(true);
+    expect(buildCsvExport({ ...base, cats: ['A', 'B'] }).href).not.toContain('category=');
+    expect(buildCsvExport({ ...base, types: ['cine'] }).disabled).toBe(true);
   });
 });

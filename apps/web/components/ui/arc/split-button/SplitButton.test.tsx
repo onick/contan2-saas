@@ -79,6 +79,15 @@ describe('SplitButton', () => {
     expect(screen.getByRole('menuitem', { name: 'Eliminar' })).toHaveAttribute('data-tone', 'danger');
   });
 
+  it('hint: se muestra como texto secundario y title del ítem', async () => {
+    const { user } = setup({ actions: [{ label: 'CSV', href: '/x.csv', disabled: true, hint: 'No aplica filtros' }] });
+    await user.click(trigger());
+    const item = screen.getByRole('menuitem', { name: /CSV/ });
+    expect(item).toHaveAttribute('title', 'No aplica filtros');
+    expect(item).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByText('No aplica filtros')).toBeInTheDocument();
+  });
+
   it('con href la mitad principal es un enlace', () => {
     setup({ href: '/app/biblioteca/titulos/nuevo', onClick: undefined, icon: Download });
     const main = screen.getByRole('link', { name: 'Agregar libro' });

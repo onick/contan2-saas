@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Calendar, Users, User, TrendingUp, Download, FileText, ChevronDown, Filter,
   Film, Music, Wrench, Image as ImageIcon, Drama, Presentation, MessagesSquare, Footprints, BookOpen,
-  Clock, Layers, type LucideIcon,
+  Clock, Layers, Table2, type LucideIcon,
 } from 'lucide-react';
 import type { PeriodSummaryResponse } from '@contan2/contracts';
 import { Card, cn, focusRing } from '../ui';
@@ -18,7 +18,8 @@ import { DeltaPct, buildSlices, Donut, Bars, LineChart } from '../charts/primiti
 import { useDataAnim } from '../charts/useDataAnim';
 import { ReportsAgent } from './ReportsAgent';
 import { DateRangePicker } from '../ui/arc/date-range-picker/DateRangePicker';
-import { MAX_RANGE_DAYS, REPORT_TYPE_OPTIONS as TYPE_OPTIONS, filtersToSearch } from './filters';
+import { SplitButton } from '../ui/arc/split-button/SplitButton';
+import { MAX_RANGE_DAYS, buildCsvExport, REPORT_TYPE_OPTIONS as TYPE_OPTIONS, filtersToSearch } from './filters';
 
 // Querystring del período (client-safe; el server usa el de lib/api/reports).
 function reportsQuery(from: string, to: string, types?: string[], categories?: string[]): string {
@@ -148,6 +149,9 @@ export function ReportesDashboard({ initial, initialRange, canExport = true, ini
   const wdItems = data.byWeekday.map((w) => ({ label: WEEKDAYS[w.weekday] ?? '', value: w.count }));
   const wdMax = Math.max(1, ...wdItems.map((w) => w.value));
 
+  const exportQs = reportsQuery(range.from, range.to, types, cats);
+  const csv = buildCsvExport({ from: range.from, to: range.to, types, cats });
+
   return (
     <div ref={rootRef}>
       {/* header */}
@@ -159,14 +163,19 @@ export function ReportesDashboard({ initial, initialRange, canExport = true, ini
         <div className="flex min-w-0 flex-wrap gap-2.5 sm:ml-auto sm:justify-end">
           {canExport ? <ReportsAgent /> : null}
           {canExport ? (
-            <>
-              <a href={`/app/reportes/api/period?kind=xlsx&${reportsQuery(range.from, range.to, types, cats)}`} className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
-                <Download size={16} strokeWidth={1.9} /> Exportar Excel
-              </a>
-              <a href={`/app/reportes/api/period?kind=pdf&${reportsQuery(range.from, range.to, types, cats)}`} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-brand-fg hover:brightness-95', focusRing)}>
-                <FileText size={16} strokeWidth={1.9} /> Descargar PDF
-              </a>
-            </>
+            <SplitButton
+              label="Descargar PDF"
+              href={`/app/reportes/api/period?kind=pdf&${exportQs}`}
+              icon={FileText}
+              menuLabel="Otros formatos de exportación"
+              actions={[
+                { label: 'Exportar Excel', href: `/app/reportes/api/period?kind=xlsx&${exportQs}`, icon: Download },
+                {
+                  label: 'Exportar CSV · asistencia por actividad', href: csv.href, icon: Table2, disabled: csv.disabled,
+                  hint: csv.disabled ? 'No aplica filtros de tipo ni varios ciclos' : undefined,
+                },
+              ]}
+            />
           ) : null}
         </div>
       </div>

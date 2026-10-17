@@ -24,6 +24,8 @@ export interface SplitButtonAction {
   icon?: LucideIcon;
   disabled?: boolean;
   destructive?: boolean;
+  /** Nota secundaria bajo la etiqueta (y `title`): p. ej. por qué está deshabilitado. */
+  hint?: string;
 }
 
 export interface SplitButtonProps {
@@ -129,6 +131,12 @@ export function SplitButton({
         <DropdownMenuContent align="end" sideOffset={6} collisionPadding={12} loop>
           {actions.map((a) => {
             const linkItem = a.href && !a.disabled;
+            const text = a.hint ? (
+              <span className="flex min-w-0 flex-col">
+                <span>{a.label}</span>
+                <span className="text-[11.5px] font-normal leading-snug text-faint">{a.hint}</span>
+              </span>
+            ) : a.label;
             if (!linkItem) {
               return (
                 <DropdownMenuItem
@@ -137,17 +145,18 @@ export function SplitButton({
                   disabled={a.disabled}
                   destructive={a.destructive}
                   onSelect={a.onSelect}
+                  title={a.hint}
                 >
-                  {a.label}
+                  {text}
                 </DropdownMenuItem>
               );
             }
             const Cmp = a.download || !a.href!.startsWith('/') ? 'a' : Link;
             return (
               <DropdownMenuItem key={a.label} asChild destructive={a.destructive} onSelect={a.onSelect}>
-                <Cmp href={a.href!} {...(a.download ? { download: a.download } : {})} className="no-underline">
+                <Cmp href={a.href!} title={a.hint} {...(a.download ? { download: a.download } : {})} className="no-underline">
                   {a.icon ? <a.icon size={15} aria-hidden="true" className="flex-none" /> : null}
-                  {a.label}
+                  {text}
                 </Cmp>
               </DropdownMenuItem>
             );
