@@ -142,7 +142,7 @@ export default async function UsuariosPage({
       {/* Toolbar */}
       <Card padding="none" className="mt-4 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="min-w-0 flex-1 sm:w-64 sm:flex-none">
+          <div className="min-w-0 flex-1 sm:w-72 sm:flex-none">
             <SearchBar label="Buscar por nombre o correo" placeholder="Buscar por nombre o correo" />
           </div>
           <CohortFilterButton />

@@ -79,7 +79,7 @@ export function SearchBar({ label, placeholder, paramName = 'q', debounceMs = 30
         aria-label={label}
         placeholder={placeholder}
         className={cn(
-          'h-9 w-full min-w-0 rounded-full bg-surface-container pl-9 pr-3.5 text-[13px] text-ink placeholder:text-faint sm:w-72',
+          'h-9 w-full min-w-0 rounded-full bg-surface-container pl-9 pr-3.5 text-[13px] text-ink placeholder:text-faint',
           focusRing,
         )}
       />

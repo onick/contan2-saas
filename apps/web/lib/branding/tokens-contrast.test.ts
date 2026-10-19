@@ -38,8 +38,8 @@ describe('contraste de tokens derivados por tenant', () => {
           expect(contrastRatio(vars[CSS_VAR_FOCUS], BG_WHITE)).toBeGreaterThanOrEqual(3);
         });
 
-        it('focus === brand-strong', () => {
-          expect(vars[CSS_VAR_FOCUS]).toBe(vars[CSS_VAR_BRAND_STRONG]);
+        it('focus deriva del secundario oscurecido a ≥3:1 (no del primario)', () => {
+          expect(vars[CSS_VAR_FOCUS]).toBe(textShade(secondary, BG_WHITE, 3));
         });
 
         it('brand-strong ≥4.5:1 con texto blanco', () => {
@@ -99,9 +99,9 @@ describe('contraste de tokens derivados por tenant', () => {
       expect(ratio).toBeLessThanOrEqual(4.8);
     });
 
-    it('brandingToCssVars emite focus === brand-strong, más oscuro que brand-text, para #f39228', () => {
-      const vars = brandingToCssVars({ ...DEFAULT_BRANDING, primaryColor: '#f39228' });
-      expect(vars[CSS_VAR_FOCUS]).toBe(vars[CSS_VAR_BRAND_STRONG]);
+    it('brandingToCssVars emite focus azul (#269ed9, del secundario CCB) y brand-strong más oscuro que brand-text, para #f39228', () => {
+      const vars = brandingToCssVars({ ...DEFAULT_BRANDING, primaryColor: '#f39228', secondaryColor: '#31a3db' });
+      expect(vars[CSS_VAR_FOCUS]).toBe('#269ed9');
       expect(contrastRatio(vars[CSS_VAR_BRAND_STRONG], BG_WHITE)).toBeGreaterThanOrEqual(contrastRatio(vars[CSS_VAR_BRAND_TEXT], BG_WHITE));
     });
   });

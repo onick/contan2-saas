@@ -37,8 +37,8 @@
   --color-info-soft: #eaf6fc;
   /* brand-strong: relleno oscuro (texto blanco ≥5.5:1), derivado en lib/branding/contrast.ts. */
   --color-brand-strong: #9d5608;
-  /* focus = brand-strong (≥3:1, WCAG 1.4.11). */
-  --color-focus: #9d5608;
+  /* focus: del color secundario del tenant a ≥3:1 (WCAG 1.4.11); CCB #31a3db → #269ed9. Derivado en lib/branding/theme.ts. */
+  --color-focus: #269ed9;
 
   /* Superficies y texto neutros. */
   --color-page: #fafaf9;

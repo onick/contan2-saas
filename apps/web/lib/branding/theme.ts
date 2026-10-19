@@ -36,6 +36,9 @@ export function brandingToCssVars(branding: BrandingOrg): BrandCssVars {
   const t = deriveBrandTokens(branding.primaryColor);
   // bg='#fafaf9' (page) es ligeramente más difícil que blanco → garantiza ≥4.5 en ambos.
   const infoText  = textShade(secondary, '#fafaf9');
+  // Anillo de foco: del color SECUNDARIO del tenant (CCB: azul #31a3db), oscurecido hasta
+  // ≥3:1 sobre blanco (WCAG 1.4.11). Sin secundario válido cae a brand-strong (como antes).
+  const focus     = /^#[0-9a-f]{6}$/i.test(secondary) ? textShade(secondary, '#ffffff', 3) : t.focus;
   return {
     [CSS_VAR_BRAND]:        t.brand,
     [CSS_VAR_BRAND_FG]:     t.brandFg,
@@ -44,7 +47,7 @@ export function brandingToCssVars(branding: BrandingOrg): BrandCssVars {
     [CSS_VAR_BRAND_ACCENT]: secondary,
     [CSS_VAR_INFO_TEXT]:    infoText,
     [CSS_VAR_INFO_SOFT]:    `color-mix(in srgb, ${secondary} 10%, white)`,
-    [CSS_VAR_FOCUS]:        t.focus,
+    [CSS_VAR_FOCUS]:        focus,
     [CSS_VAR_BRAND_STRONG]: t.brandStrong,
   };
 }

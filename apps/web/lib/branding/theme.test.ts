@@ -64,8 +64,15 @@ describe('brandingToCssVars', () => {
     expect(contrastRatio(vars[CSS_VAR_INFO_TEXT], '#ffffff')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('focus es igual a brand-strong', () => {
-    const vars = brandingToCssVars({ ...DEFAULT_BRANDING, primaryColor: '#f39228' });
+  it('focus deriva del secundario (azul CCB) con ≥3:1 sobre blanco, no del naranja', () => {
+    const vars = brandingToCssVars({ ...DEFAULT_BRANDING, primaryColor: '#f39228', secondaryColor: '#31a3db' });
+    expect(vars[CSS_VAR_FOCUS]).toBe('#269ed9');
+    expect(contrastRatio(vars[CSS_VAR_FOCUS], '#ffffff')).toBeGreaterThanOrEqual(3);
+    expect(vars[CSS_VAR_FOCUS]).not.toBe(vars[CSS_VAR_BRAND_STRONG]);
+  });
+
+  it('focus cae a brand-strong si el secundario no es un hex válido', () => {
+    const vars = brandingToCssVars({ ...DEFAULT_BRANDING, primaryColor: '#f39228', secondaryColor: 'azul' });
     expect(vars[CSS_VAR_FOCUS]).toBe(vars[CSS_VAR_BRAND_STRONG]);
   });
 });

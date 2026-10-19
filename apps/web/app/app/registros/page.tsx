@@ -118,7 +118,7 @@ export default async function RegistrosPage({
       <Card padding="none" className="mt-6 p-4">
         <div className="flex flex-wrap items-center gap-3">
           <RegistrosFilters activities={activityOptions} />
-          <div className="ml-auto min-w-0 flex-1 sm:flex-none">
+          <div className="ml-auto min-w-0 flex-1 sm:w-72 sm:flex-none">
             <SearchBar label="Buscar por visitante, código o actividad" placeholder="Buscar por visitante, código o actividad…" />
           </div>
         </div>
