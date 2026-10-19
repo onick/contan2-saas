@@ -35,6 +35,28 @@ describe('agente de reportes · parser de intenciones', () => {
     expect(resolvePeriod('últimos 30 días', today)).toMatchObject({ from: '2026-07-08', to: '2026-08-06' });
   });
 
+  it('REP-A06: "mes anterior"/"mes pasado" y variantes resuelven al mes previo completo', () => {
+    for (const q of ['el mes anterior', 'mes anterior', 'mes pasado', 'el mes pasado', 'del mes pasado']) {
+      expect(resolvePeriod(q, today), q).toMatchObject({ from: '2026-07-01', to: '2026-07-31' });
+    }
+    expect(resolvePeriod('este mes', today)).toMatchObject({ from: '2026-08-01', to: '2026-08-06' });
+    expect(resolvePeriod('el mes', today)).toMatchObject({ from: '2026-08-01', to: '2026-08-06' });
+    expect(resolvePeriod('septiembre', today)).toMatchObject({ from: '2025-09-01', to: '2025-09-30' });
+    // Enero: el mes anterior es diciembre del año anterior.
+    expect(resolvePeriod('el mes anterior', new Date('2026-01-10T12:00:00Z'))).toMatchObject({ from: '2025-12-01', to: '2025-12-31' });
+  });
+
+  it('REP-A06: la sugerencia principal compara este mes contra el mes anterior (no contra sí mismo)', () => {
+    for (const q of ['Compara este mes con el mes anterior', 'compara este mes con el mes pasado', 'este mes vs el mes anterior']) {
+      const i = parseAgentQuery(q, today);
+      expect(i.kind, q).toBe('period_compare');
+      if (i.kind === 'period_compare') {
+        expect(i.a).toMatchObject({ from: '2026-08-01', to: '2026-08-06' });
+        expect(i.b).toMatchObject({ from: '2026-07-01', to: '2026-07-31' });
+      }
+    }
+  });
+
   it('emitir reporte: intent period_report con formato', () => {
     const i = parseAgentQuery('Emite el reporte de este mes en PDF', today);
     expect(i).toMatchObject({ kind: 'period_report', format: 'pdf' });
@@ -53,7 +75,8 @@ describe('agente de reportes · parser de intenciones', () => {
     // "compara este mes" solo → contra el período anterior de igual duración.
     const solo = parseAgentQuery('compara este mes', today);
     expect(solo.kind).toBe('period_compare');
-    if (solo.kind === 'period_compare') expect(solo.b.to) .toBe('2026-07-31');
+    // P4: 1..6 ago se compara con 1..6 jul (mismo tramo del mes anterior).
+    if (solo.kind === 'period_compare') expect(solo.b).toMatchObject({ from: '2026-07-01', to: '2026-07-06' });
   });
 
   it('comparar actividades: nombres que no son períodos → activity_query con 2 partes', () => {
