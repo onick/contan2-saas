@@ -303,8 +303,6 @@ export async function buildPeriodExcelReport({ organization, period }) {
       { header: 'Código', key: 'code', width: 14 },
       { header: 'Nombre', key: 'firstName', width: 20 },
       { header: 'Apellido', key: 'lastName', width: 20 },
-      { header: 'Email', key: 'email', width: 30 },
-      { header: 'Teléfono', key: 'phone', width: 16 },
       { header: 'Visitas en período', key: 'visitsInPeriod', width: 18 },
       { header: 'Total visitas', key: 'totalVisits', width: 16 },
     ];
@@ -320,7 +318,6 @@ export async function buildPeriodExcelReport({ organization, period }) {
       const dr = s5.addRow({
         idx: i + 1,
         code: u.code, firstName: u.firstName, lastName: u.lastName,
-        email: u.email || '—', phone: u.phone || '—',
         visitsInPeriod: u.visitsInPeriod, totalVisits: u.totalVisits,
       });
       dr.eachCell({ includeEmpty: false }, cell => {

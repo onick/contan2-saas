@@ -2,12 +2,13 @@
 // Reportes. Recibe una consulta en español, el motor de intenciones la resuelve
 // y ejecuta la acción (reporte de período, comparaciones, stats de actividad).
 // Solo lectura sobre datos del tenant; las descargas van por los endpoints de
-// reportería existentes (auditados allá). Guard estándar + rate limit.
+// reportería existentes (auditados allá). REPORT_READ_ROLES (protocolo/biblioteca → 403) + rate limit por staff.
 
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { getDb, withTenant } from '@contan2/db';
 import { ReportsAgentRequestSchema, type ReportsAgentResponse } from '@contan2/contracts';
-import { requireTenantStaff } from '../guard.js';
+import { requireTenantStaff, requireRole } from '../guard.js';
+import { REPORT_READ_ROLES } from '../rbac-roles.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { runAgentQuery } from '../services/reports/agent.js';
 
@@ -17,11 +18,11 @@ const agentLimiter = createRateLimiter({ max: 60, windowMs: 60_000, prefix: endp
 export const reportsAgentRoute: FastifyPluginAsync = async (app) => {
   app.post('/reports/agent', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = await requireTenantStaff(db, req);
+    const guard = requireRole(await requireTenantStaff(db, req), REPORT_READ_ROLES, 'No tienes permiso para usar el asistente de reportes.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
-    if ((await agentLimiter.hit(`${orgId}:${req.ip}`)).limited) {
+    if ((await agentLimiter.hit(`${orgId}:${guard.ctx.staff.id}`)).limited) {
       reply.code(429); return { error: 'Demasiadas consultas seguidas. Espera un momento.' };
     }
     const parsed = ReportsAgentRequestSchema.safeParse(req.body);

@@ -82,7 +82,6 @@ export async function buildPeriodPdfHtml({ organization, period }) {
     <tr>
       <td class="idx">${i + 1}</td>
       <td><strong>${esc(u.firstName)} ${esc(u.lastName)}</strong><div class="muted">${esc(u.code)}</div></td>
-      <td>${esc(u.email || '—')}</td>
       <td class="num">${u.visitsInPeriod}</td>
       <td class="num">${u.totalVisits}</td>
     </tr>`).join('');
@@ -177,7 +176,7 @@ ${period.topUsers.length ? `
 <section class="section page-break">
   <h2>Top visitantes (${period.topUsers.length})</h2>
   <table class="report">
-    <thead><tr><th>#</th><th>Persona</th><th>Email</th><th>Visitas en período</th><th>Visitas totales</th></tr></thead>
+    <thead><tr><th>#</th><th>Persona</th><th>Visitas en período</th><th>Visitas totales</th></tr></thead>
     <tbody>${topUserRows}</tbody>
   </table>
 </section>` : ''}
