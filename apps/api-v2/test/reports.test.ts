@@ -163,7 +163,7 @@ run('GET /reports/attendance-by-activity', () => {
     expect(b.daily.length).toBe(31); // 1..31 de marzo
     expect(b.newVsReturning.nuevos + b.newVsReturning.recurrentes).toBeGreaterThanOrEqual(1);
     expect(Array.isArray(b.byHour) && Array.isArray(b.byWeekday)).toBe(true);
-    expect(b.prevRange).toEqual({ from: '2026-01-29', to: '2026-02-28' }); // 31 días antes
+    expect(b.prevRange).toEqual({ from: '2026-02-01', to: '2026-02-28' }); // 31 días antes
     // sin sesión → 401
     expect((await app.inject({ method: 'GET', url: `/api/v2/reports/period-summary?from=${FROM}&to=${TO}`, headers: { host: hostA } })).statusCode).toBe(401);
   });

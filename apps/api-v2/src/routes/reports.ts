@@ -27,7 +27,7 @@ import { buildActivityPdfHtml, pdfHeaderFooter, pdfFilename } from '../services/
 import { buildPeriodExcelReport, periodFilename } from '../services/reports/period-excel-report.js';
 import { buildPeriodPdfHtml, periodPdfHeaderFooter, periodPdfFilename } from '../services/reports/period-pdf-template.js';
 import { renderHtmlToPdf } from '../services/reports/pdf-renderer.js';
-import { zonedMidnight, ymdAddDays } from '../services/reports/fmt.js';
+import { zonedMidnight, ymdInTz } from '../services/reports/fmt.js';
 import { loadProtocolReportData, buildProtocolExcelReport, protocolReportFilename } from '../services/reports/protocol-report.js';
 
 const VALID_TYPES = new Set<string>(ACTIVITY_TYPES); // deriva del enum, no duplicar
@@ -44,20 +44,21 @@ async function loadReportOrg(db: ReturnType<typeof getDb>, orgId: string): Promi
 
 // Query de período (paridad v1 parsePeriodQuery): from/to YYYY-MM-DD (to se
 // vuelve EXCLUSIVO sumando 1 día), types CSV del enum, categories texto libre.
-function parsePeriodQuery(query: Record<string, unknown>):
-  | { ok: true; q: PeriodQuery }
+function parsePeriodQuery(query: Record<string, unknown>, opts: { maxDays?: number } = {}):
+  | { ok: true; q: PeriodQuery; ymd: { from: string; to: string } }
   | { ok: false; error: string } {
-  const fromRaw = String(query.from ?? '').trim();
-  const toRaw = String(query.to ?? '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromRaw)) return { ok: false, error: 'from inválido (YYYY-MM-DD)' };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(toRaw)) return { ok: false, error: 'to inválido (YYYY-MM-DD)' };
-  // Límites en la zona del tenant: [from 00:00 DR, to+1 00:00 DR).
-  if (Number.isNaN(Date.parse(`${fromRaw}T00:00:00Z`)) || Number.isNaN(Date.parse(`${toRaw}T00:00:00Z`))) {
-    return { ok: false, error: 'Fecha inválida' };
+  // Validación única (A07/A26): formato, fecha real de calendario, from <= to y tope de días
+  // (parseRange). El protocolo con "todo el histórico" pasa un tope explícito mayor.
+  let from: string, to: string, ymd: { from: string; to: string };
+  try {
+    const range = parseRange(String(query.from ?? '').trim(), String(query.to ?? '').trim(), opts);
+    from = zonedMidnight(range.from).toISOString();
+    to = range.toExclusive.toISOString();
+    ymd = { from: range.from, to: range.to };
+  } catch (e) {
+    if (e instanceof ReportError) return { ok: false, error: e.message };
+    throw e;
   }
-  const from = zonedMidnight(fromRaw).toISOString();
-  const to = zonedMidnight(ymdAddDays(toRaw, 1)).toISOString();
-  if (new Date(from) > new Date(to)) return { ok: false, error: 'from debe ser <= to' };
 
   let types: string[] | null = null;
   if (query.types) {
@@ -71,7 +72,7 @@ function parsePeriodQuery(query: Record<string, unknown>):
     categories = String(query.categories).split(',').map((c) => c.trim()).filter((c) => c.length > 0 && c.length <= 60);
     if (categories.length === 0) categories = null;
   }
-  return { ok: true, q: { from, to, types, categories } };
+  return { ok: true, q: { from, to, types, categories }, ymd };
 }
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -190,7 +191,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       const lines = [csvRow(CSV_HEADER)];
       for (const r of report.rows) {
         lines.push(csvRow([
-          r.name, r.date.slice(0, 10), r.location, r.category ?? '', r.status,
+          r.name, ymdInTz(r.date), r.location, r.category ?? '', r.status,
           r.capacity, r.enrolledCount, r.attendances, r.people, r.anonymous, r.occupancyPct, r.reserved,
         ]));
       }
@@ -327,7 +328,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const parsed = parsePeriodQuery(req.query as Record<string, unknown>);
     if (!parsed.ok) { reply.code(400); return { error: parsed.error }; }
 
-    const prev = previousRange(parsed.q.from, parsed.q.to);
+    const prev = previousRange(parsed.ymd.from, parsed.ymd.to);
     const [period, prevPeriod] = await Promise.all([
       buildPeriodSummary(db, guard.ctx.org.id, parsed.q),
       prev
@@ -425,7 +426,8 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     const hasRange = q.from != null && q.to != null;
     const fromRaw = String(q.from ?? '2020-01-01').trim();
     const toRaw = String(q.to ?? '2099-12-31').trim();
-    const parsed = parsePeriodQuery({ from: fromRaw, to: toRaw });
+    // "Todo el histórico" (sin from/to) usa su propio tope explícito, mayor que el de los demás informes.
+    const parsed = parsePeriodQuery({ from: fromRaw, to: toRaw }, { maxDays: 366 * 100 });
     if (!parsed.ok) { reply.code(400); return { error: parsed.error }; }
 
     const data = await loadProtocolReportData(db, guard.ctx.org.id, parsed.q.from, parsed.q.to);
