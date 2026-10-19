@@ -143,4 +143,29 @@ describe('SplitButton', () => {
     expect(group).toHaveAttribute('data-size', 'sm');
     expect(screen.getByRole('button', { name: 'Otros formatos' })).toBeInTheDocument();
   });
+describe('SplitButton · panel propio (onMenuPress)', () => {
+  it('con onMenuPress el gatillo es un botón aria-haspopup=dialog con aria-expanded y no abre menú', async () => {
+    const onMenuPress = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = render(<SplitButton label="Descargar PDF" href="/x.pdf" actions={[]} menuLabel="Más descargas" onMenuPress={onMenuPress} menuExpanded={false} />);
+    const t = screen.getByRole('button', { name: 'Más descargas' });
+    expect(t).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(t).toHaveAttribute('aria-expanded', 'false');
+    await user.click(t);
+    expect(onMenuPress).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('menu')).toBeNull();
+    rerender(<SplitButton label="Descargar PDF" href="/x.pdf" actions={[]} menuLabel="Más descargas" onMenuPress={onMenuPress} menuExpanded />);
+    expect(screen.getByRole('button', { name: 'Más descargas' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('href + onClick: la mitad principal sigue siendo enlace y llama a onClick', async () => {
+    const onClick = vi.fn((e: React.MouseEvent) => e.preventDefault());
+    const user = userEvent.setup();
+    render(<SplitButton label="Descargar PDF" href="/x.pdf" onClick={onClick as never} actions={[]} onMenuPress={() => {}} />);
+    const a = screen.getByRole('link', { name: 'Descargar PDF' });
+    expect(a).toHaveAttribute('href', '/x.pdf');
+    await user.click(a);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});
 });

@@ -8,8 +8,9 @@
 // (no hay un segundo sistema de popover). Añadido respecto a Arc: href/download, loading,
 // tamaños, y deshabilitado por mitad.
 
+import type { MouseEvent } from 'react';
 import Link from 'next/link';
-import { Loader2, type LucideIcon } from 'lucide-react';
+import { ChevronDown, Loader2, type LucideIcon } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuChevron,
 } from '../../DropdownMenu';
@@ -34,11 +35,18 @@ export interface SplitButtonProps {
   /** Si se pasa, la mitad principal es un enlace. */
   href?: string;
   download?: boolean | string;
-  onClick?: () => void;
+  /** Con `href`, se llama al hacer clic en el enlace (p. ej. para interceptar la descarga). */
+  onClick?: (event: MouseEvent<HTMLElement>) => void;
   icon?: LucideIcon;
   actions: SplitButtonAction[];
   /** Nombre accesible del gatillo del menú. Por defecto `${label}: más acciones`. */
   menuLabel?: string;
+  /**
+   * Si se pasa, el gatillo NO abre el menú de acciones sino que llama a esto (p. ej. para abrir un
+   * panel propio). Se anuncia como `aria-haspopup="dialog"` con `aria-expanded={menuExpanded}`.
+   */
+  onMenuPress?: () => void;
+  menuExpanded?: boolean;
   variant?: 'primary' | 'secondary';
   size?: 'sm' | 'md';
   /** Deshabilita ambas mitades. */
@@ -70,7 +78,7 @@ const variantCls = {
 } as const;
 
 export function SplitButton({
-  label, href, download, onClick, icon: Icon, actions, menuLabel, variant = 'primary', size = 'md',
+  label, href, download, onClick, icon: Icon, actions, menuLabel, onMenuPress, menuExpanded = false, variant = 'primary', size = 'md',
   disabled = false, primaryDisabled = false, menuDisabled = false, loading = false, className,
 }: SplitButtonProps) {
   const s = sizeCls[size];
@@ -96,8 +104,8 @@ export function SplitButton({
   let main: React.ReactNode;
   if (href && !mainOff) {
     main = download || !href.startsWith('/')
-      ? <a href={href} download={download || undefined} className={mainCls}>{content}</a>
-      : <Link href={href} className={mainCls}>{content}</Link>;
+      ? <a href={href} download={download || undefined} onClick={onClick} className={mainCls}>{content}</a>
+      : <Link href={href} onClick={onClick} className={mainCls}>{content}</Link>;
   } else {
     main = (
       <button
@@ -120,6 +128,19 @@ export function SplitButton({
       className={cn('arc-split inline-flex items-stretch rounded-pill', v.group, className)}
     >
       {main}
+      {onMenuPress ? (
+        <button
+          type="button"
+          disabled={menuOff}
+          aria-label={menuLabel ?? `${label}: más acciones`}
+          aria-haspopup="dialog"
+          aria-expanded={menuExpanded}
+          onClick={onMenuPress}
+          className={cn(halfBase, 'rounded-r-pill', v.divider, s.menu)}
+        >
+          <ChevronDown size={s.icon} strokeWidth={1.8} aria-hidden="true" className="arc-chevron flex-none" />
+        </button>
+      ) : (
       <DropdownMenu>
         <DropdownMenuTrigger
           disabled={menuOff}
@@ -163,6 +184,7 @@ export function SplitButton({
           })}
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
     </div>
   );
 }

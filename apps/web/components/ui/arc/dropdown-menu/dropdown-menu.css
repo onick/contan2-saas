@@ -70,7 +70,8 @@
 .arc-chevron {
   transition: transform var(--arc-dur-standard) var(--arc-ease-spring);
 }
-[aria-haspopup="menu"][data-state="open"] .arc-chevron {
+[aria-haspopup="menu"][data-state="open"] .arc-chevron,
+[aria-haspopup="dialog"][aria-expanded="true"] .arc-chevron {
   transform: rotate(180deg);
 }
 

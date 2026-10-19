@@ -64,16 +64,35 @@ export function filtersToSearch(f: ReportFilters): string {
   return p.toString();
 }
 
+/** Querystring del período (rango + tipos + ciclos) para el resumen y los informes del período. */
+export function reportsQuery(from: string, to: string, types?: string[], categories?: string[]): string {
+  const p = new URLSearchParams({ from, to });
+  if (types && types.length) p.set('types', types.join(','));
+  if (categories && categories.length) p.set('categories', categories.join(','));
+  return p.toString();
+}
+
+interface PeriodFilters { from: string; to: string; types: string[]; categories: string[] }
+
+/** Informe del período (PDF/Excel) con TODOS los filtros del dashboard. */
+export function periodHref(kind: 'pdf' | 'xlsx', f: PeriodFilters): string {
+  return `/app/reportes/api/period?kind=${kind}&${reportsQuery(f.from, f.to, f.types, f.categories)}`;
+}
+
 /**
- * Exportación CSV «asistencia por actividad» (/reports/attendance-by-activity). Es otro reporte que el PDF/Excel del
- * período: filtra por UN ciclo (`category`) y NO respeta `types`; con varios ciclos o con tipos no representa lo que se ve
- * en pantalla, así que se deshabilita en vez de entregar un archivo distinto al filtrado.
+ * «Asistencia por actividad» (/reports/attendance-by-activity) en csv/xlsx/pdf. Acepta los mismos filtros que el
+ * dashboard (`types` y `categories`, con la misma semántica en la API) y, opcionalmente, UN ciclo elegido aparte
+ * (`category`, el selector «Un ciclo o categoría» del panel de descargas).
  */
-export function buildCsvExport(f: { from: string; to: string; types: string[]; cats: string[] }): { href: string; disabled: boolean } {
-  const p = new URLSearchParams({ from: f.from, to: f.to, format: 'csv' });
-  if (f.cats.length === 1) p.set('category', f.cats[0]!);
-  return {
-    href: `/app/reportes/api/attendance?${p.toString()}`,
-    disabled: f.types.length > 0 || f.cats.length > 1,
-  };
+export function attendanceHref(format: 'csv' | 'xlsx' | 'pdf', f: PeriodFilters | (Omit<PeriodFilters, 'categories'> & { category: string })): string {
+  const p = new URLSearchParams({ from: f.from, to: f.to, format });
+  if (f.types.length) p.set('types', f.types.join(','));
+  if ('category' in f) p.set('category', f.category);
+  else if (f.categories.length) p.set('categories', f.categories.join(','));
+  return `/app/reportes/api/attendance?${p.toString()}`;
+}
+
+/** Registro mensual en el formato del departamento (mes 1-12). */
+export function monthHref(year: number, month: number): string {
+  return `/app/reportes/api/month?year=${year}&month=${month}`;
 }
