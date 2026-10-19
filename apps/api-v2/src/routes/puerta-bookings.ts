@@ -22,7 +22,7 @@ import { DOOR_WRITE_ROLES, PADRON_READ_ROLES } from '../rbac-roles.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { confirmBookingEmail } from '../services/booking-email.js';
 
-const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
+import { REPORT_TZ as TZ } from '../services/timezone.js';
 const bookingsLimiter = createRateLimiter({ max: 120, windowMs: 60_000, prefix: endpointPrefix('bookings') });
 
 interface SalaRow { id: string; name: string; capacity: number; occupancy: number }

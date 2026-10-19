@@ -14,7 +14,7 @@ import { requireRole, requireTenantStaff } from '../guard.js';
 import { PADRON_READ_ROLES } from '../rbac-roles.js';
 import { puertaKpis, puertaBySala } from '../services/puerta-kpis.js';
 
-const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
+import { REPORT_TZ as TZ } from '../services/timezone.js';
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
 const AFORO_MAX = 200; // mismo criterio que /puerta/salas: > esto ⇒ ilimitada

@@ -12,7 +12,7 @@ import { REPORT_READ_ROLES } from '../rbac-roles.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { runAgentQuery } from '../services/reports/agent.js';
 
-const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
+import { REPORT_TZ as TZ } from '../services/timezone.js';
 const agentLimiter = createRateLimiter({ max: 60, windowMs: 60_000, prefix: endpointPrefix('reports-agent') });
 
 export const reportsAgentRoute: FastifyPluginAsync = async (app) => {

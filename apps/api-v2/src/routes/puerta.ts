@@ -28,7 +28,7 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const EXPORT_ROW_CAP = 50_000; // cota dura de filas del export (memoria acotada)
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
+import { REPORT_TZ as TZ } from '../services/timezone.js';
 const AFORO_MAX = 200; // capacity > esto ⇒ sala "ilimitada" (no muestra ocupación)
 const puertaLimiter = createRateLimiter({ max: 180, windowMs: 60_000, prefix: endpointPrefix('puerta') });
 

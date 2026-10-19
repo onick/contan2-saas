@@ -20,6 +20,7 @@ import { parseSearch, likeContains } from '../query.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { CheckinError, checkinIdentified, reserveCapacity } from '../services/checkin-core.js';
 import { writeCheckinAudit } from '../services/checkin-audit.js';
+import { REPORT_TZ, resolveReportTz } from '../services/timezone.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -64,24 +65,10 @@ async function ensureInvitationOnAdmit(tx: DbClient, orgId: string, activityId: 
 // futura). Los "últimos 10 min" son absolutos (now() - interval), tz-independientes.
 // Las métricas/movimiento cuentan check-ins REALES (checked_in_at IS NOT NULL).
 // Escrituras de puerta (check-in). protocolo/consulta/biblioteca no registran entradas.
-const DEFAULT_CHECKIN_TZ = 'America/Santo_Domingo';
-
-// Valida CHECKIN_TZ contra las zonas IANA del runtime. Un valor inválido NO
-// rompe el server: cae al default documentado (y avisa en logs). Validarla acá
-// también hace seguro inyectarla como literal en `AT TIME ZONE`.
-export function resolveCheckinTz(): string {
-  const raw = process.env.CHECKIN_TZ;
-  if (!raw) return DEFAULT_CHECKIN_TZ;
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: raw }); // lanza RangeError si no es IANA
-    return raw;
-  } catch {
-    // eslint-disable-next-line no-console
-    console.warn(`[checkin] CHECKIN_TZ="${raw}" no es una zona IANA válida; usando ${DEFAULT_CHECKIN_TZ}.`);
-    return DEFAULT_CHECKIN_TZ;
-  }
-}
-const CHECKIN_TZ = resolveCheckinTz();
+// La zona se resuelve en services/timezone.ts (única fuente, REP-A19).
+// `resolveCheckinTz` se conserva como alias por compatibilidad.
+export const resolveCheckinTz = resolveReportTz;
+const CHECKIN_TZ = REPORT_TZ;
 
 // Límite de resultados de búsqueda: bajo, para evitar dumps. q mínimo 2 chars.
 const VISITORS_DEFAULT_LIMIT = 10;

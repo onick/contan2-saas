@@ -45,6 +45,7 @@ import { protocolRoute } from './routes/protocol.js';
 import { scannerRoute } from './routes/scanner.js';
 import { contactRoute } from './routes/contact.js';
 import { shellRoute } from './routes/shell.js';
+import { assertReportTzConfig } from './services/timezone.js';
 
 // Detrás de un reverse proxy (Traefik / web-v2), Fastify debe derivar `req.ip`
 // del `X-Forwarded-For` en vez del socket (que sería el proxy) — si no, TODOS los
@@ -173,6 +174,7 @@ async function assertPlatformPoolConfig(): Promise<void> {
 const isMain = process.argv[1] === fileURLToPath(import.meta.url);
 if (isMain) {
   const config = loadConfig();
+  assertReportTzConfig(); // TZ inválida => falla rápido al arrancar (REP-A19)
   const app = buildApp();
   app
     .listen({ port: config.PORT, host: '0.0.0.0' })
