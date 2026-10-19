@@ -22,3 +22,12 @@ El owner delegó: "tienes mi ok para tomar las mejores decisiones" (tras la list
 | Residuos [E2E] en staging | Purgar títulos/sitio de Biblioteca y bookings cancelados [E2E]; re-sembrar tokens de reset e invitación; limpiar `signup_verifications` de prueba. | Datos de prueba sin API de borrado; habilitan repetir AUTH-10/11. | Hoy, SQL acotado por prefijo. |
 | Q6 Plataforma | Sigue bloqueada: el orquestador no puede sembrar un platform_admin (bloqueo del clasificador). | Requiere acción directa del owner (correr el bloque comentado del seed o dar credencial). | Pendiente del owner. |
 | PR-13 tuteo | Se ejecuta al final de la ola para evitar conflictos. | Toca 219 + 110 líneas. | Tras PR-9/11/16. |
+
+## 2026-10-19 · Reportes (auditoría docs/plans/2026-10-19-auditoria-reportes.md)
+El dueño respondió "dale sí" a las cinco preguntas:
+- **P1** Visitas de salas permanentes: solo en Puerta; en el informe de período van como sección aparte, nunca mezcladas con actividades ni con su aforo.
+- **P2** La cifra principal de Reportes pasa a PERSONAS (1 + acompañantes); los registros quedan como dato secundario.
+- **P3** Se quitan correo y teléfono del informe de período (Excel/PDF) y se anonimiza el padrón de staging.
+- **P4** "Este mes" se compara con el mismo tramo del mes anterior (día 1 al día N), no con los N días previos.
+- **P5** Se adopta el vocabulario exacto del departamento y el libro anual enero–diciembre (Registro_Actividades_Culturales).
+Orden: PR-R1 y PR-R2 en paralelo → PR-R3 → PR-R4 → R5–R8.
