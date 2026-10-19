@@ -121,7 +121,34 @@ export default async function globalTeardown(_config: FullConfig): Promise<void>
     console.log(`[e2e] teardown: ${uncleaned.length} entradas SIN limpiar (ver ${path.join(dir, 'uncleaned.json')}).`);
   }
   console.log(`[e2e] teardown: ${results.length} pasos, ${failed.length} con fallo (ver ${path.join(dir, 'teardown-report.json')}).`);
+  await reportResidualReportData(dir);
   if (failed.length) {
     console.log('[e2e] revisar con provision/purge-staging.sql (prefijo "[E2E] <runId>") ANTES de borrar nada.');
+  }
+}
+
+// REP-A25 · guarda anti-contaminacion: tras limpiar, ningun ciclo/categoria '[E2E] ...' debe
+// seguir apareciendo en los reportes de staging (dropdown de ciclos y reportes de periodo).
+// NO oculta datos (los reportes reales siguen mostrando todo): solo AVISA y deja residue.json
+// para que el orquestador corra provision/purge-staging.sql (dry-run primero, con OK).
+async function reportResidualReportData(dir: string): Promise<void> {
+  const state = statePath('owner');
+  if (!existsSync(state)) return;
+  const ctx = await request.newContext({ baseURL: BASE_URL, storageState: state });
+  try {
+    const res = await ctx.fetch('/app/reportes/api/categories', { timeout: 20_000 });
+    if (!res.ok()) return;
+    const body = (await res.json()) as unknown;
+    const names = (Array.isArray(body) ? body : ((body as { categories?: unknown[] }).categories ?? []))
+      .map((c) => (typeof c === 'string' ? c : (c as { name?: string; category?: string })?.name ?? (c as { category?: string })?.category ?? ''))
+      .filter((n) => n.startsWith('[E2E]'));
+    if (names.length) {
+      writeFileSync(path.join(dir, 'residue.json'), JSON.stringify({ categoriasE2E: names }, null, 2));
+      console.log(`[e2e] teardown: ${names.length} ciclo(s) [E2E] siguen visibles en los reportes de staging (ver ${path.join(dir, 'residue.json')}). Correr provision/purge-staging.sql (dry-run) con OK del owner.`);
+    }
+  } catch {
+    // La guarda es informativa: nunca rompe el teardown.
+  } finally {
+    await ctx.dispose();
   }
 }
