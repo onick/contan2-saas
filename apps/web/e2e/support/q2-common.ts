@@ -15,7 +15,7 @@ import { createActivity, createVisitor, jsonOf, type CreatedActivity, type Creat
 // ---------------------------------------------------------------------------
 // Throttle
 // ---------------------------------------------------------------------------
-export type Bucket = 'checkin' | 'lookup' | 'rsvp' | 'pin' | 'activity-write';
+export type Bucket = 'checkin' | 'lookup' | 'rsvp' | 'pin' | 'activity-write' | 'report-pdf';
 
 /** Maximo por ventana de 60 s, con margen bajo el limite real de la API. */
 const LIMITS: Record<Bucket, number> = {
@@ -23,6 +23,7 @@ const LIMITS: Record<Bucket, number> = {
   lookup: 24, // real 30/min (lookup + suggest comparten limiter)
   rsvp: 8, // real 10/min
   pin: 4, // real 8/min; ademas el plan limita a <=4 intentos en toda la corrida
+  'report-pdf': 18, // real 20/min por staff+org (R2 separó el limitador de PDF; R8 sumó semáforo de CPU)
   'activity-write': 10, // real 30/min compartidos con otros agentes; el plan pide <=15/min
 };
 

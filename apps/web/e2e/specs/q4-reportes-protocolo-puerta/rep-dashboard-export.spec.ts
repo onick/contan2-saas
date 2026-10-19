@@ -5,6 +5,7 @@ import type { APIRequestContext } from '@playwright/test';
 import { expect, test } from '../../fixtures/test';
 import { runId } from '../../fixtures/data';
 import { apiFor, jsonOf, withRateLimitRetry } from '../../support/q3-api';
+import { spend } from '../../support/q2-common';
 import { baseFixture, type BaseFixture } from '../../support/q4-data';
 import {
   hhmmDR, hexDist, inspectPdf, isNonEmptyXlsx, isoFromDR, parseXlsx, q4CreateActivity, q4Fixture, saveArtifact, sheetOf,
@@ -31,6 +32,21 @@ function kpiValue(s: XSheet, label: string): unknown {
     if (c >= 0) return s.rows[r + 1]?.[c];
   }
   return undefined;
+}
+
+/** Presupuesto de PDF (limitador 20/min por staff): se gasta antes de cada descarga de PDF. */
+async function pdfGet(url: string, timeout = 120_000) {
+  await spend('report-pdf');
+  return withRateLimitRetry(() => api.get(url, { timeout }));
+}
+
+/** Localiza la fila de cabecera (la que contiene todas las etiquetas dadas) y devuelve su índice por nombre. */
+function headerOf(s: XSheet, ...need: string[]): { row: number; col: Record<string, number> } {
+  const row = s.rows.findIndex((r) => r && need.every((n) => r.includes(n)));
+  if (row < 0) throw new Error(`hoja "${s.name}": no hay fila de cabecera con ${JSON.stringify(need)}`);
+  const col: Record<string, number> = {};
+  s.rows[row]!.forEach((v, i) => { if (typeof v === 'string') col[v] = i; });
+  return { row, col };
 }
 
 test.beforeAll(async () => {
@@ -137,7 +153,7 @@ function expectNotBadGateway(res: { status(): number }): void {
 test.describe('REP-02 PDF branded', { tag: '@write' }, () => {
   test('REP-02a @smoke [S1] PDF por actividad: %PDF, adjunto, logo y color del tenant, reservados aparte', async ({ page }) => {
     test.setTimeout(150_000);
-    const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/activity/${fx.act.id}.pdf`, { timeout: 120_000 }));
+    const res = await pdfGet(`/app/reportes/api/activity/${fx.act.id}.pdf`);
     expectNotBadGateway(res);
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toContain('application/pdf');
@@ -159,7 +175,7 @@ test.describe('REP-02 PDF branded', { tag: '@write' }, () => {
 
   test('REP-02b [S1] PDF por actividad: la hora de inicio y de check-in van en hora de Santo Domingo', async ({ page }) => {
     test.setTimeout(150_000);
-    const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/activity/${fx.act.id}.pdf`, { timeout: 120_000 }));
+    const res = await pdfGet(`/app/reportes/api/activity/${fx.act.id}.pdf`);
     const info = await inspectPdf(page, await res.body());
     const flat = info.text.replace(/\s+/g, '').replace(/\u202f/g, '');
     const hours = [...flat.matchAll(/(\d{1,2}):(\d{2})([ap])\.?m/gi)].map((m) => {
@@ -175,9 +191,7 @@ test.describe('REP-02 PDF branded', { tag: '@write' }, () => {
   test('REP-02c [S1] PDF por periodo (ciclo [E2E]): %PDF, cabecera Informe de Período, logo y color', async ({ page }) => {
     test.setTimeout(150_000);
     const { from, to } = RANGE();
-    const res = await withRateLimitRetry(() =>
-      api.get(`/app/reportes/api/period?kind=pdf&from=${from}&to=${to}&${catQ(fx.category)}`, { timeout: 120_000 }),
-    );
+    const res = await pdfGet(`/app/reportes/api/period?kind=pdf&from=${from}&to=${to}&${catQ(fx.category)}`);
     expectNotBadGateway(res);
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toContain('application/pdf');
@@ -192,7 +206,7 @@ test.describe('REP-02 PDF branded', { tag: '@write' }, () => {
     expect(info.hasImages).toBe(true);
     expect(info.accentHex).not.toBeNull();
     // El mismo color de marca debe usarse en el PDF por actividad y por periodo (identidad coherente).
-    const act = await withRateLimitRetry(() => api.get(`/app/reportes/api/activity/${fx.act.id}.pdf`, { timeout: 120_000 }));
+    const act = await pdfGet(`/app/reportes/api/activity/${fx.act.id}.pdf`);
     const infoAct = await inspectPdf(page, await act.body());
     // Hallazgo visual (S3, revisado a mano en .artifacts): el PDF por actividad usa cabecera marrón-naranja con el logo
     // casi ilegible; el de periodo usa naranja de marca + tablas azules. Se anota la distancia sin gatear.
@@ -200,11 +214,14 @@ test.describe('REP-02 PDF branded', { tag: '@write' }, () => {
   });
 
   test('REP-02d [S3] PDF por periodo con rango invertido o archivo inexistente: 4xx, no 500', async () => {
-    const r1 = await api.get(`/app/reportes/api/period?kind=pdf&from=${ymdUTC(3)}&to=${ymdUTC(1)}`, { timeout: 60_000 });
+    test.setTimeout(240_000);
+    // R2 separó el limitador de PDF (20/min por staff): cada intento gasta presupuesto y, si aun así llega un 429,
+    // pdfGet espera Retry-After y reintenta UNA vez antes de afirmar el 4xx de negocio.
+    const r1 = await pdfGet(`/app/reportes/api/period?kind=pdf&from=${ymdUTC(3)}&to=${ymdUTC(1)}`, 60_000);
     expect(r1.status()).toBe(400);
-    const r2 = await api.get('/app/reportes/api/activity/no-es-un-uuid.pdf');
+    const r2 = await pdfGet('/app/reportes/api/activity/no-es-un-uuid.pdf', 60_000);
     expect([400, 404]).toContain(r2.status());
-    const r3 = await api.get('/app/reportes/api/activity/00000000-0000-4000-8000-000000000e2e.pdf');
+    const r3 = await pdfGet('/app/reportes/api/activity/00000000-0000-4000-8000-000000000e2e.pdf', 60_000);
     expect(r3.status()).toBe(404);
   });
 });
@@ -274,16 +291,30 @@ test.describe('REP-03 Excel', { tag: '@write' }, () => {
     expect(kpiValue(r1, 'Visitantes únicos')).toBe(2);
     const acts = sheetOf(wb, 'Actividades')!;
     expect(acts.rows[0]).toEqual(['#', 'Actividad', 'Tipo', 'Fecha', 'Ubicación', 'Capacidad', 'Personas', 'Registros', '% Ocupación', 'Estado']);
-    expect(acts.rows[1]?.[1]).toBe(fx.act.name);
-    expect(acts.rows[1]?.[6], 'personas (con acompañantes)').toBe(3);
-    expect(acts.rows[1]?.[7], 'la reserva no suma registros').toBe(2);
+    const ah = headerOf(acts, 'Actividad', 'Personas', 'Registros', '% Ocupación').col;
+    expect(acts.rows[1]?.[ah['Actividad']!]).toBe(fx.act.name);
+    expect(acts.rows[1]?.[ah['Personas']!], 'personas (con acompañantes)').toBe(3);
+    expect(acts.rows[1]?.[ah['Registros']!], 'la reserva no suma registros').toBe(2);
     // Coherencia con el dashboard: misma ocupación que period-summary (15 %).
     const s = await summary(`from=${from}&to=${to}&${catQ(fx.category)}`);
     expect(kpiValue(r1, 'Ocupación (personas / aforo)'), 'Excel vs dashboard (period-summary)').toBe(`${s.body.kpis.occupancyPct}%`);
-    expect(acts.rows[1]?.[8], 'ocupación de la fila vs dashboard').toBe(`${s.body.topActivities[0].occupancyPct}%`);
+    expect(acts.rows[1]?.[ah['% Ocupación']!], 'ocupación de la fila vs dashboard').toBe(`${s.body.topActivities[0].occupancyPct}%`);
+    // R3: «Por tipo» trae Personas (no solo registros) y suma lo mismo que el Resumen.
+    const porTipo = sheetOf(wb, 'Por tipo')!;
+    const th = headerOf(porTipo, 'Tipo', 'Actividades', 'Personas', 'Registros');
+    const tipoRows = porTipo.rows.slice(th.row + 1).filter((r) => r && typeof r[th.col['Tipo']!] === 'string' && r[th.col['Actividades']!] !== null);
+    expect(tipoRows.length).toBeGreaterThanOrEqual(1);
+    expect(tipoRows.reduce((n, r) => n + Number(r[th.col['Personas']!]), 0), 'Por tipo: personas suman el KPI').toBe(3);
+    // R2 (decisión P3): «Top visitantes» ya NO lleva Email ni Teléfono.
     const top = sheetOf(wb, 'Top visitantes')!;
-    expect(top.rows[0]).toEqual(['#', 'Código', 'Nombre', 'Apellido', 'Email', 'Teléfono', 'Visitas en período', 'Total visitas']);
+    expect(top.rows[0]).toEqual(['#', 'Código', 'Nombre', 'Apellido', 'Visitas en período', 'Total visitas']);
     expect(top.rows.slice(1).filter((r) => r && r[0] !== null)).toHaveLength(2);
+    // Sin PII en TODO el libro: ni correos ni teléfonos (NNN-NNN-NNNN / +1 ...).
+    for (const sh of wb.sheets) {
+      const txt = sheetText(sh);
+      expect(txt, `hoja ${sh.name}: sin correos`).not.toMatch(/@/);
+      expect(txt, `hoja ${sh.name}: sin teléfonos`).not.toMatch(/\b\d{3}[-\s.]\d{3}[-\s.]\d{4}\b|\(\d{3}\)\s?\d{3}|\+\d{7,}/);
+    }
   });
 
   test('REP-03d [S1] Excel mensual (formato registro): 8 columnas oficiales, fila Total y Resumen del mes', async () => {
@@ -382,7 +413,7 @@ test.describe('REP-03 Excel', { tag: '@write' }, () => {
     expect(await jsonOf<any>(await api.get(`${base}&format=nope`)), 'formato inválido').toHaveProperty('error');
   });
 
-  test('REP-03g [S1] Excel de protocolo (owner): Resumen, Por actividad y Detalle con el invitado +2 sin asistir', async () => {
+  test('REP-03g [S1] Excel de protocolo (owner): Resumen, Por actividad y Detalle (R8: personas) con el invitado +2 sin asistir', async () => {
     const { from, to } = RANGE();
     const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/protocol?from=${from}&to=${to}`));
     expectNotBadGateway(res);
@@ -391,11 +422,34 @@ test.describe('REP-03 Excel', { tag: '@write' }, () => {
     saveArtifact('rep03-protocolo.xlsx', buf);
     const wb = await parseXlsx(buf);
     expect(wb.sheets.map((s) => s.name)).toEqual(['Resumen', 'Por actividad', 'Detalle']);
+
+    // Detalle: columnas localizadas POR NOMBRE (R8 agregó declarados / reales / personas).
     const det = sheetOf(wb, 'Detalle')!;
-    expect(det.rows[3]).toEqual(['Actividad', 'Fecha', 'Invitado', 'Honorífico', 'Categoría', 'Institución', 'Estado', 'Acompañantes', 'Asistió']);
-    const mine = det.rows.find((r) => r && r[0] === fx.act.name);
+    const dh = headerOf(det, 'Actividad', 'Invitado', 'Estado', 'Acompañantes declarados', 'Acompañantes reales', 'Personas', 'Asistió');
+    expect(Object.keys(dh.col)).toEqual(expect.arrayContaining(['Fecha', 'Honorífico', 'Categoría', 'Institución']));
+    const mine = det.rows.slice(dh.row + 1).find((r) => r && r[dh.col['Actividad']!] === fx.act.name);
     expect(mine, 'el invitado de la actividad [E2E]').toBeDefined();
-    expect(mine![7]).toBe('+2');
-    expect(mine![8], 'con asiento reservado pero sin check-in: no asistió').toBe('No');
+    expect(mine![dh.col['Acompañantes declarados']!], 'declarados en la invitación').toBe('+2');
+    expect(mine![dh.col['Acompañantes reales']!], 'sin check-in no hay acompañantes reales').toBe('—');
+    expect(mine![dh.col['Estado']!], 'invitación con asiento reservado, aún sin asistir').not.toBe('Asistió');
+    expect(mine![dh.col['Personas']!], 'confirmado sin llegar: 1 + 2 declarados = personas esperadas').toBe(3);
+    expect(mine![dh.col['Asistió']!], 'con asiento reservado pero sin check-in: no asistió').toBe('No');
+
+    // Por actividad: confirmados INCLUYE asistentes; personas esperadas en vez de asistidas.
+    const pa = sheetOf(wb, 'Por actividad')!;
+    const ph = headerOf(pa, 'Actividad', 'Invitados', 'Confirmados (incluye asistentes)', 'Asistieron', 'Personas que asistieron', 'Personas esperadas');
+    const act = pa.rows.slice(ph.row + 1).find((r) => r && r[ph.col['Actividad']!] === fx.act.name);
+    expect(act, 'fila de la actividad [E2E] en Por actividad').toBeDefined();
+    expect(act![ph.col['Confirmados (incluye asistentes)']!]).toBe(1);
+    expect(act![ph.col['Asistieron']!]).toBe(0);
+    expect(act![ph.col['Personas que asistieron']!]).toBe(0);
+    expect(act![ph.col['Personas esperadas']!]).toBe(3);
+
+    // Resumen: etiquetas en personas.
+    const flat = sheetText(sheetOf(wb, 'Resumen')!);
+    for (const label of ['Confirmados (incluye asistentes)', 'Personas que asistieron (con acompañantes reales)', 'Total de personas (asistieron + esperadas)']) {
+      expect(flat, `Resumen: "${label}"`).toContain(label);
+    }
+    expect(flat).toContain('Personas esperadas (confirmados que aún no llegan, con acompañantes declarados)');
   });
 });

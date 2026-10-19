@@ -296,9 +296,15 @@ test.describe('PRO-04 puerta/check-in y export', { tag: '@write' }, () => {
         expect(r.headers()['content-disposition']).toMatch(/protocolo_.*\.xlsx/);
         const wb = await parseXlsx(await r.body());
         const det = wb.sheets.find((s) => s.name === 'Detalle')!;
-        const mine = det.rows.find((row) => row && row[0] === fx.act.name);
+        // R8: la hoja Detalle trae declarados / reales / personas; las columnas se localizan por nombre.
+        const hrow = det.rows.findIndex((row) => row && row.includes('Asistió') && row.includes('Acompañantes reales'));
+        expect(hrow, `${role}: cabecera del Detalle`).toBeGreaterThanOrEqual(0);
+        const col = (n: string) => det.rows[hrow]!.indexOf(n);
+        const mine = det.rows.slice(hrow + 1).find((row) => row && row[col('Actividad')] === fx.act.name);
         expect(mine, `${role}: detalle del invitado [E2E]`).toBeDefined();
-        expect(mine![8], 'asistió tras el check-in').toBe('Sí');
+        expect(mine![col('Asistió')], 'asistió tras el check-in').toBe('Sí');
+        expect(mine![col('Acompañantes reales')], 'check-in con +1 sin credencial (PRO-04b)').toBe('+1');
+        expect(mine![col('Personas')], 'asistió: 1 + acompañantes reales').toBe(2);
       } finally {
         await a.dispose();
       }

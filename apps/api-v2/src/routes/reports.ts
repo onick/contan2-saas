@@ -103,7 +103,7 @@ const CAN_GENERATE_REPORTS = REPORT_EXPORT_ROLES;
 // Límites por staff (no por IP: una oficina tras una sola IP no comparte cupo),
 // separados: PDF (Chromium, caro) vs XLSX/CSV/JSON (barato) vs lectura del dashboard.
 const reportLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('reports') });
-const pdfLimiter = createRateLimiter({ max: 8, windowMs: 60_000, prefix: endpointPrefix('reports-pdf') });
+const pdfLimiter = createRateLimiter({ max: 20, windowMs: 60_000, prefix: endpointPrefix('reports-pdf') });
 const summaryLimiter = createRateLimiter({ max: 120, windowMs: 60_000, prefix: endpointPrefix('reports-summary') });
 const READ_FORBIDDEN = 'No tienes permiso para ver los reportes.';
 
