@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import { REPORT_EXPORT_ROLE_LIST, REPORT_READ_ROLE_LIST } from '@contan2/contracts';
 import {
   LayoutDashboard,
   Library,
@@ -89,14 +90,14 @@ const ROLE_NAV_ALLOWLIST: Record<string, Set<string>> = {
 };
 // Fail-closed: sin rol conocido (null/undefined, p.ej. si /shell/summary falla)
 // NUNCA se lista todo; se devuelve el mínimo seguro (solo "Mi cuenta").
-// Roles que pueden generar/exportar reportes (CAN_GENERATE_REPORTS en api-v2
-// routes/reports.ts). El resto recibe 403 en todo /reports salvo period-summary
-// y categories (lectura, cualquier staff).
-export const REPORT_EXPORT_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'puerta']);
+// Roles que pueden generar/exportar reportes. FUENTE ÚNICA: @contan2/contracts
+// (la API los usa en rbac-roles.ts: REPORT_EXPORT_ROLES / REPORT_READ_ROLES).
+// protocolo y biblioteca reciben 403 también en period-summary/categories/agent.
+export const REPORT_EXPORT_ROLES: ReadonlySet<string> = new Set(REPORT_EXPORT_ROLE_LIST);
 // Roles que ENTRAN a /app/reportes (gate de página): los de export + los de solo
 // lectura del dashboard (operator, consulta). protocolo y biblioteca siguen
 // confinados a su módulo por el layout.
-export const REPORT_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'puerta', 'operator', 'consulta']);
+export const REPORT_ROLES: ReadonlySet<string> = new Set(REPORT_READ_ROLE_LIST);
 // Roles que ENTRAN a /app/historial en la UI. La API (CAN_READ_AUDIT) también deja
 // leer a 'puerta' (H6, decisión del owner pendiente), pero el layout la confina a su
 // superficie: la campana del Topbar sigue a la UI, no a la API, para no ofrecer un

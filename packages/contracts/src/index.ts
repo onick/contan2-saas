@@ -2406,3 +2406,13 @@ export const BiblioIsbnLookupResponseSchema = z.object({
   }).nullable(),
 });
 export type BiblioIsbnLookupResponse = z.infer<typeof BiblioIsbnLookupResponseSchema>;
+
+// ── RBAC de Reportes · fuente única (API + web) ────────────────────────────
+// Roles que LEEN el dashboard de reportes (period-summary, categories, asistente).
+export const REPORT_READ_ROLE_LIST = ['owner', 'admin', 'operator', 'consulta', 'puerta'] as const;
+// Roles que GENERAN/DESCARGAN informes (xlsx/pdf/csv). 'puerta' descarga su operación.
+export const REPORT_EXPORT_ROLE_LIST = ['owner', 'admin', 'puerta'] as const;
+// Reporte de protocolo: lo exporta también el rol 'protocolo' (su módulo).
+export const PROTOCOL_REPORT_ROLE_LIST = ['owner', 'admin', 'protocolo'] as const;
+// Roles que ven correo/teléfono de asistentes en el informe por actividad.
+export const REPORT_CONTACT_ROLE_LIST = ['owner', 'admin'] as const;

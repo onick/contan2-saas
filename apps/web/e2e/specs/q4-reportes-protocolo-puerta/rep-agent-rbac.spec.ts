@@ -182,9 +182,8 @@ test.describe('REP-05 permisos de export (operator / consulta / puerta / protoco
           expect(body.error, `${role} ${url}: mensaje claro`).toMatch(/permiso/i);
         }
         const agent = await a.post('/app/reportes/api/agent', { data: { query: 'reporte de este mes' } });
-        // El asistente expone KPIs agregados: documentamos el estado real (200 o 403) sin gatear.
-        test.info().annotations.push({ type: 'agent-status', description: `${role}: ${agent.status()}` });
-        expect(agent.status()).toBeLessThan(500);
+        // REP-A14: el asistente es de LECTURA (REPORT_READ_ROLES): operator/consulta lo usan (200).
+        expect(agent.status()).toBe(200);
       } finally {
         await a.dispose();
       }
@@ -207,6 +206,20 @@ test.describe('REP-05 permisos de export (operator / consulta / puerta / protoco
       const summary = await page.request.get(`/app/reportes/api/summary?from=${from}&to=${to}`);
       expect(summary.status(), `${role}: el resumen del dashboard es lectura`).toBe(200);
       await context.close();
+    });
+  }
+
+  for (const role of ['protocolo', 'biblioteca'] as const) {
+    test(`REP-05-lectura-${role} [S1] ${role}: summary, categories y asistente responden 403 (REP-A14)`, async () => {
+      const a = await apiFor(role);
+      try {
+        for (const url of [`/app/reportes/api/summary?from=${from}&to=${to}`, '/app/reportes/api/categories']) {
+          expect((await a.get(url)).status(), `${role} ${url}`).toBe(403);
+        }
+        expect((await a.post('/app/reportes/api/agent', { data: { query: 'reporte de este mes' } })).status()).toBe(403);
+      } finally {
+        await a.dispose();
+      }
     });
   }
 

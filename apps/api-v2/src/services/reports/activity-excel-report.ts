@@ -84,7 +84,7 @@ function categoryFor(priorAttendances) {
   return 'Recurrente';
 }
 
-export async function buildActivityExcelReport({ organization, activity, attendances, users, affinities, protocol }) {
+export async function buildActivityExcelReport({ organization, activity, attendances, users, affinities, protocol, includeContact = false }: { includeContact?: boolean; [k: string]: any }) {
   const wb = new ExcelJS.Workbook();
   wb.creator = organization.name || 'contan2-saas';
   wb.created = new Date();
@@ -270,7 +270,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
     views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
   });
 
-  const headers = [
+  const headers: Array<{ header: string; key: string; width: number }> = [
     { header: '#', key: 'idx', width: 6 },
     { header: 'Código', key: 'code', width: 14 },
     { header: 'Nombre', key: 'firstName', width: 20 },
@@ -282,6 +282,10 @@ export async function buildActivityExcelReport({ organization, activity, attenda
     { header: 'Asistencias previas', key: 'prior', width: 18 },
     { header: 'Categoría', key: 'category', width: 16 },
   ];
+  if (!includeContact) {
+    // Contacto (correo/teléfono) solo para owner/admin (REP-A08).
+    for (const k of ['email', 'phone']) headers.splice(headers.findIndex((h) => h.key === k), 1);
+  }
   s2.columns = headers;
 
   // Pinta el header con brand

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NAV_ITEMS, filterNavByRole } from './nav';
+import { NAV_ITEMS, filterNavByRole, REPORT_ROLES, REPORT_EXPORT_ROLES } from './nav';
 
 describe('filterNavByRole', () => {
   it('null → fail-closed: solo Mi cuenta (nunca todo)', () => {
@@ -29,5 +29,16 @@ describe('filterNavByRole', () => {
   it('puerta y biblioteca mantienen su confinamiento', () => {
     expect(filterNavByRole(NAV_ITEMS, 'puerta').map((i) => i.key)).toEqual(['registros', 'protocolo', 'reportes', 'cuenta']);
     expect(filterNavByRole(NAV_ITEMS, 'biblioteca').map((i) => i.key)).toEqual(['cuenta']);
+  });
+});
+
+// Paridad API–web (REP-A14): mismos conjuntos que apps/api-v2/src/rbac-roles.ts
+// (ambos salen de @contan2/contracts; la API los fija en test/reports-rbac.test.ts).
+describe('roles de reportes (paridad con la API)', () => {
+  it('lectura: owner/admin/operator/consulta/puerta; protocolo y biblioteca fuera', () => {
+    expect([...REPORT_ROLES].sort()).toEqual(['admin', 'consulta', 'operator', 'owner', 'puerta']);
+  });
+  it('export: owner/admin/puerta', () => {
+    expect([...REPORT_EXPORT_ROLES].sort()).toEqual(['admin', 'owner', 'puerta']);
   });
 });

@@ -55,7 +55,7 @@ function categoryFor(prior) {
   return 'Recurrente';
 }
 
-export async function buildActivityPdfHtml({ organization, activity, attendances, users, affinities, protocol }) {
+export async function buildActivityPdfHtml({ organization, activity, attendances, users, affinities, protocol, includeContact = false }: { includeContact?: boolean; [k: string]: any }) {
   const theme = pdfTheme(organization);
   const { primary, primary900, accent } = theme;
   const accentLight = '#fff4e6';
@@ -101,8 +101,8 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
         <td class="idx">${i + 1}</td>
         <td class="code">${esc(u?.code || att.userCode || '—')}</td>
         <td>${esc(u?.firstName || '—')} ${esc(u?.lastName || '')}</td>
-        <td>${esc(u?.email || '—')}</td>
-        <td>${esc(u?.phone || '—')}</td>
+        ${includeContact ? `<td>${esc(u?.email || '—')}</td>
+        <td>${esc(u?.phone || '—')}</td>` : ''}
         <td class="num">${seated ? esc(fmtTime(att.checkedInAt)) : '—'}</td>
         <td class="num">${prior}</td>
         <td>${seated ? 'Asistió' : 'Reservado'}</td>
@@ -311,8 +311,7 @@ ${pdfCover({ logo, orgName: organization.name, title: 'Informe de Asistencia', e
         <th>#</th>
         <th>Código</th>
         <th>Nombre completo</th>
-        <th>Email</th>
-        <th>Teléfono</th>
+        ${includeContact ? '<th>Email</th><th>Teléfono</th>' : ''}
         <th>Hora</th>
         <th>Asist. previas</th>
         <th>Estado</th>

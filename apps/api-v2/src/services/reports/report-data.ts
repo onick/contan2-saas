@@ -49,8 +49,8 @@ export interface PeriodSummary {
   byMonth: Array<{ key: string; label: string; activities: number; attendances: number }>;
   byDay: Array<{ date: string; attendances: number }>;
   topUsers: Array<{
-    code: string; firstName: string; lastName: string; email: string | null;
-    phone: string | null; visitsInPeriod: number; totalVisits: number;
+    code: string; firstName: string; lastName: string;
+    visitsInPeriod: number; totalVisits: number;
   }>;
 }
 
@@ -137,12 +137,13 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
   const lastDay = zonedMidnight(ymdAddDays(ymdInTz(new Date(q.to)), -1)).toISOString();
   const byDay = daysBetween(q.from, lastDay).map((d) => ({ date: d, attendances: byDayMap.get(d) ?? 0 }));
 
-  // Top 20 visitantes del período, hidratados en UN query.
+  // Top 20 visitantes del período, hidratados en UN query. SIN correo ni teléfono
+  // (REP-A08 · P3): el informe de período circula fuera del centro.
   const topPairs = [...visitsPerUser.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
   const topUsers: PeriodSummary['topUsers'] = [];
   if (topPairs.length > 0) {
     const users = await db.selectFrom('users')
-      .select(['id', 'code', 'first_name', 'last_name', 'email', 'phone', 'visit_count'])
+      .select(['id', 'code', 'first_name', 'last_name', 'visit_count'])
       .where('organization_id', '=', orgId)
       .where('id', 'in', topPairs.map(([uid]) => uid))
       .execute();
@@ -152,7 +153,7 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
       if (!u) continue;
       topUsers.push({
         code: u.code, firstName: u.first_name, lastName: u.last_name,
-        email: u.email, phone: u.phone, visitsInPeriod: n, totalVisits: u.visit_count,
+        visitsInPeriod: n, totalVisits: u.visit_count,
       });
     }
   }
