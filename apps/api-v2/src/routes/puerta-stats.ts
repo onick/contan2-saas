@@ -12,6 +12,7 @@ import { getDb, sql, withTenant } from '@contan2/db';
 import { type PuertaStatsResponse } from '@contan2/contracts';
 import { requireRole, requireTenantStaff } from '../guard.js';
 import { PADRON_READ_ROLES } from '../rbac-roles.js';
+import { puertaKpis, puertaBySala } from '../services/puerta-kpis.js';
 
 const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -77,21 +78,8 @@ export const puertaStatsRoute: FastifyPluginAsync = async (app) => {
         .where('a.activity_id', 'in', ids)
         .where(winGe(f)).where(winLt(t));
 
-    // KPIs de una ventana (secuencial: withTenant trabaja sobre una conexión).
-    async function kpisOf(f: string, t: string) {
-      const r = await base(scopeIds, f, t)
-        .select([
-          sql<string>`count(*)`.as('entries'),
-          PEOPLE.as('people'),
-          sql<string>`count(distinct a.user_id)`.as('identified'),
-          sql<string>`coalesce(sum(case when a.group_label is not null then 1 + a.companions_children + a.companions_adults end), 0)`.as('groupPeople'),
-        ])
-        .executeTakeFirst();
-      return {
-        people: Number(r?.people ?? 0), entries: Number(r?.entries ?? 0),
-        identified: Number(r?.identified ?? 0), groupPeople: Number(r?.groupPeople ?? 0),
-      };
-    }
+    // KPIs de una ventana: consulta compartida con el Asistente de Reportes.
+    const kpisOf = (f: string, t: string) => puertaKpis(db, orgId, scopeIds, f, t);
     const kpis = await kpisOf(from, to);
     const prev = await kpisOf(prevFrom, prevTo);
 
@@ -112,10 +100,7 @@ export const puertaStatsRoute: FastifyPluginAsync = async (app) => {
     });
 
     // Por sala — SIEMPRE todas las salas (vista comparativa, ignora ?sala=).
-    const bySalaRows = await base(allIds, from, to)
-      .select(['a.activity_id', sql<string>`count(*)`.as('entries'), PEOPLE.as('people')])
-      .groupBy('a.activity_id').execute();
-    const bySalaMap = new Map(bySalaRows.map((r) => [r.activity_id, r]));
+    const bySalaMap = await puertaBySala(db, orgId, allIds, from, to);
     const bySala = salas.map((s) => ({
       ...s,
       entries: Number(bySalaMap.get(s.id)?.entries ?? 0),

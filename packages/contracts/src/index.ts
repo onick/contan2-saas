@@ -1936,12 +1936,45 @@ const AgentActivityStatsSchema = z.object({
 });
 export type AgentActivityStats = z.infer<typeof AgentActivityStatsSchema>;
 
+// Métrica puntual por período ("asistencias de octubre"): cifra principal +
+// dato secundario + período anterior + delta (en puntos si es ocupación).
+export const AgentMetricSchema = z.object({
+  key: z.enum(['people', 'attendances', 'uniqueVisitors', 'occupancyPct', 'activities']),
+  label: z.string(),                 // "Personas"
+  value: z.number(),
+  unit: z.string(),                  // "personas", "registros", "% de ocupación"…
+  secondary: z.string().nullable(),  // "1,500 registros"
+  previousValue: z.number(),
+  delta: z.number().nullable(),
+  deltaUnit: z.enum(['pct', 'pts']),
+  periodLabel: z.string(),           // "octubre de 2026" / "1 al 19 de octubre de 2026"
+  previousLabel: z.string(),
+  filterLabel: z.string().nullable(), // "Cine" cuando hay filtro por tipo
+});
+export type AgentMetric = z.infer<typeof AgentMetricSchema>;
+
+// Visitas a salas permanentes (Puerta), en personas con registros aparte.
+export const AgentSalaSchema = z.object({
+  scopeLabel: z.string(),            // "Todas las salas" / "Sala VR"
+  periodLabel: z.string(),
+  from: z.string(),
+  to: z.string(),
+  people: z.number().int(),
+  entries: z.number().int(),
+  previous: z.object({ from: z.string(), to: z.string(), people: z.number().int(), entries: z.number().int() }),
+  deltaPeople: z.number().nullable(),
+  bySala: z.array(z.object({ name: z.string(), people: z.number().int(), entries: z.number().int() })).max(12),
+});
+export type AgentSala = z.infer<typeof AgentSalaSchema>;
+
 export const ReportsAgentResponseSchema = z.object({
-  kind: z.enum(['period_report', 'period_compare', 'activity_compare', 'activity_stats', 'category_report', 'category_compare', 'clarify', 'help']),
+  kind: z.enum(['period_report', 'period_compare', 'activity_compare', 'activity_stats', 'category_report', 'category_compare', 'metric_query', 'sala_query', 'type_compare', 'clarify', 'help']),
+  metric: AgentMetricSchema.optional(),          // metric_query
+  sala: AgentSalaSchema.optional(),              // sala_query
   message: z.string(),
   categories: z.array(AgentCategoryStatsSchema).max(2).optional(), // category_report / category_compare
   period: AgentPeriodSchema.optional(),          // period_report
-  compare: z.object({                            // period_compare (A = foco, B = base)
+  compare: z.object({                            // period_compare / type_compare (A = foco, B = base)
     a: AgentPeriodSchema,
     b: AgentPeriodSchema,
     deltas: z.object({

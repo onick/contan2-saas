@@ -26,17 +26,13 @@ import { REPORT_TZ, monthKeyInTz, ymdAddDays, zonedMidnight } from './fmt.js';
 import { occupancyPct } from './metrics.js';
 import { reportableActivity, REPORTABLE_ACTIVITY_RAW } from './scope.js';
 import { previousPeriodYmd } from './range.js';
+import { TYPE_LABELS } from './labels.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TOP_USERS = 20;
 const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
-export const TYPE_LABELS: Record<string, string> = {
-  exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
-  teatro: 'Teatro', conferencia: 'Conferencia',
-  tertulia: 'Tertulia', visita_guiada: 'Visita guiada', cuentacuentos: 'Cuenta cuentos',
-  otro: 'Otro',
-};
+export { TYPE_LABELS };
 
 export interface PeriodFilters { types?: string[]; categories?: string[] }
 
