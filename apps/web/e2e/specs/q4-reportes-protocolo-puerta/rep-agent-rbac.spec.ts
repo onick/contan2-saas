@@ -11,7 +11,9 @@ test.describe.configure({ retries: 0 });
 
 let api: APIRequestContext;
 let fx: BaseFixture;
-const KINDS = ['period_report', 'period_compare', 'activity_compare', 'activity_stats', 'category_report', 'category_compare', 'clarify', 'help'];
+const KINDS = ['period_report', 'period_compare', 'activity_compare', 'activity_stats', 'category_report', 'category_compare',
+  // Asistente v3 (R6/R7): consultas de una métrica, de una sala permanente y comparación entre tipos.
+  'metric_query', 'sala_query', 'type_compare', 'clarify', 'help'];
 
 test.beforeAll(async () => {
   api = await apiFor('owner');
@@ -60,8 +62,25 @@ test.describe('REP-04 Asistente de reportes', { tag: '@write' }, () => {
     for (const q of ['dame el reporte de este año', 'informe de los últimos 7 días', 'reporte de hoy en excel', 'estadísticas del año pasado']) {
       const r = await ask(q);
       expectSane(r, q);
-      expect(['period_report', 'activity_stats', 'clarify', 'help'], q).toContain(r.body.kind);
+      expect(['period_report', 'metric_query', 'activity_stats', 'clarify', 'help'], q).toContain(r.body.kind);
     }
+  });
+
+  test('REP-04a2 [S2] Asistente v3: cifra de una métrica y de una sala responden en prosa con el período en palabras', async () => {
+    const m = await ask('Cuántas personas vinieron este mes');
+    expectSane(m, 'métrica');
+    expect(['metric_query', 'period_report', 'clarify', 'help'], 'métrica por período').toContain(m.body.kind);
+    if (m.body.kind === 'metric_query') {
+      // Prosa («1 al 19 de octubre de 2026»), no fechas ISO crudas.
+      expect(m.body.message).toMatch(/\b20\d{2}\b/);
+      expect(m.body.message, 'sin fechas ISO crudas').not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    }
+    const t = await ask('Cine vs teatro en el año');
+    expectSane(t, 'tipos');
+    expect(['type_compare', 'clarify', 'help'], 'comparación entre tipos').toContain(t.body.kind);
+    const sala = await ask('Cuánta gente pasó por la sala VR esta semana');
+    expectSane(sala, 'sala');
+    expect(['sala_query', 'clarify', 'help'], 'sala permanente (clarify si el tenant no la tiene)').toContain(sala.body.kind);
   });
 
   test('REP-04b [S1] "¿Cómo le fue a <actividad>?" cuenta solo check-ins (la reserva de protocolo no suma)', async () => {

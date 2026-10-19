@@ -415,20 +415,35 @@ test.describe('PUE-03 ventanas de fecha (TZ America/Santo_Domingo)', { tag: '@wr
     expect(ignora.status(), 'fechas inválidas se ignoran (histórico) sin romper').toBe(200);
   });
 
-  test('PUE-03d [S2] UI /app/puerta/reportes: KPIs de la ventana "Hoy" = API y botón Exportar Excel con el rango', async ({ asRole }, testInfo) => {
+  test('PUE-03d [S2] UI /app/puerta/reportes: KPIs de la ventana "Hoy" (selector de período) = API y Exportar Excel con el rango', async ({ asRole }, testInfo) => {
     const { page, context } = await asRole('puerta');
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/app/puerta/reportes');
     await expect(page.getByRole('heading', { name: 'Reportes de la Puerta', level: 1 })).toBeVisible();
+    // R1: las pastillas de periodo se reemplazaron por el DateRangePicker del kit (patrón de ARC-A2/A3).
+    const trigger = page.getByRole('button', { name: /^Período:/ });
+    await expect(trigger).toBeEnabled();
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Período' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Hoy', exact: true }).click();
+    // El periodo por defecto es «Este mes», así que aplicar «Hoy» dispara un fetch nuevo de stats.
     const resp = page.waitForResponse((r) => r.url().includes('/app/puerta/api/stats') && r.status() === 200);
-    await page.getByRole('button', { name: 'Hoy', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Aplicar' }).click();
     const stats = await (await resp).json();
+    await expect(dialog).toBeHidden();
     await page.waitForTimeout(500);
     const shown = await page.locator('[data-count]').evaluateAll((els) => els.slice(0, 4).map((e) => Number((e as HTMLElement).dataset.count)));
     expect(shown, 'Personas · Entradas · En grupo · Identificados').toEqual([stats.kpis.people, stats.kpis.entries, stats.kpis.groupPeople, stats.kpis.identified]);
-    const href = await page.getByRole('link', { name: /Exportar Excel/ }).getAttribute('href');
+    // R5: «Exportar Excel» es un SplitButton (link con el rango + menú «Más opciones de exportación» -> «Excel completo»).
+    const href = await page.getByRole('link', { name: 'Exportar Excel' }).getAttribute('href');
     expect(href).toContain(`from=${stats.range.from}`);
     expect(href).toContain(`to=${stats.range.to}`);
+    await page.getByRole('button', { name: 'Más opciones de exportación' }).click();
+    const full = page.getByRole('menuitem', { name: /Excel completo/ });
+    await expect(full).toBeVisible();
+    expect((await full.getAttribute('href')) ?? '', 'Excel completo = todo el histórico, sin rango').not.toMatch(/[?&]from=/);
+    await page.keyboard.press('Escape');
     await expectNoHorizontalOverflow(page, `/app/puerta/reportes (${testInfo.project.name})`);
     await context.close();
   });
