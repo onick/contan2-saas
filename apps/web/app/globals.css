@@ -40,6 +40,32 @@
   /* focus: del color secundario del tenant a ≥3:1 (WCAG 1.4.11); CCB #31a3db → #269ed9. Derivado en lib/branding/theme.ts. */
   --color-focus: #269ed9;
 
+  /* Gráficas (REP-A16): paleta categórica definida UNA vez. El proyecto no tiene modo
+     oscuro (color-scheme: light), así que no hay variante oscura. chart-1 es la serie
+     principal = marca del tenant y chart-2 el secundario del tenant a ≥3:1 (focus);
+     ambos se re-emiten por tenant en brandingToCssVars (los alias @theme resuelven en :root).
+     chart-3…8 son fijos (≥4.5:1 sobre blanco, aptos también como texto); chart-8 es el
+     neutro «otro/sin dato». chart-prev = serie del período anterior (≥3:1, trazo punteado).
+     Mapeo tipo→token en components/charts/palette.ts. */
+  --chart-1: var(--color-brand);
+  --chart-2: var(--color-focus);
+  --chart-3: #0e7c72;
+  --chart-4: #6d4fc2;
+  --chart-5: #c2417a;
+  --chart-6: #4f7d24;
+  --chart-7: #b5532f;
+  --chart-8: #636769;
+  --chart-prev: #8a9096;
+  /* Utilidades Tailwind (bg-chart-4, text-chart-4, bg-chart-4-soft…) solo para los tokens
+     FIJOS (3…8): chart-1/2 siguen al tenant y se usan vía var(--chart-N) inline. */
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
+  --color-chart-4-soft: color-mix(in srgb, var(--chart-4) 14%, white);
+
   /* Superficies y texto neutros. */
   --color-page: #fafaf9;
   --color-surface: #ffffff;

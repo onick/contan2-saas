@@ -16,7 +16,13 @@ describe('PalettePresets', () => {
   it('marca como seleccionada la paleta que coincide con los colores actuales', () => {
     render(<PalettePresets primary="#0182a2" accent="#34b3d0" onPick={vi.fn()} />);
     expect(screen.getByRole('button', { name: /Paleta Turquesa/i })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: /Paleta Banreservas/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: /Paleta Oficial CCB/i })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('el primer preset es la paleta oficial CCB (#f39228 / #31a3db) y se marca al coincidir', () => {
+    expect(PALETTES[0]).toEqual({ name: 'Oficial CCB', primary: '#f39228', accent: '#31a3db' });
+    render(<PalettePresets primary="#F39228" accent="#31A3DB" onPick={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /Paleta Oficial CCB/i })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('disabled no dispara onPick', () => {

@@ -9,9 +9,11 @@ import { cn, focusRing } from '../ui';
 
 export interface Palette { name: string; primary: string; accent: string }
 
-// CCB primero (marca ancla) + 5 alternativas para white-label.
+// Paleta oficial CCB primero (marca ancla: naranja #f39228 + azul #31a3db, REP-A16) + 5
+// alternativas para white-label. Si en el futuro hay presets por tenant, este queda
+// como preset genérico del producto («Naranja y azul»).
 export const PALETTES: Palette[] = [
-  { name: 'Banreservas', primary: '#f39228', accent: '#31a3db' },
+  { name: 'Oficial CCB', primary: '#f39228', accent: '#31a3db' },
   { name: 'Turquesa', primary: '#0182a2', accent: '#34b3d0' },
   { name: 'Índigo', primary: '#4338ca', accent: '#6366f1' },
   { name: 'Verde', primary: '#157f3c', accent: '#34a853' },

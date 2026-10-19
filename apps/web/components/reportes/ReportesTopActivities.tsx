@@ -10,6 +10,7 @@ import { Card, Sheet, cn, focusRing } from '../ui';
 import { DownloadLink } from './DownloadLink';
 import type { Downloads } from './useDownloads';
 import { PALETTE, TYPE_COLOR, TYPE_ICON, fmt } from './shared';
+import { tintOf } from '../charts/palette';
 
 type Top = PeriodSummaryResponse['topActivities'][number];
 
@@ -27,13 +28,13 @@ export function TopActivitiesCard({ data, canExport, dl }: { data: PeriodSummary
       {canExport ? <p className="text-[12px] text-muted">Toca una actividad para ver su informe.</p> : null}
       <div className="mt-3">
         {top.map((a, i) => {
-          const color = TYPE_COLOR[a.type] ?? PALETTE[i % PALETTE.length];
+          const color = TYPE_COLOR[a.type] ?? PALETTE[i % PALETTE.length]!;
           const Ic = TYPE_ICON[a.type] ?? Film;
           const inner = (
             <>
               <span className="grid h-5 w-5 flex-none place-items-center rounded-md bg-brand/10 text-[11px] font-extrabold text-brand-text">{i + 1}</span>
               {/* miniatura: portada de la actividad o fallback al ícono del tipo */}
-              <span className="grid h-9 w-9 flex-none place-items-center overflow-hidden rounded-lg" style={{ background: `${color}1f` }}>
+              <span className="grid h-9 w-9 flex-none place-items-center overflow-hidden rounded-lg" style={{ background: tintOf(color) }}>
                 {a.imageUrl
                   // eslint-disable-next-line @next/next/no-img-element
                   ? <img src={a.imageUrl} alt="" className="h-full w-full object-cover" />

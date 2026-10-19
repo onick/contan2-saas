@@ -1,5 +1,6 @@
 import { CloudOff, RefreshCw } from 'lucide-react';
-import { cn, focusRing } from '../ui/cn';
+import { cn } from '../ui/cn';
+import { buttonVariants } from '../ui/Button';
 
 export interface UnavailableProps {
   // `inline` para reemplazar una sección dentro del shell; sin él ocupa la
@@ -30,8 +31,9 @@ export function Unavailable({
       <a
         href=""
         className={cn(
-          'mt-5 inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-strong px-4 text-[14px] font-semibold text-white shadow-sm transition hover:brightness-95',
-          focusRing,
+          // Mismo botón primario del kit (bg-brand text-brand-fg), como <a> porque recarga la página.
+          buttonVariants({ variant: 'primary' }),
+          'mt-5 gap-2',
         )}
       >
         <RefreshCw size={16} strokeWidth={2.25} aria-hidden="true" />
