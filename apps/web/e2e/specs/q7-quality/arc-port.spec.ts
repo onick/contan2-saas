@@ -96,24 +96,23 @@ test.describe('arc · DateRangePicker en Reportes', () => {
 // D · SplitButton (Reportes, Biblioteca) y movimiento del DropdownMenu
 // ───────────────────────────────────────────────────────────────────────────────
 test.describe('arc · SplitButton y DropdownMenu', () => {
-  test('ARC-D1 Reportes: "Descargar PDF" sigue siendo link; el gatillo abre con ArrowDown y Escape devuelve el foco', async ({ page }) => {
+  test('ARC-D1 Reportes: "Descargar PDF" sigue siendo link; el gatillo abre el panel "Descargas" y Escape devuelve el foco', async ({ page }) => {
     await gotoSettled(page, '/app/reportes');
-    const pdf = page.getByRole('link', { name: /Descargar PDF/ });
+    const pdf = page.getByRole('link', { name: 'Descargar PDF' });
     await expect(pdf).toBeVisible();
     await expect(pdf).toHaveAttribute('href', /\/app\/reportes\/api\/period\?kind=pdf/);
     const trigger = page.getByRole('button', { name: 'Otros formatos de exportación' });
-    await expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    await expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
     await trigger.focus();
-    await page.keyboard.press('ArrowDown');
-    const menu = page.getByRole('menu');
-    await expect(menu).toBeVisible();
-    await expect(menu).toHaveClass(/arc-menu/);
-    await expect(menu).toHaveAttribute('data-side', /.+/);
-    const excel = menu.getByRole('menuitem', { name: /Exportar Excel/ });
-    await expect(excel).toBeVisible();
-    await expect(page.locator(':focus')).toHaveAttribute('role', 'menuitem');
+    await page.keyboard.press('Enter');
+    const panel = page.getByRole('dialog', { name: 'Descargas' });
+    await expect(panel).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(panel.getByRole('heading', { name: 'Informe del período' })).toBeVisible();
+    await expect(panel.getByRole('link', { name: 'Excel · Informe del período' })).toBeVisible();
     await page.keyboard.press('Escape');
-    await expect(menu).toBeHidden();
+    await expect(panel).toBeHidden();
     await expect(trigger).toBeFocused();
   });
 

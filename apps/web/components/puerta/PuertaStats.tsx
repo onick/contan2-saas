@@ -19,6 +19,7 @@ import { DeltaPct, buildSlices, Donut, Bars, LineChart } from '../charts/primiti
 import { useDataAnim } from '../charts/useDataAnim';
 import { salaColor, salaSeriesColors } from './salaColors';
 import { DateRangePicker } from '../ui/arc/date-range-picker/DateRangePicker';
+import { SplitButton } from '../ui/arc/split-button/SplitButton';
 import { MAX_RANGE_DAYS } from '../reportes/filters';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -121,26 +122,34 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
           <p className="mt-1 text-[14px] text-muted">Personas que entraron a las salas permanentes, comparado con el período anterior de igual duración.</p>
         </div>
         <div className="flex flex-none gap-2.5 sm:ml-auto">
-          <Link href="/app/puerta" className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+          <Link href="/app/puerta" className={cn('inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 md:min-h-10 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <ArrowLeft size={16} strokeWidth={1.9} /> Registro
           </Link>
-          <a href={`/app/puerta/api/export?${exportQs}`} className={cn('inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-brand-fg hover:brightness-95', focusRing)}>
-            <Download size={16} strokeWidth={1.9} /> Exportar Excel
-          </a>
+          <SplitButton
+            label="Exportar Excel"
+            href={`/app/puerta/api/export?${exportQs}`}
+            icon={Download}
+            menuLabel="Más opciones de exportación"
+            actions={[{
+              label: 'Excel completo', icon: Download,
+              href: `/app/puerta/api/export${sala !== 'all' ? `?sala=${sala}` : ''}`,
+              hint: 'Todo el histórico, sin rango',
+            }]}
+          />
         </div>
       </div>
 
       {/* filtros: períodos + salas + rango */}
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
-        <DateRangePicker label="Período" value={range} presetKey={periodKey} onChange={pickRange} max="today" maxDays={MAX_RANGE_DAYS} />
+        <DateRangePicker label="Período" value={range} presetKey={periodKey} onChange={pickRange} max="today" maxDays={MAX_RANGE_DAYS} collisionPadding={{ top: 8, left: 8, right: 8, bottom: 84 }} />
         <span className="mx-0.5 hidden h-5 w-px bg-line sm:block" aria-hidden="true" />
         <button type="button" onClick={() => setSala('all')}
-          className={cn('rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors', focusRing, sala === 'all' ? 'bg-ink text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
+          className={cn('inline-flex min-h-11 items-center rounded-full px-4 text-[12.5px] font-semibold transition-colors sm:min-h-9', focusRing, sala === 'all' ? 'bg-ink text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
           Ambas salas
         </button>
         {data.salas.map((s) => (
           <button key={s.id} type="button" onClick={() => setSala(s.id)}
-            className={cn('inline-flex items-center gap-2 rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors', focusRing, sala === s.id ? 'bg-ink text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
+            className={cn('inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[12.5px] font-semibold transition-colors sm:min-h-9', focusRing, sala === s.id ? 'bg-ink text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
             <span className="h-2 w-2 flex-none rounded-full" style={{ background: salaColor(s.aforo).c }} aria-hidden="true" /> {s.name}
           </button>
         ))}
@@ -259,8 +268,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
         </div>
 
         <p className="mt-6 text-[12.5px] text-muted">
-          El Excel del botón de arriba respeta la sala y el rango elegidos. ¿Necesitas todo el histórico?{' '}
-          <a className="font-semibold text-brand-text hover:underline" href={`/app/puerta/api/export${sala !== 'all' ? `?sala=${sala}` : ''}`}>Descargar Excel completo</a>.
+          El Excel del botón de arriba respeta la sala y el rango elegidos. Para todo el histórico, usa la flecha del botón.
         </p>
       </div>
     </div>
