@@ -66,9 +66,10 @@ describe('/app/reportes · dashboard', () => {
     expect(screen.getByText('Todos los tipos')).toBeInTheDocument();
     // Paneles
     expect(screen.getByText('Evolución de asistencias')).toBeInTheDocument();
-    expect(screen.getByText('Distribución por tipo de actividad')).toBeInTheDocument();
-    expect(screen.getByText('Top actividades')).toBeInTheDocument();
-    expect(screen.getByText('Nuevos vs. recurrentes')).toBeInTheDocument();
+    expect(screen.getByText('Por tipo de actividad')).toBeInTheDocument();
+    expect(screen.getByText('Actividades destacadas')).toBeInTheDocument();
+    expect(screen.getByText('Visitantes')).toBeInTheDocument();
+    expect(screen.getByText('Cuándo viene la gente')).toBeInTheDocument();
     // Export apunta al BFF con rango vivo (no href="#").
     expect(document.querySelectorAll('a[href="#"]')).toHaveLength(0);
     const pdf = screen.getByRole('link', { name: /Descargar PDF/i });
@@ -91,8 +92,8 @@ describe('/app/reportes · dashboard', () => {
     expect(screen.queryByRole('link', { name: /Descargar PDF/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /Exportar Excel/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /Asistente/i })).toBeNull();
-    expect(screen.queryByText(/Reporte por ciclo o categoría/)).toBeNull();
-    expect(screen.queryByText(/Reporte mensual \(formato registro\)/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Otros formatos de exportación' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Abrir informe de/ })).toBeNull();
   });
 
   it.each(['protocolo', 'biblioteca'])('%s (confinado): «sin permiso» honesto, sin KPIs ni botones de export', async (role) => {

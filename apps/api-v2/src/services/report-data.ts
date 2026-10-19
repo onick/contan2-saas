@@ -90,12 +90,19 @@ export async function attendanceByActivity(
   orgId: string,
   range: ReportRange,
   category?: string, // filtro opcional por categoría/ciclo (ej. "5to ciclo de cine dominicano")
+  // Filtros del dashboard (misma semántica que period-summary): `types` (enum) y `categories`
+  // (lista, comparada normalizada). Se combinan con `category` si también viene.
+  opts: { types?: string[]; categories?: string[] } = {},
 ): Promise<AttendanceByActivityReport> {
   // Cota dura: contamos primero (barato) para no materializar un dataset enorme.
   // El filtro por categoría/ciclo compara NORMALIZADO (minúsculas, sin
   // acentos, espacios colapsados): "Cine Clásico" matchea "cine clasico".
-  const categoryNorm = category ? normCategory(category) : null;
-  const categoryWhere = sql<boolean>`${normCategorySql(sql`category`)} = ${categoryNorm ?? ''}`;
+  const catNorms = [...(category ? [category] : []), ...(opts.categories ?? [])]
+    .map((c) => normCategory(c)).filter(Boolean);
+  const hasCats = catNorms.length > 0;
+  // `category` (singular) y `categories` (lista) se unen: cualquiera de las dos coincide.
+  const catWhere = (col: ReturnType<typeof sql>) => sql<boolean>`${normCategorySql(col)} in (${sql.join(catNorms)})`;
+  const types = opts.types && opts.types.length > 0 ? opts.types : null;
   let countQ = db
     .selectFrom('activities')
     .select(db.fn.countAll<string>().as('n'))
@@ -103,7 +110,8 @@ export async function attendanceByActivity(
     .where(reportableActivity('activities'))
     .where('date', '>=', range.fromDate)
     .where('date', '<', range.toExclusive);
-  if (categoryNorm) countQ = countQ.where(categoryWhere);
+  if (hasCats) countQ = countQ.where(catWhere(sql`category`));
+  if (types) countQ = countQ.where('type', 'in', types);
   const countRow = await countQ.executeTakeFirstOrThrow();
   if (Number(countRow.n) > MAX_REPORT_ROWS) {
     throw new ReportError(400, `El período tiene ${countRow.n} actividades (máx ${MAX_REPORT_ROWS}). Acota el rango.`);
@@ -118,7 +126,8 @@ export async function attendanceByActivity(
     .where(reportableActivity('a'))
     .where('a.date', '>=', range.fromDate)
     .where('a.date', '<', range.toExclusive);
-  if (categoryNorm) rowsQ = rowsQ.where(sql<boolean>`${normCategorySql(sql`a.category`)} = ${categoryNorm}`);
+  if (hasCats) rowsQ = rowsQ.where(catWhere(sql`a.category`));
+  if (types) rowsQ = rowsQ.where('a.type', 'in', types);
   const rows = await rowsQ
     .groupBy(['a.id', 'a.name', 'a.date', 'a.location', 'a.category', 'a.status', 'a.capacity', 'a.enrolled_count'])
     .select([

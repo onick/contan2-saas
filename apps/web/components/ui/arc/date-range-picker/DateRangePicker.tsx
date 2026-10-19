@@ -47,6 +47,8 @@ export interface DateRangePickerProps {
   onClear?: () => void;
   disabled?: boolean;
   className?: string;
+  /** Margen contra los bordes del viewport (Radix). En móvil, `{ bottom: 80 }` evita tapar la barra inferior. */
+  collisionPadding?: number | Partial<Record<'top' | 'right' | 'bottom' | 'left', number>>;
 }
 
 const WIDE_MIN = 760;
@@ -154,7 +156,7 @@ function Month({ month, range, tabbable, today, min, max, weekStartsOn, idBase, 
 
 export function DateRangePicker({
   value, onChange, presetKey = null, presets = DEFAULT_PRESETS, label = 'Período', min, max, maxDays,
-  weekStartsOn = 1, timeZone = DEFAULT_TZ, months = 'auto', placeholder = 'Cualquier fecha', onClear, disabled = false, className,
+  weekStartsOn = 1, timeZone = DEFAULT_TZ, months = 'auto', placeholder = 'Cualquier fecha', onClear, disabled = false, className, collisionPadding = 8,
 }: DateRangePickerProps) {
   const uid = useId();
   const today = useToday(timeZone);
@@ -337,7 +339,7 @@ export function DateRangePicker({
         </button>
       </PopoverTrigger>
       <PopoverPortal>
-        <PopoverContent ref={panelRef} align="start" sideOffset={8} collisionPadding={8} aria-label={label}
+        <PopoverContent ref={panelRef} align="start" sideOffset={8} collisionPadding={collisionPadding} aria-label={label}
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             panelRef.current?.querySelector<HTMLButtonElement>('button[data-date][tabindex="0"]')?.focus({ preventScroll: true });

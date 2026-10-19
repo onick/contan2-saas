@@ -171,10 +171,14 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     if (format === 'pdf' && (await pdfLimiter.hit(`${org.id}:${staff.id}`)).limited) { reply.code(429); return { error: 'Demasiados PDF en poco tiempo. Espera un momento.' }; }
 
     const category = typeof q.category === 'string' && q.category.trim() ? q.category.trim() : undefined;
+    // Mismos filtros que el dashboard (period-summary): types del enum y categories (lista).
+    const allowedTypes = new Set<string>(ACTIVITY_TYPES);
+    const types = String(q.types ?? '').split(',').map((t) => t.trim()).filter((t) => allowedTypes.has(t));
+    const categories = String(q.categories ?? '').split(',').map((c) => c.trim()).filter((c) => c.length > 0 && c.length <= 60).slice(0, 10);
     let report;
     try {
       const range = parseRange(q.from, q.to);
-      report = await attendanceByActivity(db, org.id, range, category);
+      report = await attendanceByActivity(db, org.id, range, category, { types, categories });
     } catch (e) {
       if (e instanceof ReportError) { reply.code(e.status); return { error: e.message }; }
       throw e;
@@ -192,8 +196,10 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     });
 
     // Nombre de archivo: si hay filtro de ciclo, lo refleja (safeFilename limpia).
-    const base = category
-      ? `ciclo_${category}_${report.period.from}_${report.period.to}`
+    const base = category || categories.length === 1
+      ? `ciclo_${category ?? categories[0]}_${report.period.from}_${report.period.to}`
+      : categories.length > 1 || types.length > 0
+      ? `asistencia-filtrada_${report.period.from}_${report.period.to}`
       : `asistencia-por-actividad_${report.period.from}_${report.period.to}`;
 
     if (format === 'csv') {

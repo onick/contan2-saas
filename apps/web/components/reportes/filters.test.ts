@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCsvExport, defaultReportFilters, filtersToSearch, parseReportFilters } from './filters';
+import { reportsQuery, periodHref, attendanceHref, monthHref, defaultReportFilters, filtersToSearch, parseReportFilters } from './filters';
 
 const TODAY = '2026-10-16';
 
@@ -42,19 +42,43 @@ describe('parseReportFilters', () => {
   });
 });
 
-describe('buildCsvExport', () => {
-  const base = { from: '2026-10-01', to: '2026-10-16', types: [], cats: [] as string[] };
-  it('sin filtros: rango + format=csv, habilitado', () => {
-    expect(buildCsvExport(base)).toEqual({ href: '/app/reportes/api/attendance?from=2026-10-01&to=2026-10-16&format=csv', disabled: false });
+describe('hrefs de descarga', () => {
+  const base = { from: '2026-10-01', to: '2026-10-16', types: [] as string[], categories: [] as string[] };
+  const q = (href: string) => new URL(href, 'http://x');
+
+  it('reportsQuery arma from/to y omite filtros vacíos', () => {
+    expect(reportsQuery('2026-10-01', '2026-10-16')).toBe('from=2026-10-01&to=2026-10-16');
+    expect(reportsQuery('2026-10-01', '2026-10-16', ['cine'], ['A', 'B'])).toBe('from=2026-10-01&to=2026-10-16&types=cine&categories=A%2CB');
   });
-  it('un solo ciclo: agrega category (codificado) y sigue habilitado', () => {
-    const r = buildCsvExport({ ...base, cats: ['Cine & Café'] });
-    expect(r.disabled).toBe(false);
-    expect(new URL(r.href, 'http://x').searchParams.get('category')).toBe('Cine & Café');
+
+  it('periodHref: pdf/xlsx llevan rango, tipos y ciclos', () => {
+    const u = q(periodHref('pdf', { ...base, types: ['cine'], categories: ['Cine Club'] }));
+    expect(u.pathname).toBe('/app/reportes/api/period');
+    expect(u.searchParams.get('kind')).toBe('pdf');
+    expect(u.searchParams.get('types')).toBe('cine');
+    expect(u.searchParams.get('categories')).toBe('Cine Club');
   });
-  it('varios ciclos o tipos seleccionados: deshabilitado (el CSV no los respeta)', () => {
-    expect(buildCsvExport({ ...base, cats: ['A', 'B'] }).disabled).toBe(true);
-    expect(buildCsvExport({ ...base, cats: ['A', 'B'] }).href).not.toContain('category=');
-    expect(buildCsvExport({ ...base, types: ['cine'] }).disabled).toBe(true);
+
+  it('attendanceHref csv: sin filtros solo rango + format, siempre habilitado (REP-A17)', () => {
+    expect(attendanceHref('csv', base)).toBe('/app/reportes/api/attendance?from=2026-10-01&to=2026-10-16&format=csv');
+  });
+
+  it('attendanceHref csv: respeta tipos y VARIOS ciclos (misma semántica que el dashboard)', () => {
+    const u = q(attendanceHref('csv', { ...base, types: ['cine', 'taller'], categories: ['A', 'B'] }));
+    expect(u.searchParams.get('format')).toBe('csv');
+    expect(u.searchParams.get('types')).toBe('cine,taller');
+    expect(u.searchParams.get('categories')).toBe('A,B');
+    expect(u.searchParams.get('category')).toBeNull();
+  });
+
+  it('attendanceHref con un ciclo elegido en el panel: category + filtros de tipo', () => {
+    const u = q(attendanceHref('pdf', { ...base, types: ['cine'], category: 'Cine & Café' }));
+    expect(u.searchParams.get('category')).toBe('Cine & Café');
+    expect(u.searchParams.get('types')).toBe('cine');
+    expect(u.searchParams.get('categories')).toBeNull();
+  });
+
+  it('monthHref', () => {
+    expect(monthHref(2026, 10)).toBe('/app/reportes/api/month?year=2026&month=10');
   });
 });
