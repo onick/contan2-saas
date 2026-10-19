@@ -8,7 +8,7 @@
 
 import { sql, type DbClient } from '@contan2/db';
 
-const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
+import { REPORT_TZ as TZ } from './timezone.js';
 
 export const PEOPLE = sql<string>`coalesce(sum(1 + a.companions_children + a.companions_adults), 0)`;
 

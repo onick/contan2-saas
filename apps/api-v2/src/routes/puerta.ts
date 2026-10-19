@@ -21,14 +21,13 @@ import {
 import { requireRole, requireTenantStaff } from '../guard.js';
 import { DOOR_WRITE_ROLES, PADRON_READ_ROLES } from '../rbac-roles.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
-import { buildPuertaExportWorkbook, type PuertaExportRow } from '../services/puerta-export.js';
+import { buildPuertaExportWorkbook, puertaExportRowCap, type PuertaExportRow } from '../services/puerta-export.js';
 import { safeFilename } from '../services/csv.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-const EXPORT_ROW_CAP = 50_000; // cota dura de filas del export (memoria acotada)
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
+import { REPORT_TZ as TZ } from '../services/timezone.js';
 const AFORO_MAX = 200; // capacity > esto ⇒ sala "ilimitada" (no muestra ocupación)
 const puertaLimiter = createRateLimiter({ max: 180, windowMs: 60_000, prefix: endpointPrefix('puerta') });
 
@@ -287,7 +286,22 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     // conversión y la ventana queda corrida ±8h — mismo fix que puerta-stats).
     if (fromRaw) rowsQ = rowsQ.where(sql<boolean>`a.registered_at >= (${fromRaw}::timestamp AT TIME ZONE ${sql.lit(TZ)})`);
     if (toRaw) rowsQ = rowsQ.where(sql<boolean>`a.registered_at < ((${toRaw}::date + 1)::timestamp AT TIME ZONE ${sql.lit(TZ)})`);
-    const raw = await rowsQ.orderBy('a.registered_at', 'asc').limit(EXPORT_ROW_CAP).execute();
+    const cap = puertaExportRowCap();
+    // Una fila de más: si llega, el universo supera la cota y hay que avisarlo (REP-A25).
+    const fetched = await rowsQ.orderBy('a.registered_at', 'asc').limit(cap + 1).execute();
+    const raw = fetched.slice(0, cap);
+    let truncated: { total: number; shown: number } | undefined;
+    if (fetched.length > cap) {
+      let countQ = db.selectFrom('attendance as a')
+        .select(sql<string>`count(*)`.as('n'))
+        .where('a.organization_id', '=', org.id)
+        .where('a.activity_id', 'in', salaIds)
+        .where('a.is_permanent', '=', true);
+      if (fromRaw) countQ = countQ.where(sql<boolean>`a.registered_at >= (${fromRaw}::timestamp AT TIME ZONE ${sql.lit(TZ)})`);
+      if (toRaw) countQ = countQ.where(sql<boolean>`a.registered_at < ((${toRaw}::date + 1)::timestamp AT TIME ZONE ${sql.lit(TZ)})`);
+      const total = Number((await countQ.executeTakeFirstOrThrow()).n);
+      truncated = { total, shown: raw.length };
+    }
 
     const rows: PuertaExportRow[] = raw.map((r) => {
       const companions = Number(r.companions_children) + Number(r.companions_adults);
@@ -319,16 +333,18 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
       target_type: 'activity',
       target_id: salaId ?? 'all',
       target_label: salaLabel,
-      metadata: JSON.stringify({ sala: salaLabel, from: fromRaw, to: toRaw, rows: rows.length }),
+      metadata: JSON.stringify({ sala: salaLabel, from: fromRaw, to: toRaw, rows: rows.length, truncated: truncated?.total ?? null }),
     }).execute();
 
     const buf = await buildPuertaExportWorkbook(rows, {
-      orgName: org.name, primaryColor: org.primaryColor, salaLabel, rangeLabel, tz: TZ,
+      orgName: org.name, primaryColor: org.primaryColor, salaLabel, rangeLabel, tz: TZ, truncated,
     });
     const base = `puerta_${salaId ? salaLabel : 'salas'}_${fromRaw ?? 'inicio'}_${toRaw ?? 'hoy'}`;
     reply.header('content-type', XLSX_MIME);
     reply.header('content-disposition', `attachment; filename="${safeFilename(`${base}.xlsx`)}"`);
     reply.header('cache-control', 'no-store');
+    // Mismo contrato que el export de visitantes: el total real del universo si se cortó.
+    if (truncated) reply.header('x-export-truncated', String(truncated.total));
     return reply.send(buf);
     });
   });

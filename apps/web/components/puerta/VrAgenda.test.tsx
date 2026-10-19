@@ -27,6 +27,17 @@ describe('VrAgenda', () => {
     expect(await screen.findByText('Sin reservas próximas')).toBeInTheDocument();
   });
 
+  it('lista cortada en el tope (truncated) → aviso visible; sin truncado, nada', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(200, { bookings: [booking], truncated: true })));
+    const { unmount } = render(<VrAgenda salaId="s1" salaName="Sala VR" />);
+    expect(await screen.findByText(/solo las primeras reservas/)).toBeInTheDocument();
+    unmount();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(200, { bookings: [booking] })));
+    render(<VrAgenda salaId="s1" salaName="Sala VR" />);
+    await screen.findByText('Colegio Demo');
+    expect(screen.queryByText(/solo las primeras reservas/)).not.toBeInTheDocument();
+  });
+
   it('check-in con 409 → muestra el mensaje del servidor en un role=alert', async () => {
     const f = vi.fn(async (url: string, init?: RequestInit) => {
       if (init?.method === 'POST') return J(409, { error: 'Esta reserva ya tiene check-in.' });

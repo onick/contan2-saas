@@ -31,3 +31,16 @@ describe('PuertaStats · exportación (REP-U14)', () => {
     for (const name of ['Ambas salas', 'Sala VR']) expect(screen.getByRole('button', { name }).className).toMatch(/min-h-11/);
   });
 });
+
+describe('PuertaStats · aviso de truncado (REP-A25)', () => {
+  it('si las entradas superan la cota del Excel, avisa; si caben, no', () => {
+    const over = { ...DATA, kpis: { ...DATA.kpis, entries: 52_000 }, exportRowCap: 50_000 } as PuertaStatsResponse;
+    const { unmount } = render(<PuertaStats initial={over} initialRange={over.range} />);
+    expect(screen.getByRole('status')).toHaveTextContent(/52[.,]000 entradas.*primeras 50[.,]000/);
+    unmount();
+    const fits = { ...DATA, exportRowCap: 50_000 } as PuertaStatsResponse;
+    render(<PuertaStats initial={fits} initialRange={fits.range} />);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+

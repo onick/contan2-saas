@@ -22,7 +22,7 @@ import { DOOR_WRITE_ROLES, PADRON_READ_ROLES } from '../rbac-roles.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { confirmBookingEmail } from '../services/booking-email.js';
 
-const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
+import { REPORT_TZ as TZ } from '../services/timezone.js';
 const bookingsLimiter = createRateLimiter({ max: 120, windowMs: 60_000, prefix: endpointPrefix('bookings') });
 
 interface SalaRow { id: string; name: string; capacity: number; occupancy: number }
@@ -52,6 +52,7 @@ function toBooking(r: BookingRow): PuertaBookingFull {
     attendanceId: r.attendance_id,
   };
 }
+const BOOKINGS_LIST_CAP = 500; // tope de reservas del listado
 const todayStartSql = sql`(date_trunc('day', now() AT TIME ZONE ${sql.lit(TZ)}) AT TIME ZONE ${sql.lit(TZ)})`;
 
 async function loadBooking(db: DbClient, orgId: string, id: string) {
@@ -87,8 +88,10 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     // Default (sin rango): desde el inicio de hoy (local) hacia adelante.
     if (!from && !to) query = query.where(sql<boolean>`b.scheduled_at >= ${todayStartSql}`);
 
-    const rows = await query.orderBy('b.scheduled_at', 'asc').limit(500).execute() as BookingRow[];
-    const body: PuertaBookingsResponse = { bookings: rows.map(toBooking) };
+    // Una de más para saber si la lista se cortó en el tope (REP-A25): la UI lo avisa.
+    const fetched = await query.orderBy('b.scheduled_at', 'asc').limit(BOOKINGS_LIST_CAP + 1).execute() as BookingRow[];
+    const rows = fetched.slice(0, BOOKINGS_LIST_CAP);
+    const body: PuertaBookingsResponse = { bookings: rows.map(toBooking), ...(fetched.length > BOOKINGS_LIST_CAP ? { truncated: true } : {}) };
     return body;
     });
   });

@@ -21,7 +21,11 @@ begin;
 create temp table _e2e_org as select id from organizations where slug = 'ccb';
 create temp table _e2e_act as
   select a.id from activities a, _e2e_org o
-  where a.organization_id = o.id and a.name like '[E2E] ' || :'run' || '%';
+  where a.organization_id = o.id
+    and (a.name like '[E2E] ' || :'run' || '%'
+         -- REP-A25: el ciclo/categoria '[E2E] ...' vive en la actividad y aparece en
+         -- /reports/categories y en los reportes de periodo; se va con la actividad.
+         or a.category like '[E2E] ' || :'run' || '%');
 create temp table _e2e_usr as
   select u.id from users u, _e2e_org o
   where u.organization_id = o.id
@@ -51,7 +55,8 @@ delete from users u where u.id in (select id from _e2e_usr);
 --  where email = 'e2e-invitado@test.local' and organization_id in (select id from _e2e_org);
 
 \echo '--- Estado final (transaccion) ---'
-select (select count(*) from activities where name like '[E2E]%') as actividades_e2e_restantes,
+select (select count(*) from activities where name like '[E2E]%' or category like '[E2E]%') as actividades_e2e_restantes,
+       (select count(distinct category) from activities where category like '[E2E]%') as ciclos_e2e_restantes,
        (select count(*) from users where email like 'e2e+%@test.local') as visitantes_e2e_restantes;
 
 \if :apply

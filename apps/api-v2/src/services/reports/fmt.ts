@@ -1,11 +1,12 @@
 // apps/api-v2/src/services/reports/fmt.ts · fechas/horas de reportería en la
-// zona horaria del tenant (CHECKIN_TZ, default America/Santo_Domingo), NUNCA
+// zona horaria del tenant (REPORT_TZ, default America/Santo_Domingo), NUNCA
 // en la del servidor (UTC). Centraliza formateo, claves de día/mes y los
 // límites de rango [00:00 local del día, 00:00 local del día siguiente).
 
-import { resolveCheckinTz } from '../../routes/checkin.js';
+import { REPORT_TZ } from '../timezone.js';
 
-export const REPORT_TZ: string = resolveCheckinTz();
+export { REPORT_TZ };
+
 
 type Input = Date | string | number;
 const toDate = (v: Input): Date => (v instanceof Date ? v : new Date(v));

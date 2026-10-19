@@ -29,7 +29,8 @@ import { buildActivityExcelReport, reportFilename } from '../services/reports/ac
 import { buildActivityPdfHtml, pdfHeaderFooter, pdfFilename } from '../services/reports/activity-pdf-template.js';
 import { buildPeriodExcelReport, periodFilename } from '../services/reports/period-excel-report.js';
 import { buildPeriodPdfHtml, periodPdfHeaderFooter, periodPdfFilename } from '../services/reports/period-pdf-template.js';
-import { renderHtmlToPdf } from '../services/reports/pdf-renderer.js';
+import type { ReportOrg } from '../services/reports/pdf-shell.js';
+import { renderHtmlToPdf, BusyError } from '../services/reports/pdf-renderer.js';
 import { zonedMidnight, ymdInTz } from '../services/reports/fmt.js';
 import { loadProtocolReportData, buildProtocolExcelReport, protocolReportFilename } from '../services/reports/protocol-report.js';
 
@@ -37,7 +38,20 @@ const VALID_TYPES = new Set<string>(ACTIVITY_TYPES); // deriva del enum, no dupl
 const ACT_FILE_RE = /^([0-9a-f-]{36})\.(xlsx|pdf)$/i;
 
 // Branding del tenant para las plantillas (shape camelCase de v1).
-interface ReportOrg { name: string; slug: string; primaryColor: string | null; secondaryColor: string | null; logoUrl: string | null; credentialLogoUrl: string | null }
+// Render de PDF con semáforo: si el generador está saturado responde 503 +
+// Retry-After en vez de colgar la petición o tumbar el contenedor por memoria.
+async function renderPdf(reply: FastifyReply, html: string, opts: Parameters<typeof renderHtmlToPdf>[1]): Promise<Buffer | { error: string }> {
+  try {
+    return await renderHtmlToPdf(html, opts);
+  } catch (e) {
+    if (e instanceof BusyError) {
+      reply.code(503).header('retry-after', String(e.retryAfterSec));
+      return { error: 'El generador de PDF está ocupado. Reintenta en unos segundos.' };
+    }
+    throw e;
+  }
+}
+
 async function loadReportOrg(db: ReturnType<typeof getDb>, orgId: string): Promise<ReportOrg> {
   const o = await db.selectFrom('organizations')
     .select(['name', 'slug', 'primary_color', 'secondary_color', 'logo_url', 'credential_logo_url'])
@@ -233,7 +247,8 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       // informes de actividad y período), no una tabla plana.
       const organization = await loadReportOrg(db, org.id);
       const html = await buildAttendancePdfHtml({ organization, report, category: category ?? null });
-      const buf = await renderHtmlToPdf(html, attendancePdfHeaderFooter({ organization, category: category ?? null }));
+      const buf = await renderPdf(reply, html, attendancePdfHeaderFooter({ organization, category: category ?? null }));
+      if (!Buffer.isBuffer(buf)) return buf;
       const filename = safeFilename(`${base}.pdf`);
       reply.header('content-type', 'application/pdf');
       reply.header('content-disposition', `attachment; filename="${filename}"`);
@@ -329,7 +344,8 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     }
     const html = await buildActivityPdfHtml({ organization, ...data, includeContact: REPORT_CONTACT_ROLES.has(guard.ctx.staff.role) });
     const hf = pdfHeaderFooter({ organization, activity: data.activity });
-    const pdfBuf = await renderHtmlToPdf(html, hf);
+    const pdfBuf = await renderPdf(reply, html, hf);
+    if (!Buffer.isBuffer(pdfBuf)) return pdfBuf;
     reply.header('content-type', 'application/pdf');
     reply.header('content-disposition', `attachment; filename="${pdfFilename(data.activity)}"`);
     reply.header('cache-control', 'no-store');
@@ -372,7 +388,8 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       }
       const html = await buildPeriodPdfHtml({ organization, period });
       const hf = periodPdfHeaderFooter({ organization, period });
-      const pdfBuf = await renderHtmlToPdf(html, hf);
+      const pdfBuf = await renderPdf(reply, html, hf);
+      if (!Buffer.isBuffer(pdfBuf)) return pdfBuf;
       reply.header('content-type', 'application/pdf');
       reply.header('content-disposition', `attachment; filename="${periodPdfFilename(parsed.range.from, parsed.range.to)}"`);
       reply.header('cache-control', 'no-store');

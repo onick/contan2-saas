@@ -9,6 +9,7 @@
 import ExcelJS from 'exceljs';
 import type { AttendanceByActivityReport } from './report-data.js';
 import { textArgb } from './branding-tokens.js';
+import { toArgb } from './reports/excel-kit.js';
 import { excelDateCell } from './reports/fmt.js';
 
 export interface ReportBranding {
@@ -20,12 +21,6 @@ const HEADERS = [
   'Actividad', 'Fecha', 'Lugar', 'Categoría', 'Estado',
   'Capacidad', 'Inscritos', 'Check-ins', 'Personas', 'Anónimos', 'Ocupación %', 'Reservados',
 ];
-
-// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
-function toArgb(hex: string): string {
-  const h = hex.replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
-}
 
 export async function buildAttendanceWorkbook(
   report: AttendanceByActivityReport,

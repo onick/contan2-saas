@@ -9,7 +9,7 @@ Plan y hallazgos: `docs/plans/2026-10-16-qa-user-flows-ui.md` y `docs/plans/2026
   existe en el proyecto `prod-readonly`, que aborta cualquier método distinto de GET/HEAD y no hace login.
 - Todo dato creado lleva el prefijo `[E2E] <runId>` y se registra en un ledger (`.artifacts/<runId>/created.ndjson`).
   `global-teardown.ts` lo limpia con throttle y reintento ante 429 y marca lo que no pudo limpiar
-  (`created.json` con `cleaned`, y `uncleaned.json`). Lo que quede: `provision/purge-staging.sql` (el orquestador, con OK).
+  (`created.json` con `cleaned`, y `uncleaned.json`). Lo que quede: `provision/purge-staging.sql` (el orquestador, con OK). El purge también cubre los ciclos/categorías `[E2E]` (viven en la actividad). Tras limpiar, el teardown avisa (`residue.json`) si algún ciclo `[E2E]` sigue visible en `/reports/categories`; no oculta nada.
 - Staging tiene datos reales copiados: no se commitean `.artifacts/`, `.auth/` ni `.env.e2e` (gitignored). En CI no hay
   trazas, video ni screenshots (`E2E_NO_MEDIA=1`) y el reporte pasa por `support/scrub-report.mjs` (misma lógica que `support/mask.ts`).
 

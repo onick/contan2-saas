@@ -4,8 +4,6 @@
 // re-parsea con exceljs y el HTML se valida). Cambios respecto a v1: imports
 // de palette → branding-tokens, y el logo llega por loadLogoDataUri (URL,
 // con rasterizado de SVG) en lugar de leerse del filesystem.
-// @ts-nocheck
-/* eslint-disable */
 // =============================================================================
 // periodExcelReport.js · Excel branded de período (mensual/anual/custom).
 // Multi-sheet: Resumen + Actividades + Por tipo + Evolución mensual + Top visitantes.
@@ -13,47 +11,34 @@
 
 import ExcelJS from 'exceljs';
 import { generatePalette, textArgb } from '../branding-tokens.js';
-import { loadLogoDataUri } from '../credential.js';
+import { hexToArgb, loadLogoImage, EXCEL_DATE_FMT } from './excel-kit.js';
 import { fmtDateTz, fmtTimeTz, fmtYmd } from './fmt.js';
 import { fmtDeltaPct, fmtDeltaPoints } from './metrics.js';
+import { STATUS_LABELS } from './labels.js';
+import type { PeriodEngineResult } from './period-engine.js';
+import type { ReportOrg } from './pdf-shell.js';
+
+export interface PeriodExcelInput { organization: ReportOrg; period: PeriodEngineResult }
 
 
-const STATUS_LABELS = { activa: 'Activa', finalizada: 'Finalizada', cancelada: 'Cancelada', borrador: 'Borrador' };
-
-function fmtDate(iso) {
+function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
   return fmtDateTz(d);
 }
-function fmtDateTime(iso) {
+function fmtDateTime(iso: string | Date | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
   return fmtDateTz(d) + ' · ' + fmtTimeTz(d);
 }
 // from/to son días 'YYYY-MM-DD' del tenant (rango inclusivo del PeriodEngine).
-function rangeLabel(from, to) {
+function rangeLabel(from: string, to: string): string {
   return `${fmtYmd(from)} → ${fmtYmd(to)}`;
 }
-function hexToARGB(hex) {
-  if (!hex) return null;
-  const m = /^#?([a-f\d]{6})$/i.exec(hex);
-  return m ? 'FF' + m[1].toUpperCase() : null;
-}
 
-async function loadLogoBuffer(logoUrl) {
-  // v2: el logo llega por URL (loadLogoDataUri fetchea y rasteriza SVG→PNG);
-  // exceljs sólo acepta png/jpeg/gif como imagen embebida.
-  const dataUri = await loadLogoDataUri(logoUrl);
-  if (!dataUri) return null;
-  const m = /^data:image\/(png|jpeg|jpg|gif);base64,(.+)$/.exec(dataUri);
-  if (!m) return null;
-  const extension = m[1] === 'jpg' ? 'jpeg' : m[1];
-  return { buffer: Buffer.from(m[2], 'base64'), extension };
-}
-
-export async function buildPeriodExcelReport({ organization, period }) {
+export async function buildPeriodExcelReport({ organization, period }: PeriodExcelInput): Promise<ExcelJS.Workbook> {
   // `period` = resultado de periodEngine (period-engine.ts): una sola fuente de cifras.
   const cur = period.current, prev = period.previous, k = cur.kpis, pk = prev.kpis;
   const wb = new ExcelJS.Workbook();
@@ -61,11 +46,11 @@ export async function buildPeriodExcelReport({ organization, period }) {
   wb.created = new Date();
 
   const palette = generatePalette(organization.primaryColor || '#f39228') || {};
-  const primaryArgb = hexToARGB(palette['700']) || 'FFF39228';
-  const primaryLightArgb = hexToARGB(palette['50']) || 'FFFEF4E8';
-  const accentArgb = hexToARGB(organization.secondaryColor) || 'FF31A3DB';
+  const primaryArgb = hexToArgb(palette['700']) || 'FFF39228';
+  const primaryLightArgb = hexToArgb(palette['50']) || 'FFFEF4E8';
+  const accentArgb = hexToArgb(organization.secondaryColor) || 'FF31A3DB';
   const onPrimaryArgb = textArgb(palette['700'] || organization.primaryColor || '#f39228');
-  const border = { style: 'thin', color: { argb: 'FFE5E7EB' } };
+  const border: Partial<ExcelJS.Border> = { style: 'thin', color: { argb: 'FFE5E7EB' } };
 
   // -------- Sheet 1: Resumen --------
   const s1 = wb.addWorksheet('Resumen', {
@@ -79,7 +64,7 @@ export async function buildPeriodExcelReport({ organization, period }) {
   s1.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryArgb } };
   s1.getRow(1).height = 6;
 
-  const logo = await loadLogoBuffer(organization.logoUrl);
+  const logo = await loadLogoImage(organization.logoUrl);
   if (logo) {
     const imageId = wb.addImage({ buffer: logo.buffer, extension: logo.extension });
     s1.addImage(imageId, { tl: { col: 1, row: 1 }, ext: { width: 110, height: 80 } });
@@ -116,9 +101,9 @@ export async function buildPeriodExcelReport({ organization, period }) {
     { label: 'Ocupación (personas / aforo)', value: `${k.occupancyPct}%`, accent: false },
     { label: 'Tipos de actividad', value: cur.byType.length, accent: false },
   ];
-  const pairs = [[0, 1], [2, 3], [4, 5]];
+  const pairs: Array<[number, number]> = [[0, 1], [2, 3], [4, 5]];
   for (const [li, ri] of pairs) {
-    const left = kpis[li], right = kpis[ri];
+    const left = kpis[li]!, right = kpis[ri]!;
     s1.mergeCells(`B${row}:C${row}`);
     s1.getCell(`B${row}`).value = left.label;
     s1.getCell(`B${row}`).font = { size: 9, bold: true, color: { argb: 'FF6B7280' } };
@@ -251,7 +236,7 @@ export async function buildPeriodExcelReport({ organization, period }) {
     });
     dr.eachCell({ includeEmpty: false }, cell => {
       cell.border = { bottom: border };
-      cell.alignment = { vertical: 'middle', horizontal: cell.col === 1 ? 'center' : 'left', indent: 1 };
+      cell.alignment = { vertical: 'middle', horizontal: Number(cell.col) === 1 ? 'center' : 'left', indent: 1 };
       cell.font = { size: 11, color: { argb: 'FF1F2937' } };
     });
   });
@@ -372,7 +357,7 @@ export async function buildPeriodExcelReport({ organization, period }) {
       });
       dr.eachCell({ includeEmpty: false }, cell => {
         cell.border = { bottom: border };
-        cell.alignment = { vertical: 'middle', horizontal: cell.col === 1 ? 'center' : 'left', indent: 1 };
+        cell.alignment = { vertical: 'middle', horizontal: Number(cell.col) === 1 ? 'center' : 'left', indent: 1 };
         cell.font = { size: 11, color: { argb: 'FF1F2937' } };
       });
     });
@@ -382,6 +367,6 @@ export async function buildPeriodExcelReport({ organization, period }) {
 }
 
 // from/to: días 'YYYY-MM-DD' del tenant (rango inclusivo).
-export function periodFilename(from, to) {
+export function periodFilename(from: string, to: string): string {
   return from === to ? `Informe_periodo_${from}.xlsx` : `Informe_periodo_${from}_a_${to}.xlsx`;
 }

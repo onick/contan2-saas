@@ -5,6 +5,7 @@
 
 import ExcelJS from 'exceljs';
 import { textArgb } from './branding-tokens.js';
+import { toArgb } from './reports/excel-kit.js';
 
 export interface BiblioExportRow {
   kind: string;
@@ -39,12 +40,6 @@ const KIND_LABEL: Record<string, string> = {
   libro: 'Libro', revista: 'Revista', periodico: 'Periódico',
   tesis: 'Tesis', audiovisual: 'Audiovisual', documento: 'Documento',
 };
-
-// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
-function toArgb(hex: string | null): string {
-  const h = (hex ?? '').replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
-}
 
 export async function buildBiblioExportWorkbook(
   rows: BiblioExportRow[],

@@ -4,6 +4,20 @@
 // Docker instala chromium, igual que la de v1) vía PUPPETEER_EXECUTABLE_PATH.
 
 import puppeteer, { type Browser, type PDFOptions } from 'puppeteer-core';
+import { BusyError, semaphoreFromEnv, type Semaphore } from './semaphore.js';
+
+export { BusyError };
+
+// Máximo N renders simultáneos (PDF_MAX_CONCURRENCY, 2 por defecto) con cola
+// acotada y timeout de espera: un pico de descargas no abre N páginas de
+// Chromium a la vez (antecedente del 502 con 512 MB). Cola llena o espera
+// vencida => BusyError (las rutas responden 503 + Retry-After).
+let _limiter: Semaphore = semaphoreFromEnv();
+
+/** Solo tests: reemplaza el semáforo (o lo recrea desde el entorno). */
+export function setPdfLimiter(limiter?: Semaphore): void {
+  _limiter = limiter ?? semaphoreFromEnv();
+}
 
 let _browser: Browser | null = null;
 let _launching: Promise<Browser> | null = null;
@@ -29,7 +43,11 @@ async function getBrowser(): Promise<Browser> {
   return _launching;
 }
 
-export async function renderHtmlToPdf(html: string, opts: PDFOptions = {}): Promise<Buffer> {
+export function renderHtmlToPdf(html: string, opts: PDFOptions = {}): Promise<Buffer> {
+  return _limiter.run(() => renderUnlimited(html, opts));
+}
+
+async function renderUnlimited(html: string, opts: PDFOptions): Promise<Buffer> {
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {

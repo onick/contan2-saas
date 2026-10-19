@@ -47,13 +47,15 @@ export function VrAgenda({ salaId, salaName, aforo = null }: { salaId: string; s
   // Las reservas canceladas no cuentan como activas: ocultas salvo que se pidan.
   const [showCancelled, setShowCancelled] = useState(false);
   const [loadErr, setLoadErr] = useState<'error' | 'forbidden' | null>(null);
+  // La API corta la lista en un tope: avisarlo para que no parezca que no hay más reservas.
+  const [listTruncated, setListTruncated] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
       const r = await fetch(`/app/puerta/api/bookings?salaId=${encodeURIComponent(salaId)}`, { cache: 'no-store' });
       if (r.ok) {
         const j = await r.json().catch(() => null);
-        if (j && Array.isArray(j.bookings)) { setBookings(j.bookings); setLoadErr(null); }
+        if (j && Array.isArray(j.bookings)) { setBookings(j.bookings); setListTruncated(j.truncated === true); setLoadErr(null); }
         else setLoadErr('error');
       } else setLoadErr(r.status === 403 ? 'forbidden' : 'error');
     } catch { setLoadErr('error'); }
@@ -169,6 +171,11 @@ export function VrAgenda({ salaId, salaName, aforo = null }: { salaId: string; s
       ) : null}
 
       <div className="mt-4">
+        {listTruncated ? (
+          <p role="status" className="mb-3 rounded-lg bg-warning-bg px-3 py-2 text-[12.5px] font-medium text-warning-fg">
+            La agenda muestra solo las primeras reservas. Hay más: filtra por otra sala o espera a que pasen las de hoy.
+          </p>
+        ) : null}
         {bookings === null && loadErr === null ? (
           <p className="py-6 text-center text-[13px] text-muted">Cargando…</p>
         ) : bookings === null || (loadErr !== null && days.length === 0) ? (
