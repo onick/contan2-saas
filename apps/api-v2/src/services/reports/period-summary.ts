@@ -10,18 +10,19 @@ import { type ReportRange } from '../report-data.js';
 import { normCategory, normCategorySql } from '../category-norm.js';
 import { REPORT_TZ, ymdAddDays, zonedMidnight } from './fmt.js';
 import { occupancyPct } from './metrics.js';
+import { reportableActivity, REPORTABLE_ACTIVITY_RAW } from './scope.js';
+import { previousPeriodYmd } from './range.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const pct = occupancyPct; // misma fórmula que Excel/PDF/CSV (ver metrics.ts)
 const deltaPct = (cur: number, prev: number): number | null => (prev <= 0 ? null : Math.round(((cur - prev) / prev) * 100));
 
-// Período inmediatamente anterior, de la misma duración.
+// Período con el que se compara (ver previousPeriodYmd: tramo del mes anterior o N días previos).
 export function previousRange(r: ReportRange): ReportRange {
   // Aritmética de calendario sobre los días locales (from/to son YYYY-MM-DD del tenant).
-  const days = Math.round((Date.parse(`${r.to}T00:00:00Z`) - Date.parse(`${r.from}T00:00:00Z`)) / DAY_MS) + 1;
-  const from = ymdAddDays(r.from, -days);
-  const to = ymdAddDays(r.from, -1);
-  return { from, to, fromDate: zonedMidnight(from), toExclusive: new Date(r.fromDate.getTime()) };
+  // P4: un mes (completo o hasta hoy) se compara con el mismo tramo del mes anterior.
+  const { from, to } = previousPeriodYmd(r.from, r.to);
+  return { from, to, fromDate: zonedMidnight(from), toExclusive: zonedMidnight(ymdAddDays(to, 1)) };
 }
 
 export interface PeriodSummary {
@@ -71,6 +72,7 @@ export async function periodSummary(
       // Asistencia = check-in real: las reservas (checked_in_at NULL) no cuentan; el filtro va en el ON para no perder actividades.
       .leftJoin('attendance as att', (j) => j.onRef('att.activity_id', '=', 'a.id').onRef('att.organization_id', '=', 'a.organization_id').on('att.checked_in_at', 'is not', null))
       .where('a.organization_id', '=', orgId)
+      .where(reportableActivity('a'))
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
       .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
@@ -91,6 +93,7 @@ export async function periodSummary(
       .selectFrom('attendance as att')
       .innerJoin('activities as a', 'a.id', 'att.activity_id')
       .where('att.organization_id', '=', orgId)
+      .where(reportableActivity('a'))
       .where('att.user_id', 'is not', null)
       .where('att.checked_in_at', 'is not', null)
       .where('a.date', '>=', r.fromDate)
@@ -108,6 +111,7 @@ export async function periodSummary(
       .selectFrom('attendance as att')
       .innerJoin('activities as a', 'a.id', 'att.activity_id')
       .where('att.organization_id', '=', orgId)
+      .where(reportableActivity('a'))
       .where('att.checked_in_at', 'is not', null)
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
@@ -132,6 +136,7 @@ export async function periodSummary(
       .selectFrom('attendance as att')
       .innerJoin('activities as a', 'a.id', 'att.activity_id')
       .where('att.organization_id', '=', orgId)
+      .where(reportableActivity('a'))
       .where('att.checked_in_at', 'is not', null)
       .where('a.date', '>=', r.fromDate)
       .where('a.date', '<', r.toExclusive)
@@ -168,7 +173,7 @@ export async function periodSummary(
                bool_or(a.date >= ${r.fromDate} and a.date < ${r.toExclusive}) as in_period
         from attendance att
         join activities a on a.id = att.activity_id
-        where att.organization_id = ${orgId} and att.user_id is not null and att.checked_in_at is not null ${typeClause} ${catClause}
+        where att.organization_id = ${orgId} and ${REPORTABLE_ACTIVITY_RAW} and att.user_id is not null and att.checked_in_at is not null ${typeClause} ${catClause}
         group by att.user_id
       ) u
       where u.in_period

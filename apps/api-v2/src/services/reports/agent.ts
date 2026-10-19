@@ -14,6 +14,8 @@ import type { ReportsAgentResponse, ReportsAgentLink, AgentActivityStats, AgentP
 import { parseRange, attendanceByActivity } from '../report-data.js';
 import { normCategory, consolidateCategories } from '../category-norm.js';
 import { periodSummary } from './period-summary.js';
+import { previousPeriodYmd } from './range.js';
+import { ymdInTz } from './fmt.js';
 
 const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
 const DAY_MS = 86_400_000;
@@ -60,13 +62,14 @@ export function resolvePeriodEx(text: string, today: Date): { spec: PeriodSpec; 
   const n = normText(text);
   const y = today.getUTCFullYear(), m = today.getUTCMonth() + 1;
 
-  const kw = /\b(este mes|mes actual|el mes)\b/.exec(n);
-  if (kw) return { spec: { ...monthRange(y, m, today), label: 'este mes' }, matched: kw[0] };
+  // Más específica primero: "el mes anterior" contiene "el mes" (REP-A06).
   const kp = /\b(mes pasado|mes anterior)\b/.exec(n);
   if (kp) {
     const pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y;
     return { spec: { ...monthRange(py, pm, today), label: `${MONTHS[pm - 1]} ${py} (mes pasado)` }, matched: kp[0] };
   }
+  const kw = /\b(este mes|mes actual|el mes)\b/.exec(n);
+  if (kw) return { spec: { ...monthRange(y, m, today), label: 'este mes' }, matched: kw[0] };
   const ka = /\b(este ano|ano actual)\b/.exec(n);
   if (ka) return { spec: { label: `${y} (este año)`, from: `${y}-01-01`, to: ymdOf(today) }, matched: ka[0] };
   const kpa = /\b(ano pasado|ano anterior)\b/.exec(n);
@@ -129,12 +132,10 @@ export function parseAgentQuery(query: string, today: Date): AgentIntent {
     // "compara este mes" sin segundo término → contra el período anterior.
     const solo = resolvePeriod(body, today);
     if (solo) {
-      const from = new Date(`${solo.from}T12:00:00Z`);
-      const to = new Date(`${solo.to}T12:00:00Z`);
-      const days = Math.round((to.getTime() - from.getTime()) / DAY_MS) + 1;
-      const bTo = new Date(from.getTime() - DAY_MS);
-      const bFrom = new Date(from.getTime() - days * DAY_MS);
-      return { kind: 'period_compare', a: solo, b: { label: 'período anterior', from: ymdOf(bFrom), to: ymdOf(bTo) } };
+      // P4: un mes se compara con el mismo tramo del mes anterior; otros rangos, N días previos.
+      const prev = previousPeriodYmd(solo.from, solo.to);
+      const monthAligned = solo.from.endsWith('-01') && solo.from.slice(0, 7) === solo.to.slice(0, 7);
+      return { kind: 'period_compare', a: solo, b: { label: monthAligned ? 'mismo tramo del mes anterior' : 'período anterior', from: prev.from, to: prev.to } };
     }
     if (body) return { kind: 'activity_query', parts: [body] };
     return { kind: 'help' };
@@ -291,7 +292,7 @@ function clarify(phrase: string, candidates: ActivityRow[], otherPart?: string):
     kind: 'clarify',
     message: `Encontré varias actividades que matchean «${phrase.trim()}» — ¿cuál quieres?`,
     options: candidates.slice(0, 5).map((c) => ({
-      label: `${c.name} (${new Date(c.date).toISOString().slice(0, 10)})`,
+      label: `${c.name} (${ymdInTz(c.date)})`,
       query: otherPart ? `compara ${c.name} vs ${otherPart}` : `¿Cómo le fue a ${c.name}?`,
     })),
   };
@@ -421,7 +422,7 @@ export async function runAgentQuery(db: DbClient, orgId: string, query: string, 
   const stats = await activityStats(db, orgId, found[0]![0]!);
   return {
     kind: 'activity_stats',
-    message: `«${stats.name}» (${stats.date.slice(0, 10)}): ${fmtNum(stats.attendances)} asistencias · ${fmtNum(stats.people)} personas · ${stats.occupancyPct}% de ocupación sobre ${fmtNum(stats.capacity)} de cupo.`,
+    message: `«${stats.name}» (${ymdInTz(stats.date)}): ${fmtNum(stats.attendances)} asistencias · ${fmtNum(stats.people)} personas · ${stats.occupancyPct}% de ocupación sobre ${fmtNum(stats.capacity)} de cupo.`,
     activities: [stats],
     links: [
       { label: 'Informe PDF', type: 'activity', format: 'pdf', params: { id: stats.id } },

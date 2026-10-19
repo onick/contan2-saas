@@ -14,7 +14,7 @@
 import ExcelJS from 'exceljs';
 import { generatePalette, textArgb } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
-import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
+import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz, ymdInTz } from './fmt.js';
 
 
 const STATUS_LABELS = { activa: 'Activa', finalizada: 'Finalizada', cancelada: 'Cancelada', borrador: 'Borrador' };
@@ -335,7 +335,7 @@ export async function buildPeriodExcelReport({ organization, period }) {
 }
 
 export function periodFilename(from, to) {
-  const f = new Date(from).toISOString().slice(0, 10);
-  const t = new Date(new Date(to).getTime() - 86400000).toISOString().slice(0, 10);
+  const f = ymdInTz(from);
+  const t = ymdInTz(new Date(new Date(to).getTime() - 86400000));
   return f === t ? `Informe_periodo_${f}.xlsx` : `Informe_periodo_${f}_a_${t}.xlsx`;
 }

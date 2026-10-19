@@ -203,7 +203,7 @@ export function PeriodReport() {
               ))}
             </div>
             {preview.comparison ? (
-              <p className="mt-1 text-[11px] text-faint">Deltas vs el período anterior del mismo largo.</p>
+              <p className="mt-1 text-[11px] text-faint">Deltas vs el período anterior: un mes se compara con el mismo tramo del mes anterior; otros rangos, con los días previos del mismo largo.</p>
             ) : null}
 
             <div className="mt-3">

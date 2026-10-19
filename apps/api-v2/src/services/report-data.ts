@@ -9,6 +9,7 @@ import { sql, type DbClient } from '@contan2/db';
 import { normCategory, normCategorySql } from './category-norm.js';
 import { zonedMidnight, ymdAddDays } from './reports/fmt.js';
 import { occupancyPct } from './reports/metrics.js';
+import { reportableActivity } from './reports/scope.js';
 
 export const MAX_REPORT_RANGE_DAYS = 366;
 export const MAX_REPORT_ROWS = 5000;
@@ -33,7 +34,8 @@ export interface ReportRange {
 }
 
 // Parsea/valida from y to (YYYY-MM-DD). El rango es [from 00:00 DR, to+1día 00:00 DR) en la zona del tenant.
-export function parseRange(fromRaw: unknown, toRaw: unknown): ReportRange {
+export function parseRange(fromRaw: unknown, toRaw: unknown, opts: { maxDays?: number } = {}): ReportRange {
+  const maxDays = opts.maxDays ?? MAX_REPORT_RANGE_DAYS;
   const from = String(fromRaw ?? '');
   const to = String(toRaw ?? '');
   if (!DATE_RE.test(from) || !DATE_RE.test(to)) {
@@ -45,12 +47,16 @@ export function parseRange(fromRaw: unknown, toRaw: unknown): ReportRange {
   if (Number.isNaN(fromUtc.getTime()) || Number.isNaN(toUtc.getTime())) {
     throw new ReportError(400, 'Rango inválido: fechas no válidas.');
   }
+  // Fechas imposibles (2026-02-31): Date las corre al mes siguiente; ida y vuelta lo detecta.
+  if (fromUtc.toISOString().slice(0, 10) !== from || toUtc.toISOString().slice(0, 10) !== to) {
+    throw new ReportError(400, 'Rango inválido: fechas no válidas (el día no existe en el calendario).');
+  }
   if (fromUtc.getTime() > toUtc.getTime()) {
     throw new ReportError(400, 'Rango inválido: "from" debe ser anterior o igual a "to".');
   }
   const days = Math.round((toUtc.getTime() - fromUtc.getTime()) / DAY_MS) + 1;
-  if (days > MAX_REPORT_RANGE_DAYS) {
-    throw new ReportError(400, `Rango demasiado amplio (máx ${MAX_REPORT_RANGE_DAYS} días). Acota el período.`);
+  if (days > maxDays) {
+    throw new ReportError(400, `Rango demasiado amplio (máx ${maxDays} días). Acota el período.`);
   }
   return { from, to, fromDate: zonedMidnight(from), toExclusive: zonedMidnight(ymdAddDays(to, 1)) };
 }
@@ -94,6 +100,7 @@ export async function attendanceByActivity(
     .selectFrom('activities')
     .select(db.fn.countAll<string>().as('n'))
     .where('organization_id', '=', orgId)
+    .where(reportableActivity('activities'))
     .where('date', '>=', range.fromDate)
     .where('date', '<', range.toExclusive);
   if (categoryNorm) countQ = countQ.where(categoryWhere);
@@ -108,6 +115,7 @@ export async function attendanceByActivity(
       j.onRef('att.activity_id', '=', 'a.id').onRef('att.organization_id', '=', 'a.organization_id'),
     )
     .where('a.organization_id', '=', orgId)
+    .where(reportableActivity('a'))
     .where('a.date', '>=', range.fromDate)
     .where('a.date', '<', range.toExclusive);
   if (categoryNorm) rowsQ = rowsQ.where(sql<boolean>`${normCategorySql(sql`a.category`)} = ${categoryNorm}`);

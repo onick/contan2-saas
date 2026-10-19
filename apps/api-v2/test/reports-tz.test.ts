@@ -45,10 +45,13 @@ describe('reportes TZ · helpers puros', () => {
     expect(zonedMidnight('2026-01-01').toISOString()).toBe('2026-01-01T04:00:00.000Z');
   });
 
-  it('previousRange: los N días calendario anteriores, en DR', () => {
+  it('previousRange: mes completo -> mes anterior completo (P4); rango libre -> N días previos, en DR', () => {
     const p = previousRange(parseRange('2026-03-01', '2026-03-31'));
-    expect(p.from).toBe('2026-01-29');
+    expect(p.from).toBe('2026-02-01');
     expect(p.to).toBe('2026-02-28');
+    const q = previousRange(parseRange('2026-03-10', '2026-03-19'));
+    expect(q.from).toBe('2026-02-28');
+    expect(q.to).toBe('2026-03-09');
     expect(p.toExclusive.toISOString()).toBe('2026-03-01T04:00:00.000Z');
   });
 

@@ -12,6 +12,7 @@
 
 import { sql, type DbClient } from '@contan2/db';
 import { ReportError, MAX_REPORT_ROWS } from '../report-data.js';
+import { reportableActivity } from './scope.js';
 import { programSlug, editionLabel } from '../programs/edition.js';
 
 const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
@@ -102,7 +103,7 @@ export async function monthlyRegister(
         .on('att.checked_in_at', 'is not', null),
     )
     .where('a.organization_id', '=', orgId)
-    .where('a.is_permanent', '=', false)
+    .where(reportableActivity('a'))
     .where(sql<boolean>`${lts()} >= ${localStart}::timestamp`)
     .where(sql<boolean>`${lts()} < ${localEnd}::timestamp`)
     .groupBy(['a.id', 'a.name', 'a.date', 'a.type', 'a.category'])

@@ -14,7 +14,7 @@
 
 import { esc, pdfCover, pdfShellCss, pdfTheme } from './pdf-shell.js';
 import { loadLogoDataUri } from '../credential.js';
-import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
+import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz, ymdInTz } from './fmt.js';
 import { occupancyPct, peopleOf } from './metrics.js';
 
 
@@ -381,6 +381,6 @@ export function pdfFilename(activity) {
     .replace(/^_|_$/g, '')
     .slice(0, 60);
   const d = activity.date ? new Date(activity.date) : new Date();
-  const stamp = isNaN(d.getTime()) ? '' : `_${d.toISOString().slice(0, 10)}`;
+  const stamp = isNaN(d.getTime()) ? '' : `_${ymdInTz(d)}`;
   return `Informe_${base}${stamp}.pdf`;
 }

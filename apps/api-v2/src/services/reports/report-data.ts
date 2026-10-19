@@ -7,6 +7,8 @@
 import { sql, type DbClient } from '@contan2/db';
 import { normCategory, normCategorySql } from '../category-norm.js';
 import { occupancyPct } from './metrics.js';
+import { reportableActivity } from './scope.js';
+import { previousPeriodYmd } from './range.js';
 import { monthKeyInTz, ymdAddDays, ymdInTz, zonedMidnight } from './fmt.js';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -64,6 +66,7 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
   let actsQ = db.selectFrom('activities')
     .select(['id', 'name', 'type', 'date', 'location', 'capacity', 'status', 'enrolled_count', 'category'])
     .where('organization_id', '=', orgId)
+    .where(reportableActivity('activities'))
     .where('date', '>=', sql<Date>`${q.from}::timestamptz`)
     .where('date', '<', sql<Date>`${q.to}::timestamptz`)
     .orderBy('date', 'asc');
@@ -179,16 +182,11 @@ export async function buildPeriodSummary(db: DbClient, orgId: string, q: PeriodQ
   };
 }
 
-// Rango "anterior" del mismo span (paridad v1 previousRange).
+// Rango "anterior" para comparar (YYYY-MM-DD inclusivo; P4: mes -> mismo tramo del mes anterior).
 export function previousRange(from: string, to: string): { from: string; to: string } | null {
-  const fromMs = new Date(from).getTime();
-  const toMs = new Date(to).getTime();
-  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return null;
-  const span = toMs - fromMs;
-  const prevTo = new Date(fromMs - 86_400_000);
-  const prevFrom = new Date(prevTo.getTime() - span);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { from: fmt(prevFrom), to: fmt(prevTo) };
+  const ymd = /^\d{4}-\d{2}-\d{2}$/;
+  if (!ymd.test(from) || !ymd.test(to)) return null;
+  return previousPeriodYmd(from, to);
 }
 
 // ── Datos del reporte por ACTIVIDAD (asistentes + afinidad) ──────────────────

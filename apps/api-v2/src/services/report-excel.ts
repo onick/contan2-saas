@@ -9,6 +9,7 @@
 import ExcelJS from 'exceljs';
 import type { AttendanceByActivityReport } from './report-data.js';
 import { textArgb } from './branding-tokens.js';
+import { excelDateCell } from './reports/fmt.js';
 
 export interface ReportBranding {
   name: string;
@@ -64,10 +65,12 @@ export async function buildAttendanceWorkbook(
 
   // Filas de datos (valores de texto/numéricos; nunca fórmulas).
   for (const r of report.rows) {
-    ws.addRow([
-      r.name, r.date.slice(0, 10), r.location, r.category ?? '', r.status,
+    const row = ws.addRow([
+      r.name, excelDateCell(r.date) ?? '', r.location, r.category ?? '', r.status,
       r.capacity, r.enrolledCount, r.attendances, r.people, r.anonymous, r.occupancyPct, r.reserved ?? 0,
     ]);
+    row.getCell(2).numFmt = 'dd/mm/yyyy';
+    row.getCell(2).alignment = { horizontal: 'center' };
   }
 
   // Totales.
