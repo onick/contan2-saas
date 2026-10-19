@@ -257,6 +257,46 @@ run('GET /reports/attendance-by-activity', () => {
     }
   });
 
+  it('types + categories (lista) → mismas filas que el dashboard filtrado; el CSV las respeta (REP-A17)', async () => {
+    const mk = async (name: string, type: string, category: string | null, day: string) =>
+      (await db.insertInto('activities').values({ id: randomUUID(), organization_id: orgAId, name, type, location: 'Sala', date: `2026-05-${day}T19:00:00.000Z`, capacity: 50, enrolled_count: 0, status: 'activa', category }).returning('id').executeTakeFirstOrThrow()).id;
+    const a1 = await mk('Cine A1', 'cine', 'Ciclo A', '05');
+    const a2 = await mk('Cine B1', 'cine', 'Ciclo B', '06');
+    await mk('Cine C1', 'cine', 'Ciclo C', '07'); // otra categoría
+    await mk('Taller A', 'taller', 'Ciclo A', '08'); // otro tipo
+    const u = await mkUser(orgAId);
+    await mkAttendance(orgAId, a1, { userId: u.id, userCode: u.code });
+    await mkAttendance(orgAId, a2, { anonymous: true });
+    const F = '2026-05-01', T = '2026-05-31';
+    const qs = `?from=${F}&to=${T}&types=cine&categories=${encodeURIComponent('ciclo a,Ciclo B')}`;
+
+    const json = await get(qs, TOK.admin);
+    expect(json.statusCode).toBe(200);
+    expect(json.json().rows.map((r: { name: string }) => r.name).sort()).toEqual(['Cine A1', 'Cine B1']);
+
+    // Misma semántica que el dashboard (period-summary): mismas actividades y asistencias.
+    const dash = await app.inject({ method: 'GET', url: `/api/v2/reports/period-summary?from=${F}&to=${T}&types=cine&categories=${encodeURIComponent('ciclo a,Ciclo B')}`, headers: { host: hostA, cookie: `contan2_session=${TOK.admin}` } });
+    expect(dash.statusCode).toBe(200);
+    expect(json.json().totals.activities).toBe(dash.json().kpis.activities);
+    expect(json.json().totals.attendances).toBe(dash.json().kpis.attendances);
+
+    // CSV: una fila por actividad filtrada + TOTAL.
+    const csv = await get(`${qs}&format=csv`, TOK.admin);
+    expect(csv.statusCode).toBe(200);
+    const dataLines = csv.body.trim().split('\r\n').slice(1);
+    expect(dataLines).toHaveLength(3); // 2 actividades + TOTAL
+    expect(csv.body).toContain('Cine A1');
+    expect(csv.body).toContain('Cine B1');
+    expect(csv.body).not.toContain('Cine C1');
+    expect(csv.body).not.toContain('Taller A');
+
+    // Solo tipos (sin ciclos) y solo ciclos (sin tipos).
+    expect((await get(`?from=${F}&to=${T}&types=taller`, TOK.admin)).json().rows.map((r: { name: string }) => r.name)).toEqual(['Taller A']);
+    expect((await get(`?from=${F}&to=${T}&categories=${encodeURIComponent('Ciclo C')}`, TOK.admin)).json().rows.map((r: { name: string }) => r.name)).toEqual(['Cine C1']);
+    // Un tipo desconocido se ignora (igual que el dashboard).
+    expect((await get(`?from=${F}&to=${T}&types=zzz`, TOK.admin)).json().rows).toHaveLength(4);
+  });
+
   it('auditoría: una fila report.generated, actor enmascarado, sin PII', async () => {
     const before = Number((await db.selectFrom('tenant_audit_log').select(db.fn.countAll<number>().as('n')).where('organization_id', '=', orgAId).where('action', '=', 'report.generated').executeTakeFirstOrThrow()).n);
     await get(`?from=${FROM}&to=${TO}`, TOK.admin);
