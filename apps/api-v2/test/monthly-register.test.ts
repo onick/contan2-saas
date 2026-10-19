@@ -127,7 +127,7 @@ run('GET /reports/month.xlsx', () => {
     const res = await get('?year=2026&month=6', TOK.admin);
     expect(res.statusCode).toBe(200);
     expect(String(res.headers['content-type'])).toContain('spreadsheetml');
-    expect(String(res.headers['content-disposition'])).toContain('registro_junio_2026.xlsx');
+    expect(String(res.headers['content-disposition'])).toContain('Registro_Actividades_Culturales_2026_06.xlsx');
 
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(res.rawPayload);
@@ -148,49 +148,52 @@ run('GET /reports/month.xlsx', () => {
     expect(ws.getCell(5, 1).value).toBe(3); // charla es la 3ra fila (No. 3)
   });
 
-  it('formato oficial: hoja del mes + "Resumen Mensual" (pivote) + "Listas" oculta + dropdowns de Tipo/Programa', async () => {
+  it('formato oficial: hoja del mes + "Resumen Mensual" (pivote) + "Listas" oculta + dropdowns C/D/E/F + autoFilter', async () => {
     const res = await get('?year=2026&month=6', TOK.admin);
     expect(res.statusCode).toBe(200);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(res.rawPayload);
-    expect(wb.worksheets.map((w) => w.name)).toEqual(['Junio 2026', 'Resumen Mensual', 'Listas']);
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Jun', 'Resumen Mensual', 'Listas']);
     const [ws, rs, listas] = wb.worksheets;
 
-    // Hoja 1: 8 columnas, 3 filas de datos, fila Total y SIN bloque de resumen debajo.
+    // Hoja 1: 8 columnas, 3 filas de datos, fila Total con =SUM y SIN bloque de resumen debajo.
     expect(ws.getCell(6, 7).value).toBe('Total:');
-    expect(ws.getCell(6, 8).value).toBe(7); // 2 + 5 + 0
+    expect(ws.getCell(6, 8).value).toEqual({ formula: 'SUM(H3:H5)', result: 7 }); // 2 + 5 + 0
     expect(ws.rowCount).toBe(6);
+    expect(ws.autoFilter).toBe('A2:H5');
 
-    // Listas oculta, con los 5 tipos del depto y los programas del mes.
+    // Listas oculta: 5 tipos del depto, vocabulario completo de programas, 12 meses y semanas 1–5.
     expect(listas.state).toBe('hidden');
-    const tipos = [2, 3, 4, 5, 6].map((r) => String(listas.getCell(r, 1).value));
-    expect(tipos).toEqual(['Cine', 'Teatro', 'Talleres', 'Charlas', 'Otras Actividades']);
-    const progs: string[] = [];
-    listas.getColumn(2).eachCell((c, n) => { if (n > 1 && c.value != null) progs.push(String(c.value)); });
-    expect(progs).toEqual(['Ciclo de Cine Clásico', 'Temporada de Teatro', 'Actividades Especiales']);
+    const col = (c: number) => { const out: unknown[] = []; listas.getColumn(c).eachCell((x, n) => { if (n > 1 && x.value != null) out.push(x.value); }); return out; };
+    expect(col(1)).toEqual(['Cine', 'Teatro', 'Talleres', 'Charlas', 'Actividades Especiales']);
+    const progs = col(2).map(String);
+    expect(progs).toEqual(expect.arrayContaining([
+      'Ciclo de Cine Dominicano', 'Ciclo de Cine Clásico', 'Temporada de Teatro', 'Ciclo de Cine de Embajada',
+      'Proyecciones fuera de ciclo', 'Otras Obras de teatro', 'Actividades Especiales',
+    ]));
+    expect(new Set(progs).size).toBe(progs.length); // sin duplicados
+    expect(col(3)).toHaveLength(12);
+    expect(col(3)[0]).toBe('Enero');
+    expect(col(4)).toEqual([1, 2, 3, 4, 5]);
 
-    // Validación de datos (lista) en Tipo (col 5) y Programa (col 6) de cada fila de datos.
+    // Validación de datos (lista) en Mes (C), Semana (D), Tipo (E) y Programa (F) de cada fila de datos.
     for (const r of [3, 4, 5]) {
-      const vt = ws.getCell(r, 5).dataValidation;
-      expect(vt.type).toBe('list');
-      expect(vt.formulae).toEqual(['Listas!$A$2:$A$6']);
+      expect(ws.getCell(r, 3).dataValidation.formulae).toEqual(['Listas!$C$2:$C$13']);
+      expect(ws.getCell(r, 4).dataValidation.formulae).toEqual(['Listas!$D$2:$D$6']);
+      expect(ws.getCell(r, 5).dataValidation.formulae).toEqual(['Listas!$A$2:$A$6']);
       const vp = ws.getCell(r, 6).dataValidation;
       expect(vp.type).toBe('list');
       expect(vp.formulae).toEqual([`Listas!$B$2:$B$${progs.length + 1}`]);
     }
 
-    // Pivote por tipo: filas = tipos con actividad; cuadra con la hoja 1 y con el total general.
-    const pivot: Record<string, [number, number]> = {};
-    let r = 3;
-    while (rs.getCell(r, 1).value && rs.getCell(r, 1).value !== 'Total general') {
-      pivot[String(rs.getCell(r, 1).value)] = [Number(rs.getCell(r, 2).value), Number(rs.getCell(r, 3).value)];
-      r++;
-    }
-    expect(rs.getCell(2, 2).value).toBe('Actividades');
-    expect(rs.getCell(2, 3).value).toBe('Asistencia total');
-    expect(pivot).toEqual({ Teatro: [1, 2], Cine: [1, 5], Charlas: [1, 0] });
-    expect(rs.getCell(r, 2).value).toBe(3);
-    expect(rs.getCell(r, 3).value).toBe(ws.getCell(6, 8).value);
+    // Pivote del Resumen: una fila (el mes) × 5 tipos + Total mensual; TOTAL = total del mes.
+    expect([1, 2, 3, 4, 5, 6, 7].map((c) => String(rs.getCell(2, c).value)))
+      .toEqual(['Mes', 'Cine', 'Teatro', 'Talleres', 'Charlas', 'Actividades Especiales', 'Total mensual']);
+    const num = (r: number, c: number) => Number((rs.getCell(r, c).value as { result?: number }).result ?? 0);
+    expect(rs.getCell(3, 1).value).toBe('Junio');
+    expect([2, 3, 4, 5, 6, 7].map((c) => num(3, c))).toEqual([5, 2, 0, 0, 0, 7]);
+    expect(rs.getCell(4, 1).value).toBe('TOTAL');
+    expect(num(4, 7)).toBe(7);
   });
 
   it('conferencia se mapea a "Charlas" y la fila Total suma el headcount del mes', async () => {
@@ -203,7 +206,7 @@ run('GET /reports/month.xlsx', () => {
 
     // Fila 6 = Total: con 7 (5 cine + 2 teatro + 0 charla).
     expect(String(ws.getCell(6, 7).value)).toBe('Total:');
-    expect(ws.getCell(6, 8).value).toBe(7);
+    expect((ws.getCell(6, 8).value as { result: number }).result).toBe(7);
 
     // Sólo 3 actividades (permanente/otro mes/otro tenant excluidos).
     let dataRows = 0;
@@ -218,7 +221,7 @@ run('GET /reports/month.xlsx', () => {
     await wb.xlsx.load(res.rawPayload);
     const ws = wb.worksheets[0];
     expect(String(ws.getCell(3, 7).value)).toBe('Total:'); // sin filas de datos, Total en la 3
-    expect(ws.getCell(3, 8).value).toBe(0);
+    expect(ws.getCell(3, 8).value).toMatchObject({ formula: 'SUM(H2:H2)' });
 
     expect((await get('?year=2026&month=13', TOK.admin)).statusCode).toBe(400);
     expect((await get('?year=1999&month=6', TOK.admin)).statusCode).toBe(400);
@@ -255,8 +258,8 @@ run('GET /reports/month.xlsx', () => {
     const ws = wb.worksheets[0];
     // 3 filas por fecha: 10 tertulia, 12 visita guiada, 14 cuenta cuentos.
     expect(String(ws.getCell(3, 5).value)).toBe('Charlas');
-    expect(String(ws.getCell(4, 5).value)).toBe('Otras Actividades');
-    expect(String(ws.getCell(5, 5).value)).toBe('Otras Actividades');
+    expect(String(ws.getCell(4, 5).value)).toBe('Actividades Especiales');
+    expect(String(ws.getCell(5, 5).value)).toBe('Actividades Especiales');
   });
 
   it('roles: operator → 403; sin sesión → 401; cross-tenant → 403', async () => {

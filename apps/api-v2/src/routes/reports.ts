@@ -7,7 +7,7 @@
 //   (sin PII). CSV con BOM UTF-8, Content-Disposition y celdas sanitizadas
 //   (anti-injection). Cota dura de filas en report-data (sin truncado silencioso).
 
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { getDb, withTenant } from '@contan2/db';
 import type { ReportAttendanceByActivityResponse } from '@contan2/contracts';
 import { requireTenantStaff, requireRole } from '../guard.js';
@@ -20,8 +20,8 @@ import { ACTIVITY_TYPES, type PeriodSummaryResponse } from '@contan2/contracts';
 import { CSV_BOM, csvRow, safeFilename } from '../services/csv.js';
 import { buildAttendanceWorkbook } from '../services/report-excel.js';
 import { buildAttendancePdfHtml, attendancePdfHeaderFooter } from '../services/reports/attendance-pdf-template.js';
-import { monthlyRegister, monthNameEs } from '../services/reports/monthly-register.js';
-import { buildMonthlyRegisterWorkbook } from '../services/reports/monthly-register-excel.js';
+import { loadRegisterBook } from '../services/reports/monthly-register.js';
+import { buildRegisterWorkbook, registerFilename } from '../services/reports/monthly-register-excel.js';
 import { writeReportAudit } from '../services/report-audit.js';
 import { loadActivityReportData } from '../services/reports/report-data.js';
 import { periodEngine } from '../services/reports/period-engine.js';
@@ -241,7 +241,9 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
 
   // Registro mensual en el FORMATO DEL DEPARTAMENTO (Cine/Teatro): un mes
   // tabulado (8 columnas) + Total + Resumen. owner/admin, branded, auditado.
-  app.get('/reports/month.xlsx', async (req, reply) => {
+  // `month.xlsx` = una hoja del libro (+ Resumen + Listas); `year.xlsx` = libro anual
+  // (12 hojas Ene–Dic + Resumen Mensual + Listas). Mismo constructor y mismas reglas.
+  const registerRoute = (kind: 'month' | 'year') => async (req: FastifyRequest, reply: FastifyReply) => {
     const db = getDb();
     const guard = await requireTenantStaff(db, req);
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
@@ -252,10 +254,10 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
 
     const q = req.query as Record<string, unknown>;
     const year = Number(q.year);
-    const month = Number(q.month);
-    let report;
+    const month = kind === 'month' ? Number(q.month) : undefined;
+    let book;
     try {
-      report = await monthlyRegister(db, org.id, year, month);
+      book = await loadRegisterBook(db, org.id, year, month);
     } catch (e) {
       if (e instanceof ReportError) { reply.code(e.status); return { error: e.message }; }
       throw e;
@@ -264,20 +266,22 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     await writeReportAudit(db, {
       orgId: org.id,
       staff: { id: staff.id, email: staff.email, role: staff.role },
-      report: 'monthly-register',
+      report: kind === 'month' ? 'monthly-register' : 'yearly-register',
       format: 'xlsx',
-      meta: { year: report.year, month: report.month, rows: report.rows.length },
+      meta: { year, ...(month !== undefined ? { month } : {}), rows: book.months.reduce((n, m) => n + m.rows.length, 0) },
       ip: req.ip,
       ua: req.headers['user-agent'] ?? null,
     });
 
-    const buf = await buildMonthlyRegisterWorkbook(report, { name: org.name, primaryColor: org.primaryColor });
-    const filename = safeFilename(`registro_${monthNameEs(report.month).toLowerCase()}_${report.year}.xlsx`);
+    const buf = await buildRegisterWorkbook(book, { name: org.name, primaryColor: org.primaryColor });
+    const filename = safeFilename(registerFilename(year, month));
     reply.header('content-type', XLSX_MIME);
     reply.header('content-disposition', `attachment; filename="${filename}"`);
     return buf;
     });
-  });
+  };
+  app.get('/reports/month.xlsx', registerRoute('month'));
+  app.get('/reports/year.xlsx', registerRoute('year'));
 
   // ── Reportería BRANDED (S2 · paridad v1 /reports/*) ───────────────────────
   // Todos owner/admin + reportLimiter. PII masiva → superficie admin.
