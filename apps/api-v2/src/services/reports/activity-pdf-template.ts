@@ -4,8 +4,6 @@
 // re-parsea con exceljs y el HTML se valida). Cambios respecto a v1: imports
 // de palette → branding-tokens, y el logo llega por loadLogoDataUri (URL,
 // con rasterizado de SVG) en lugar de leerse del filesystem.
-// @ts-nocheck
-/* eslint-disable */
 // =============================================================================
 // activityPdfTemplate.js · plantilla HTML del informe PDF por actividad.
 // Reusa los tokens de marca (generatePalette / pickOn) y embebe el logo
@@ -16,20 +14,19 @@ import { esc, pdfCover, pdfShellCss, pdfTheme } from './pdf-shell.js';
 import { loadLogoDataUri } from '../credential.js';
 import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz, ymdInTz } from './fmt.js';
 import { occupancyPct, peopleOf } from './metrics.js';
+import { TYPE_LABELS, STATUS_LABELS, PROTOCOL_CATEGORY_LABELS, INVITATION_STATUS_LABELS } from './labels.js';
+import type { ActivityReportData } from './report-data.js';
+import type { ReportOrg } from './pdf-shell.js';
 
 
-const TYPE_LABELS = {
-  exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
-  teatro: 'Teatro', conferencia: 'Conferencia',
-  tertulia: 'Tertulia', visita_guiada: 'Visita guiada', cuentacuentos: 'Cuenta cuentos',
-  otro: 'Otro',
-};
-const STATUS_LABELS = {
-  activa: 'Activa', finalizada: 'Finalizada', cancelada: 'Cancelada', borrador: 'Borrador',
-};
+export interface ActivityPdfInput extends ActivityReportData {
+  organization: ReportOrg;
+  includeContact?: boolean;
+}
 
+type AttendanceRow = ActivityReportData['attendances'][number];
 
-function fmtDate(iso) {
+function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
@@ -37,7 +34,7 @@ function fmtDate(iso) {
   const time = fmtTimeTz(d);
   return `${date} · ${time}`;
 }
-function fmtTime(iso) {
+function fmtTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
@@ -48,14 +45,14 @@ function fmtNow() {
 }
 
 
-function categoryFor(prior) {
+function categoryFor(prior: number | null | undefined): string {
   const n = Number(prior) || 0;
   if (n === 0) return 'Primera visita';
   if (n >= 10) return 'VIP';
   return 'Recurrente';
 }
 
-export async function buildActivityPdfHtml({ organization, activity, attendances, users, affinities, protocol, includeContact = false }: { includeContact?: boolean; [k: string]: any }) {
+export async function buildActivityPdfHtml({ organization, activity, attendances, users, affinities, protocol, includeContact = false }: ActivityPdfInput): Promise<string> {
   const theme = pdfTheme(organization);
   const { primary, primary900, accent } = theme;
   const accentLight = '#fff4e6';
@@ -64,23 +61,22 @@ export async function buildActivityPdfHtml({ organization, activity, attendances
   // Asistencia = check-in real (checkedInAt). Las filas sin checkedInAt son
   // RESERVAS (holds de protocolo/RSVP): se listan con Estado "Reservado" y no
   // entran a los KPIs. `affinities` va alineada por índice con `attendances`.
-  const isSeated = a => !!a.checkedInAt;
-  const seatedIdx = [];
+  const isSeated = (a: AttendanceRow): boolean => !!a.checkedInAt;
+  const seatedIdx: number[] = [];
   attendances.forEach((a, i) => { if (isSeated(a)) seatedIdx.push(i); });
   const total = seatedIdx.length;
   const heldCount = attendances.length - total;
-  const peopleInRoom = seatedIdx.reduce((n, i) => n + peopleOf(attendances[i]), 0);
+  const peopleInRoom = seatedIdx.reduce((n, i) => n + peopleOf(attendances[i]!), 0);
   const newcomers = seatedIdx.filter(i => (affinities[i]?.totalAttendances ?? 0) === 1).length;
   const returning = total - newcomers;
   const vip = seatedIdx.filter(i => (affinities[i]?.totalAttendances ?? 0) >= 10).length;
   const showUpPct = occupancyPct(peopleInRoom, activity.capacity);
 
   // Histograma por hora
-  const byHour = new Map();
+  const byHour = new Map<number, number>();
   for (const att of attendances) {
     if (!isSeated(att)) continue; // las reservas no hicieron check-in
-    const iso = att.checkedInAt;
-    const d = new Date(iso);
+    const d = new Date(att.checkedInAt as string);
     if (isNaN(d.getTime())) continue;
     const h = hourInTz(d);
     byHour.set(h, (byHour.get(h) || 0) + 1);
@@ -241,9 +237,9 @@ ${pdfCover({ logo, orgName: organization.name, title: 'Informe de Asistencia', e
   <div class="activity-card-head">
     <div>
       <div class="activity-name">${esc(activity.name)}</div>
-      <span class="activity-type">${esc(TYPE_LABELS[activity.type] || activity.type || '—')}</span>
+      <span class="activity-type">${esc(TYPE_LABELS[activity.type] ?? (activity.type || '—'))}</span>
     </div>
-    <span class="activity-status ${esc(activity.status || '')}">${esc(STATUS_LABELS[activity.status] || activity.status || '—')}</span>
+    <span class="activity-status ${esc(activity.status || '')}">${esc(STATUS_LABELS[activity.status] ?? (activity.status || '—'))}</span>
   </div>
   <dl class="activity-meta">
     <div><dt>Fecha</dt><dd>${esc(fmtDate(activity.date))}</dd></div>
@@ -336,8 +332,8 @@ ${protocol && protocol.rows && protocol.rows.length > 0 ? `
       <tr>
         <td>${i + 1}</td>
         <td>${esc(r.name)}</td>
-        <td>${esc({ autoridad: 'Autoridad', diplomatico: 'Diplomático', prensa: 'Prensa', patrocinador: 'Patrocinador', directivo: 'Directivo', artista: 'Artista', otro: 'Otro' }[r.category] || r.category)}</td>
-        <td>${esc({ pending: 'Sin responder', confirmed: 'Confirmada', declined: 'No puede', expired: 'Expirada', canceled: 'Cancelada' }[r.status] || r.status)}</td>
+        <td>${esc(PROTOCOL_CATEGORY_LABELS[r.category] ?? r.category)}</td>
+        <td>${esc(INVITATION_STATUS_LABELS[r.status] ?? r.status)}</td>
         <td>${r.plusOnes > 0 ? `+${r.plusOnes}` : '—'}</td>
         <td>${r.attended ? 'Sí' : '—'}</td>
       </tr>`).join('')}</tbody>
@@ -354,7 +350,7 @@ ${protocol && protocol.rows && protocol.rows.length > 0 ? `
 
 // Header y footer separados (Puppeteer.pdf espera HTML mínimo con clases
 // reservadas: .pageNumber, .totalPages, .date, .title, .url).
-export function pdfHeaderFooter({ organization, activity }) {
+export function pdfHeaderFooter({ organization, activity }: { organization: ReportOrg; activity: ActivityReportData['activity'] }) {
   const orgName = esc(organization.name || 'contan2-saas');
   const actName = esc(activity.name || 'Informe');
   return {
@@ -373,7 +369,7 @@ export function pdfHeaderFooter({ organization, activity }) {
   };
 }
 
-export function pdfFilename(activity) {
+export function pdfFilename(activity: { name?: string | null; date?: string | null }): string {
   const base = (activity.name || 'actividad')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-zA-Z0-9]+/g, '_')

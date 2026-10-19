@@ -29,6 +29,7 @@ import { buildActivityExcelReport, reportFilename } from '../services/reports/ac
 import { buildActivityPdfHtml, pdfHeaderFooter, pdfFilename } from '../services/reports/activity-pdf-template.js';
 import { buildPeriodExcelReport, periodFilename } from '../services/reports/period-excel-report.js';
 import { buildPeriodPdfHtml, periodPdfHeaderFooter, periodPdfFilename } from '../services/reports/period-pdf-template.js';
+import type { ReportOrg } from '../services/reports/pdf-shell.js';
 import { renderHtmlToPdf } from '../services/reports/pdf-renderer.js';
 import { zonedMidnight, ymdInTz } from '../services/reports/fmt.js';
 import { loadProtocolReportData, buildProtocolExcelReport, protocolReportFilename } from '../services/reports/protocol-report.js';
@@ -37,7 +38,6 @@ const VALID_TYPES = new Set<string>(ACTIVITY_TYPES); // deriva del enum, no dupl
 const ACT_FILE_RE = /^([0-9a-f-]{36})\.(xlsx|pdf)$/i;
 
 // Branding del tenant para las plantillas (shape camelCase de v1).
-interface ReportOrg { name: string; slug: string; primaryColor: string | null; secondaryColor: string | null; logoUrl: string | null; credentialLogoUrl: string | null }
 async function loadReportOrg(db: ReturnType<typeof getDb>, orgId: string): Promise<ReportOrg> {
   const o = await db.selectFrom('organizations')
     .select(['name', 'slug', 'primary_color', 'secondary_color', 'logo_url', 'credential_logo_url'])

@@ -16,6 +16,16 @@ export interface PdfThemeOrg {
   secondaryColor?: string | null;
 }
 
+/** Organización tal como la reciben las plantillas de informe (PDF y Excel). */
+export interface ReportOrg {
+  name: string;
+  slug: string;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  logoUrl: string | null;
+  credentialLogoUrl: string | null;
+}
+
 export interface PdfTheme {
   structural: string; // títulos de sección, encabezados de tabla
   primary: string;

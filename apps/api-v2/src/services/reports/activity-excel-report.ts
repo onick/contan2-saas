@@ -4,8 +4,6 @@
 // re-parsea con exceljs y el HTML se valida). Cambios respecto a v1: imports
 // de palette → branding-tokens, y el logo llega por loadLogoDataUri (URL,
 // con rasterizado de SVG) en lugar de leerse del filesystem.
-// @ts-nocheck
-/* eslint-disable */
 // =============================================================================
 // activityExcelReport.js
 // Genera un informe Excel profesional de asistencia para UNA actividad.
@@ -14,41 +12,31 @@
 
 import ExcelJS from 'exceljs';
 import { generatePalette, textArgb } from '../branding-tokens.js';
-import { hexToArgb } from './excel-kit.js';
-import { loadLogoDataUri } from '../credential.js';
+import { hexToArgb, loadLogoImage } from './excel-kit.js';
 import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz, ymdInTz } from './fmt.js';
 import { occupancyPct, peopleOf } from './metrics.js';
+import { TYPE_LABELS, STATUS_LABELS, PROTOCOL_CATEGORY_LABELS, INVITATION_STATUS_LABELS } from './labels.js';
+import type { ActivityReportData } from './report-data.js';
+import type { ReportOrg } from './pdf-shell.js';
+
+export interface ActivityExcelInput extends ActivityReportData {
+  organization: ReportOrg;
+  includeContact?: boolean;
+}
+
+type AttendanceRow = ActivityReportData['attendances'][number];
 
 
-const TYPE_LABELS = {
-  exposicion: 'Exposición',
-  concierto: 'Concierto',
-  cine: 'Cine',
-  taller: 'Taller',
-  teatro: 'Teatro',
-  conferencia: 'Conferencia',
-  tertulia: 'Tertulia',
-  visita_guiada: 'Visita guiada',
-  cuentacuentos: 'Cuenta cuentos',
-  otro: 'Otro',
-};
-const TYPE_LABEL = t => TYPE_LABELS[t] || t || '—';
+const TYPE_LABEL = (t: string | null | undefined): string => (t ? TYPE_LABELS[t] ?? t : '—');
 
-const STATUS_LABELS = {
-  activa: 'Activa',
-  finalizada: 'Finalizada',
-  cancelada: 'Cancelada',
-  borrador: 'Borrador',
-};
-
-function fmtDate(iso) {
+function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
   return fmtDateTz(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     + ' · ' + fmtTimeTz(d);
 }
-function fmtTime(iso) {
+function fmtTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
@@ -58,18 +46,8 @@ function fmtTimestamp(date = new Date()) {
   return fmtDateTz(date, { dateStyle: 'long', timeStyle: 'short' });
 }
 
-async function loadLogoBuffer(logoUrl) {
-  // v2: el logo llega por URL (loadLogoDataUri fetchea y rasteriza SVG→PNG);
-  // exceljs sólo acepta png/jpeg/gif como imagen embebida.
-  const dataUri = await loadLogoDataUri(logoUrl);
-  if (!dataUri) return null;
-  const m = /^data:image\/(png|jpeg|jpg|gif);base64,(.+)$/.exec(dataUri);
-  if (!m) return null;
-  const extension = m[1] === 'jpg' ? 'jpeg' : m[1];
-  return { buffer: Buffer.from(m[2], 'base64'), extension };
-}
 
-function categoryFor(priorAttendances) {
+function categoryFor(priorAttendances: number | null | undefined): string {
   // priorAttendances incluye la actividad actual; usamos totalAttendances - 1 ya
   // calculado fuera de aquí. Por seguridad chequeamos undefined.
   const n = Number(priorAttendances) || 0;
@@ -78,7 +56,7 @@ function categoryFor(priorAttendances) {
   return 'Recurrente';
 }
 
-export async function buildActivityExcelReport({ organization, activity, attendances, users, affinities, protocol, includeContact = false }: { includeContact?: boolean; [k: string]: any }) {
+export async function buildActivityExcelReport({ organization, activity, attendances, users, affinities, protocol, includeContact = false }: ActivityExcelInput): Promise<ExcelJS.Workbook> {
   const wb = new ExcelJS.Workbook();
   wb.creator = organization.name || 'contan2-saas';
   wb.created = new Date();
@@ -89,7 +67,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   const primaryLightArgb = hexToArgb(palette['50']) || 'FFFEF4E8';
   const accentArgb = hexToArgb(organization.secondaryColor) || 'FF31A3DB';
   const onPrimaryArgb = textArgb(palette['700'] || organization.primaryColor || '#f39228');
-  const borderColor = { style: 'thin', color: { argb: 'FFE5E7EB' } };
+  const borderColor: Partial<ExcelJS.Border> = { style: 'thin', color: { argb: 'FFE5E7EB' } };
 
   // -------- Sheet 1: Resumen ------------------------------------------------
   const s1 = wb.addWorksheet('Resumen', {
@@ -107,7 +85,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   ];
 
   // Logo si existe (col B fila 2-5)
-  const logo = await loadLogoBuffer(organization.logoUrl);
+  const logo = await loadLogoImage(organization.logoUrl);
   if (logo) {
     const imageId = wb.addImage({ buffer: logo.buffer, extension: logo.extension });
     s1.addImage(imageId, {
@@ -160,7 +138,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
     ['Tipo', TYPE_LABEL(activity.type)],
     ['Fecha', fmtDate(activity.date)],
     ['Ubicación', activity.location || '—'],
-    ['Estado', STATUS_LABELS[activity.status] || activity.status || '—'],
+    ['Estado', STATUS_LABELS[activity.status] ?? (activity.status || '—')],
     ['Cupo', `${activity.enrolledCount} / ${activity.capacity}`],
   ];
   for (const [label, value] of actInfo) {
@@ -193,12 +171,12 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   // Asistencia = check-in real (checkedInAt). Las filas sin checkedInAt son
   // RESERVAS (holds de protocolo/RSVP): se listan aparte y NO entran a los KPIs.
   // `affinities` está alineada por índice con `attendances` → filtramos por índice.
-  const isSeated = (a) => !!a.checkedInAt;
-  const seatedIdx = [];
+  const isSeated = (a: AttendanceRow): boolean => !!a.checkedInAt;
+  const seatedIdx: number[] = [];
   attendances.forEach((a, i) => { if (isSeated(a)) seatedIdx.push(i); });
   const totalAtt = seatedIdx.length;
   const heldCount = attendances.length - totalAtt;
-  const peopleInRoom = seatedIdx.reduce((n, i) => n + peopleOf(attendances[i]), 0);
+  const peopleInRoom = seatedIdx.reduce((n, i) => n + peopleOf(attendances[i]!), 0);
   const newcomers = seatedIdx.filter(i => affinities[i]?.totalAttendances === 1).length;
   const returning = totalAtt - newcomers;
   const vip = seatedIdx.filter(i => (affinities[i]?.totalAttendances || 0) >= 10).length;
@@ -219,9 +197,9 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   // Span: cada KPI ocupa 1 columna. Usamos B..E (4 cols pero solo 3 KPIs por fila visible),
   // así que va de 3 por fila con merge BC, D, E? Mejor 3 KPIs por fila: B+C, D, E → no es simétrico.
   // Simplificamos: 2 KPIs por fila con merge BC y DE (2 columnas cada uno) → 3 filas total.
-  const pairs = [[0, 1], [2, 3], [4, 5], [6, 7]];
+  const pairs: Array<[number, number]> = [[0, 1], [2, 3], [4, 5], [6, 7]];
   for (const [li, ri] of pairs) {
-    const left = kpis[li], right = kpis[ri];
+    const left = kpis[li]!, right = kpis[ri]!;
     // Left card
     s1.mergeCells(`B${row}:C${row}`);
     s1.getCell(`B${row}`).value = left.label;
@@ -325,7 +303,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
     }
     dataRow.eachCell({ includeEmpty: false }, cell => {
       cell.border = { bottom: borderColor };
-      cell.alignment = { vertical: 'middle', horizontal: cell.col === 1 ? 'center' : 'left', indent: 1 };
+      cell.alignment = { vertical: 'middle', horizontal: Number(cell.col) === 1 ? 'center' : 'left', indent: 1 };
       cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF1F2937' } };
     });
   });
@@ -355,7 +333,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   s3.getRow(r).height = 22;
   r++;
 
-  const distRows = [
+  const distRows: Array<[string, number]> = [
     ['Primera visita', newcomers],
     ['Recurrentes', returning - vip],
     ['VIP (10+ visitas)', vip],
@@ -385,11 +363,11 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   s3.getRow(r).height = 22;
   r++;
 
-  const byHour = new Map();
+  const byHour = new Map<number, number>();
   for (const att of attendances) {
     if (!isSeated(att)) continue; // las reservas no hicieron check-in
-    const iso = att.checkedInAt;
-    const d = new Date(iso);
+
+    const d = new Date(att.checkedInAt as string);
     if (isNaN(d.getTime())) continue;
     const h = hourInTz(d);
     byHour.set(h, (byHour.get(h) || 0) + 1);
@@ -404,7 +382,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
     s3.getCell(`B${r}`).alignment = { vertical: 'middle', indent: 1 };
   } else {
     for (const h of hours) {
-      const count = byHour.get(h);
+      const count = byHour.get(h) ?? 0;
       const barLen = Math.max(1, Math.round((count / maxHourCount) * 20));
       const bar = '█'.repeat(barLen);
       s3.getCell(`B${r}`).value = `${String(h).padStart(2, '0')}:00 – ${String((h + 1) % 24).padStart(2, '0')}:00`;
@@ -433,14 +411,6 @@ export async function buildActivityExcelReport({ organization, activity, attenda
 
   // -------- Sheet 3: Protocolo (PR-6 · solo si hubo invitados especiales) ---
   if (protocol && protocol.rows && protocol.rows.length > 0) {
-    const PROTO_STATUS = {
-      pending: 'Sin responder', confirmed: 'Confirmada', declined: 'No puede',
-      expired: 'Expirada', canceled: 'Cancelada',
-    };
-    const PROTO_CAT = {
-      autoridad: 'Autoridad', diplomatico: 'Diplomático', prensa: 'Prensa',
-      patrocinador: 'Patrocinador', directivo: 'Directivo', artista: 'Artista', otro: 'Otro',
-    };
     const s3 = wb.addWorksheet('Protocolo', {
       properties: { tabColor: { argb: accentArgb } },
       views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
@@ -465,8 +435,8 @@ export async function buildActivityExcelReport({ organization, activity, attenda
       s3.addRow({
         idx: i + 1,
         name: r.name,
-        category: PROTO_CAT[r.category] || r.category,
-        status: PROTO_STATUS[r.status] || r.status,
+        category: PROTOCOL_CATEGORY_LABELS[r.category] ?? r.category,
+        status: INVITATION_STATUS_LABELS[r.status] ?? r.status,
         plusOnes: r.plusOnes > 0 ? `+${r.plusOnes}` : '—',
         attended: r.attended ? 'Sí' : '—',
       });
@@ -480,7 +450,7 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   return wb;
 }
 
-export function reportFilename(activity) {
+export function reportFilename(activity: { name?: string | null; date?: string | null }): string {
   const base = (activity.name || 'actividad')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-zA-Z0-9]+/g, '_')

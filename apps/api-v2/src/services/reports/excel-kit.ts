@@ -6,6 +6,7 @@
 
 import type ExcelJS from 'exceljs';
 import { excelDateCell } from './fmt.js';
+import { loadLogoDataUri } from '../credential.js';
 
 export { excelDateCell };
 
@@ -140,4 +141,20 @@ export function listValidation(
     type: 'list', allowBlank: true, formulae: [ref], showErrorMessage: true,
     errorStyle: opts.strict ? 'stop' : 'warning', errorTitle: opts.errorTitle, error: opts.error,
   };
+}
+
+export interface ExcelLogo { buffer: ExcelJS.Buffer; extension: 'png' | 'jpeg' | 'gif' }
+
+/**
+ * Logo del tenant listo para `wb.addImage`. El logo llega por URL
+ * (loadLogoDataUri lo descarga y rasteriza SVG->PNG); exceljs solo acepta
+ * png/jpeg/gif. `null` si no hay logo o el formato no sirve.
+ */
+export async function loadLogoImage(logoUrl: string | null | undefined): Promise<ExcelLogo | null> {
+  const dataUri = await loadLogoDataUri(logoUrl);
+  if (!dataUri) return null;
+  const m = /^data:image\/(png|jpeg|jpg|gif);base64,(.+)$/.exec(dataUri);
+  if (!m) return null;
+  const extension = m[1] === 'jpg' ? 'jpeg' : (m[1] as 'png' | 'jpeg' | 'gif');
+  return { buffer: Buffer.from(m[2]!, 'base64') as unknown as ExcelJS.Buffer, extension };
 }

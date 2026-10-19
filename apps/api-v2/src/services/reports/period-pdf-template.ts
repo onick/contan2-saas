@@ -4,8 +4,6 @@
 // re-parsea con exceljs y el HTML se valida). Cambios respecto a v1: imports
 // de palette → branding-tokens, y el logo llega por loadLogoDataUri (URL,
 // con rasterizado de SVG) en lugar de leerse del filesystem.
-// @ts-nocheck
-/* eslint-disable */
 // =============================================================================
 // periodPdfTemplate.js · plantilla HTML para reporte PDF de período.
 // Reusa los tokens del branding multi-tenant.
@@ -15,30 +13,33 @@ import { esc, pdfCover, pdfShellCss, pdfTheme } from './pdf-shell.js';
 import { loadLogoDataUri } from '../credential.js';
 import { fmtDateTz, fmtTimeTz, fmtYmd } from './fmt.js';
 import { fmtDeltaPct, fmtDeltaPoints } from './metrics.js';
+import { STATUS_LABELS } from './labels.js';
+import type { PeriodEngineResult } from './period-engine.js';
+import type { ReportOrg } from './pdf-shell.js';
+
+export interface PeriodPdfInput { organization: ReportOrg; period: PeriodEngineResult }
 
 
-
-function fmtDate(iso) {
+function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   return isNaN(d.getTime()) ? '—' : fmtDateTz(d);
 }
-function fmtDateTime(iso) {
+function fmtDateTime(iso: string | Date | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   return isNaN(d.getTime()) ? '—'
     : fmtDateTz(d) + ' · ' + fmtTimeTz(d);
 }
 // from/to son días 'YYYY-MM-DD' del tenant (rango inclusivo del PeriodEngine).
-function rangeLabel(from, to) {
+function rangeLabel(from: string, to: string): string {
   return `${fmtYmd(from)} → ${fmtYmd(to)}`;
 }
 
 
-const STATUS_LABELS = { activa: 'Activa', finalizada: 'Finalizada', cancelada: 'Cancelada', borrador: 'Borrador' };
-const STATUS_CLS = { activa: 'ok', finalizada: 'muted', cancelada: 'danger', borrador: 'muted' };
+const STATUS_CLS: Record<string, string> = { activa: 'ok', finalizada: 'muted', cancelada: 'danger', borrador: 'muted' };
 
-export async function buildPeriodPdfHtml({ organization, period }) {
+export async function buildPeriodPdfHtml({ organization, period }: PeriodPdfInput): Promise<string> {
   const theme = pdfTheme(organization);
   const structural = theme.structural;
   const accent = theme.accent;
@@ -82,7 +83,7 @@ export async function buildPeriodPdfHtml({ organization, period }) {
       <td class="num">${a.people}</td>
       <td class="num">${a.attendances}</td>
       <td class="num">${a.occupancyPct}%</td>
-      <td><span class="tag tag--${STATUS_CLS[a.status] || 'muted'}">${esc(STATUS_LABELS[a.status] || a.status)}</span></td>
+      <td><span class="tag tag--${STATUS_CLS[a.status] || 'muted'}">${esc(STATUS_LABELS[a.status] ?? a.status)}</span></td>
     </tr>`).join('');
 
   const topUserRows = cur.topUsers.map((u, i) => `
@@ -211,7 +212,7 @@ ${cur.topUsers.length ? `
 </html>`;
 }
 
-export function periodPdfHeaderFooter({ organization, period }) {
+export function periodPdfHeaderFooter({ organization, period }: PeriodPdfInput) {
   const orgName = esc(organization.name || 'contan2-saas');
   const range = esc(rangeLabel(period.range.from, period.range.to));
   return {
@@ -223,6 +224,6 @@ export function periodPdfHeaderFooter({ organization, period }) {
 }
 
 // from/to: días 'YYYY-MM-DD' del tenant (rango inclusivo).
-export function periodPdfFilename(from, to) {
+export function periodPdfFilename(from: string, to: string): string {
   return from === to ? `Informe_periodo_${from}.pdf` : `Informe_periodo_${from}_a_${to}.pdf`;
 }

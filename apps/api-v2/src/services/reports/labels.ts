@@ -89,6 +89,22 @@ export const TYPE_LABELS: Record<string, string> = {
   otro: 'Otro',
 };
 
+/** Estado de actividad -> etiqueta (única; antes copiada en 4 servicios). */
+export const STATUS_LABELS: Record<string, string> = {
+  activa: 'Activa', finalizada: 'Finalizada', cancelada: 'Cancelada', borrador: 'Borrador',
+};
+
+/** Categoría de invitado de protocolo -> etiqueta. */
+export const PROTOCOL_CATEGORY_LABELS: Record<string, string> = {
+  autoridad: 'Autoridad', diplomatico: 'Diplomático', prensa: 'Prensa', patrocinador: 'Patrocinador',
+  directivo: 'Directivo', artista: 'Artista', otro: 'Otro',
+};
+
+/** Estado de invitación de protocolo -> etiqueta. */
+export const INVITATION_STATUS_LABELS: Record<string, string> = {
+  pending: 'Sin responder', confirmed: 'Confirmada', declined: 'No puede', expired: 'Expirada', canceled: 'Cancelada',
+};
+
 /** Palabras (normalizadas, singular y plural) que nombran un tipo de actividad. */
 export const TYPE_KEYWORDS: Record<Exclude<ActivityType, 'otro'>, string[]> = {
   cine: ['cine', 'pelicula', 'peliculas', 'proyeccion', 'proyecciones'],
