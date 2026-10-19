@@ -86,6 +86,10 @@ const ROWS: Row[] = [
   { id: 'RBAC-R13', sev: 'S2', method: 'GET', path: g('/app/equipo/api/activity'), allowed: ADMINS, forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'], note: 'puerta no se afirma (lo lee hoy; ver observacion)' },
   { id: 'RBAC-R14', sev: 'S1', method: 'GET', path: g('/app/historial/api/audit'), allowed: ['owner', 'admin'], forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'], note: 'puerta: H6, ver test dedicado' },
   { id: 'RBAC-R15', sev: 'S1', method: 'GET', path: g('/app/historial/api/overview'), allowed: ['owner', 'admin'], forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'], note: 'puerta: H6' },
+  // REP-A14 (PR-R2): lectura del dashboard = REPORT_READ_ROLES; protocolo/biblioteca -> 403 en la API.
+  { id: 'RBAC-R16a', sev: 'S1', method: 'GET', path: g('/app/reportes/api/summary?from=2026-01-01&to=2026-01-31'), allowed: ['owner', 'admin', 'operator', 'consulta', 'puerta'], forbidden: ['protocolo', 'biblioteca'], note: 'REP-A14' },
+  { id: 'RBAC-R16b', sev: 'S1', method: 'GET', path: g('/app/reportes/api/categories'), allowed: ['owner', 'admin', 'operator', 'consulta', 'puerta'], forbidden: ['protocolo', 'biblioteca'], note: 'REP-A14' },
+  { id: 'RBAC-R16c', sev: 'S1', method: 'POST', path: g('/app/reportes/api/agent'), body: () => ({ query: 'ayuda' }), allowed: ['owner', 'admin', 'operator', 'consulta', 'puerta'], forbidden: ['protocolo', 'biblioteca'], note: 'REP-A14' },
   { id: 'RBAC-R16', sev: 'S1', method: 'GET', path: g('/app/reportes/api/month'), allowed: ['owner', 'admin', 'puerta'], forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'] },
   { id: 'RBAC-R17', sev: 'S1', method: 'GET', path: g('/app/reportes/api/attendance'), allowed: ['owner', 'admin', 'puerta'], forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'] },
   { id: 'RBAC-R18', sev: 'S1', method: 'GET', path: g('/app/reportes/api/period'), allowed: ['owner', 'admin', 'puerta'], forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'] },
