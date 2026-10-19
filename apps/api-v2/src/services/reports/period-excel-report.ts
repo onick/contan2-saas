@@ -14,7 +14,8 @@
 import ExcelJS from 'exceljs';
 import { generatePalette, textArgb } from '../branding-tokens.js';
 import { loadLogoDataUri } from '../credential.js';
-import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz, ymdInTz } from './fmt.js';
+import { fmtDateTz, fmtTimeTz, fmtYmd } from './fmt.js';
+import { fmtDeltaPct, fmtDeltaPoints } from './metrics.js';
 
 
 const STATUS_LABELS = { activa: 'Activa', finalizada: 'Finalizada', cancelada: 'Cancelada', borrador: 'Borrador' };
@@ -31,8 +32,9 @@ function fmtDateTime(iso) {
   if (isNaN(d.getTime())) return '—';
   return fmtDateTz(d) + ' · ' + fmtTimeTz(d);
 }
+// from/to son días 'YYYY-MM-DD' del tenant (rango inclusivo del PeriodEngine).
 function rangeLabel(from, to) {
-  return `${fmtDate(from)} → ${fmtDate(new Date(new Date(to).getTime() - 86400000))}`;
+  return `${fmtYmd(from)} → ${fmtYmd(to)}`;
 }
 function hexToARGB(hex) {
   if (!hex) return null;
@@ -52,6 +54,8 @@ async function loadLogoBuffer(logoUrl) {
 }
 
 export async function buildPeriodExcelReport({ organization, period }) {
+  // `period` = resultado de periodEngine (period-engine.ts): una sola fuente de cifras.
+  const cur = period.current, prev = period.previous, k = cur.kpis, pk = prev.kpis;
   const wb = new ExcelJS.Workbook();
   wb.creator = organization.name || 'contan2-saas';
   wb.created = new Date();
@@ -105,12 +109,12 @@ export async function buildPeriodExcelReport({ organization, period }) {
   row++;
 
   const kpis = [
-    { label: 'Actividades realizadas', value: period.summary.activitiesCount, accent: false },
-    { label: 'Asistencias totales', value: period.summary.attendancesCount, accent: true },
-    { label: 'Visitantes únicos', value: period.summary.uniqueAttendees, accent: false },
-    { label: '% Ocupación promedio', value: `${period.summary.avgOccupancy}%`, accent: false },
-    { label: 'Tipos de actividad', value: period.summary.typesCount, accent: false },
-    { label: 'Meses cubiertos', value: period.summary.monthsSpan, accent: false },
+    { label: 'Actividades realizadas', value: k.activities, accent: false },
+    { label: 'Personas', value: k.people, accent: true },
+    { label: 'Registros', value: k.attendances, accent: false },
+    { label: 'Visitantes únicos', value: k.uniqueVisitors, accent: false },
+    { label: 'Ocupación (personas / aforo)', value: `${k.occupancyPct}%`, accent: false },
+    { label: 'Tipos de actividad', value: cur.byType.length, accent: false },
   ];
   const pairs = [[0, 1], [2, 3], [4, 5]];
   for (const [li, ri] of pairs) {
@@ -142,19 +146,59 @@ export async function buildPeriodExcelReport({ organization, period }) {
     row++;
   }
 
-  // Top 5 actividades
+  // Comparación con el período anterior (P4: mismo tramo del mes anterior).
   row++;
   s1.mergeCells(`B${row}:E${row}`);
-  s1.getCell(`B${row}`).value = 'TOP 5 ACTIVIDADES POR ASISTENCIA';
+  s1.getCell(`B${row}`).value = `COMPARACIÓN CON EL PERÍODO ANTERIOR (${period.previousRange.from} → ${period.previousRange.to})`;
   s1.getCell(`B${row}`).font = { bold: true, size: 10, color: { argb: onPrimaryArgb } };
   s1.getCell(`B${row}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryArgb } };
   s1.getCell(`B${row}`).alignment = { vertical: 'middle', indent: 1 };
   s1.getRow(row).height = 22;
   row++;
-  for (const t of period.topActivities) {
+  s1.getCell(`B${row}`).value = 'Indicador';
+  s1.getCell(`C${row}`).value = 'Anterior';
+  s1.getCell(`D${row}`).value = 'Variación';
+  [`B${row}`, `C${row}`, `D${row}`].forEach(addr => {
+    s1.getCell(addr).font = { bold: true, size: 10, color: { argb: 'FF6B7280' } };
+    s1.getCell(addr).border = { bottom: { style: 'medium', color: { argb: primaryArgb } } };
+    s1.getCell(addr).alignment = { vertical: 'middle', indent: 1 };
+  });
+  row++;
+  const cmpRows = [
+    ['Actividades (anterior)', pk.activities, fmtDeltaPct(period.deltas.activities)],
+    ['Personas (anterior)', pk.people, fmtDeltaPct(period.deltas.people)],
+    ['Registros (anterior)', pk.attendances, fmtDeltaPct(period.deltas.attendances)],
+    ['Visitantes únicos (anterior)', pk.uniqueVisitors, fmtDeltaPct(period.deltas.uniqueVisitors)],
+    // La ocupación se compara en PUNTOS porcentuales, no en %.
+    ['Ocupación (anterior)', `${pk.occupancyPct}%`, fmtDeltaPoints(period.deltas.occupancyPct)],
+  ];
+  for (const [label, value, delta] of cmpRows) {
+    s1.getCell(`B${row}`).value = label;
+    s1.getCell(`C${row}`).value = value;
+    s1.getCell(`D${row}`).value = delta;
+    [`B${row}`, `C${row}`, `D${row}`].forEach(addr => {
+      s1.getCell(addr).font = { size: 11, color: { argb: 'FF1F2937' } };
+      s1.getCell(addr).border = { bottom: border };
+      s1.getCell(addr).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+    });
+    s1.getRow(row).height = 20;
+    row++;
+  }
+
+  // Top 5 actividades (por personas)
+  row++;
+  s1.mergeCells(`B${row}:E${row}`);
+  s1.getCell(`B${row}`).value = 'TOP 5 ACTIVIDADES POR PERSONAS';
+  s1.getCell(`B${row}`).font = { bold: true, size: 10, color: { argb: onPrimaryArgb } };
+  s1.getCell(`B${row}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryArgb } };
+  s1.getCell(`B${row}`).alignment = { vertical: 'middle', indent: 1 };
+  s1.getRow(row).height = 22;
+  row++;
+  const top5 = [...cur.activities].sort((x, y) => y.people - x.people || y.attendances - x.attendances).slice(0, 5);
+  for (const t of top5) {
     s1.getCell(`B${row}`).value = t.name;
     s1.getCell(`C${row}`).value = t.typeLabel;
-    s1.getCell(`D${row}`).value = t.attendances;
+    s1.getCell(`D${row}`).value = t.people;
     s1.getCell(`E${row}`).value = `${t.occupancyPct}%`;
     [`B${row}`, `C${row}`, `D${row}`, `E${row}`].forEach(addr => {
       s1.getCell(addr).font = { size: 11, color: { argb: 'FF1F2937' } };
@@ -178,7 +222,8 @@ export async function buildPeriodExcelReport({ organization, period }) {
     { header: 'Fecha', key: 'date', width: 18 },
     { header: 'Ubicación', key: 'location', width: 28 },
     { header: 'Capacidad', key: 'capacity', width: 12 },
-    { header: 'Asistencias', key: 'attendances', width: 14 },
+    { header: 'Personas', key: 'people', width: 12 },
+    { header: 'Registros', key: 'attendances', width: 12 },
     { header: '% Ocupación', key: 'occupancy', width: 14 },
     { header: 'Estado', key: 'status', width: 14 },
   ];
@@ -191,7 +236,7 @@ export async function buildPeriodExcelReport({ organization, period }) {
     cell.border = { bottom: { style: 'medium', color: { argb: accentArgb } } };
   });
 
-  period.activities.forEach((a, i) => {
+  cur.activities.forEach((a, i) => {
     const dr = s2.addRow({
       idx: i + 1,
       name: a.name,
@@ -199,6 +244,7 @@ export async function buildPeriodExcelReport({ organization, period }) {
       date: fmtDateTime(a.date),
       location: a.location,
       capacity: a.capacity,
+      people: a.people,
       attendances: a.attendances,
       occupancy: `${a.occupancyPct}%`,
       status: STATUS_LABELS[a.status] || a.status,
@@ -209,8 +255,8 @@ export async function buildPeriodExcelReport({ organization, period }) {
       cell.font = { size: 11, color: { argb: 'FF1F2937' } };
     });
   });
-  if (period.activities.length) {
-    s2.autoFilter = { from: { row: 1, column: 1 }, to: { row: period.activities.length + 1, column: 9 } };
+  if (cur.activities.length) {
+    s2.autoFilter = { from: { row: 1, column: 1 }, to: { row: cur.activities.length + 1, column: 10 } };
   }
 
   // -------- Sheet 3: Por tipo --------
@@ -218,9 +264,9 @@ export async function buildPeriodExcelReport({ organization, period }) {
     properties: { tabColor: { argb: primaryArgb } },
     views: [{ showGridLines: false }],
   });
-  s3.columns = [{ width: 4 }, { width: 28 }, { width: 16 }, { width: 16 }, { width: 4 }];
+  s3.columns = [{ width: 4 }, { width: 28 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 4 }];
   let r3 = 2;
-  s3.mergeCells(`B${r3}:D${r3}`);
+  s3.mergeCells(`B${r3}:E${r3}`);
   s3.getCell(`B${r3}`).value = 'DISTRIBUCIÓN POR TIPO';
   s3.getCell(`B${r3}`).font = { bold: true, size: 10, color: { argb: onPrimaryArgb } };
   s3.getCell(`B${r3}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryArgb } };
@@ -229,18 +275,20 @@ export async function buildPeriodExcelReport({ organization, period }) {
   r3++;
   s3.getCell(`B${r3}`).value = 'Tipo';
   s3.getCell(`C${r3}`).value = 'Actividades';
-  s3.getCell(`D${r3}`).value = 'Asistencias';
-  [`B${r3}`, `C${r3}`, `D${r3}`].forEach(addr => {
+  s3.getCell(`D${r3}`).value = 'Personas';
+  s3.getCell(`E${r3}`).value = 'Registros';
+  [`B${r3}`, `C${r3}`, `D${r3}`, `E${r3}`].forEach(addr => {
     s3.getCell(addr).font = { bold: true, size: 10, color: { argb: 'FF6B7280' } };
     s3.getCell(addr).border = { bottom: { style: 'medium', color: { argb: primaryArgb } } };
     s3.getCell(addr).alignment = { vertical: 'middle', indent: 1 };
   });
   r3++;
-  for (const t of period.byType) {
+  for (const t of cur.byType) {
     s3.getCell(`B${r3}`).value = t.label;
     s3.getCell(`C${r3}`).value = t.activities;
-    s3.getCell(`D${r3}`).value = t.attendances;
-    [`B${r3}`, `C${r3}`, `D${r3}`].forEach(addr => {
+    s3.getCell(`D${r3}`).value = t.people;
+    s3.getCell(`E${r3}`).value = t.attendances;
+    [`B${r3}`, `C${r3}`, `D${r3}`, `E${r3}`].forEach(addr => {
       s3.getCell(addr).font = { size: 11, color: { argb: 'FF1F2937' } };
       s3.getCell(addr).border = { bottom: border };
       s3.getCell(addr).alignment = { vertical: 'middle', indent: 1 };
@@ -255,9 +303,9 @@ export async function buildPeriodExcelReport({ organization, period }) {
     properties: { tabColor: { argb: primaryArgb } },
     views: [{ showGridLines: false }],
   });
-  s4.columns = [{ width: 4 }, { width: 28 }, { width: 16 }, { width: 16 }, { width: 26 }, { width: 4 }];
+  s4.columns = [{ width: 4 }, { width: 28 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 26 }, { width: 4 }];
   let r4 = 2;
-  s4.mergeCells(`B${r4}:E${r4}`);
+  s4.mergeCells(`B${r4}:F${r4}`);
   s4.getCell(`B${r4}`).value = 'EVOLUCIÓN MES A MES';
   s4.getCell(`B${r4}`).font = { bold: true, size: 10, color: { argb: onPrimaryArgb } };
   s4.getCell(`B${r4}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryArgb } };
@@ -266,34 +314,36 @@ export async function buildPeriodExcelReport({ organization, period }) {
   r4++;
   s4.getCell(`B${r4}`).value = 'Mes';
   s4.getCell(`C${r4}`).value = 'Actividades';
-  s4.getCell(`D${r4}`).value = 'Asistencias';
-  s4.getCell(`E${r4}`).value = '';
-  [`B${r4}`, `C${r4}`, `D${r4}`, `E${r4}`].forEach(addr => {
+  s4.getCell(`D${r4}`).value = 'Personas';
+  s4.getCell(`E${r4}`).value = 'Registros';
+  s4.getCell(`F${r4}`).value = '';
+  [`B${r4}`, `C${r4}`, `D${r4}`, `E${r4}`, `F${r4}`].forEach(addr => {
     s4.getCell(addr).font = { bold: true, size: 10, color: { argb: 'FF6B7280' } };
     s4.getCell(addr).border = { bottom: { style: 'medium', color: { argb: primaryArgb } } };
     s4.getCell(addr).alignment = { vertical: 'middle', indent: 1 };
   });
   r4++;
-  const maxAtt = period.byMonth.reduce((m, x) => Math.max(m, x.attendances), 1);
-  for (const m of period.byMonth) {
+  const maxAtt = cur.byMonth.reduce((m, x) => Math.max(m, x.people), 1);
+  for (const m of cur.byMonth) {
     s4.getCell(`B${r4}`).value = m.label;
     s4.getCell(`C${r4}`).value = m.activities;
-    s4.getCell(`D${r4}`).value = m.attendances;
-    const barLen = Math.max(1, Math.round((m.attendances / maxAtt) * 20));
-    s4.getCell(`E${r4}`).value = '█'.repeat(barLen);
-    [`B${r4}`, `C${r4}`, `D${r4}`, `E${r4}`].forEach(addr => {
+    s4.getCell(`D${r4}`).value = m.people;
+    s4.getCell(`E${r4}`).value = m.attendances;
+    const barLen = Math.max(1, Math.round((m.people / maxAtt) * 20));
+    s4.getCell(`F${r4}`).value = '█'.repeat(barLen);
+    [`B${r4}`, `C${r4}`, `D${r4}`, `E${r4}`, `F${r4}`].forEach(addr => {
       s4.getCell(addr).font = { size: 11, color: { argb: 'FF1F2937' } };
       s4.getCell(addr).border = { bottom: border };
       s4.getCell(addr).alignment = { vertical: 'middle', indent: 1 };
     });
     s4.getCell(`D${r4}`).font.bold = true;
-    s4.getCell(`E${r4}`).font = { size: 11, color: { argb: primaryArgb } };
+    s4.getCell(`F${r4}`).font = { size: 11, color: { argb: primaryArgb } };
     s4.getRow(r4).height = 20;
     r4++;
   }
 
   // -------- Sheet 5: Top visitantes --------
-  if (period.topUsers.length) {
+  if (cur.topUsers.length) {
     const s5 = wb.addWorksheet('Top visitantes', {
       properties: { tabColor: { argb: primaryArgb } },
       views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
@@ -314,7 +364,7 @@ export async function buildPeriodExcelReport({ organization, period }) {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: primaryArgb } };
       cell.border = { bottom: { style: 'medium', color: { argb: accentArgb } } };
     });
-    period.topUsers.forEach((u, i) => {
+    cur.topUsers.forEach((u, i) => {
       const dr = s5.addRow({
         idx: i + 1,
         code: u.code, firstName: u.firstName, lastName: u.lastName,
@@ -331,8 +381,7 @@ export async function buildPeriodExcelReport({ organization, period }) {
   return wb;
 }
 
+// from/to: días 'YYYY-MM-DD' del tenant (rango inclusivo).
 export function periodFilename(from, to) {
-  const f = ymdInTz(from);
-  const t = ymdInTz(new Date(new Date(to).getTime() - 86400000));
-  return f === t ? `Informe_periodo_${f}.xlsx` : `Informe_periodo_${f}_a_${t}.xlsx`;
+  return from === to ? `Informe_periodo_${from}.xlsx` : `Informe_periodo_${from}_a_${to}.xlsx`;
 }

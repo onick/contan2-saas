@@ -16,12 +16,12 @@ import { createDb, type Database } from '@contan2/db';
 import { hashToken } from '@contan2/auth';
 import { buildApp } from '../src/server.js';
 import { occupancyPct } from '../src/services/reports/metrics.js';
-import { buildPeriodSummary, loadActivityReportData } from '../src/services/reports/report-data.js';
+import { loadActivityReportData } from '../src/services/reports/report-data.js';
+import { periodEngine } from '../src/services/reports/period-engine.js';
 import { attendanceByActivity, parseRange } from '../src/services/report-data.js';
 import { buildActivityPdfHtml } from '../src/services/reports/activity-pdf-template.js';
 import { buildPeriodPdfHtml } from '../src/services/reports/period-pdf-template.js';
 import { buildAttendancePdfHtml } from '../src/services/reports/attendance-pdf-template.js';
-import { zonedMidnight, ymdAddDays } from '../src/services/reports/fmt.js';
 
 describe('occupancyPct', () => {
   it('personas / aforo redondeado; 0 sin aforo', () => {
@@ -156,8 +156,7 @@ run('consistencia de reportes · % ocupación, CSV Reservados, PDFs unificados',
   });
 
   it('HTML de los tres PDF: 15 % y la MISMA cabecera de marca (cover + chip de logo + KPIs)', async () => {
-    const range = { from: zonedMidnight(FROM).toISOString(), to: zonedMidnight(ymdAddDays(TO, 1)).toISOString(), types: null, categories: null };
-    const period = await buildPeriodSummary(db as never, orgId, range);
+    const period = await periodEngine(db as never, orgId, parseRange(FROM, TO));
     const periodHtml = await buildPeriodPdfHtml({ organization, period });
 
     const data = await loadActivityReportData(db as never, orgId, actId);

@@ -137,11 +137,9 @@ run('reportes · alcance y fechas (integración)', () => {
     expect(j.byHour.reduce((n: number, h: { count: number }) => n + h.count, 0)).toBe(20);
   });
 
-  it('preview de período excluye salas y canceladas', async () => {
-    const j = (await get('/api/v2/reports/period/preview?from=2026-07-01&to=2026-07-31')).json();
-    expect(j.summary.activitiesCount).toBe(1);
-    expect(j.summary.attendancesCount).toBe(20);
-    expect(j.summary.avgOccupancy).toBe(20);
+  it('period-summary: actividades[] y top sin salas ni canceladas', async () => {
+    const j = (await get('/api/v2/reports/period-summary?from=2026-07-01&to=2026-07-31')).json();
+    expect(j.activities.map((a: { name: string }) => a.name)).toEqual(['Funcion Real']);
     expect(j.topActivities.map((a: { name: string }) => a.name)).toEqual(['Funcion Real']);
   });
 
@@ -196,7 +194,7 @@ run('reportes · alcance y fechas (integración)', () => {
   });
 
   it('period.pdf/xlsx/preview: 400 con rango enorme, fecha imposible y from>to', async () => {
-    for (const path of ['period.pdf', 'period.xlsx', 'period/preview']) {
+    for (const path of ['period.pdf', 'period.xlsx']) {
       const a = await get(`/api/v2/reports/${path}?from=2000-01-01&to=2099-12-31`);
       expect(a.statusCode).toBe(400);
       expect(a.json().error).toMatch(/366/);
@@ -208,8 +206,6 @@ run('reportes · alcance y fechas (integración)', () => {
   });
 
   it('comparación de mes parcial contra el mismo tramo del mes anterior (P4)', async () => {
-    const j = (await get('/api/v2/reports/period/preview?from=2026-07-01&to=2026-07-19')).json();
-    expect(j.comparison.previousRange).toEqual({ from: '2026-06-01', to: '2026-06-19' });
     const s = (await get('/api/v2/reports/period-summary?from=2026-07-01&to=2026-07-19')).json();
     expect(s.prevRange).toEqual({ from: '2026-06-01', to: '2026-06-19' });
   });

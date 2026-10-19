@@ -1286,11 +1286,14 @@ export type ReportAttendanceByActivityResponse = z.infer<typeof ReportAttendance
 // ── Dashboard ejecutivo de Reportes (period-summary) ───────────────────────
 // Todo desde datos reales: KPIs + delta vs período anterior, serie diaria,
 // distribución por tipo, top, nuevos vs recurrentes, por hora y por día.
+// Cifra principal = PERSONAS (check-in + acompañantes); `attendances` son los
+// registros (check-ins) y quedan como dato secundario (decisión P2).
 const PeriodKpisSchema = z.object({
   activities: z.number().int(),
-  attendances: z.number().int(),
+  attendances: z.number().int(), // registros
+  people: z.number().int(), // personas
   uniqueVisitors: z.number().int(),
-  occupancyPct: z.number().int(),
+  occupancyPct: z.number().int(), // personas / aforo
 });
 export const PeriodSummaryResponseSchema = z.object({
   range: z.object({ from: z.string(), to: z.string() }),
@@ -1300,15 +1303,28 @@ export const PeriodSummaryResponseSchema = z.object({
   deltas: z.object({
     activities: z.number().int().nullable(),
     attendances: z.number().int().nullable(),
+    people: z.number().int().nullable(),
     uniqueVisitors: z.number().int().nullable(),
+    // En PUNTOS porcentuales (actual - anterior), no en %. Los demás son %.
     occupancyPct: z.number().int().nullable(),
   }),
-  byType: z.array(z.object({ type: z.string(), label: z.string(), attendances: z.number().int(), pct: z.number().int() })),
-  topActivities: z.array(z.object({ id: z.string(), name: z.string(), type: z.string(), attendances: z.number().int(), occupancyPct: z.number().int(), imageUrl: z.string().nullable() })),
+  byType: z.array(z.object({ type: z.string(), label: z.string(), attendances: z.number().int(), people: z.number().int(), pct: z.number().int() })),
+  topActivities: z.array(z.object({ id: z.string(), name: z.string(), type: z.string(), attendances: z.number().int(), people: z.number().int(), occupancyPct: z.number().int(), imageUrl: z.string().nullable() })),
+  // Todas las actividades del período (fecha ascendente), con registros, personas, aforo y ocupación.
+  activities: z.array(z.object({
+    id: z.string(), name: z.string(), type: z.string(), typeLabel: z.string(), date: z.string(),
+    location: z.string(), status: z.string(), capacity: z.number().int(),
+    attendances: z.number().int(), people: z.number().int(), occupancyPct: z.number().int(),
+  })),
+  byMonth: z.array(z.object({ key: z.string(), label: z.string(), activities: z.number().int(), attendances: z.number().int(), people: z.number().int() })),
   newVsReturning: z.object({ nuevos: z.number().int(), recurrentes: z.number().int() }),
-  daily: z.array(z.object({ label: z.string(), current: z.number().int(), previous: z.number().int(), visitors: z.number().int(), activities: z.number().int() })),
-  byHour: z.array(z.object({ hour: z.number().int(), count: z.number().int() })),
-  byWeekday: z.array(z.object({ weekday: z.number().int(), count: z.number().int() })),
+  daily: z.array(z.object({
+    label: z.string(), current: z.number().int(), previous: z.number().int(),
+    people: z.number().int(), previousPeople: z.number().int(),
+    visitors: z.number().int(), activities: z.number().int(),
+  })),
+  byHour: z.array(z.object({ hour: z.number().int(), count: z.number().int(), people: z.number().int() })),
+  byWeekday: z.array(z.object({ weekday: z.number().int(), count: z.number().int(), people: z.number().int() })),
 });
 export type PeriodSummaryResponse = z.infer<typeof PeriodSummaryResponseSchema>;
 
@@ -1867,7 +1883,8 @@ export type ReportsAgentRequest = z.infer<typeof ReportsAgentRequestSchema>;
 
 export const AgentPeriodKpisSchema = z.object({
   activities: z.number().int(),
-  attendances: z.number().int(),
+  attendances: z.number().int(), // registros
+  people: z.number().int(),
   uniqueVisitors: z.number().int(),
   occupancyPct: z.number().int(),
 });
@@ -1878,6 +1895,8 @@ const AgentPeriodSchema = z.object({
   from: z.string(),            // YYYY-MM-DD
   to: z.string(),
   kpis: AgentPeriodKpisSchema,
+  // Mismo tramo del período anterior (P4), calculado por el mismo motor.
+  previous: z.object({ from: z.string(), to: z.string(), kpis: AgentPeriodKpisSchema }).optional(),
 });
 
 // Link de descarga SEMÁNTICO: la web lo traduce a su ruta BFF.
@@ -1928,8 +1947,9 @@ export const ReportsAgentResponseSchema = z.object({
     deltas: z.object({
       activities: z.number().nullable(),
       attendances: z.number().nullable(),
+      people: z.number().nullable(),
       uniqueVisitors: z.number().nullable(),
-      occupancyPct: z.number().nullable(),
+      occupancyPct: z.number().nullable(), // en PUNTOS porcentuales; el resto en %
     }),
   }).optional(),
   activities: z.array(AgentActivityStatsSchema).max(2).optional(), // activity_stats / activity_compare

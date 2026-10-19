@@ -13,7 +13,8 @@
 
 import { esc, pdfCover, pdfShellCss, pdfTheme } from './pdf-shell.js';
 import { loadLogoDataUri } from '../credential.js';
-import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz, ymdInTz } from './fmt.js';
+import { fmtDateTz, fmtTimeTz, fmtYmd } from './fmt.js';
+import { fmtDeltaPct, fmtDeltaPoints } from './metrics.js';
 
 
 
@@ -28,8 +29,9 @@ function fmtDateTime(iso) {
   return isNaN(d.getTime()) ? '—'
     : fmtDateTz(d) + ' · ' + fmtTimeTz(d);
 }
+// from/to son días 'YYYY-MM-DD' del tenant (rango inclusivo del PeriodEngine).
 function rangeLabel(from, to) {
-  return `${fmtDate(from)} → ${fmtDate(new Date(new Date(to).getTime() - 86400000))}`;
+  return `${fmtYmd(from)} → ${fmtYmd(to)}`;
 }
 
 
@@ -42,43 +44,48 @@ export async function buildPeriodPdfHtml({ organization, period }) {
   const accent = theme.accent;
   const logo = await loadLogoDataUri(organization.credentialLogoUrl || organization.logoUrl);
 
-  const maxAtt = Math.max(1, ...period.byMonth.map(m => m.attendances));
-  const maxType = Math.max(1, ...period.byType.map(t => t.attendances));
+  // `period` = resultado de periodEngine (period-engine.ts): una sola fuente de cifras.
+  const cur = period.current, k = cur.kpis, pk = period.previous.kpis;
+  const maxAtt = Math.max(1, ...cur.byMonth.map(m => m.people));
+  const maxType = Math.max(1, ...cur.byType.map(t => t.people));
+  const topActivities = [...cur.activities].sort((x, y) => y.people - x.people || y.attendances - x.attendances).slice(0, 5);
 
-  const topActivitiesRows = period.topActivities.map((t, i) => `
+  const topActivitiesRows = topActivities.map((t, i) => `
     <tr>
       <td class="idx">${i + 1}</td>
       <td><strong>${esc(t.name)}</strong><div class="muted">${esc(t.typeLabel)} · ${esc(fmtDate(t.date))}</div></td>
+      <td class="num">${t.people}</td>
       <td class="num">${t.attendances}</td>
       <td class="num">${t.occupancyPct}%</td>
     </tr>`).join('');
 
-  const byTypeRows = period.byType.map(t => `
+  const byTypeRows = cur.byType.map(t => `
     <div class="bar-row">
       <span class="bar-label">${esc(t.label)}</span>
-      <span class="bar-track"><span class="bar-fill" style="width:${Math.round((t.attendances / maxType) * 100)}%; background:${structural}"></span></span>
-      <span class="bar-value">${t.attendances}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${Math.round((t.people / maxType) * 100)}%; background:${structural}"></span></span>
+      <span class="bar-value">${t.people}</span>
     </div>`).join('');
 
-  const byMonthRows = period.byMonth.map(m => `
+  const byMonthRows = cur.byMonth.map(m => `
     <div class="bar-row">
       <span class="bar-label">${esc(m.label)}</span>
-      <span class="bar-track"><span class="bar-fill" style="width:${Math.round((m.attendances / maxAtt) * 100)}%; background:${accent}"></span></span>
-      <span class="bar-value">${m.attendances}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${Math.round((m.people / maxAtt) * 100)}%; background:${accent}"></span></span>
+      <span class="bar-value">${m.people}</span>
     </div>`).join('');
 
-  const activityRows = period.activities.map((a, i) => `
+  const activityRows = cur.activities.map((a, i) => `
     <tr>
       <td class="idx">${i + 1}</td>
       <td>${esc(a.name)}</td>
       <td>${esc(a.typeLabel)}</td>
       <td class="num">${esc(fmtDate(a.date))}</td>
+      <td class="num">${a.people}</td>
       <td class="num">${a.attendances}</td>
       <td class="num">${a.occupancyPct}%</td>
       <td><span class="tag tag--${STATUS_CLS[a.status] || 'muted'}">${esc(STATUS_LABELS[a.status] || a.status)}</span></td>
     </tr>`).join('');
 
-  const topUserRows = period.topUsers.map((u, i) => `
+  const topUserRows = cur.topUsers.map((u, i) => `
     <tr>
       <td class="idx">${i + 1}</td>
       <td><strong>${esc(u.firstName)} ${esc(u.lastName)}</strong><div class="muted">${esc(u.code)}</div></td>
@@ -130,19 +137,33 @@ ${pdfShellCss(theme)}
 ${pdfCover({ logo, orgName: organization.name, title: 'Informe de Período', range: rangeLabel(period.range.from, period.range.to), subtitle: `Generado el ${fmtDateTime(new Date())}` })}
 
 <section class="kpis">
-  <div class="kpi"><div class="kpi-label">Actividades</div><div class="kpi-value">${period.summary.activitiesCount}</div><div class="kpi-sub">en el período</div></div>
-  <div class="kpi accent"><div class="kpi-label">Asistencias</div><div class="kpi-value">${period.summary.attendancesCount}</div><div class="kpi-sub">total registradas</div></div>
-  <div class="kpi"><div class="kpi-label">Visitantes únicos</div><div class="kpi-value">${period.summary.uniqueAttendees}</div><div class="kpi-sub">personas distintas</div></div>
-  <div class="kpi"><div class="kpi-label">% Ocupación prom.</div><div class="kpi-value">${period.summary.avgOccupancy}%</div><div class="kpi-sub">de las plazas</div></div>
-  <div class="kpi"><div class="kpi-label">Tipos cubiertos</div><div class="kpi-value">${period.summary.typesCount}</div><div class="kpi-sub">categorías</div></div>
-  <div class="kpi"><div class="kpi-label">Meses con actividad</div><div class="kpi-value">${period.summary.monthsSpan}</div><div class="kpi-sub">en el rango</div></div>
+  <div class="kpi"><div class="kpi-label">Actividades</div><div class="kpi-value" data-kpi="activities">${k.activities}</div><div class="kpi-sub">en el período</div></div>
+  <div class="kpi accent"><div class="kpi-label">Personas</div><div class="kpi-value" data-kpi="people">${k.people}</div><div class="kpi-sub">con acompañantes</div></div>
+  <div class="kpi"><div class="kpi-label">Registros</div><div class="kpi-value" data-kpi="attendances">${k.attendances}</div><div class="kpi-sub">check-ins</div></div>
+  <div class="kpi"><div class="kpi-label">Visitantes únicos</div><div class="kpi-value" data-kpi="uniqueVisitors">${k.uniqueVisitors}</div><div class="kpi-sub">personas distintas</div></div>
+  <div class="kpi"><div class="kpi-label">Ocupación</div><div class="kpi-value" data-kpi="occupancyPct">${k.occupancyPct}%</div><div class="kpi-sub">personas / aforo</div></div>
+  <div class="kpi"><div class="kpi-label">Tipos cubiertos</div><div class="kpi-value" data-kpi="types">${cur.byType.length}</div><div class="kpi-sub">categorías</div></div>
 </section>
 
-${period.topActivities.length ? `
+<section class="section">
+  <h2>Comparación con el período anterior (${esc(period.previousRange.from)} → ${esc(period.previousRange.to)})</h2>
+  <table class="report">
+    <thead><tr><th>Indicador</th><th>Anterior</th><th>Variación</th></tr></thead>
+    <tbody>
+      <tr><td>Actividades</td><td class="num" data-prev="activities">${pk.activities}</td><td class="num" data-delta="activities">${fmtDeltaPct(period.deltas.activities)}</td></tr>
+      <tr><td>Personas</td><td class="num" data-prev="people">${pk.people}</td><td class="num" data-delta="people">${fmtDeltaPct(period.deltas.people)}</td></tr>
+      <tr><td>Registros</td><td class="num" data-prev="attendances">${pk.attendances}</td><td class="num" data-delta="attendances">${fmtDeltaPct(period.deltas.attendances)}</td></tr>
+      <tr><td>Visitantes únicos</td><td class="num" data-prev="uniqueVisitors">${pk.uniqueVisitors}</td><td class="num" data-delta="uniqueVisitors">${fmtDeltaPct(period.deltas.uniqueVisitors)}</td></tr>
+      <tr><td>Ocupación (variación en puntos)</td><td class="num" data-prev="occupancyPct">${pk.occupancyPct}%</td><td class="num" data-delta="occupancyPct">${fmtDeltaPoints(period.deltas.occupancyPct)}</td></tr>
+    </tbody>
+  </table>
+</section>
+
+${topActivities.length ? `
 <section class="section">
   <h2>Top actividades</h2>
   <table class="report">
-    <thead><tr><th>#</th><th>Actividad</th><th>Asistencias</th><th>% Ocup.</th></tr></thead>
+    <thead><tr><th>#</th><th>Actividad</th><th>Personas</th><th>Registros</th><th>% Ocup.</th></tr></thead>
     <tbody>${topActivitiesRows}</tbody>
   </table>
 </section>` : ''}
@@ -151,30 +172,30 @@ ${period.topActivities.length ? `
   <h2>Análisis</h2>
   <div class="grid-2">
     <div class="card">
-      <h3>Distribución por tipo</h3>
+      <h3>Personas por tipo</h3>
       ${byTypeRows || '<div class="empty">Sin datos</div>'}
     </div>
     <div class="card">
-      <h3>Evolución mes a mes</h3>
+      <h3>Personas mes a mes</h3>
       ${byMonthRows || '<div class="empty">Sin datos</div>'}
     </div>
   </div>
 </section>
 
-<section class="section ${period.activities.length > 10 ? 'page-break' : ''}">
-  <h2>Actividades del período (${period.activities.length})</h2>
-  ${period.activities.length === 0 ? `<div class="empty">No hay actividades en este rango.</div>` : `
+<section class="section ${cur.activities.length > 10 ? 'page-break' : ''}">
+  <h2>Actividades del período (${cur.activities.length})</h2>
+  ${cur.activities.length === 0 ? `<div class="empty">No hay actividades en este rango.</div>` : `
   <table class="report">
     <thead>
-      <tr><th>#</th><th>Actividad</th><th>Tipo</th><th>Fecha</th><th>Asist.</th><th>% Ocup.</th><th>Estado</th></tr>
+      <tr><th>#</th><th>Actividad</th><th>Tipo</th><th>Fecha</th><th>Personas</th><th>Reg.</th><th>% Ocup.</th><th>Estado</th></tr>
     </thead>
     <tbody>${activityRows}</tbody>
   </table>`}
 </section>
 
-${period.topUsers.length ? `
+${cur.topUsers.length ? `
 <section class="section page-break">
-  <h2>Top visitantes (${period.topUsers.length})</h2>
+  <h2>Top visitantes (${cur.topUsers.length})</h2>
   <table class="report">
     <thead><tr><th>#</th><th>Persona</th><th>Visitas en período</th><th>Visitas totales</th></tr></thead>
     <tbody>${topUserRows}</tbody>
@@ -201,8 +222,7 @@ export function periodPdfHeaderFooter({ organization, period }) {
   };
 }
 
+// from/to: días 'YYYY-MM-DD' del tenant (rango inclusivo).
 export function periodPdfFilename(from, to) {
-  const f = ymdInTz(from);
-  const t = ymdInTz(new Date(new Date(to).getTime() - 86400000));
-  return f === t ? `Informe_periodo_${f}.pdf` : `Informe_periodo_${f}_a_${t}.pdf`;
+  return from === to ? `Informe_periodo_${from}.pdf` : `Informe_periodo_${from}_a_${to}.pdf`;
 }

@@ -13,7 +13,7 @@ import { sql, type DbClient } from '@contan2/db';
 import type { ReportsAgentResponse, ReportsAgentLink, AgentActivityStats, AgentPeriodKpis, AgentCategoryStats } from '@contan2/contracts';
 import { parseRange, attendanceByActivity } from '../report-data.js';
 import { normCategory, consolidateCategories } from '../category-norm.js';
-import { periodSummary } from './period-summary.js';
+import { periodEngine, deltaPct as engineDeltaPct } from './period-engine.js';
 import { previousPeriodYmd } from './range.js';
 import { ymdInTz } from './fmt.js';
 
@@ -153,11 +153,14 @@ export function parseAgentQuery(query: string, today: Date): AgentIntent {
 }
 
 // ── Ejecutores ──────────────────────────────────────────────────────────────
-const deltaPct = (a: number, b: number): number | null => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
+const deltaPct = engineDeltaPct; // una sola definición de variación %
 
-async function periodKpis(db: DbClient, orgId: string, p: PeriodSpec): Promise<AgentPeriodKpis> {
-  const s = await periodSummary(db, orgId, parseRange(p.from, p.to));
-  return s.kpis;
+// Cifras del período desde el PeriodEngine (mismo motor que dashboard, Excel y PDF).
+interface AgentPeriodData { kpis: AgentPeriodKpis; previous: { from: string; to: string; kpis: AgentPeriodKpis } }
+async function periodKpis(db: DbClient, orgId: string, p: PeriodSpec): Promise<AgentPeriodData> {
+  const e = await periodEngine(db, orgId, parseRange(p.from, p.to));
+  const k = (x: typeof e.current.kpis): AgentPeriodKpis => ({ activities: x.activities, attendances: x.attendances, people: x.people, uniqueVisitors: x.uniqueVisitors, occupancyPct: x.occupancyPct });
+  return { kpis: k(e.current.kpis), previous: { ...e.previousRange, kpis: k(e.previous.kpis) } };
 }
 
 // Links de descarga del período (+ registro mensual si es un mes calendario).
@@ -305,30 +308,33 @@ export async function runAgentQuery(db: DbClient, orgId: string, query: string, 
   if (intent.kind === 'help') return HELP;
 
   if (intent.kind === 'period_report') {
-    const kpis = await periodKpis(db, orgId, intent.period);
+    const { kpis, previous } = await periodKpis(db, orgId, intent.period);
     return {
       kind: 'period_report',
-      message: `Listo — ${intent.period.label} (${intent.period.from} a ${intent.period.to}): ${fmtNum(kpis.activities)} actividades, ${fmtNum(kpis.attendances)} asistencias, ${fmtNum(kpis.uniqueVisitors)} visitantes únicos y ${kpis.occupancyPct}% de ocupación. Descarga el informe:`,
-      period: { ...intent.period, kpis },
+      message: `Listo — ${intent.period.label} (${intent.period.from} a ${intent.period.to}): ${fmtNum(kpis.activities)} actividades, ${fmtNum(kpis.people)} personas (${fmtNum(kpis.attendances)} registros), ${fmtNum(kpis.uniqueVisitors)} visitantes únicos y ${kpis.occupancyPct}% de ocupación. Período anterior (${previous.from} a ${previous.to}): ${fmtNum(previous.kpis.people)} personas (${fmtNum(previous.kpis.attendances)} registros), ${fmtNum(previous.kpis.uniqueVisitors)} visitantes únicos y ${previous.kpis.occupancyPct}% de ocupación. Descarga el informe:`,
+      period: { ...intent.period, kpis, previous },
       links: periodLinks(intent.period, intent.format),
     };
   }
 
   if (intent.kind === 'period_compare') {
-    const [ka, kb] = [await periodKpis(db, orgId, intent.a), await periodKpis(db, orgId, intent.b)];
-    const d = deltaPct(ka.attendances, kb.attendances);
-    const tono = d === null ? '' : d > 0 ? ` — las asistencias subieron ${d}%.` : d < 0 ? ` — las asistencias bajaron ${Math.abs(d)}%.` : ' — asistencias parejas.';
+    const [da, dbb] = [await periodKpis(db, orgId, intent.a), await periodKpis(db, orgId, intent.b)];
+    const [ka, kb] = [da.kpis, dbb.kpis];
+    const d = deltaPct(ka.people, kb.people);
+    const tono = d === null ? '' : d > 0 ? ` — las personas subieron ${d}%.` : d < 0 ? ` — las personas bajaron ${Math.abs(d)}%.` : ' — personas parejas.';
     return {
       kind: 'period_compare',
       message: `Comparación de ${intent.a.label} contra ${intent.b.label}${tono}`,
       compare: {
-        a: { ...intent.a, kpis: ka },
-        b: { ...intent.b, kpis: kb },
+        a: { ...intent.a, kpis: ka, previous: da.previous },
+        b: { ...intent.b, kpis: kb, previous: dbb.previous },
         deltas: {
           activities: deltaPct(ka.activities, kb.activities),
           attendances: deltaPct(ka.attendances, kb.attendances),
+          people: deltaPct(ka.people, kb.people),
           uniqueVisitors: deltaPct(ka.uniqueVisitors, kb.uniqueVisitors),
-          occupancyPct: deltaPct(ka.occupancyPct, kb.occupancyPct),
+          // Ocupación en PUNTOS porcentuales (A - B); el resto, en %.
+          occupancyPct: ka.occupancyPct - kb.occupancyPct,
         },
       },
       links: [

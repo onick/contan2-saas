@@ -1,53 +1,51 @@
-// apps/api-v2/src/services/reports/period-summary.ts · agregados del dashboard
-// ejecutivo de Reportes, todo desde datos REALES (activities + attendance):
-// KPIs + delta vs período anterior, serie diaria (este vs anterior), distribución
-// por tipo, top actividades, nuevos vs recurrentes, asistencias por hora y por
-// día de la semana. El período se define por activities.date ∈ [from, to].
-// Filtro opcional por tipos de actividad.
+// apps/api-v2/src/services/reports/period-summary.ts · forma JSON del dashboard
+// ejecutivo de Reportes (GET /reports/period-summary). NO calcula nada: proyecta
+// el resultado del PeriodEngine (period-engine.ts) al contrato
+// PeriodSummaryResponse, para que dashboard, Excel, PDF y Asistente compartan
+// exactamente las mismas cifras.
 
-import { sql, type DbClient } from '@contan2/db';
-import { type ReportRange } from '../report-data.js';
-import { normCategory, normCategorySql } from '../category-norm.js';
-import { REPORT_TZ, ymdAddDays, zonedMidnight } from './fmt.js';
-import { occupancyPct } from './metrics.js';
-import { reportableActivity, REPORTABLE_ACTIVITY_RAW } from './scope.js';
-import { previousPeriodYmd } from './range.js';
+import type { PeriodSummaryResponse } from '@contan2/contracts';
+import type { DbClient } from '@contan2/db';
+import type { ReportRange } from '../report-data.js';
+import { periodEngine, type PeriodEngineResult, type PeriodFilters } from './period-engine.js';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const pct = occupancyPct; // misma fórmula que Excel/PDF/CSV (ver metrics.ts)
-const deltaPct = (cur: number, prev: number): number | null => (prev <= 0 ? null : Math.round(((cur - prev) / prev) * 100));
+const TOP_ACTIVITIES = 8;
 
-// Período con el que se compara (ver previousPeriodYmd: tramo del mes anterior o N días previos).
-export function previousRange(r: ReportRange): ReportRange {
-  // Aritmética de calendario sobre los días locales (from/to son YYYY-MM-DD del tenant).
-  // P4: un mes (completo o hasta hoy) se compara con el mismo tramo del mes anterior.
-  const { from, to } = previousPeriodYmd(r.from, r.to);
-  return { from, to, fromDate: zonedMidnight(from), toExclusive: zonedMidnight(ymdAddDays(to, 1)) };
+export function toPeriodSummary(e: PeriodEngineResult): PeriodSummaryResponse {
+  const { current: c, previous: p } = e;
+  const k = (x: typeof c.kpis) => ({ activities: x.activities, attendances: x.attendances, people: x.people, uniqueVisitors: x.uniqueVisitors, occupancyPct: x.occupancyPct });
+  return {
+    range: e.range,
+    prevRange: e.previousRange,
+    kpis: k(c.kpis),
+    prev: k(p.kpis),
+    deltas: e.deltas,
+    byType: c.byType.map((t) => ({ type: t.type, label: t.label, attendances: t.attendances, people: t.people, pct: t.pct })),
+    // Top por PERSONAS (cifra principal); desempata por registros.
+    topActivities: [...c.activities]
+      .sort((a, b) => b.people - a.people || b.attendances - a.attendances)
+      .slice(0, TOP_ACTIVITIES)
+      .map((a) => ({ id: a.id, name: a.name, type: a.type, attendances: a.attendances, people: a.people, occupancyPct: a.occupancyPct, imageUrl: a.imageUrl })),
+    activities: c.activities.map((a) => ({
+      id: a.id, name: a.name, type: a.type, typeLabel: a.typeLabel, date: a.date, location: a.location, status: a.status,
+      capacity: a.capacity, attendances: a.attendances, people: a.people, occupancyPct: a.occupancyPct,
+    })),
+    byMonth: c.byMonth,
+    newVsReturning: c.newVsReturning,
+    // Serie alineada por índice (día 0..N-1 de cada período).
+    daily: c.daily.map((d, i) => ({
+      label: d.label,
+      current: d.attendances,
+      previous: p.daily[i]?.attendances ?? 0,
+      people: d.people,
+      previousPeople: p.daily[i]?.people ?? 0,
+      visitors: d.visitors,
+      activities: d.activities,
+    })),
+    byHour: c.byHour.map((h) => ({ hour: h.hour, count: h.attendances, people: h.people })),
+    byWeekday: c.byWeekday.map((w) => ({ weekday: w.weekday, count: w.attendances, people: w.people })),
+  };
 }
-
-export interface PeriodSummary {
-  range: { from: string; to: string };
-  prevRange: { from: string; to: string };
-  kpis: { activities: number; attendances: number; uniqueVisitors: number; occupancyPct: number };
-  prev: { activities: number; attendances: number; uniqueVisitors: number; occupancyPct: number };
-  deltas: { activities: number | null; attendances: number | null; uniqueVisitors: number | null; occupancyPct: number | null };
-  byType: Array<{ type: string; label: string; attendances: number; pct: number }>;
-  topActivities: Array<{ id: string; name: string; type: string; attendances: number; occupancyPct: number; imageUrl: string | null }>;
-  newVsReturning: { nuevos: number; recurrentes: number };
-  daily: Array<{ label: string; current: number; previous: number; visitors: number; activities: number }>;
-  byHour: Array<{ hour: number; count: number }>;
-  byWeekday: Array<{ weekday: number; count: number }>;
-}
-
-const TYPE_LABELS: Record<string, string> = {
-  exposicion: 'Exposición', concierto: 'Concierto', cine: 'Cine', taller: 'Taller',
-  teatro: 'Teatro', conferencia: 'Conferencia',
-  tertulia: 'Tertulia', visita_guiada: 'Visita guiada', cuentacuentos: 'Cuenta cuentos',
-  otro: 'Otro',
-};
-
-// Filtra activities por tipo si se pidió (acotado al enum por el contrato).
-const hasTypes = (types?: string[]): types is string[] => Array.isArray(types) && types.length > 0;
 
 export async function periodSummary(
   db: DbClient,
@@ -55,186 +53,7 @@ export async function periodSummary(
   range: ReportRange,
   types?: string[],
   categories?: string[],
-): Promise<PeriodSummary> {
-  const prevR = previousRange(range);
-  // Filtro por ciclo/categoría NORMALIZADO (minúsculas, sin acentos, espacios
-  // colapsados): "cine clasico" matchea "Cine Clásico" y sus variantes.
-  const cats = Array.isArray(categories) && categories.length > 0
-    ? categories.map((c) => normCategory(c)).filter(Boolean)
-    : null;
-  const hasCats = cats !== null && cats.length > 0;
-  const catCond = () => sql<boolean>`${normCategorySql(sql`a.category`)} in (${sql.join(cats!)})`;
-
-  // Totales (activities/asistencias/aforo) por rango — un GROUP BY por actividad.
-  async function totals(r: ReportRange) {
-    const rows = await db
-      .selectFrom('activities as a')
-      // Asistencia = check-in real: las reservas (checked_in_at NULL) no cuentan; el filtro va en el ON para no perder actividades.
-      .leftJoin('attendance as att', (j) => j.onRef('att.activity_id', '=', 'a.id').onRef('att.organization_id', '=', 'a.organization_id').on('att.checked_in_at', 'is not', null))
-      .where('a.organization_id', '=', orgId)
-      .where(reportableActivity('a'))
-      .where('a.date', '>=', r.fromDate)
-      .where('a.date', '<', r.toExclusive)
-      .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
-      .$if(hasCats, (qb) => qb.where(catCond()))
-      .groupBy(['a.id', 'a.type', 'a.name', 'a.capacity', 'a.image_url'])
-      .select(['a.id as id', 'a.type as type', 'a.name as name', 'a.capacity as capacity', 'a.image_url as imageUrl'])
-      .select((eb) => eb.fn.count('att.id').as('attendances'))
-      .select(sql<string>`coalesce(sum(1 + att.companions_children + att.companions_adults), 0)`.as('people'))
-      .execute();
-    let attendances = 0, people = 0, capacity = 0;
-    for (const x of rows) { attendances += Number(x.attendances); people += Number(x.people); capacity += Number(x.capacity); }
-    return { rows, activities: rows.length, attendances, people, capacity, occupancyPct: pct(people, capacity) };
-  }
-
-  // Visitantes únicos (identificados) por rango.
-  async function uniqueVisitors(r: ReportRange) {
-    const row = await db
-      .selectFrom('attendance as att')
-      .innerJoin('activities as a', 'a.id', 'att.activity_id')
-      .where('att.organization_id', '=', orgId)
-      .where(reportableActivity('a'))
-      .where('att.user_id', 'is not', null)
-      .where('att.checked_in_at', 'is not', null)
-      .where('a.date', '>=', r.fromDate)
-      .where('a.date', '<', r.toExclusive)
-      .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
-      .$if(hasCats, (qb) => qb.where(catCond()))
-      .select(sql<string>`count(distinct att.user_id)`.as('n'))
-      .executeTakeFirstOrThrow();
-    return Number(row.n);
-  }
-
-  // Por DÍA local del tenant (date_trunc sobre AT TIME ZONE): asistencias + visitantes únicos + actividades.
-  async function daily(r: ReportRange) {
-    const rows = await db
-      .selectFrom('attendance as att')
-      .innerJoin('activities as a', 'a.id', 'att.activity_id')
-      .where('att.organization_id', '=', orgId)
-      .where(reportableActivity('a'))
-      .where('att.checked_in_at', 'is not', null)
-      .where('a.date', '>=', r.fromDate)
-      .where('a.date', '<', r.toExclusive)
-      .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
-      .$if(hasCats, (qb) => qb.where(catCond()))
-      .select([
-        sql<string>`to_char(date_trunc('day', a.date AT TIME ZONE ${sql.lit(REPORT_TZ)}), 'YYYY-MM-DD')`.as('d'),
-        sql<string>`count(att.id)`.as('att'),
-        sql<string>`count(distinct att.user_id)`.as('visitors'),
-        sql<string>`count(distinct a.id)`.as('activities'),
-      ])
-      .groupBy(sql`date_trunc('day', a.date AT TIME ZONE ${sql.lit(REPORT_TZ)})`)
-      .execute();
-    const m = new Map<string, { att: number; visitors: number; activities: number }>();
-    for (const x of rows) m.set(x.d, { att: Number(x.att), visitors: Number(x.visitors), activities: Number(x.activities) });
-    return m;
-  }
-
-  // Asistencias por HORA del check-in y por DÍA DE SEMANA (sobre checked_in_at).
-  async function byHourWeekday(r: ReportRange) {
-    const rows = await db
-      .selectFrom('attendance as att')
-      .innerJoin('activities as a', 'a.id', 'att.activity_id')
-      .where('att.organization_id', '=', orgId)
-      .where(reportableActivity('a'))
-      .where('att.checked_in_at', 'is not', null)
-      .where('a.date', '>=', r.fromDate)
-      .where('a.date', '<', r.toExclusive)
-      .$if(hasTypes(types), (qb) => qb.where('a.type', 'in', types!))
-      .$if(hasCats, (qb) => qb.where(catCond()))
-      .select([
-        sql<number>`extract(hour from att.checked_in_at AT TIME ZONE ${sql.lit(REPORT_TZ)})`.as('hour'),
-        sql<number>`extract(dow from att.checked_in_at AT TIME ZONE ${sql.lit(REPORT_TZ)})`.as('dow'),
-        sql<string>`count(att.id)`.as('n'),
-      ])
-      .groupBy([sql`extract(hour from att.checked_in_at AT TIME ZONE ${sql.lit(REPORT_TZ)})`, sql`extract(dow from att.checked_in_at AT TIME ZONE ${sql.lit(REPORT_TZ)})`])
-      .execute();
-    const hours = new Map<number, number>(), days = new Map<number, number>();
-    for (const x of rows) {
-      const h = Number(x.hour), d = Number(x.dow), n = Number(x.n);
-      hours.set(h, (hours.get(h) ?? 0) + n);
-      days.set(d, (days.get(d) ?? 0) + n);
-    }
-    return { hours, days };
-  }
-
-  // Nuevos vs recurrentes: de los usuarios con asistencia EN el período, cuántos
-  // tuvieron su PRIMERA asistencia (de toda la historia filtrada) dentro de él.
-  async function newVsReturning(r: ReportRange) {
-    const typeClause = hasTypes(types) ? sql`and a.type in (${sql.join(types.map((t) => sql`${t}`))})` : sql``;
-    const catClause = hasCats ? sql`and ${normCategorySql(sql`a.category`)} in (${sql.join(cats!)})` : sql``;
-    const res = await sql<{ nuevos: string; total: string }>`
-      select
-        count(*) filter (where u.first_date >= ${r.fromDate}) as nuevos,
-        count(*) as total
-      from (
-        select att.user_id,
-               min(a.date) as first_date,
-               bool_or(a.date >= ${r.fromDate} and a.date < ${r.toExclusive}) as in_period
-        from attendance att
-        join activities a on a.id = att.activity_id
-        where att.organization_id = ${orgId} and ${REPORTABLE_ACTIVITY_RAW} and att.user_id is not null and att.checked_in_at is not null ${typeClause} ${catClause}
-        group by att.user_id
-      ) u
-      where u.in_period
-    `.execute(db);
-    const row = res.rows[0];
-    const total = Number(row?.total ?? 0), nuevos = Number(row?.nuevos ?? 0);
-    return { nuevos, recurrentes: Math.max(0, total - nuevos) };
-  }
-
-  const [cur, prev, curUniq, prevUniq, curDaily, prevDaily, hw, nvr] = await Promise.all([
-    totals(range), totals(prevR), uniqueVisitors(range), uniqueVisitors(prevR),
-    daily(range), daily(prevR), byHourWeekday(range), newVsReturning(range),
-  ]);
-
-  // byType (del período actual).
-  const byTypeMap = new Map<string, number>();
-  for (const x of cur.rows) byTypeMap.set(x.type, (byTypeMap.get(x.type) ?? 0) + Number(x.attendances));
-  const byType = [...byTypeMap.entries()]
-    .map(([type, attendances]) => ({ type, label: TYPE_LABELS[type] ?? type, attendances, pct: pct(attendances, cur.attendances) }))
-    .sort((a, b) => b.attendances - a.attendances);
-
-  // topActivities (del período actual, por asistencias).
-  const topActivities = [...cur.rows]
-    .map((x) => ({ id: x.id, name: x.name, type: x.type, attendances: Number(x.attendances), occupancyPct: pct(Number(x.people), Number(x.capacity)), imageUrl: x.imageUrl }))
-    .sort((a, b) => b.attendances - a.attendances)
-    .slice(0, 8);
-
-  // Serie diaria alineada por índice (día 0..N-1 de cada período).
-  const days = Math.round((Date.parse(`${range.to}T00:00:00Z`) - Date.parse(`${range.from}T00:00:00Z`)) / DAY_MS) + 1;
-  const dayKey = (baseYmd: string, i: number) => ymdAddDays(baseYmd, i);
-  const fmtLabel = (d: string) => { const dt = new Date(`${d}T00:00:00Z`); return `${dt.getUTCDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][dt.getUTCMonth()]}`; };
-  const dailySeries = Array.from({ length: days }, (_, i) => {
-    const c = curDaily.get(dayKey(range.from, i));
-    return {
-      label: fmtLabel(dayKey(range.from, i)),
-      current: c?.att ?? 0,
-      previous: prevDaily.get(dayKey(prevR.from, i))?.att ?? 0,
-      visitors: c?.visitors ?? 0,
-      activities: c?.activities ?? 0,
-    };
-  });
-
-  const byHour = [...hw.hours.entries()].map(([hour, count]) => ({ hour, count })).sort((a, b) => a.hour - b.hour);
-  const byWeekday = Array.from({ length: 7 }, (_, d) => ({ weekday: d, count: hw.days.get(d) ?? 0 }));
-
-  return {
-    range: { from: range.from, to: range.to },
-    prevRange: { from: prevR.from, to: prevR.to },
-    kpis: { activities: cur.activities, attendances: cur.attendances, uniqueVisitors: curUniq, occupancyPct: cur.occupancyPct },
-    prev: { activities: prev.activities, attendances: prev.attendances, uniqueVisitors: prevUniq, occupancyPct: prev.occupancyPct },
-    deltas: {
-      activities: deltaPct(cur.activities, prev.activities),
-      attendances: deltaPct(cur.attendances, prev.attendances),
-      uniqueVisitors: deltaPct(curUniq, prevUniq),
-      occupancyPct: deltaPct(cur.occupancyPct, prev.occupancyPct),
-    },
-    byType,
-    topActivities,
-    newVsReturning: nvr,
-    daily: dailySeries,
-    byHour,
-    byWeekday,
-  };
+): Promise<PeriodSummaryResponse> {
+  const filters: PeriodFilters = { types, categories };
+  return toPeriodSummary(await periodEngine(db, orgId, range, filters));
 }

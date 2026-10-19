@@ -13,7 +13,7 @@ import type { ReportAttendanceByActivityResponse } from '@contan2/contracts';
 import { requireTenantStaff, requireRole } from '../guard.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { REPORT_READ_ROLES, REPORT_EXPORT_ROLES, PROTOCOL_REPORT_ROLES, REPORT_CONTACT_ROLES } from '../rbac-roles.js';
-import { attendanceByActivity, parseRange, ReportError } from '../services/report-data.js';
+import { attendanceByActivity, parseRange, ReportError, type ReportRange } from '../services/report-data.js';
 import { consolidateCategories } from '../services/category-norm.js';
 import { periodSummary } from '../services/reports/period-summary.js';
 import { ACTIVITY_TYPES, type PeriodSummaryResponse } from '@contan2/contracts';
@@ -23,7 +23,8 @@ import { buildAttendancePdfHtml, attendancePdfHeaderFooter } from '../services/r
 import { monthlyRegister, monthNameEs } from '../services/reports/monthly-register.js';
 import { buildMonthlyRegisterWorkbook } from '../services/reports/monthly-register-excel.js';
 import { writeReportAudit } from '../services/report-audit.js';
-import { buildPeriodSummary, previousRange, loadActivityReportData, type PeriodQuery } from '../services/reports/report-data.js';
+import { loadActivityReportData } from '../services/reports/report-data.js';
+import { periodEngine } from '../services/reports/period-engine.js';
 import { buildActivityExcelReport, reportFilename } from '../services/reports/activity-excel-report.js';
 import { buildActivityPdfHtml, pdfHeaderFooter, pdfFilename } from '../services/reports/activity-pdf-template.js';
 import { buildPeriodExcelReport, periodFilename } from '../services/reports/period-excel-report.js';
@@ -44,19 +45,21 @@ async function loadReportOrg(db: ReturnType<typeof getDb>, orgId: string): Promi
   return { name: o.name, slug: o.slug, primaryColor: o.primary_color, secondaryColor: o.secondary_color, logoUrl: o.logo_url, credentialLogoUrl: o.credential_logo_url };
 }
 
-// Query de período (paridad v1 parsePeriodQuery): from/to YYYY-MM-DD (to se
+// from/to ISO: from inclusivo, to EXCLUSIVO (ya sumado 1 día); lo usa el protocolo.
+interface PeriodQuery { from: string; to: string; types: string[] | null; categories: string[] | null }
+
+// Query de informe (paridad v1 parsePeriodQuery): from/to YYYY-MM-DD (to se
 // vuelve EXCLUSIVO sumando 1 día), types CSV del enum, categories texto libre.
 function parsePeriodQuery(query: Record<string, unknown>, opts: { maxDays?: number } = {}):
-  | { ok: true; q: PeriodQuery; ymd: { from: string; to: string } }
+  | { ok: true; q: PeriodQuery; range: ReportRange; types: string[] | null; categories: string[] | null }
   | { ok: false; error: string } {
   // Validación única (A07/A26): formato, fecha real de calendario, from <= to y tope de días
   // (parseRange). El protocolo con "todo el histórico" pasa un tope explícito mayor.
-  let from: string, to: string, ymd: { from: string; to: string };
+  let from: string, to: string, range: ReportRange;
   try {
-    const range = parseRange(String(query.from ?? '').trim(), String(query.to ?? '').trim(), opts);
+    range = parseRange(String(query.from ?? '').trim(), String(query.to ?? '').trim(), opts);
     from = zonedMidnight(range.from).toISOString();
     to = range.toExclusive.toISOString();
-    ymd = { from: range.from, to: range.to };
   } catch (e) {
     if (e instanceof ReportError) return { ok: false, error: e.message };
     throw e;
@@ -74,7 +77,7 @@ function parsePeriodQuery(query: Record<string, unknown>, opts: { maxDays?: numb
     categories = String(query.categories).split(',').map((c) => c.trim()).filter((c) => c.length > 0 && c.length <= 60);
     if (categories.length === 0) categories = null;
   }
-  return { ok: true, q: { from, to, types, categories }, ymd };
+  return { ok: true, q: { from, to, types, categories }, range, types, categories };
 }
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -324,58 +327,6 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
     });
   });
 
-  // GET /api/v2/reports/period/preview · JSON con summary + deltas vs período anterior.
-  app.get('/reports/period/preview', async (req, reply) => {
-    const db = getDb();
-    const guard = await requireTenantStaff(db, req);
-    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    return withTenant(db, guard.ctx.org.id, async (db) => {
-    if (!CAN_GENERATE_REPORTS.has(guard.ctx.staff.role)) { reply.code(403); return { error: 'No tienes permiso para generar reportes.' }; }
-    if ((await reportLimiter.hit(`${guard.ctx.org.id}:${guard.ctx.staff.id}`)).limited) { reply.code(429); return { error: 'Demasiados reportes seguidos. Espera un momento.' }; }
-
-    const parsed = parsePeriodQuery(req.query as Record<string, unknown>);
-    if (!parsed.ok) { reply.code(400); return { error: parsed.error }; }
-
-    const prev = previousRange(parsed.ymd.from, parsed.ymd.to);
-    const [period, prevPeriod] = await Promise.all([
-      buildPeriodSummary(db, guard.ctx.org.id, parsed.q),
-      prev
-        ? (() => {
-            const prevParsed = parsePeriodQuery({ from: prev.from, to: prev.to, types: parsed.q.types?.join(','), categories: parsed.q.categories?.join(',') });
-            return prevParsed.ok ? buildPeriodSummary(db, guard.ctx.org.id, prevParsed.q).catch(() => null) : Promise.resolve(null);
-          })()
-        : Promise.resolve(null),
-    ]);
-
-    const deltaPct = (curr: number, before: number | null | undefined): number | null => {
-      if (before == null || before === 0) return curr > 0 ? 100 : null;
-      return Math.round(((curr - before) / before) * 100);
-    };
-    const comparison = prevPeriod
-      ? {
-          previousRange: prev,
-          previous: prevPeriod.summary,
-          deltas: {
-            activitiesCount: deltaPct(period.summary.activitiesCount, prevPeriod.summary.activitiesCount),
-            attendancesCount: deltaPct(period.summary.attendancesCount, prevPeriod.summary.attendancesCount),
-            uniqueAttendees: deltaPct(period.summary.uniqueAttendees, prevPeriod.summary.uniqueAttendees),
-            avgOccupancy: deltaPct(period.summary.avgOccupancy, prevPeriod.summary.avgOccupancy),
-          },
-        }
-      : null;
-
-    return {
-      range: period.range,
-      summary: period.summary,
-      topActivities: period.topActivities,
-      byType: period.byType,
-      byMonth: period.byMonth,
-      byDay: period.byDay,
-      comparison,
-    };
-    });
-  });
-
   // GET /api/v2/reports/period.(xlsx|pdf) · informe de período branded.
   for (const ext of ['xlsx', 'pdf'] as const) {
     app.get(`/reports/period.${ext}`, async (req, reply) => {
@@ -390,7 +341,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       const parsed = parsePeriodQuery(req.query as Record<string, unknown>);
       if (!parsed.ok) { reply.code(400); return { error: parsed.error }; }
 
-      const period = await buildPeriodSummary(db, guard.ctx.org.id, parsed.q);
+      const period = await periodEngine(db, guard.ctx.org.id, parsed.range, { types: parsed.types ?? undefined, categories: parsed.categories ?? undefined });
       const organization = await loadReportOrg(db, guard.ctx.org.id);
       await writeReportAudit(db, {
         orgId: guard.ctx.org.id,
@@ -405,7 +356,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
         const wb = await buildPeriodExcelReport({ organization, period });
         const buf = Buffer.from(await wb.xlsx.writeBuffer());
         reply.header('content-type', XLSX_MIME);
-        reply.header('content-disposition', `attachment; filename="${periodFilename(parsed.q.from, parsed.q.to)}"`);
+        reply.header('content-disposition', `attachment; filename="${periodFilename(parsed.range.from, parsed.range.to)}"`);
         reply.header('cache-control', 'no-store');
         return reply.send(buf);
       }
@@ -413,7 +364,7 @@ export const reportsRoute: FastifyPluginAsync = async (app) => {
       const hf = periodPdfHeaderFooter({ organization, period });
       const pdfBuf = await renderHtmlToPdf(html, hf);
       reply.header('content-type', 'application/pdf');
-      reply.header('content-disposition', `attachment; filename="${periodPdfFilename(parsed.q.from, parsed.q.to)}"`);
+      reply.header('content-disposition', `attachment; filename="${periodPdfFilename(parsed.range.from, parsed.range.to)}"`);
       reply.header('cache-control', 'no-store');
       return reply.send(pdfBuf);
     });
