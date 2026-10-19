@@ -21,9 +21,11 @@ export interface DownloadLinkProps {
   /** Sin permiso/datos para generar todavía (p. ej. falta elegir un ciclo). */
   disabled?: boolean;
   primary?: boolean;
+  /** Texto visible cuando «kind» solo no distingue (p. ej. dos Excel en la misma fila: «Excel del mes» / «Excel del año»). */
+  label?: string;
 }
 
-export function DownloadLink({ id, kind, scope, href, dl, disabled = false, primary = false }: DownloadLinkProps) {
+export function DownloadLink({ id, kind, scope, href, dl, disabled = false, primary = false, label }: DownloadLinkProps) {
   const Icon = ICON[kind];
   const generating = dl.busy === id;
   const blocked = disabled || (dl.busy !== null && !generating);
@@ -35,7 +37,7 @@ export function DownloadLink({ id, kind, scope, href, dl, disabled = false, prim
   );
   const content = generating
     ? (<><Loader2 size={15} className="animate-spin" aria-hidden="true" /> Generando…</>)
-    : (<><Icon size={15} aria-hidden="true" /> {kind}</>);
+    : (<><Icon size={15} aria-hidden="true" /> {label ?? kind}</>);
   const name = generating ? `Generando ${kind} · ${scope}` : `${kind} · ${scope}`;
 
   if (disabled) {

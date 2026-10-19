@@ -6,7 +6,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { Portal as PopoverPortal } from '@radix-ui/react-popover';
-import { FileText } from 'lucide-react';
+import { ChevronDown, FileText } from 'lucide-react';
 import { Popover, PopoverAnchor, PopoverContent, Sheet, cn, focusRing } from '../ui';
 import { SplitButton } from '../ui/arc/split-button/SplitButton';
 import { DEFAULT_TZ, formatRangeText, todayYmd } from '../ui/arc/date-range-picker/ymd';
@@ -17,7 +17,9 @@ import type { Downloads } from './useDownloads';
 import type { CatItem, CatStatus } from './shared';
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const SELECT_CLS = cn('min-h-11 w-full rounded-field border border-border-strong bg-surface px-3 text-[14px] text-ink disabled:opacity-60 sm:min-h-10', focusRing);
+// Select nativo con flecha propia: `appearance-none` + chevrón del kit a 12 px del borde (la flecha del navegador quedaba pegada).
+const SELECT_CLS = cn('min-h-11 w-full appearance-none rounded-field border border-border-strong bg-surface pl-3 pr-9 text-[14px] text-ink disabled:opacity-60 sm:min-h-10', focusRing);
+const CHEVRON = <ChevronDown size={16} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />;
 
 export interface DownloadFilters { from: string; to: string; types: string[]; categories: string[] }
 
@@ -167,10 +169,13 @@ export function DownloadsBody({ filters, catList, catStatus, onRetryCats, dl, cy
 
       <Row title="Un ciclo o categoría" hint={`El detalle de un solo ciclo dentro de ${rangeText}${f.types.length ? ' y los tipos elegidos' : ''}.`}>
         <label htmlFor={cycleId} className="mb-1 block text-[13px] font-medium text-ink">Ciclo o categoría</label>
-        <select id={cycleId} value={cycle} onChange={(e) => setCycle(e.target.value)} disabled={catStatus !== 'ok'} className={SELECT_CLS}>
-          <option value="">{catStatus === 'loading' ? 'Cargando ciclos…' : 'Elige un ciclo'}</option>
-          {catList.map((c) => (<option key={c.category} value={c.category}>{c.category} ({c.activities})</option>))}
-        </select>
+        <div className="relative">
+          <select id={cycleId} value={cycle} onChange={(e) => setCycle(e.target.value)} disabled={catStatus !== 'ok'} className={SELECT_CLS}>
+            <option value="">{catStatus === 'loading' ? 'Cargando ciclos…' : 'Elige un ciclo'}</option>
+            {catList.map((c) => (<option key={c.category} value={c.category}>{c.category} ({c.activities})</option>))}
+          </select>
+          {CHEVRON}
+        </div>
         {catStatus === 'error' || catStatus === 'forbidden' ? (
           <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-medium text-danger-fg">
             <span className="flex-1">
@@ -196,23 +201,29 @@ export function DownloadsBody({ filters, catList, catStatus, onRetryCats, dl, cy
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label htmlFor={monthId} className="mb-1 block text-[13px] font-medium text-ink">Mes</label>
-            <select id={monthId} value={Math.min(ym.month, maxMonth)} onChange={(e) => setYm({ ...ym, month: Number(e.target.value) })} className={SELECT_CLS}>
-              {MESES.slice(0, maxMonth).map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
-            </select>
+            <div className="relative">
+              <select id={monthId} value={Math.min(ym.month, maxMonth)} onChange={(e) => setYm({ ...ym, month: Number(e.target.value) })} className={SELECT_CLS}>
+                {MESES.slice(0, maxMonth).map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
+              </select>
+              {CHEVRON}
+            </div>
           </div>
           <div>
             <label htmlFor={yearId} className="mb-1 block text-[13px] font-medium text-ink">Año</label>
-            <select id={yearId} value={ym.year} onChange={(e) => {
-              const year = Number(e.target.value);
-              setYm({ year, month: Math.min(ym.month, year === curYear ? curMonth : 12) });
-            }} className={SELECT_CLS}>
-              {years.map((y) => (<option key={y} value={y}>{y}</option>))}
-            </select>
+            <div className="relative">
+              <select id={yearId} value={ym.year} onChange={(e) => {
+                const year = Number(e.target.value);
+                setYm({ year, month: Math.min(ym.month, year === curYear ? curMonth : 12) });
+              }} className={SELECT_CLS}>
+                {years.map((y) => (<option key={y} value={y}>{y}</option>))}
+              </select>
+              {CHEVRON}
+            </div>
           </div>
         </div>
         <div className="mt-2.5 flex flex-wrap gap-2">
-          <DownloadLink id="month-xlsx" kind="Excel" scope="Registro mensual" href={monthHref(ym.year, Math.min(ym.month, maxMonth))} dl={dl} primary />
-          <DownloadLink id="year-xlsx" kind="Excel" scope="Libro anual" href={yearHref(ym.year)} dl={dl} />
+          <DownloadLink id="month-xlsx" kind="Excel" scope="Registro mensual" label="Excel del mes" href={monthHref(ym.year, Math.min(ym.month, maxMonth))} dl={dl} primary />
+          <DownloadLink id="year-xlsx" kind="Excel" scope="Libro anual" label="Excel del año" href={yearHref(ym.year)} dl={dl} />
         </div>
       </Row>
     </div>
