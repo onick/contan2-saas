@@ -292,40 +292,54 @@ test.describe('REP-03 Excel', { tag: '@write' }, () => {
     const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/month?year=${dr[0]}&month=${dr[1]}`));
     expectNotBadGateway(res);
     expect(res.status()).toBe(200);
-    expect(res.headers()['content-disposition']).toMatch(/registro_.*_\d{4}\.xlsx/);
+    expect(res.headers()['content-disposition']).toMatch(/Registro_Actividades_Culturales_\d{4}_\d{2}\.xlsx/);
     const buf = await res.body();
     saveArtifact('rep03-mensual.xlsx', buf);
     const wb = await parseXlsx(buf);
-    expect(wb.sheets[0]!.name).toMatch(/^(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre) \d{4}$/);
+    expect(wb.sheets[0]!.name).toMatch(/^(Ene|Feb|Mar|Abr|May|Jun|Jul|Ago|Sep|Oct|Nov|Dic)$/);
     const ws = wb.sheets[0]!;
     expect(String(ws.rows[0]![0])).toMatch(/^REGISTRO ACTIVIDADES [A-ZÁÉÍÓÚ]+ \d{4}$/);
     expect(ws.rows[1]).toEqual(['No.', 'Fecha', 'Mes', 'Semana', 'Tipo de actividad', 'Programa', 'Nombre Actividad / Observación', 'Asistencia']);
     const mine = ws.rows.find((r) => r && r[6] === fx.act.name);
     expect(mine, 'la actividad [E2E] aparece en el registro del mes').toBeDefined();
     expect(mine![5], 'Programa = categoría/ciclo').toBe(fx.category);
-    expect(mine![4]).toBe('Otras Actividades');
+    expect(mine![4]).toBe('Actividades Especiales');
     expect(mine![7], 'Asistencia = personas reales en sala (2 check-ins + 1 acompañante), sin la reserva').toBe(3);
     expect(ws.rows.some((r) => r && r[6] === 'Total:' && typeof r[7] === 'number')).toBe(true);
-    // PR-9: el resumen vive en su propia hoja "Resumen Mensual" (pivote por Tipo y por Programa).
+    // El resumen vive en su propia hoja "Resumen Mensual" (pivote meses × tipos, formato del departamento).
     const rm = sheetOf(wb, 'Resumen Mensual');
     expect(rm, 'hoja Resumen Mensual').toBeDefined();
     const rmText = sheetText(rm!);
-    expect(rmText).toContain('Tipo de actividad');
-    expect(rmText).toContain('Programa');
-    expect(rmText).toContain('Total general');
-    expect(rmText).toContain(fx.category);
+    expect(rmText).toContain('Actividades Especiales');
+    expect(rmText).toContain('Total mensual');
     void now;
   });
 
-  test('REP-03e [S3] formato oficial del departamento: hoja "Resumen Mensual" y listas ocultas como dropdowns', async () => {
-    // Memoria "Registro_Actividades_Culturales": plantilla por mes + hoja "Resumen Mensual" (pivote por tipo)
-    // + listas ocultas que alimentan dropdowns de Tipo/Programa (PR-9 lo reproduce).
+  test('REP-03e [S2] libro anual oficial (Registro_Actividades_Culturales): 12 hojas + Resumen Mensual + Listas oculta, con dropdowns', async () => {
+    // Decisión P5: vocabulario del departamento y libro anual enero–diciembre.
+    const year = Number(ymdDR().slice(0, 4));
+    const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/year?year=${year}`));
+    expectNotBadGateway(res);
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-disposition']).toContain(`Registro_Actividades_Culturales_${year}.xlsx`);
+    const buf = await res.body();
+    saveArtifact('rep03-anual.xlsx', buf);
+    const wb = await parseXlsx(buf);
+    expect(wb.sheets, '12 meses + Resumen Mensual + Listas').toHaveLength(14);
+    expect(wb.sheets.slice(0, 12).map((s) => s.name)).toEqual(['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']);
+    expect(sheetOf(wb, 'Resumen Mensual'), 'hoja Resumen Mensual (pivote meses × tipos)').toBeDefined();
+    expect(sheetText(sheetOf(wb, 'Resumen Mensual')!)).toContain('TOTAL ANUAL');
+    const listas = sheetOf(wb, 'Listas');
+    expect(listas?.state, 'Listas oculta').not.toBe('visible');
+    // Cada hoja de mes con filas trae dropdowns (Mes/Semana/Tipo/Programa).
+    const conFilas = wb.sheets.slice(0, 12).filter((s) => s.dataValidations.length > 0);
+    expect(conFilas.length, 'al menos un mes con actividades y validación de datos').toBeGreaterThan(0);
+    // Mes mensual: misma estructura que una hoja del libro.
     const dr = ymdDR().split('-').map(Number);
-    const res = await withRateLimitRetry(() => api.get(`/app/reportes/api/month?year=${dr[0]}&month=${dr[1]}`));
-    const wb = await parseXlsx(await res.body());
-    expect(wb.sheets.some((s) => /resumen mensual/i.test(s.name)), 'hoja Resumen Mensual (pivote por tipo)').toBe(true);
-    expect(wb.sheets.some((s) => s.state && s.state !== 'visible'), 'hoja(s) oculta(s) con las listas').toBe(true);
-    expect(wb.sheets[0]!.dataValidations.length, 'dropdowns (data validation) en Tipo/Programa').toBeGreaterThan(0);
+    const m = await withRateLimitRetry(() => api.get(`/app/reportes/api/month?year=${dr[0]}&month=${dr[1]}`));
+    const wbm = await parseXlsx(await m.body());
+    expect(wbm.sheets.map((s) => s.name).slice(1)).toEqual(['Resumen Mensual', 'Listas']);
+    expect(wbm.sheets[0]!.dataValidations.length, 'dropdowns (data validation) en Mes/Semana/Tipo/Programa').toBeGreaterThan(0);
   });
 
   test('REP-03f [S2] mes sin actividades y mes inválido: Excel vacío válido / 400, nunca 500', async () => {

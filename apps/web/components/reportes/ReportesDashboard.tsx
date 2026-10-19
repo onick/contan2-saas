@@ -17,6 +17,7 @@ import { Card, cn, focusRing } from '../ui';
 import { DeltaPct, buildSlices, Donut, Bars, LineChart } from '../charts/primitives';
 import { useDataAnim } from '../charts/useDataAnim';
 import { ReportsAgent } from './ReportsAgent';
+import { YearRegisterDownload } from './YearRegisterDownload';
 import { DeltaPoints } from './DeltaPoints';
 import { DateRangePicker } from '../ui/arc/date-range-picker/DateRangePicker';
 import { SplitButton } from '../ui/arc/split-button/SplitButton';
@@ -242,6 +243,7 @@ export function ReportesDashboard({ initial, initialRange, canExport = true, ini
 
       {/* registro mensual tabulado en el formato del departamento */}
       {canExport ? <MonthlyRegisterCard /> : null}
+      {canExport ? <YearRegisterDownload className="mt-4" /> : null}
 
       {summaryErr ? (
         <p role="alert" className="mt-5 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px] font-medium text-danger-fg">
