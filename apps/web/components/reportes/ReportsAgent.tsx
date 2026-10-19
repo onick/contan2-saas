@@ -12,6 +12,7 @@ import { Sparkles, Send, X, Loader2, Download, FileText } from 'lucide-react';
 import type { ReportsAgentResponse, ReportsAgentLink } from '@contan2/contracts';
 import { Button, IconButton, cn, focusRing, useDrawerLifecycle } from '../ui';
 import { DeltaPct } from '../charts/primitives';
+import { DeltaPoints } from './DeltaPoints';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 
@@ -34,7 +35,7 @@ const SUGGESTIONS = [
 type Msg = { role: 'user'; text: string } | { role: 'agent'; res: ReportsAgentResponse } | { role: 'agent'; error: string };
 
 const KPI_ROWS = [
-  ['activities', 'Actividades'], ['attendances', 'Asistencias'],
+  ['activities', 'Actividades'], ['people', 'Personas'], ['attendances', 'Registros'],
   ['uniqueVisitors', 'Visitantes únicos'], ['occupancyPct', 'Ocupación'],
 ] as const;
 
@@ -109,7 +110,7 @@ export function ReportsAgent() {
                 <span className="text-muted">{label}</span>
                 <span className="font-bold tabular-nums text-ink">{fmt(res.compare!.a.kpis[k])}{k === 'occupancyPct' ? '%' : ''}</span>
                 <span className="tabular-nums text-ink/70">{fmt(res.compare!.b.kpis[k])}{k === 'occupancyPct' ? '%' : ''}</span>
-                <DeltaPct pct={res.compare!.deltas[k]} />
+                {k === 'occupancyPct' ? <DeltaPoints pts={res.compare!.deltas[k]} /> : <DeltaPct pct={res.compare!.deltas[k]} />}
               </div>
             ))}
           </div>

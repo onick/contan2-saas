@@ -17,6 +17,7 @@ import { Card, cn, focusRing } from '../ui';
 import { DeltaPct, buildSlices, Donut, Bars, LineChart } from '../charts/primitives';
 import { useDataAnim } from '../charts/useDataAnim';
 import { ReportsAgent } from './ReportsAgent';
+import { DeltaPoints } from './DeltaPoints';
 import { DateRangePicker } from '../ui/arc/date-range-picker/DateRangePicker';
 import { SplitButton } from '../ui/arc/split-button/SplitButton';
 import { MAX_RANGE_DAYS, buildCsvExport, REPORT_TYPE_OPTIONS as TYPE_OPTIONS, filtersToSearch } from './filters';
@@ -125,9 +126,11 @@ export function ReportesDashboard({ initial, initialRange, canExport = true, ini
   // KPIs con valor anterior incorporado (sin panel "Comparación" aparte).
   const kpis = [
     { label: 'Actividades', value: k.activities, prev: pr.activities, delta: dl.activities, tint: 'bg-info-soft text-info-text', Icon: Calendar },
-    { label: 'Asistencias', value: k.attendances, prev: pr.attendances, delta: dl.attendances, tint: 'bg-success-bg text-success-fg', Icon: Users },
+    // Cifra principal = PERSONAS (con acompañantes); los registros (check-ins) quedan como dato secundario.
+    { label: 'Personas', value: k.people, prev: pr.people, delta: dl.people, tint: 'bg-success-bg text-success-fg', Icon: Users, sub: `${fmt(k.attendances)} registros` },
     { label: 'Visitantes únicos', value: k.uniqueVisitors, prev: pr.uniqueVisitors, delta: dl.uniqueVisitors, tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: User },
-    { label: 'Ocupación promedio', value: k.occupancyPct, prev: pr.occupancyPct, suffix: '%', delta: dl.occupancyPct, tint: 'bg-brand/10 text-brand-text', Icon: TrendingUp },
+    // La ocupación se compara en PUNTOS porcentuales, no en %.
+    { label: 'Ocupación promedio', value: k.occupancyPct, prev: pr.occupancyPct, suffix: '%', delta: dl.occupancyPct, deltaPoints: true, tint: 'bg-brand/10 text-brand-text', Icon: TrendingUp },
   ];
   // donut por tipo
   const typeSlices = buildSlices(data.byType.map((t) => ({ label: t.label, count: t.attendances, color: TYPE_COLOR[t.type] ?? '#94a3b8' })));
@@ -253,13 +256,14 @@ export function ReportesDashboard({ initial, initialRange, canExport = true, ini
             <Card key={kp.label} padding="md" className="relative flex items-start gap-3.5">
               {/* delta en la esquina superior derecha */}
               <div className="absolute right-4 top-4 flex flex-col items-end gap-0.5">
-                <DeltaPct pct={kp.delta} />
+                {kp.deltaPoints ? <DeltaPoints pts={kp.delta} /> : <DeltaPct pct={kp.delta} />}
                 <span className="text-[10px] text-faint tabular-nums">{fmt(kp.prev)}{kp.suffix ?? ''} antes</span>
               </div>
               <span className={cn('grid h-11 w-11 flex-none place-items-center rounded-xl', kp.tint)}><kp.Icon size={21} strokeWidth={1.9} /></span>
               <div className="min-w-0 pr-16">
                 <span className="block text-[11px] font-bold uppercase tracking-[0.04em] text-faint">{kp.label}</span>
                 <p className="mt-1 text-[30px] font-extrabold leading-none tracking-tight text-ink tabular-nums"><span data-count={kp.value}>{fmt(kp.value)}</span>{kp.suffix}</p>
+                {kp.sub ? <p className="mt-1 text-[11px] text-faint tabular-nums">{kp.sub}</p> : null}
               </div>
             </Card>
           ))}
@@ -283,7 +287,7 @@ export function ReportesDashboard({ initial, initialRange, canExport = true, ini
             {data.kpis.attendances === 0 ? (
               <p className="mt-6 text-[13px] text-muted">Sin asistencias en el período.</p>
             ) : (
-              <Donut slices={typeSlices} centerValue={data.kpis.attendances} centerLabel="Total" />
+              <Donut slices={typeSlices} centerValue={data.kpis.attendances} centerLabel="Registros" />
             )}
           </Card>
         </div>
