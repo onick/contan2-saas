@@ -11,7 +11,7 @@ import { useSearchParamsSafe } from '../../lib/navigation/safe';
 import { Search, List, LayoutGrid } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
 import {
-  filterActivities, deriveStatusPills, uniqueCategories,
+  filterActivities, deriveStatusPills, uniqueCategories, rangeFromParams,
   type ActivityFilters, type StatusFilter, type CategoryFilter, type DateFilter,
 } from '../../lib/activities/filters';
 import { ActivitiesTable } from './ActivitiesTable';
@@ -19,18 +19,28 @@ import { ActivitiesGrid } from './ActivitiesGrid';
 import { ActivityDetailDrawer } from './ActivityDetailDrawer';
 import { EditActivityDrawer } from './EditActivityDrawer';
 import { Button, Card, cn, focusRing } from '../ui';
+import { DateRangePicker } from '../ui/arc/date-range-picker/DateRangePicker';
+import { matchPreset, type RangePreset } from '../ui/arc/date-range-picker/presets';
+import { addDays, addMonths, monthEnd, monthStart, startOfWeek, todayYmd, type YmdRange } from '../ui/arc/date-range-picker/ymd';
 
 const SELECT_CLS = cn(
   'h-9 rounded-lg border border-line bg-surface px-3 text-[13px] text-ink',
   'appearance-none bg-[length:0] cursor-pointer', focusRing,
 );
 
-const DATE_OPTIONS: Array<{ value: DateFilter; label: string }> = [
+const DATE_PILLS: Array<{ value: DateFilter; label: string }> = [
   { value: 'todas', label: 'Fecha: todas' },
   { value: 'proximas', label: 'Próximas' },
   { value: 'pasadas', label: 'Pasadas' },
-  { value: 'hoy', label: 'Hoy' },
-  { value: 'semana', label: 'Esta semana' },
+];
+
+// Atajos del selector de período: las actividades son sobre todo futuras, así que van los rangos hacia adelante.
+const ACTIVITY_PRESETS: RangePreset[] = [
+  { key: 'hoy', label: 'Hoy', range: (t) => ({ from: t, to: t }) },
+  { key: 'semana', label: 'Esta semana', range: (t) => { const mon = startOfWeek(t, 1); return { from: mon, to: addDays(mon, 6) }; } },
+  { key: 'mes', label: 'Este mes', range: (t) => ({ from: monthStart(t), to: monthEnd(t) }) },
+  { key: '30d', label: 'Próximos 30 días', range: (t) => ({ from: t, to: addDays(t, 29) }) },
+  { key: 'mesPasado', label: 'Mes pasado', range: (t) => { const p = addMonths(t, -1); return { from: monthStart(p), to: monthEnd(p) }; } },
 ];
 
 export interface ActivitiesViewProps {
@@ -40,7 +50,7 @@ export interface ActivitiesViewProps {
   canWrite?: boolean;
 }
 
-const DATE_KEYS: ReadonlySet<string> = new Set(['todas', 'proximas', 'pasadas', 'hoy', 'semana']);
+const DATE_KEYS: ReadonlySet<string> = new Set(['todas', 'proximas', 'pasadas']);
 const STATUS_KEYS: ReadonlySet<string> = new Set(['todas', 'soon', 'live', 'done', 'draft', 'cancelled']);
 
 export function ActivitiesView({ activities, total, canWrite = false }: ActivitiesViewProps) {
@@ -54,6 +64,10 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
   const [category, setCategory] = useState<CategoryFilter>(sp.get('cat') ?? 'todas');
   const [date, setDate] = useState<DateFilter>(
     DATE_KEYS.has(sp.get('fecha') ?? '') ? (sp.get('fecha') as DateFilter) : 'todas');
+  // El rango y las pills son independientes y se combinan (rango ∧ próximas/pasadas). Enlaces viejos:
+  // fecha=hoy / fecha=semana se convierten en rango al inicializar.
+  const [range, setRange] = useState<YmdRange | null>(() => rangeFromParams(sp.get('from'), sp.get('to'), sp.get('fecha')));
+  const [presetKey, setPresetKey] = useState<string | null>(() => (range ? matchPreset(range, todayYmd(), ACTIVITY_PRESETS) : null));
   const [view, setView] = useState<'list' | 'grid'>(sp.get('vista') === 'grid' ? 'grid' : 'list');
 
   useEffect(() => {
@@ -62,11 +76,12 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
     if (status !== 'todas') next.set('estado', status);
     if (category !== 'todas') next.set('cat', String(category));
     if (date !== 'todas') next.set('fecha', date);
+    if (range) { next.set('from', range.from); next.set('to', range.to); }
     if (view !== 'list') next.set('vista', view);
     const qs = next.toString();
     // replaceState: no apila historial por tipeo ni dispara re-render del server.
     window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
-  }, [query, status, category, date, view]);
+  }, [query, status, category, date, range, view]);
   const [selected, setSelected] = useState<Activity | null>(null);
   const [editing, setEditing] = useState<Activity | null>(null);
   const router = useRouter();
@@ -81,11 +96,11 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
   // `scoped` = todo menos el filtro de estado (para conteos vivos de los pills);
   // `filtered` = scoped + estado. now real (cliente).
   const { scoped, filtered, pills } = useMemo(() => {
-    const base: ActivityFilters = { query, status: 'todas', category, date };
+    const base: ActivityFilters = { query, status: 'todas', category, date, range };
     const sc = filterActivities(activities, base, new Date());
     const fl = status === 'todas' ? sc : sc.filter((a) => a.status === status);
     return { scoped: sc, filtered: fl, pills: deriveStatusPills(activities, sc) };
-  }, [activities, query, status, category, date]);
+  }, [activities, query, status, category, date, range]);
 
   return (
     <>
@@ -112,10 +127,24 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
 
-          <label className="sr-only" htmlFor="act-date">Fecha</label>
-          <select id="act-date" value={date} onChange={(e) => setDate(e.target.value as DateFilter)} className={SELECT_CLS}>
-            {DATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <div role="group" aria-label="Fecha" className="flex flex-wrap items-center gap-2">
+            {DATE_PILLS.map((o) => (
+              <Button key={o.value} variant="pill" size="sm" selected={date === o.value} onClick={() => setDate(o.value)}>
+                {o.label}
+              </Button>
+            ))}
+          </div>
+
+          <DateRangePicker
+            label="Período"
+            placeholder="Elegir fechas"
+            value={range}
+            presetKey={presetKey}
+            presets={ACTIVITY_PRESETS}
+            maxDays={366}
+            onChange={(r, key) => { setRange(r); setPresetKey(key); }}
+            onClear={() => { setRange(null); setPresetKey(null); }}
+          />
 
           <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
             <div className="flex flex-1 items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 sm:flex-none">

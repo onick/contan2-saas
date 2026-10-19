@@ -4,9 +4,10 @@ import { ActivitiesView } from './ActivitiesView';
 import { ACTIVITIES } from '../../lib/activities/demoData';
 
 // Lifecycle B: ActivitiesView usa useRouter().refresh() tras editar/transicionar.
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
+let search = '';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }), useSearchParams: () => new URLSearchParams(search) }));
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); search = ''; });
 
 const renderView = () => render(<ActivitiesView activities={ACTIVITIES} total={ACTIVITIES.length} />);
 
@@ -40,10 +41,44 @@ describe('ActivitiesView · interacciones (sin escrituras)', () => {
     expect(screen.queryByText('Los Congos de Villa Mella')).not.toBeInTheDocument();
   });
 
-  it('fecha filtra (Próximas → empty state, todas las demo son pasadas)', () => {
+  it('fecha filtra (pill Próximas → empty state, todas las demo son pasadas)', () => {
     renderView();
-    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: 'proximas' } });
+    const group = screen.getByRole('group', { name: 'Fecha' });
+    fireEvent.click(within(group).getByRole('button', { name: 'Próximas' }));
     expect(screen.getByText('Sin actividades')).toBeInTheDocument();
+    fireEvent.click(within(group).getByRole('button', { name: 'Pasadas' }));
+    expect(screen.getAllByText('Los Congos de Villa Mella').length).toBeGreaterThan(0);
+  });
+
+  describe('rango de fechas', () => {
+    const first = ACTIVITIES.find((a) => a.startsAt)!;
+    const day = new Date(first.startsAt!).toLocaleDateString('en-CA', { timeZone: 'America/Santo_Domingo' });
+    const other = ACTIVITIES.find((a) => a.startsAt && new Date(a.startsAt).toLocaleDateString('en-CA', { timeZone: 'America/Santo_Domingo' }) !== day)!;
+
+    it('?from&to en la URL filtra y el picker lo refleja; «Quitar fechas» restaura', () => {
+      search = `from=${day}&to=${day}`;
+      renderView();
+      expect(screen.getAllByText(first.title).length).toBeGreaterThan(0);
+      expect(screen.queryByText(other.title)).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /^Período:/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Quitar fechas' }));
+      expect(screen.getAllByText(other.title).length).toBeGreaterThan(0);
+      expect(screen.getByRole('button', { name: 'Período: Elegir fechas' })).toBeInTheDocument();
+    });
+
+    it('rango inválido (from > to) se ignora', () => {
+      search = 'from=2026-10-09&to=2026-10-05';
+      renderView();
+      expect(screen.getByRole('button', { name: 'Período: Elegir fechas' })).toBeInTheDocument();
+      expect(screen.getAllByText(other.title).length).toBeGreaterThan(0);
+    });
+
+    it('enlace viejo fecha=hoy se convierte en rango (no hay demo de hoy → vacío)', () => {
+      search = 'fecha=hoy';
+      renderView();
+      expect(screen.getByRole('button', { name: /^Período: Hoy/ })).toBeInTheDocument();
+      expect(screen.getByText('Sin actividades')).toBeInTheDocument();
+    });
   });
 
   it('toggle lista ↔ grid cambia la vista', () => {

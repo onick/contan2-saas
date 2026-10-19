@@ -14,7 +14,7 @@ import { DEFAULT_PRESETS, findPreset, matchPreset, validateRange, type RangePres
 import { useToday } from './useToday';
 import {
   CUSTOM_LABEL, DEFAULT_TZ, WEEKDAYS_LONG, WEEKDAYS_MIN, addDays, addMonths, formatDayLong, formatMonthTitle,
-  formatRangeLabel, formatRangeText, fromDays, isYmd, monthDiff, monthEnd, monthStart, rangeLength, startOfWeek, toDays, weekdayOf,
+  formatRangeLabel, formatRangeText, fromDays, isYmd, monthDiff, monthEnd, monthStart, rangeLength, startOfWeek, toDays, todayYmd, weekdayOf,
   type Ymd, type YmdRange,
 } from './ymd';
 
@@ -28,7 +28,8 @@ export { DEFAULT_PRESETS } from './presets';
  * (inclusivo) y los atajos se calculan sobre el «hoy» de la zona del tenant, no el del dispositivo.
  */
 export interface DateRangePickerProps {
-  value: YmdRange;
+  /** `null` = sin rango (filtro opcional): el trigger muestra `placeholder` y el panel arranca en hoy. */
+  value: YmdRange | null;
   onChange: (range: YmdRange, presetKey: string | null) => void;
   /** Atajo vigente: etiqueta del trigger sin depender de «hoy» (el HTML del servidor no cambia al hidratar). */
   presetKey?: string | null;
@@ -41,6 +42,9 @@ export interface DateRangePickerProps {
   weekStartsOn?: 0 | 1;
   timeZone?: string;
   months?: 'auto' | 1 | 2;
+  placeholder?: string;
+  /** Si se define y hay valor, el pie del panel ofrece «Quitar fechas». */
+  onClear?: () => void;
   disabled?: boolean;
   className?: string;
 }
@@ -150,20 +154,23 @@ function Month({ month, range, tabbable, today, min, max, weekStartsOn, idBase, 
 
 export function DateRangePicker({
   value, onChange, presetKey = null, presets = DEFAULT_PRESETS, label = 'Período', min, max, maxDays,
-  weekStartsOn = 1, timeZone = DEFAULT_TZ, months = 'auto', disabled = false, className,
+  weekStartsOn = 1, timeZone = DEFAULT_TZ, months = 'auto', placeholder = 'Cualquier fecha', onClear, disabled = false, className,
 }: DateRangePickerProps) {
   const uid = useId();
   const today = useToday(timeZone);
+  const base = useMemo<YmdRange>(() => value ?? { from: today || todayYmd(timeZone), to: today || todayYmd(timeZone) }, [value, today, timeZone]);
   const maxResolved = max === 'today' ? (today || undefined) : max;
 
   const [open, setOpen] = useState(false);
   const [compact, setCompact] = useState(false);
-  const [draft, setDraft] = useState<YmdRange>(value);
+  const [draft, setDraft] = useState<YmdRange>(() => value ?? { from: todayYmd(timeZone), to: todayYmd(timeZone) });
+  // Sin valor, el borrador de hoy no es una elección: no marca ningún atajo hasta que la persona toque algo.
+  const [blank, setBlank] = useState(value === null);
   const [anchor, setAnchor] = useState<Ymd | null>(null);
   const [hover, setHover] = useState<Ymd | null>(null);
-  const [view, setView] = useState<Ymd>(() => monthStart(value.to));
+  const [view, setView] = useState<Ymd>(() => monthStart(value?.to ?? todayYmd(timeZone)));
   const [dir, setDir] = useState<-1 | 0 | 1>(0);
-  const [focusKey, setFocusKey] = useState<Ymd>(value.from);
+  const [focusKey, setFocusKey] = useState<Ymd>(() => value?.from ?? todayYmd(timeZone));
 
   const panelRef = useRef<HTMLDivElement>(null);
   const pendingFocus = useRef(false);
@@ -172,7 +179,7 @@ export function DateRangePicker({
   const visible = useMemo(() => Array.from({ length: count }, (_, i) => addMonths(view, i)), [count, view]);
   const shown = anchor ? ordered(anchor, hover ?? anchor) : draft;
   const problem = validateRange(shown, { maxDays, min, max: maxResolved });
-  const pressedKey = today && !anchor ? matchPreset(draft, today, presets) : null;
+  const pressedKey = today && !anchor && !blank ? matchPreset(draft, today, presets) : null;
 
   const measureCompact = () => months === 1 || (months === 'auto' && typeof window !== 'undefined' && window.innerWidth < WIDE_MIN);
   const viewFor = (r: YmdRange, single: boolean) => (single ? monthStart(r.to) : monthStart(addMonths(r.to, -1)));
@@ -182,12 +189,13 @@ export function DateRangePicker({
       if (disabled || !today) return;
       const single = measureCompact();
       setCompact(single);
-      setDraft(value);
+      setDraft(base);
+      setBlank(value === null);
       setAnchor(null);
       setHover(null);
-      setView(viewFor(value, single));
+      setView(viewFor(base, single));
       setDir(0);
-      setFocusKey(value.from);
+      setFocusKey(base.from);
     } else {
       setAnchor(null);
       setHover(null);
@@ -229,6 +237,7 @@ export function DateRangePicker({
     setFocusKey(d);
     if (!anchor) { setAnchor(d); setHover(d); return; }
     setDraft(ordered(anchor, d));
+    setBlank(false);
     setAnchor(null);
     setHover(null);
   }
@@ -237,6 +246,7 @@ export function DateRangePicker({
     if (!today) return;
     const r = p.range(today);
     setDraft(r);
+    setBlank(false);
     setAnchor(null);
     setHover(null);
     setFocusKey(r.from);
@@ -249,6 +259,7 @@ export function DateRangePicker({
     setAnchor(null);
     setHover(null);
     setDraft(next);
+    setBlank(false);
     setFocusKey(v);
     reveal({ from: which === 'from' ? v : next.from, to: next.to < next.from ? next.from : next.to });
   }
@@ -292,7 +303,7 @@ export function DateRangePicker({
 
   // Trigger: texto determinístico a partir de las props (sin Intl ni «hoy»).
   const presetLabel = findPreset(presetKey, presets)?.label ?? CUSTOM_LABEL;
-  const triggerText = formatRangeLabel(value, findPreset(presetKey, presets)?.label ?? null);
+  const triggerText = value ? formatRangeLabel(value, findPreset(presetKey, presets)?.label ?? null) : placeholder;
   const days = rangeLength(shown);
   const status = problem
     ? MESSAGES[problem](maxDays)
@@ -313,8 +324,14 @@ export function DateRangePicker({
           )}>
           <CalendarDays size={16} strokeWidth={1.75} aria-hidden="true" className="flex-none text-muted" />
           <span className="min-w-0 truncate">
-            <Roll text={presetLabel} className="font-semibold" />
-            <Roll text={` · ${formatRangeText(value)}`} className="text-muted" />
+            {value ? (
+              <>
+                <Roll text={presetLabel} className="font-semibold" />
+                <Roll text={` · ${formatRangeText(value)}`} className="text-muted" />
+              </>
+            ) : (
+              <span className="text-muted">{placeholder}</span>
+            )}
           </span>
           <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" className={cn('flex-none text-muted transition-transform', open && 'rotate-180')} />
         </button>
@@ -370,6 +387,12 @@ export function DateRangePicker({
             </label>
             <p aria-live="polite" className={cn('min-w-[8rem] flex-1 self-center text-[12.5px]', problem ? 'font-medium text-danger-fg' : 'text-muted')}>{status}</p>
             <div className="ml-auto flex gap-2">
+              {onClear && value && (
+                <button type="button" onClick={() => { onClear(); handleOpenChange(false); }}
+                  className={cn('min-h-10 rounded-field border border-line bg-surface px-4 text-[13px] font-semibold text-muted hover:bg-surface-container hover:text-ink', DAY_FOCUS)}>
+                  Quitar fechas
+                </button>
+              )}
               <button type="button" onClick={() => handleOpenChange(false)}
                 className={cn('min-h-10 rounded-field border border-line bg-surface px-4 text-[13px] font-semibold text-ink hover:bg-surface-container', DAY_FOCUS)}>
                 Cancelar

@@ -148,4 +148,45 @@ describe('DateRangePicker', () => {
     expect(html).toContain('Período: Este mes · 1 – 16 oct 2026');
     expect(html).toContain('disabled');
   });
+  describe('sin rango (value null)', () => {
+    it('el trigger muestra el placeholder y se nombra "Período: <placeholder>"', () => {
+      const { trigger } = setup({ value: null, presetKey: null, placeholder: 'Elegir fechas' });
+      expect(trigger).toHaveAttribute('aria-label', 'Período: Elegir fechas');
+      expect(screen.getByText('Elegir fechas')).toBeInTheDocument();
+      expect(screen.queryByText('Personalizado')).toBeNull();
+    });
+
+    it('placeholder por defecto: Cualquier fecha', () => {
+      const { trigger } = setup({ value: null });
+      expect(trigger).toHaveAttribute('aria-label', 'Período: Cualquier fecha');
+    });
+
+    it('el panel arranca en hoy, sin atajo marcado, y Aplicar emite el rango elegido', () => {
+      const { onChange } = setup({ value: null });
+      const dialog = open();
+      expect(day('viernes, 16 de octubre de 2026')).toHaveAttribute('aria-current', 'date');
+      expect(within(dialog).queryByRole('button', { name: 'Quitar fechas' })).toBeNull();
+      expect(within(dialog).getByRole('button', { name: 'Hoy' })).toHaveAttribute('aria-pressed', 'false');
+      fireEvent.click(day('lunes, 5 de octubre de 2026'));
+      fireEvent.click(day('viernes, 9 de octubre de 2026'));
+      fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+      expect(onChange).toHaveBeenCalledWith({ from: '2026-10-05', to: '2026-10-09' }, null);
+    });
+  });
+
+  it('«Quitar fechas» aparece con valor y onClear, llama onClear y cierra', () => {
+    const onClear = vi.fn();
+    const { onChange } = setup({ onClear });
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar fechas' }));
+    expect(onClear).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('sin onClear no hay «Quitar fechas»', () => {
+    setup();
+    open();
+    expect(screen.queryByRole('button', { name: 'Quitar fechas' })).toBeNull();
+  });
 });

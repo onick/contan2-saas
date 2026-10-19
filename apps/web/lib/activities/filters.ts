@@ -3,9 +3,10 @@
 // /app/actividades carga el set una vez (server-fetch) y filtra acá en cliente.
 
 import type { Activity, ActivityStatus } from './demoData';
+import { DEFAULT_TZ, addDays, isYmd, startOfWeek, todayYmd, type Ymd, type YmdRange } from '../../components/ui/arc/date-range-picker/ymd';
 
 export type StatusFilter = 'todas' | ActivityStatus;
-export type DateFilter = 'todas' | 'proximas' | 'pasadas' | 'hoy' | 'semana';
+export type DateFilter = 'todas' | 'proximas' | 'pasadas';
 export type CategoryFilter = 'todas' | string;
 
 export interface ActivityFilters {
@@ -13,20 +14,27 @@ export interface ActivityFilters {
   status: StatusFilter;
   category: CategoryFilter;
   date: DateFilter;
+  // Rango de días (inclusivo, zona del tenant). Si existe, manda sobre el atajo si lo contradice: se combinan (AND).
+  range: YmdRange | null;
 }
 
-export const EMPTY_FILTERS: ActivityFilters = { query: '', status: 'todas', category: 'todas', date: 'todas' };
+export const EMPTY_FILTERS: ActivityFilters = { query: '', status: 'todas', category: 'todas', date: 'todas', range: null };
 
 function startOfDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-// Lunes como inicio de semana (es-DO/ISO). Devuelve [inicio, finExclusivo) en ms.
-function weekRange(now: Date): [number, number] {
-  const day = now.getDay(); // 0=domingo
-  const mondayOffset = (day + 6) % 7; // días desde el lunes
-  const monday = startOfDay(now) - mondayOffset * 86_400_000;
-  return [monday, monday + 7 * 86_400_000];
+// Día calendario de la actividad en la zona del tenant (no la del dispositivo).
+function activityDay(a: Activity): Ymd | null {
+  if (!a.startsAt) return null;
+  const d = new Date(a.startsAt);
+  return Number.isNaN(d.getTime()) ? null : todayYmd(DEFAULT_TZ, d);
+}
+
+function matchesRange(a: Activity, range: YmdRange | null): boolean {
+  if (!range) return true;
+  const day = activityDay(a);
+  return day !== null && day >= range.from && day <= range.to; // sin fecha → fuera del rango
 }
 
 function matchesDate(a: Activity, date: DateFilter, now: Date): boolean {
@@ -35,16 +43,19 @@ function matchesDate(a: Activity, date: DateFilter, now: Date): boolean {
   const t = new Date(a.startsAt).getTime();
   if (Number.isNaN(t)) return false;
   const today = startOfDay(now);
-  switch (date) {
-    case 'proximas': return t >= today;
-    case 'pasadas': return t < today;
-    case 'hoy': return t >= today && t < today + 86_400_000;
-    case 'semana': {
-      const [start, end] = weekRange(now);
-      return t >= start && t < end;
-    }
-    default: return true;
-  }
+  return date === 'proximas' ? t >= today : t < today;
+}
+
+/**
+ * Rango desde la URL: `from`+`to` válidos (YYYY-MM-DD, from<=to). Compatibilidad con enlaces viejos:
+ * `fecha=hoy` → hoy..hoy y `fecha=semana` → lunes..domingo de la semana actual (zona del tenant).
+ */
+export function rangeFromParams(from: string | null, to: string | null, legacyFecha: string | null, now: Date = new Date()): YmdRange | null {
+  if (from && to && isYmd(from) && isYmd(to) && from <= to) return { from, to };
+  const today = todayYmd(DEFAULT_TZ, now);
+  if (legacyFecha === 'hoy') return { from: today, to: today };
+  if (legacyFecha === 'semana') { const mon = startOfWeek(today, 1); return { from: mon, to: addDays(mon, 6) }; }
+  return null;
 }
 
 function matchesQuery(a: Activity, q: string): boolean {
@@ -64,6 +75,7 @@ export function filterActivities(
     matchesQuery(a, f.query) &&
     (f.status === 'todas' || a.status === f.status) &&
     (f.category === 'todas' || a.category === f.category) &&
+    matchesRange(a, f.range) &&
     matchesDate(a, f.date, now),
   );
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Activity } from './demoData';
-import { filterActivities, deriveStatusPills, uniqueCategories, EMPTY_FILTERS } from './filters';
+import { filterActivities, deriveStatusPills, uniqueCategories, EMPTY_FILTERS, rangeFromParams } from './filters';
 
 // `now` y fechas RELATIVAS a now en hora LOCAL → deterministas en cualquier tz.
 const now = new Date('2026-05-24T12:00:00');
@@ -33,15 +33,60 @@ describe('filterActivities', () => {
   it('filtro por categoría', () => {
     expect(ids(filterActivities(A, { ...EMPTY_FILTERS, category: 'Cine' }, now))).toEqual(['hoy']);
   });
-  it('fecha: próximas / pasadas / hoy (sin fecha solo en todas)', () => {
+  it('fecha: próximas / pasadas (sin fecha solo en todas)', () => {
     expect(ids(filterActivities(A, { ...EMPTY_FILTERS, date: 'proximas' }, now))).toEqual(['futura', 'hoy']);
     expect(ids(filterActivities(A, { ...EMPTY_FILTERS, date: 'pasadas' }, now))).toEqual(['pasada', 'pasada2']);
-    expect(ids(filterActivities(A, { ...EMPTY_FILTERS, date: 'hoy' }, now))).toEqual(['hoy']);
     // 'borrador' (sin fecha) nunca aparece con un filtro de fecha activo
     expect(filterActivities(A, { ...EMPTY_FILTERS, date: 'pasadas' }, now).some((a) => a.id === 'borrador')).toBe(false);
   });
   it('combinación: categoría + fecha', () => {
     expect(ids(filterActivities(A, { ...EMPTY_FILTERS, category: 'Taller', date: 'pasadas' }, now))).toEqual(['pasada']);
+  });
+});
+
+describe('filtro por rango de días (zona America/Santo_Domingo)', () => {
+  const at = (id: string, startsAt: string | null): Activity =>
+    ({ id, title: id, category: 'X', date: 'x', startsAt, location: 'S', status: 'soon', statusLabel: 'Próxima', registered: null, capacity: null, occupancyPct: null });
+  // RD = UTC-4 todo el año. 2026-10-16T03:59Z = 15 oct 23:59 RD; 04:00Z = 16 oct 00:00 RD.
+  const B = [
+    at('antes', '2026-10-15T03:59:00Z'), // 14 oct 23:59 RD
+    at('abre', '2026-10-15T04:00:00Z'), // 15 oct 00:00 RD
+    at('medio', '2026-10-16T15:00:00Z'),
+    at('cierra', '2026-10-17T03:59:00Z'), // 16 oct 23:59 RD
+    at('despues', '2026-10-17T04:00:00Z'), // 17 oct 00:00 RD
+    at('sinfecha', null),
+  ];
+  const range = { from: '2026-10-15', to: '2026-10-16' };
+  const nowB = new Date('2026-10-16T16:00:00Z');
+
+  it('es inclusivo en ambos extremos y respeta el borde de medianoche en RD', () => {
+    expect(ids(filterActivities(B, { ...EMPTY_FILTERS, range }, nowB))).toEqual(['abre', 'cierra', 'medio']);
+  });
+  it('una actividad sin startsAt queda fuera del rango (pero entra sin rango)', () => {
+    expect(filterActivities(B, { ...EMPTY_FILTERS, range }, nowB).some((a) => a.id === 'sinfecha')).toBe(false);
+    expect(filterActivities(B, EMPTY_FILTERS, nowB)).toHaveLength(6);
+  });
+  it('un solo día (from = to)', () => {
+    expect(ids(filterActivities(B, { ...EMPTY_FILTERS, range: { from: '2026-10-16', to: '2026-10-16' } }, nowB))).toEqual(['cierra', 'medio']);
+  });
+  it('proximas/pasadas siguen funcionando sin rango y se combinan (AND) con él', () => {
+    expect(ids(filterActivities(A, { ...EMPTY_FILTERS, date: 'proximas', range: null }, now))).toEqual(['futura', 'hoy']);
+    expect(ids(filterActivities(B, { ...EMPTY_FILTERS, date: 'pasadas', range }, new Date('2026-10-16T16:00:00Z')))).toEqual(['abre']);
+  });
+});
+
+describe('rangeFromParams', () => {
+  const n = new Date('2026-10-16T16:00:00Z'); // viernes 16 oct en RD
+  it('from/to válidos', () => expect(rangeFromParams('2026-10-01', '2026-10-05', null, n)).toEqual({ from: '2026-10-01', to: '2026-10-05' }));
+  it('inválidos o invertidos → null', () => {
+    expect(rangeFromParams('2026-10-09', '2026-10-05', null, n)).toBeNull();
+    expect(rangeFromParams('hola', '2026-10-05', null, n)).toBeNull();
+    expect(rangeFromParams('2026-10-01', null, null, n)).toBeNull();
+  });
+  it('compat: fecha=hoy y fecha=semana (lunes..domingo)', () => {
+    expect(rangeFromParams(null, null, 'hoy', n)).toEqual({ from: '2026-10-16', to: '2026-10-16' });
+    expect(rangeFromParams(null, null, 'semana', n)).toEqual({ from: '2026-10-12', to: '2026-10-18' });
+    expect(rangeFromParams(null, null, 'proximas', n)).toBeNull();
   });
 });
 
