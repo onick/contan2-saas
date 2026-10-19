@@ -32,6 +32,8 @@ interface Row {
   allowed: Role[];
   forbidden: Role[];
   note?: string;
+  /** POST sin efectos (p. ej. el Asistente): un 2xx para roles permitidos es correcto, no una escritura. */
+  readOnly?: boolean;
 }
 interface Ctx {
   actId: string;
@@ -89,10 +91,10 @@ const ROWS: Row[] = [
   // REP-A14 (PR-R2): lectura del dashboard = REPORT_READ_ROLES; protocolo/biblioteca -> 403 en la API.
   { id: 'RBAC-R16a', sev: 'S1', method: 'GET', path: g('/app/reportes/api/summary?from=2026-01-01&to=2026-01-31'), allowed: ['owner', 'admin', 'operator', 'consulta', 'puerta'], forbidden: ['protocolo', 'biblioteca'], note: 'REP-A14' },
   { id: 'RBAC-R16b', sev: 'S1', method: 'GET', path: g('/app/reportes/api/categories'), allowed: ['owner', 'admin', 'operator', 'consulta', 'puerta'], forbidden: ['protocolo', 'biblioteca'], note: 'REP-A14' },
-  { id: 'RBAC-R16c', sev: 'S1', method: 'POST', path: g('/app/reportes/api/agent'), body: () => ({ query: 'ayuda' }), allowed: ['owner', 'admin', 'operator', 'consulta', 'puerta'], forbidden: ['protocolo', 'biblioteca'], note: 'REP-A14' },
+  { id: 'RBAC-R16c', sev: 'S1', method: 'POST', path: g('/app/reportes/api/agent'), body: () => ({ query: 'ayuda' }), readOnly: true, allowed: ['owner', 'admin', 'operator', 'consulta', 'puerta'], forbidden: ['protocolo', 'biblioteca'], note: 'REP-A14' },
   { id: 'RBAC-R16', sev: 'S1', method: 'GET', path: g('/app/reportes/api/month'), allowed: ['owner', 'admin', 'puerta'], forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'] },
   { id: 'RBAC-R17', sev: 'S1', method: 'GET', path: g('/app/reportes/api/attendance'), allowed: ['owner', 'admin', 'puerta'], forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'] },
-  { id: 'RBAC-R18', sev: 'S1', method: 'GET', path: g('/app/reportes/api/period'), allowed: ['owner', 'admin', 'puerta'], forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'] },
+  { id: 'RBAC-R18', sev: 'S1', method: 'GET', path: g('/app/reportes/api/period?kind=xlsx&from=2026-10-01&to=2026-10-19'), allowed: ['owner', 'admin', 'puerta'], forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'] },
   { id: 'RBAC-R19', sev: 'S1', method: 'GET', path: g('/app/reportes/api/protocol'), allowed: ['owner', 'admin', 'protocolo'], forbidden: ['operator', 'consulta', 'puerta', 'biblioteca'] },
   { id: 'RBAC-R20', sev: 'S1', method: 'GET', path: g('/app/protocolo/api'), allowed: ['owner', 'admin', 'protocolo', 'puerta'], forbidden: ['operator', 'consulta', 'biblioteca'] },
   { id: 'RBAC-R21', sev: 'S1', method: 'GET', path: g('/app/protocolo/api/dashboard'), allowed: ['owner', 'admin', 'protocolo', 'puerta'], forbidden: ['operator', 'consulta', 'biblioteca'] },
@@ -165,7 +167,7 @@ test.describe('RBAC por rol: BFF /app/**/api/**', () => {
         const isAllowed = row.allowed.includes(role);
         if (isAllowed) {
           if (status === 401 || status === 403) bad.push(`${role}: esperado permitido, recibio ${status}`);
-          else if (row.method !== 'GET' && status >= 200 && status < 300) bad.push(`${role}: la escritura de prueba se ejecuto (${status}); revisar el ledger`);
+          else if (row.method !== 'GET' && !row.readOnly && status >= 200 && status < 300) bad.push(`${role}: la escritura de prueba se ejecuto (${status}); revisar el ledger`);
           else if (status >= 500) bad.push(`${role}: 5xx (${status}) con entrada invalida`);
         } else if (status !== 403) {
           bad.push(`${role}: esperado 403, recibio ${status}`);

@@ -108,7 +108,8 @@ test.describe('arc · SplitButton y DropdownMenu', () => {
     await page.keyboard.press('Enter');
     const panel = page.getByRole('dialog', { name: 'Descargas' });
     await expect(panel).toBeVisible();
-    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    // En móvil el panel es un Sheet modal (el resto queda aria-hidden): el gatillo se lee por CSS, no por rol.
+    await expect(page.locator('button[aria-haspopup="dialog"][aria-label="Otros formatos de exportación"]')).toHaveAttribute('aria-expanded', 'true');
     await expect(panel.getByRole('heading', { name: 'Informe del período' })).toBeVisible();
     await expect(panel.getByRole('link', { name: 'Excel · Informe del período' })).toBeVisible();
     await page.keyboard.press('Escape');
