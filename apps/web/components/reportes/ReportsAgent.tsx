@@ -2,7 +2,7 @@
 
 // components/reportes/ReportsAgent.tsx · Asistente de Reportes: drawer de chat
 // que ejecuta acciones básicas de reportería en español (emitir reportes,
-// comparar períodos, comparar actividades) contra POST /app/reportes/api/agent.
+// cifras por período, comparaciones, salas, actividades) contra POST /app/reportes/api/agent.
 // Sin LLM: motor de intenciones determinístico en la API; la UI renderiza por
 // `kind` (KPIs, comparaciones con deltas, links de descarga, aclaraciones).
 
@@ -26,11 +26,16 @@ function linkHref(l: ReportsAgentLink): string {
 
 const SUGGESTIONS = [
   'Emite el reporte de este mes en PDF',
+  '¿Cuántas personas vinieron este mes?',
   'Compara este mes con el mes anterior',
+  'Cine vs teatro en el año',
+  'Cuánta gente pasó por la sala VR esta semana',
   'Reporte completo de Cine Clásico',
-  'Compara Cine Clásico y el 5to Ciclo de Cine Dominicano',
   '¿Cómo le fue a la Presentación del Catálogo?',
 ];
+
+// Fecha de actividad en prosa corta (zona del centro), nunca ISO.
+const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('es-DO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Santo_Domingo' });
 
 type Msg = { role: 'user'; text: string } | { role: 'agent'; res: ReportsAgentResponse } | { role: 'agent'; error: string };
 
@@ -99,7 +104,44 @@ export function ReportsAgent() {
           </div>
         ) : null}
 
-        {res.kind === 'period_compare' && res.compare ? (
+        {res.kind === 'metric_query' && res.metric ? (
+          <div className="mt-2.5 rounded-lg bg-surface px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.05em] text-faint">
+              {res.metric.label}{res.metric.filterLabel ? ` · ${res.metric.filterLabel}` : ''}
+            </p>
+            <p className="text-[24px] font-extrabold leading-tight tabular-nums text-ink">
+              {fmt(res.metric.value)}{res.metric.key === 'occupancyPct' ? '%' : ''}
+              <span className="ml-1.5 text-[12px] font-semibold text-muted">{res.metric.key === 'occupancyPct' ? 'de ocupación' : res.metric.unit}</span>
+            </p>
+            {res.metric.secondary ? <p className="text-[12px] text-muted">{res.metric.secondary}</p> : null}
+            <p className="mt-1.5 flex items-center gap-2 text-[12px] text-muted">
+              <span>Antes: <b className="tabular-nums text-ink/80">{fmt(res.metric.previousValue)}{res.metric.key === 'occupancyPct' ? '%' : ''}</b></span>
+              {res.metric.deltaUnit === 'pts' ? <DeltaPoints pts={res.metric.delta} /> : <DeltaPct pct={res.metric.delta} />}
+            </p>
+          </div>
+        ) : null}
+
+        {res.kind === 'sala_query' && res.sala ? (
+          <div className="mt-2.5 rounded-lg bg-surface px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.05em] text-faint">{res.sala.scopeLabel}</p>
+            <p className="text-[24px] font-extrabold leading-tight tabular-nums text-ink">
+              {fmt(res.sala.people)}<span className="ml-1.5 text-[12px] font-semibold text-muted">personas ({fmt(res.sala.entries)} registros)</span>
+            </p>
+            <p className="mt-1.5 flex items-center gap-2 text-[12px] text-muted">
+              <span>Antes: <b className="tabular-nums text-ink/80">{fmt(res.sala.previous.people)}</b></span>
+              <DeltaPct pct={res.sala.deltaPeople} />
+            </p>
+            {res.sala.bySala.length > 1 ? (
+              <ul className="mt-2 space-y-1 border-t border-line pt-1.5 text-[12px]">
+                {res.sala.bySala.map((b) => (
+                  <li key={b.name} className="flex justify-between gap-2"><span className="truncate text-muted" title={b.name}>{b.name}</span><b className="tabular-nums">{fmt(b.people)}</b></li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+
+        {(res.kind === 'period_compare' || res.kind === 'type_compare') && res.compare ? (
           <div className="mt-2.5 overflow-hidden rounded-lg border border-line bg-surface">
             <div className="grid grid-cols-[1.2fr_1fr_1fr_0.7fr] gap-2 border-b border-line bg-surface-container/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.05em] text-faint">
               <span /><span className="truncate" title={res.compare.a.label}>{res.compare.a.label}</span>
@@ -124,7 +166,7 @@ export function ReportsAgent() {
                 <p className="text-[10.5px] text-faint">{c.periodLabel}</p>
                 <div className="mt-2 space-y-1 text-[12px]">
                   <p className="flex justify-between"><span className="text-muted">Actividades</span><b className="tabular-nums">{fmt(c.activities)}</b></p>
-                  <p className="flex justify-between"><span className="text-muted">Check-ins</span><b className="tabular-nums">{fmt(c.attendances)}</b></p>
+                  <p className="flex justify-between"><span className="text-muted">Registros</span><b className="tabular-nums">{fmt(c.attendances)}</b></p>
                   <p className="flex justify-between"><span className="text-muted">Personas</span><b className="tabular-nums">{fmt(c.people)}</b></p>
                   <p className="flex justify-between"><span className="text-muted">Ocupación</span><b className="tabular-nums">{c.occupancyPct}%</b></p>
                 </div>
@@ -139,10 +181,10 @@ export function ReportsAgent() {
             {res.activities.map((a) => (
               <div key={a.id} className="rounded-lg border border-line bg-surface p-3">
                 <p className="truncate text-[12.5px] font-bold leading-tight text-ink" title={a.name}>{a.name}</p>
-                <p className="text-[10.5px] text-faint">{a.date.slice(0, 10)}</p>
+                <p className="text-[10.5px] text-faint">{fmtDay(a.date)}</p>
                 <div className="mt-2 space-y-1 text-[12px]">
                   <p className="flex justify-between"><span className="text-muted">Personas</span><b className="tabular-nums">{fmt(a.people)}</b></p>
-                  <p className="flex justify-between"><span className="text-muted">Check-ins</span><b className="tabular-nums">{fmt(a.attendances)}</b></p>
+                  <p className="flex justify-between"><span className="text-muted">Registros</span><b className="tabular-nums">{fmt(a.attendances)}</b></p>
                   <p className="flex justify-between"><span className="text-muted">Ocupación</span><b className="tabular-nums">{a.occupancyPct}%</b></p>
                 </div>
               </div>
@@ -203,7 +245,7 @@ export function ReportsAgent() {
               {msgs.length === 0 ? (
                 <div>
                   <p className="text-[13.5px] leading-relaxed text-muted">
-                    Pedime acciones de reportería en tus palabras: emitir un reporte, comparar períodos o actividades. Por ejemplo:
+                    Pídeme cifras o reportes con tus palabras: personas por período, comparaciones, visitas a salas o el informe de una actividad. Por ejemplo:
                   </p>
                   <div className="mt-3 flex flex-col items-start gap-1.5">
                     {SUGGESTIONS.map((s) => (

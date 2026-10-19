@@ -223,7 +223,7 @@ run('reportes · un solo motor de período (integración)', () => {
     expect(m).toContain(`${EXPECT.cur.attendances} registros`);
     expect(m).toContain(`${EXPECT.cur.uniqueVisitors} visitantes únicos`);
     expect(m).toContain(`${EXPECT.cur.occupancyPct}% de ocupación`);
-    expect(m).toContain('2026-06-01 a 2026-06-19');
+    expect(m).toContain('1 al 19 de junio de 2026'); // fechas en prosa, no ISO (REP-U09)
     expect(m).toContain(`${EXPECT.prev.people} personas`);
     const k = (r as { period: { kpis: Record<string, number> } }).period.kpis;
     expect(k).toMatchObject(EXPECT.cur);

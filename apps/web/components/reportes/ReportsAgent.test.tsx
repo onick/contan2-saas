@@ -10,7 +10,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 const J = (status: number, obj: unknown) => new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json' } });
 
-const kpis = (n: number) => ({ activities: n, attendances: n * 10, uniqueVisitors: n * 5, occupancyPct: 40 });
+const kpis = (n: number) => ({ activities: n, attendances: n * 10, people: n * 12, uniqueVisitors: n * 5, occupancyPct: 40 });
 
 const compareBody = {
   kind: 'period_compare',
@@ -82,6 +82,54 @@ describe('ReportsAgent', () => {
     await waitFor(() => expect(screen.getByText('Visitantes únicos')).toBeTruthy());
     const month = screen.getByRole('link', { name: /Registro mensual/ }) as HTMLAnchorElement;
     expect(month.getAttribute('href')).toBe('/app/reportes/api/month?year=2026&month=7');
+  });
+
+  it('metric_query: cifra principal en personas, secundario, anterior y delta', async () => {
+    installFetch({
+      kind: 'metric_query',
+      message: 'Personas de cine · octubre 2026: 4 personas (2 registros).',
+      metric: {
+        key: 'people', label: 'Personas', value: 4, unit: 'personas', secondary: '2 registros', previousValue: 1, delta: 300,
+        deltaUnit: 'pct', periodLabel: 'octubre 2026', previousLabel: '1 al 19 de septiembre de 2026', filterLabel: 'Cine',
+      },
+    });
+    await openDrawer();
+    const input = screen.getByLabelText('Consulta para el asistente de reportes');
+    fireEvent.change(input, { target: { value: 'asistencias de cine en octubre' } });
+    fireEvent.submit(input.closest('form')!);
+    await waitFor(() => expect(screen.getByText('2 registros')).toBeTruthy());
+    expect(screen.getByText(/Personas · Cine/)).toBeTruthy();
+  });
+
+  it('sala_query: personas y registros de Puerta con desglose por sala', async () => {
+    installFetch({
+      kind: 'sala_query',
+      message: 'Todas las salas · octubre: 8 personas (3 registros).',
+      sala: {
+        scopeLabel: 'Todas las salas', periodLabel: 'octubre 2026', from: '2026-10-01', to: '2026-10-19', people: 8, entries: 3,
+        previous: { from: '2026-09-01', to: '2026-09-19', people: 1, entries: 1 }, deltaPeople: 700,
+        bySala: [{ name: 'Sala VR', people: 6, entries: 2 }, { name: 'Sala Ada Balcácer', people: 2, entries: 1 }],
+      },
+    });
+    await openDrawer();
+    const input = screen.getByLabelText('Consulta para el asistente de reportes');
+    fireEvent.change(input, { target: { value: 'puerta en octubre' } });
+    fireEvent.submit(input.closest('form')!);
+    await waitFor(() => expect(screen.getByText('Sala VR')).toBeTruthy());
+    expect(screen.getByText('Sala Ada Balcácer')).toBeTruthy();
+  });
+
+  it('type_compare: reutiliza la tabla de comparación', async () => {
+    installFetch({
+      ...compareBody, kind: 'type_compare', message: 'Cine contra teatro en el año — las personas subieron 25%.',
+      compare: { ...compareBody.compare, a: { ...compareBody.compare.a, label: 'Cine' }, b: { ...compareBody.compare.b, label: 'Teatro' } },
+    });
+    await openDrawer();
+    const input = screen.getByLabelText('Consulta para el asistente de reportes');
+    fireEvent.change(input, { target: { value: 'cine vs teatro en el año' } });
+    fireEvent.submit(input.closest('form')!);
+    await waitFor(() => expect(screen.getByText('Teatro')).toBeTruthy());
+    expect(screen.getByText('Cine')).toBeTruthy();
   });
 
   it('clarify: las opciones re-consultan al tocarlas', async () => {
