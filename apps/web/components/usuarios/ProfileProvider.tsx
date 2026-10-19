@@ -1,5 +1,7 @@
 'use client';
 
+import { Eye } from 'lucide-react';
+
 // components/usuarios/ProfileProvider.tsx · abre el drawer de perfil desde la tabla
 // (UI-2b/F2E). Estado del visitante seleccionado en cliente → abrir/cerrar NO altera
 // la URL (página/filtros/cohorte se mantienen). Provee open() y openEdit() (abre en
@@ -8,7 +10,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { useSearchParamsSafe } from '../../lib/navigation/safe';
 import { UserProfileDrawer } from './UserProfileDrawer';
-import { cn, focusRing } from '../ui';
+import { cn, focusRing, IconButton } from '../ui';
 
 interface ProfileActions { open: (code: string) => void; openEdit: (code: string) => void; }
 const ProfileCtx = createContext<ProfileActions>({ open: () => {}, openEdit: () => {} });
@@ -55,14 +57,13 @@ export function ProfileProvider({ children, canEdit = false }: { children: React
   );
 }
 
-// Acción "Ver" de cada fila. Abre el perfil del visitante por código.
+// Acción "Ver perfil" de cada fila: ícono de ojo (mismo patrón que «Ver detalle» en Actividades), en la
+// columna de acciones. El nombre accesible sigue siendo «Ver perfil <código>» (tests y e2e lo usan).
 export function ProfileLink({ code }: { code: string }) {
   const { open } = useProfileActions();
   return (
-    <button type="button" data-ver-btn onClick={() => open(code)}
-      aria-label={`Ver perfil ${code}`}
-      className={cn('inline-flex min-h-6 min-w-8 items-center justify-center rounded px-1.5 text-[13px] font-semibold text-brand-text', focusRing)}>
-      Ver
-    </button>
+    <IconButton label={`Ver perfil ${code}`} variant="ghost" size="sm" className="text-brand-text" data-ver-btn onClick={() => open(code)}>
+      <Eye size={18} strokeWidth={2} aria-hidden="true" />
+    </IconButton>
   );
 }

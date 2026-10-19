@@ -67,10 +67,7 @@ export function UsersTable({ users, canWrite = false }: UsersTableProps) {
           <div className="min-w-0 flex-1">
             {/* whitespace-normal overrides the inherited white-space:nowrap from <td class="truncate"> */}
             <p className="min-w-0 whitespace-normal break-words text-[14px] font-semibold text-ink">{u.name}</p>
-            <div className="flex min-w-0 items-center gap-2">
-              <p className="min-w-0 truncate text-[12px] text-muted">{u.email}</p>
-              <ProfileLink code={u.code} />
-            </div>
+            <p className="min-w-0 truncate text-[12px] text-muted">{u.email}</p>
           </div>
         </div>
       ),
@@ -116,15 +113,18 @@ export function UsersTable({ users, canWrite = false }: UsersTableProps) {
       header: '',
       priority: 'always',
       align: 'right',
-      width: 56,
+      width: 96,
       cell: (u) => (
-        <RowActions
-          code={u.code}
-          name={u.name}
-          email={u.email === '—' ? null : u.email}
-          archived={!!u.archived}
-          canWrite={canWrite}
-        />
+        <div className="flex items-center justify-end gap-1">
+          <ProfileLink code={u.code} />
+          <RowActions
+            code={u.code}
+            name={u.name}
+            email={u.email === '—' ? null : u.email}
+            archived={!!u.archived}
+            canWrite={canWrite}
+          />
+        </div>
       ),
     },
   ];
