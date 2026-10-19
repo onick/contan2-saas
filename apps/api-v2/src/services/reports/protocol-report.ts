@@ -8,6 +8,7 @@
 import ExcelJS from 'exceljs';
 import type { DbClient } from '@contan2/db';
 import { textArgb } from '../branding-tokens.js';
+import { toArgb, brandTitleBand, brandHeaderRow, subtitleRow, setColumnWidths, EXCEL_DATE_FMT } from './excel-kit.js';
 import { excelDateCell } from './fmt.js';
 
 // Instante de actividad como ISO (UTC): ordenable por cadena y sin depender de String(Date).
@@ -120,36 +121,14 @@ export async function loadProtocolReportData(
   return { range: { from, to }, summary, byActivity, detail };
 }
 
-// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
-function toArgb(hex: string | null): string {
-  const h = (hex ?? '').replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
-}
-
 // Construye una hoja con banda de título branded + fila de período + encabezado.
 function styledSheet(wb: ExcelJS.Workbook, name: string, title: string, headers: string[], brand: string, brandText: string, range: { from: string; to: string }): ExcelJS.Worksheet {
   const ws = wb.addWorksheet(name);
-  ws.mergeCells(1, 1, 1, Math.max(headers.length, 2));
-  const t = ws.getCell(1, 1);
-  t.value = title;
-  t.font = { bold: true, size: 14, color: { argb: brandText } };
-  t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
-  t.alignment = { vertical: 'middle', horizontal: 'left' };
-  ws.getRow(1).height = 26;
-  ws.mergeCells(2, 1, 2, Math.max(headers.length, 2));
-  const p = ws.getCell(2, 1);
-  p.value = range.to ? `Período: ${range.from} a ${range.to}` : `Período: ${range.from}`;
-  p.font = { italic: true, color: { argb: 'FF555555' } };
-  if (headers.length > 0) {
-    const head = ws.getRow(4);
-    headers.forEach((h, i) => {
-      const c = head.getCell(i + 1);
-      c.value = h;
-      c.font = { bold: true, color: { argb: brandText } };
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
-    });
-    head.height = 20;
-  }
+  const ncols = Math.max(headers.length, 2);
+  const pal = { brand, brandText };
+  brandTitleBand(ws, title, ncols, pal, 'left');
+  subtitleRow(ws, 2, ncols, range.to ? `Período: ${range.from} a ${range.to}` : `Período: ${range.from}`);
+  if (headers.length > 0) brandHeaderRow(ws, 4, headers, pal, { height: 20 });
   return ws;
 }
 
@@ -199,7 +178,7 @@ export async function buildProtocolExcelReport(
   const s2 = styledSheet(wb, 'Por actividad', `${organization.name} · Protocolo por actividad`, H2, brand, brandText, data.range);
   for (const a of data.byActivity) {
     const r2 = s2.addRow([a.name, excelDateCell(a.date), a.invited, a.confirmed, a.attended, a.partySize]);
-    r2.getCell(2).numFmt = 'dd/mm/yyyy';
+    r2.getCell(2).numFmt = EXCEL_DATE_FMT;
   }
   s2.getColumn(1).width = 40; s2.getColumn(2).width = 14;
   [3, 4, 5, 6].forEach((c) => (s2.getColumn(c).width = 13));
@@ -215,7 +194,7 @@ export async function buildProtocolExcelReport(
       d.plusOnes > 0 ? `+${d.plusOnes}` : '—',
       d.attended ? 'Sí' : 'No',
     ]);
-    r3.getCell(2).numFmt = 'dd/mm/yyyy';
+    r3.getCell(2).numFmt = EXCEL_DATE_FMT;
   }
   s3.getColumn(1).width = 36; s3.getColumn(3).width = 24; s3.getColumn(6).width = 26;
   [2, 4, 5, 7, 8, 9].forEach((c) => (s3.getColumn(c).width = 14));

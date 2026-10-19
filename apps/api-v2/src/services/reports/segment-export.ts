@@ -6,6 +6,7 @@
 import ExcelJS from 'exceljs';
 import type { SegmentMember } from '@contan2/contracts';
 import { textArgb } from '../branding-tokens.js';
+import { toArgb } from './excel-kit.js';
 import { CSV_BOM, csvRow, safeFilename } from '../csv.js';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -16,12 +17,6 @@ export interface SegmentExportOrg { name: string; primaryColor: string | null }
 export interface SegmentExportMeta { label: string; description: string; count: number; generatedAt: string }
 
 const HEADERS = ['Nombre', 'Código', 'Email', 'Teléfono', 'Asistencias', 'Última visita', 'Días desde última', 'Estado'] as const;
-
-// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
-function toArgb(hex: string | null): string {
-  const h = (hex ?? '').replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
-}
 
 function fullName(m: SegmentMember): string {
   return `${m.firstName} ${m.lastName}`.trim() || '—';

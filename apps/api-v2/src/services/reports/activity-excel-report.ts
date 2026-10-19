@@ -14,6 +14,7 @@
 
 import ExcelJS from 'exceljs';
 import { generatePalette, textArgb } from '../branding-tokens.js';
+import { hexToArgb } from './excel-kit.js';
 import { loadLogoDataUri } from '../credential.js';
 import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz, ymdInTz } from './fmt.js';
 import { occupancyPct, peopleOf } from './metrics.js';
@@ -57,13 +58,6 @@ function fmtTimestamp(date = new Date()) {
   return fmtDateTz(date, { dateStyle: 'long', timeStyle: 'short' });
 }
 
-function hexToARGB(hex) {
-  if (!hex) return null;
-  const m = /^#?([a-f\d]{6})$/i.exec(hex);
-  if (!m) return null;
-  return 'FF' + m[1].toUpperCase();
-}
-
 async function loadLogoBuffer(logoUrl) {
   // v2: el logo llega por URL (loadLogoDataUri fetchea y rasteriza SVG→PNG);
   // exceljs sólo acepta png/jpeg/gif como imagen embebida.
@@ -91,9 +85,9 @@ export async function buildActivityExcelReport({ organization, activity, attenda
   wb.lastModifiedBy = organization.name || 'contan2-saas';
 
   const palette = generatePalette(organization.primaryColor || '#f39228') || {};
-  const primaryArgb = hexToARGB(palette['700']) || hexToARGB(organization.primaryColor) || 'FFF39228';
-  const primaryLightArgb = hexToARGB(palette['50']) || 'FFFEF4E8';
-  const accentArgb = hexToARGB(organization.secondaryColor) || 'FF31A3DB';
+  const primaryArgb = hexToArgb(palette['700']) || hexToArgb(organization.primaryColor) || 'FFF39228';
+  const primaryLightArgb = hexToArgb(palette['50']) || 'FFFEF4E8';
+  const accentArgb = hexToArgb(organization.secondaryColor) || 'FF31A3DB';
   const onPrimaryArgb = textArgb(palette['700'] || organization.primaryColor || '#f39228');
   const borderColor = { style: 'thin', color: { argb: 'FFE5E7EB' } };
 

@@ -13,6 +13,7 @@
 
 import ExcelJS from 'exceljs';
 import { generatePalette, textArgb } from '../branding-tokens.js';
+import { hexToArgb } from './excel-kit.js';
 import { loadLogoDataUri } from '../credential.js';
 import { fmtDateTz, fmtTimeTz, fmtYmd } from './fmt.js';
 import { fmtDeltaPct, fmtDeltaPoints } from './metrics.js';
@@ -36,12 +37,6 @@ function fmtDateTime(iso) {
 function rangeLabel(from, to) {
   return `${fmtYmd(from)} → ${fmtYmd(to)}`;
 }
-function hexToARGB(hex) {
-  if (!hex) return null;
-  const m = /^#?([a-f\d]{6})$/i.exec(hex);
-  return m ? 'FF' + m[1].toUpperCase() : null;
-}
-
 async function loadLogoBuffer(logoUrl) {
   // v2: el logo llega por URL (loadLogoDataUri fetchea y rasteriza SVG→PNG);
   // exceljs sólo acepta png/jpeg/gif como imagen embebida.
@@ -61,9 +56,9 @@ export async function buildPeriodExcelReport({ organization, period }) {
   wb.created = new Date();
 
   const palette = generatePalette(organization.primaryColor || '#f39228') || {};
-  const primaryArgb = hexToARGB(palette['700']) || 'FFF39228';
-  const primaryLightArgb = hexToARGB(palette['50']) || 'FFFEF4E8';
-  const accentArgb = hexToARGB(organization.secondaryColor) || 'FF31A3DB';
+  const primaryArgb = hexToArgb(palette['700']) || 'FFF39228';
+  const primaryLightArgb = hexToArgb(palette['50']) || 'FFFEF4E8';
+  const accentArgb = hexToArgb(organization.secondaryColor) || 'FF31A3DB';
   const onPrimaryArgb = textArgb(palette['700'] || organization.primaryColor || '#f39228');
   const border = { style: 'thin', color: { argb: 'FFE5E7EB' } };
 

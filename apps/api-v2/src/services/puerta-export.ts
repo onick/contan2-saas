@@ -7,6 +7,7 @@
 
 import ExcelJS from 'exceljs';
 import { textArgb } from './branding-tokens.js';
+import { toArgb, brandTitleBand, brandHeaderRow, subtitleRow } from './reports/excel-kit.js';
 
 export interface PuertaExportRow {
   salaName: string;
@@ -35,12 +36,6 @@ const HEADERS = [
   'Tipo de grupo', 'Grupo', 'Nivel', 'Responsable', 'Acompañantes', 'Personas',
 ];
 
-// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
-function toArgb(hex: string | null): string {
-  const h = (hex ?? '').replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
-}
-
 export async function buildPuertaExportWorkbook(
   rows: PuertaExportRow[],
   meta: PuertaExportMeta,
@@ -54,32 +49,12 @@ export async function buildPuertaExportWorkbook(
   wb.creator = meta.orgName;
   const ws = wb.addWorksheet('Puerta');
 
-  // Título branded.
-  ws.mergeCells(1, 1, 1, HEADERS.length);
-  const title = ws.getCell(1, 1);
-  title.value = `${meta.orgName} · Datos de la puerta — ${meta.salaLabel}`;
-  title.font = { bold: true, size: 14, color: { argb: brandText } };
-  title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
-  title.alignment = { vertical: 'middle', horizontal: 'left' };
-  ws.getRow(1).height = 26;
-
-  // Rango + total.
-  ws.mergeCells(2, 1, 2, HEADERS.length);
-  const sub = ws.getCell(2, 1);
+  // Título branded, rango + total y encabezado de columnas (fila 4).
+  const pal = { brand, brandText };
+  brandTitleBand(ws, `${meta.orgName} · Datos de la puerta — ${meta.salaLabel}`, HEADERS.length, pal, 'left');
   const totalPeople = rows.reduce((n, r) => n + r.partySize, 0);
-  sub.value = `Período: ${meta.rangeLabel} · ${rows.length} registros · ${totalPeople} personas`;
-  sub.font = { italic: true, color: { argb: 'FF555555' } };
-
-  // Encabezado de columnas (fila 4).
-  const head = ws.getRow(4);
-  HEADERS.forEach((h, i) => {
-    const c = head.getCell(i + 1);
-    c.value = h;
-    c.font = { bold: true, color: { argb: brandText } };
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: brand } };
-    c.alignment = { vertical: 'middle' };
-  });
-  head.height = 20;
+  subtitleRow(ws, 2, HEADERS.length, `Período: ${meta.rangeLabel} · ${rows.length} registros · ${totalPeople} personas`);
+  brandHeaderRow(ws, 4, HEADERS, pal, { height: 20, alignment: { vertical: 'middle' } });
 
   for (const r of rows) {
     const d = new Date(r.registeredAt);

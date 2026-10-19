@@ -18,16 +18,14 @@
 import ExcelJS from 'exceljs';
 import type { MonthlyRegisterReport, RegisterBook } from './monthly-register.js';
 import { TIPO_ORDER, MESES_ES, MESES_CORTO, SEMANAS } from './labels.js';
-import { excelDateCell } from './fmt.js';
+import {
+  excelDateCell, toArgb, brandHeaderCell, brandHeaderRow, brandTitleBand, setColumnWidths,
+  applyAutoFilter, addSumTotalRow, addListsSheet, listValidation, EXCEL_DATE_FMT,
+  type BrandPalette,
+} from './excel-kit.js';
 import { textArgb } from '../branding-tokens.js';
 
 export interface ReportBranding { name: string; primaryColor: string }
-
-// '#f39228' → 'FFF39228' (ARGB de ExcelJS). Fallback al naranja de marca CCB.
-function toArgb(hex: string): string {
-  const h = (hex ?? '').replace('#', '').trim();
-  return /^[0-9a-fA-F]{6}$/.test(h) ? `FF${h.toUpperCase()}` : 'FFF39228';
-}
 
 const HEADERS = [
   'No.', 'Fecha', 'Mes', 'Semana', 'Tipo de actividad', 'Programa',
@@ -46,25 +44,14 @@ export function registerFilename(year: number, month?: number): string {
 /** Hoja de un mes (nombre corto Ene…Dic). */
 const sheetName = (m: number): string => MESES_CORTO[m - 1] ?? `M${m}`;
 
-interface Palette { brand: string; brandText: string }
+type Palette = BrandPalette;
 
-const solid = (argb: string): ExcelJS.Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+const MONTH_ALIGN = { vertical: 'middle', horizontal: 'center', wrapText: true } as const;
+const band = (cell: ExcelJS.Cell, p: Palette): void => brandHeaderCell(cell, p, MONTH_ALIGN);
 
-function band(cell: ExcelJS.Cell, p: Palette) {
-  cell.font = { bold: true, color: { argb: p.brandText } };
-  cell.fill = solid(p.brand);
-  cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-}
-
-function titleRow(ws: ExcelJS.Worksheet, text: string, ncols: number, p: Palette) {
-  ws.mergeCells(1, 1, 1, ncols);
-  const t = ws.getCell(1, 1);
-  t.value = text;
-  t.font = { bold: true, size: 14, color: { argb: p.brandText } };
-  t.fill = solid(p.brand);
-  t.alignment = { vertical: 'middle', horizontal: 'center' };
-  ws.getRow(1).height = 26;
-}
+const titleRow = (ws: ExcelJS.Worksheet, text: string, ncols: number, p: Palette): void => {
+  brandTitleBand(ws, text, ncols, p, 'center');
+};
 
 // Rangos de las listas ocultas (fila 1 = encabezado).
 interface ListRefs { mes: string; semana: string; tipo: string; programa: string }
@@ -89,9 +76,7 @@ function buildMonthSheet(
   const ws = wb.addWorksheet(sheetName(report.month));
   titleRow(ws, `REGISTRO ACTIVIDADES ${report.monthName.toUpperCase()} ${report.year}`, NCOLS, p);
 
-  const head = ws.getRow(2);
-  HEADERS.forEach((h, i) => { band(head.getCell(i + 1), p); head.getCell(i + 1).value = h; });
-  head.height = 22;
+  brandHeaderRow(ws, 2, HEADERS, p, { height: 22, alignment: MONTH_ALIGN });
   ws.views = [{ state: 'frozen', ySplit: 2 }];
 
   const last = lastDataRow(report);
@@ -100,42 +85,27 @@ function buildMonthSheet(
     const row = ws.addRow([
       r.no, excelDateCell(r.date), report.monthName, r.semana, r.tipo, r.programa, r.nombre, r.asistencia,
     ]);
-    row.getCell(2).numFmt = 'dd/mm/yyyy';
+    row.getCell(2).numFmt = EXCEL_DATE_FMT;
     for (const col of [1, 2, 3, 4, 8]) row.getCell(col).alignment = { horizontal: 'center' };
 
     // Dropdowns: Mes / Semana / Tipo estrictos; Programa permite texto libre con
     // aviso, porque las categorías de la actividad son abiertas.
     const n = row.number;
-    ws.getCell(n, 3).dataValidation = {
-      type: 'list', allowBlank: true, formulae: [refs.mes], showErrorMessage: true, errorStyle: 'stop',
-      errorTitle: 'Mes no válido', error: 'Elige un mes de la lista.',
-    };
-    ws.getCell(n, 4).dataValidation = {
-      type: 'list', allowBlank: true, formulae: [refs.semana], showErrorMessage: true, errorStyle: 'stop',
-      errorTitle: 'Semana no válida', error: 'Elige una semana del 1 al 5.',
-    };
-    ws.getCell(n, 5).dataValidation = {
-      type: 'list', allowBlank: true, formulae: [refs.tipo], showErrorMessage: true, errorStyle: 'stop',
-      errorTitle: 'Tipo no válido', error: 'Elige un tipo de la lista.',
-    };
-    ws.getCell(n, 6).dataValidation = {
-      type: 'list', allowBlank: true, formulae: [refs.programa], showErrorMessage: true, errorStyle: 'warning',
-      errorTitle: 'Programa fuera de la lista', error: 'Este programa no está en la lista. ¿Quieres usarlo igual?',
-    };
+    listValidation(ws.getCell(n, 3), refs.mes, { strict: true, errorTitle: 'Mes no válido', error: 'Elige un mes de la lista.' });
+    listValidation(ws.getCell(n, 4), refs.semana, { strict: true, errorTitle: 'Semana no válida', error: 'Elige una semana del 1 al 5.' });
+    listValidation(ws.getCell(n, 5), refs.tipo, { strict: true, errorTitle: 'Tipo no válido', error: 'Elige un tipo de la lista.' });
+    listValidation(ws.getCell(n, 6), refs.programa, {
+      strict: false, errorTitle: 'Programa fuera de la lista', error: 'Este programa no está en la lista. ¿Quieres usarlo igual?',
+    });
   }
 
   // Fila Total: =SUM de la asistencia (se recalcula si el departamento edita una fila).
   // Sin filas de datos la suma apunta al encabezado (texto → 0) para no autorreferirse.
-  const total = ws.addRow(['', '', '', '', '', '', 'Total:', null]);
-  total.getCell(7).font = { bold: true };
-  total.getCell(7).alignment = { horizontal: 'right' };
   const sumRange = report.rows.length > 0 ? `H${FIRST_DATA_ROW}:H${last}` : 'H2:H2';
-  total.getCell(8).value = { formula: `SUM(${sumRange})`, result: report.totalAsistencia };
-  total.getCell(8).font = { bold: true };
-  total.getCell(8).alignment = { horizontal: 'center' };
+  addSumTotalRow(ws, { ncols: NCOLS, labelCol: 7, label: 'Total:', sumCol: 8, range: sumRange, cachedResult: report.totalAsistencia });
 
-  ws.autoFilter = `A2:H${Math.max(last, 2)}`;
-  ws.columns.forEach((col, i) => { col.width = WIDTHS[i] ?? 14; });
+  applyAutoFilter(ws, 2, last, 'H');
+  setColumnWidths(ws, WIDTHS);
   return ws;
 }
 
@@ -145,9 +115,7 @@ function buildSummarySheet(wb: ExcelJS.Workbook, book: RegisterBook, p: Palette)
   const full = book.months.length === 12;
   titleRow(rs, full ? `RESUMEN MENSUAL ${book.year}` : `RESUMEN MENSUAL ${book.months[0]!.monthName.toUpperCase()} ${book.year}`, ncols, p);
 
-  const head = rs.getRow(2);
-  ['Mes', ...TIPO_ORDER, 'Total mensual'].forEach((h, i) => { band(head.getCell(i + 1), p); head.getCell(i + 1).value = h; });
-  head.height = 22;
+  brandHeaderRow(rs, 2, ['Mes', ...TIPO_ORDER, 'Total mensual'], p, { height: 22, alignment: MONTH_ALIGN });
   rs.views = [{ state: 'frozen', ySplit: 2 }];
 
   const first = FIRST_DATA_ROW;
@@ -193,12 +161,12 @@ function buildSummarySheet(wb: ExcelJS.Workbook, book: RegisterBook, p: Palette)
 }
 
 function buildListsSheet(wb: ExcelJS.Workbook, programas: string[]) {
-  const listas = wb.addWorksheet('Listas', { state: 'hidden' });
-  ['Tipo de actividad', 'Programa', 'Mes', 'Semana'].forEach((h, i) => { listas.getCell(1, i + 1).value = h; });
-  TIPO_ORDER.forEach((t, i) => { listas.getCell(i + 2, 1).value = t; });
-  programas.forEach((pr, i) => { listas.getCell(i + 2, 2).value = pr; });
-  MESES_ES.forEach((m, i) => { listas.getCell(i + 2, 3).value = m; });
-  SEMANAS.forEach((s, i) => { listas.getCell(i + 2, 4).value = s; });
+  addListsSheet(wb, [
+    { header: 'Tipo de actividad', values: TIPO_ORDER },
+    { header: 'Programa', values: programas },
+    { header: 'Mes', values: MESES_ES },
+    { header: 'Semana', values: SEMANAS },
+  ]);
 }
 
 /** Libro "Registro_Actividades_Culturales": N hojas de mes + Resumen Mensual + Listas (oculta). */
