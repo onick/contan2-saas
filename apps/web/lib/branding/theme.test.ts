@@ -10,6 +10,8 @@ import {
   CSS_VAR_INFO_SOFT,
   CSS_VAR_FOCUS,
   CSS_VAR_BRAND_STRONG,
+  CSS_VAR_CHART_1,
+  CSS_VAR_CHART_2,
 } from './theme';
 import { contrastRatio } from './contrast';
 import { getLocalBranding, DEFAULT_BRANDING } from './config';
@@ -31,7 +33,7 @@ describe('brandingToCssVars', () => {
     expect(contrastRatio('#ffffff', vars[CSS_VAR_BRAND_STRONG])).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('produce exactamente las nueve CSS vars esperadas', () => {
+  it('produce exactamente las once CSS vars esperadas', () => {
     const vars = brandingToCssVars(DEFAULT_BRANDING);
     const expected = [
       CSS_VAR_BRAND,
@@ -43,6 +45,8 @@ describe('brandingToCssVars', () => {
       CSS_VAR_INFO_SOFT,
       CSS_VAR_FOCUS,
       CSS_VAR_BRAND_STRONG,
+      CSS_VAR_CHART_1,
+      CSS_VAR_CHART_2,
     ].sort();
     expect(Object.keys(vars).sort()).toEqual(expected);
   });

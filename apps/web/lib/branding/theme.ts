@@ -15,6 +15,9 @@ export const CSS_VAR_INFO_SOFT    = '--color-info-soft';
 export const CSS_VAR_FOCUS        = '--color-focus';
 // Relleno oscuro de marca (CTAs con texto blanco): más oscuro que brand-text.
 export const CSS_VAR_BRAND_STRONG = '--color-brand-strong';
+// Gráficas: serie principal = marca; serie 2 = secundario a ≥3:1 (como el foco).
+export const CSS_VAR_CHART_1      = '--chart-1';
+export const CSS_VAR_CHART_2      = '--chart-2';
 
 export type BrandCssVars = {
   [CSS_VAR_BRAND]:        string;
@@ -26,6 +29,8 @@ export type BrandCssVars = {
   [CSS_VAR_INFO_SOFT]:    string;
   [CSS_VAR_FOCUS]:        string;
   [CSS_VAR_BRAND_STRONG]: string;
+  [CSS_VAR_CHART_1]:      string;
+  [CSS_VAR_CHART_2]:      string;
 };
 
 // Los alias var() dentro de @theme se resuelven en :root y no siguen al tenant
@@ -49,5 +54,7 @@ export function brandingToCssVars(branding: BrandingOrg): BrandCssVars {
     [CSS_VAR_INFO_SOFT]:    `color-mix(in srgb, ${secondary} 10%, white)`,
     [CSS_VAR_FOCUS]:        focus,
     [CSS_VAR_BRAND_STRONG]: t.brandStrong,
+    [CSS_VAR_CHART_1]:      t.brand,
+    [CSS_VAR_CHART_2]:      focus,
   };
 }

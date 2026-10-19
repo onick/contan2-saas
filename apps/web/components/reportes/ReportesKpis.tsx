@@ -17,7 +17,7 @@ export function ReportesKpis({ data, loading }: { data: PeriodSummaryResponse; l
     { label: 'Actividades', value: k.activities, prev: pr.activities, delta: dl.activities, tint: 'bg-info-soft text-info-text', Icon: Calendar },
     // Cifra principal = PERSONAS (con acompañantes); los registros (check-ins) quedan como dato secundario (R3, decisión P2).
     { label: 'Personas', value: k.people, prev: pr.people, delta: dl.people, tint: 'bg-success-bg text-success-fg', Icon: Users, sub: `${fmt(k.attendances)} registros` },
-    { label: 'Visitantes únicos', value: k.uniqueVisitors, prev: pr.uniqueVisitors, delta: dl.uniqueVisitors, tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: User },
+    { label: 'Visitantes únicos', value: k.uniqueVisitors, prev: pr.uniqueVisitors, delta: dl.uniqueVisitors, tint: 'bg-chart-4-soft text-chart-4', Icon: User },
     // La ocupación se compara en PUNTOS porcentuales, no en %.
     { label: 'Ocupación promedio', value: k.occupancyPct, prev: pr.occupancyPct, suffix: '%', delta: dl.occupancyPct, deltaPoints: true, tint: 'bg-brand/10 text-brand-text', Icon: TrendingUp },
   ];

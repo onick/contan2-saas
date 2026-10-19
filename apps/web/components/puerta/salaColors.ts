@@ -6,13 +6,13 @@ export interface SalaColor { c: string; soft: string; deep: string }
 
 export function salaColor(aforo: number | null): SalaColor {
   return aforo !== null
-    ? { c: '#2f9fd6', soft: '#e7f3fb', deep: '#1d7aa7' }
-    : { c: '#ee8c27', soft: '#fdf2e5', deep: '#c9701a' };
+    ? { c: 'var(--chart-2)', soft: 'var(--color-info-soft)', deep: 'var(--color-info-text)' }
+    : { c: 'var(--chart-1)', soft: 'var(--color-brand-soft)', deep: 'var(--color-brand-text)' };
 }
 
 // Paleta de respaldo para tenants con varias salas del mismo tipo (evita dos
 // series del mismo color en los gráficos).
-export const SALA_FALLBACK_COLORS = ['#ee8c27', '#2f9fd6', '#8b5cf6', '#14b8a6', '#ec4899', '#3b6fe0'];
+export const SALA_FALLBACK_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-4)', 'var(--chart-3)', 'var(--chart-5)', 'var(--chart-7)'];
 
 export function salaSeriesColors(salas: Array<{ aforo: number | null }>): string[] {
   const used = new Set<string>();

@@ -39,7 +39,7 @@ export function Donut({ slices, centerValue, centerLabel }: { slices: Slice[]; c
     <div className="mt-3 flex flex-col items-center gap-5 sm:flex-row">
       <div className="relative h-[150px] w-[150px] flex-none sm:h-[184px] sm:w-[184px]">
         <svg viewBox="0 0 42 42" className="h-full w-full">
-          <circle cx="21" cy="21" r="15.91549" fill="none" stroke="var(--color-surface-container,#eef0f4)" strokeWidth="6" />
+          <circle cx="21" cy="21" r="15.91549" fill="none" stroke="var(--color-surface-container)" strokeWidth="6" />
           {slices.map((s, i) => (
             <circle key={s.label} cx="21" cy="21" r="15.91549" fill="none" stroke={s.color}
               data-arc={s.pc.toFixed(3)} onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(null)}
@@ -107,7 +107,7 @@ export function Bars({ items, max, color, empty }: { items: Array<{ label: strin
 // Línea "este período vs anterior" con tooltip. `tooltipExtra` agrega filas al
 // tooltip (p. ej. visitantes/actividades en Reportes) sin acoplar el gráfico.
 export interface DailyPoint { label: string; current: number; previous: number }
-export function LineChart({ daily, color = 'var(--color-brand)', currentLabel = 'Asistencias', tooltipExtra }: {
+export function LineChart({ daily, color = 'var(--chart-1)', currentLabel = 'Asistencias', tooltipExtra }: {
   daily: DailyPoint[]; color?: string; currentLabel?: string;
   tooltipExtra?: (i: number) => Array<{ c: string; l: string; v: number }>;
 }) {
@@ -141,13 +141,13 @@ export function LineChart({ daily, color = 'var(--color-brand)', currentLabel = 
         {labelIdx.map((i) => (<text key={i} x={x(i)} y={H - 6} textAnchor="middle" className="fill-faint text-[10px]">{daily[i]!.label}</text>))}
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity="0.20" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient>
         <path d={area} fill={`url(#${gradId})`} />
-        <path data-line d={line('previous')} fill="none" stroke="#c7ccd4" strokeWidth="2" strokeDasharray="4 4" />
+        <path data-line d={line('previous')} fill="none" stroke="var(--chart-prev)" strokeWidth="2" strokeDasharray="4 4" />
         <path data-line d={line('current')} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
         {hi !== null && (
           <g>
             <line x1={x(hi)} y1={pad.t} x2={x(hi)} y2={H - pad.b} stroke={color} strokeOpacity="0.35" strokeDasharray="3 3" />
-            <circle cx={x(hi)} cy={y(daily[hi]!.previous)} r="3.5" fill="#fff" stroke="#c7ccd4" strokeWidth="2" />
-            <circle cx={x(hi)} cy={y(daily[hi]!.current)} r="4.5" fill="#fff" stroke={color} strokeWidth="2.5" />
+            <circle cx={x(hi)} cy={y(daily[hi]!.previous)} r="3.5" fill="var(--color-surface)" stroke="var(--chart-prev)" strokeWidth="2" />
+            <circle cx={x(hi)} cy={y(daily[hi]!.current)} r="4.5" fill="var(--color-surface)" stroke={color} strokeWidth="2.5" />
           </g>
         )}
       </svg>
@@ -157,7 +157,7 @@ export function LineChart({ daily, color = 'var(--color-brand)', currentLabel = 
           {[{ c: color, l: currentLabel, v: hd.current }, ...(tooltipExtra?.(hi) ?? [])].map((r) => (
             <div key={r.l} className="flex items-center gap-2 py-0.5"><span className="h-2 w-2 flex-none rounded-full" style={{ background: r.c }} /><span className="text-ink/80">{r.l}</span><span className="ml-auto font-extrabold tabular-nums text-ink">{fmt(r.v)}</span></div>
           ))}
-          <div className="mt-1 flex items-center gap-2 border-t border-line pt-1.5 text-faint"><span className="h-2 w-2 flex-none rounded-full" style={{ background: '#c7ccd4' }} /><span>Período anterior</span><span className="ml-auto font-bold tabular-nums">{fmt(hd.previous)}</span></div>
+          <div className="mt-1 flex items-center gap-2 border-t border-line pt-1.5 text-faint"><span className="h-2 w-2 flex-none rounded-full" style={{ background: 'var(--chart-prev)' }} /><span>Período anterior</span><span className="ml-auto font-bold tabular-nums">{fmt(hd.previous)}</span></div>
         </div>
       )}
     </div>

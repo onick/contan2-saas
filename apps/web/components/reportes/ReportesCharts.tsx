@@ -9,6 +9,7 @@ import type { PeriodSummaryResponse } from '@contan2/contracts';
 import { Card, SegmentedControlClient } from '../ui';
 import { buildSlices, Donut, Bars, LineChart } from '../charts/primitives';
 import { TYPE_COLOR, WEEKDAYS } from './shared';
+import { CHART_MAIN, CHART_NEUTRAL, CHART_PREV, CHART_SECONDARY, chartVar } from '../charts/palette';
 
 const H2 = 'text-[15.5px] font-bold tracking-tight text-ink';
 
@@ -17,19 +18,19 @@ export function EvolutionCard({ data, range }: { data: PeriodSummaryResponse; ra
     <Card padding="lg">
       <h2 className={H2}>Evolución de asistencias</h2>
       <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-muted">
-        <span><i className="mr-1.5 inline-block h-[3px] w-3.5 rounded-sm align-middle" style={{ background: '#e65100' }} />Este período ({range.from} – {range.to})</span>
-        <span><i className="mr-1.5 inline-block h-[3px] w-3.5 rounded-sm align-middle" style={{ background: '#c7ccd4' }} />Período anterior ({data.prevRange.from} – {data.prevRange.to})</span>
+        <span><i className="mr-1.5 inline-block h-[3px] w-3.5 rounded-sm align-middle" style={{ background: CHART_MAIN }} />Este período ({range.from} – {range.to})</span>
+        <span><i className="mr-1.5 inline-block h-[3px] w-3.5 rounded-sm align-middle" style={{ background: CHART_PREV }} />Período anterior ({data.prevRange.from} – {data.prevRange.to})</span>
       </div>
       <LineChart daily={data.daily} tooltipExtra={(i) => [
-        { c: '#7c3aed', l: 'Visitantes únicos', v: data.daily[i]!.visitors },
-        { c: '#1d7aa7', l: 'Actividades', v: data.daily[i]!.activities },
+        { c: chartVar(4), l: 'Visitantes únicos', v: data.daily[i]!.visitors },
+        { c: CHART_SECONDARY, l: 'Actividades', v: data.daily[i]!.activities },
       ]} />
     </Card>
   );
 }
 
 export function ByTypeCard({ data }: { data: PeriodSummaryResponse }) {
-  const slices = buildSlices(data.byType.map((t) => ({ label: t.label, count: t.attendances, color: TYPE_COLOR[t.type] ?? '#94a3b8' })));
+  const slices = buildSlices(data.byType.map((t) => ({ label: t.label, count: t.attendances, color: TYPE_COLOR[t.type] ?? CHART_NEUTRAL })));
   return (
     <Card padding="lg">
       <h2 className={H2}>Por tipo de actividad</h2>
@@ -40,7 +41,7 @@ export function ByTypeCard({ data }: { data: PeriodSummaryResponse }) {
 
 export function VisitorsCard({ data }: { data: PeriodSummaryResponse }) {
   const nr = data.newVsReturning;
-  const slices = buildSlices([{ label: 'Nuevos', count: nr.nuevos, color: '#e65100' }, { label: 'Recurrentes', count: nr.recurrentes, color: '#9fd8cf' }]);
+  const slices = buildSlices([{ label: 'Nuevos', count: nr.nuevos, color: CHART_MAIN }, { label: 'Recurrentes', count: nr.recurrentes, color: chartVar(3) }]);
   return (
     <Card padding="lg">
       <h2 className={H2}>Visitantes</h2>
@@ -82,8 +83,8 @@ export function WhenCard({ data }: { data: PeriodSummaryResponse }) {
         ) : null}
       </div>
       {showing === 'hora'
-        ? <Bars items={hourItems} max={hourMax} color="#e65100" empty="Sin datos por hora todavía." />
-        : <Bars items={wdItems} max={wdMax} color="#8fb3ef" empty="Sin datos por día todavía." />}
+        ? <Bars items={hourItems} max={hourMax} color={CHART_MAIN} empty="Sin datos por hora todavía." />
+        : <Bars items={wdItems} max={wdMax} color={CHART_SECONDARY} empty="Sin datos por día todavía." />}
     </Card>
   );
 }

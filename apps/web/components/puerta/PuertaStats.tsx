@@ -21,14 +21,15 @@ import { salaColor, salaSeriesColors } from './salaColors';
 import { DateRangePicker } from '../ui/arc/date-range-picker/DateRangePicker';
 import { SplitButton } from '../ui/arc/split-button/SplitButton';
 import { MAX_RANGE_DAYS } from '../reportes/filters';
+import { CHART_MAIN, CHART_NEUTRAL, CHART_PREV, CHART_SECONDARY, chartVar } from '../charts/palette';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 const COMPOSITION_META: Record<string, { label: string; color: string }> = {
-  identificados: { label: 'Identificados', color: '#10b981' },
-  grupos: { label: 'En grupo', color: '#8b5cf6' },
-  anonimos: { label: 'Anónimos', color: '#94a3b8' },
+  identificados: { label: 'Identificados', color: chartVar(6) },
+  grupos: { label: 'En grupo', color: chartVar(4) },
+  anonimos: { label: 'Anónimos', color: CHART_NEUTRAL },
 };
 
 const BOOKING_ROWS = [
@@ -77,14 +78,14 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
   const kpis = [
     { label: 'Personas', value: k.people, prev: pr.people, delta: dl.people, tint: 'bg-brand/10 text-brand-text', Icon: Users },
     { label: 'Entradas registradas', value: k.entries, prev: pr.entries, delta: dl.entries, tint: 'bg-info-soft text-info-text', Icon: DoorOpen },
-    { label: 'En grupo', value: k.groupPeople, prev: pr.groupPeople, delta: dl.groupPeople, tint: 'bg-[#f1e9fe] text-[#7c3aed]', Icon: GraduationCap },
+    { label: 'En grupo', value: k.groupPeople, prev: pr.groupPeople, delta: dl.groupPeople, tint: 'bg-chart-4-soft text-chart-4', Icon: GraduationCap },
     { label: 'Visitantes identificados', value: k.identified, prev: pr.identified, delta: dl.identified, tint: 'bg-success-bg text-success-fg', Icon: UserCheck },
   ];
 
   const salaColors = salaSeriesColors(data.bySala);
   const salaSlices = buildSlices(data.bySala.map((s, i) => ({ label: s.name, count: s.people, color: salaColors[i]! })));
   const compSlices = buildSlices(data.composition.map((c) => ({
-    label: COMPOSITION_META[c.key]?.label ?? c.key, count: c.people, color: COMPOSITION_META[c.key]?.color ?? '#94a3b8',
+    label: COMPOSITION_META[c.key]?.label ?? c.key, count: c.people, color: COMPOSITION_META[c.key]?.color ?? CHART_NEUTRAL,
   })));
 
   const groupMax = data.groups[0]?.people || 1;
@@ -178,8 +179,8 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
           <Card padding="lg">
             <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Evolución de personas</h2>
             <div className="mt-1.5 flex gap-5 text-[12px] text-muted">
-              <span><i className="mr-1.5 inline-block h-[3px] w-3.5 rounded-sm align-middle" style={{ background: '#e65100' }} />Este período ({range.from} – {range.to})</span>
-              <span><i className="mr-1.5 inline-block h-[3px] w-3.5 rounded-sm align-middle" style={{ background: '#c7ccd4' }} />Período anterior ({data.prevRange.from} – {data.prevRange.to})</span>
+              <span><i className="mr-1.5 inline-block h-[3px] w-3.5 rounded-sm align-middle" style={{ background: CHART_MAIN }} />Este período ({range.from} – {range.to})</span>
+              <span><i className="mr-1.5 inline-block h-[3px] w-3.5 rounded-sm align-middle" style={{ background: CHART_PREV }} />Período anterior ({data.prevRange.from} – {data.prevRange.to})</span>
             </div>
             <LineChart daily={data.daily} currentLabel="Personas" />
           </Card>
@@ -203,12 +204,12 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
               <div className="mt-3">
                 {data.groups.map((g, i) => (
                   <div key={`${g.label}-${i}`} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
-                    <span className="grid h-5 w-5 flex-none place-items-center rounded-md bg-[#f1e9fe] text-[11px] font-extrabold text-[#7c3aed]">{i + 1}</span>
+                    <span className="grid h-5 w-5 flex-none place-items-center rounded-md bg-chart-4-soft text-[11px] font-extrabold text-chart-4">{i + 1}</span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-semibold leading-tight text-ink">
                         {g.label} <span className="font-normal text-faint">· {g.kind ?? 'Colegio'}</span>
                       </p>
-                      <div className="mt-1 h-[5px] overflow-hidden rounded-full bg-surface-container"><i className="block h-full rounded-full" data-bar="w" data-val={(g.people / groupMax) * 100} style={{ width: `${(g.people / groupMax) * 100}%`, background: '#8b5cf6' }} /></div>
+                      <div className="mt-1 h-[5px] overflow-hidden rounded-full bg-surface-container"><i className="block h-full rounded-full" data-bar="w" data-val={(g.people / groupMax) * 100} style={{ width: `${(g.people / groupMax) * 100}%`, background: chartVar(4) }} /></div>
                     </div>
                     <div className="w-14 text-right text-[11px] text-faint tabular-nums">{g.visits} {g.visits === 1 ? 'visita' : 'visitas'}</div>
                     <div className="text-right"><div className="text-[14px] font-extrabold tabular-nums text-ink" data-count={g.people}>{fmt(g.people)}</div><div className="text-[10px] text-faint">personas</div></div>
@@ -236,7 +237,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
                     <div key={r.k} className="flex items-center gap-3 border-t border-line py-2 first:border-t-0">
                       <span className="w-28 flex-none"><Chip tone={r.tone} dot>{r.label}</Chip></span>
                       <div className="h-[5px] min-w-0 flex-1 overflow-hidden rounded-full bg-surface-container">
-                        <i className="block h-full rounded-full bg-[#2f9fd6]" data-bar="w" data-val={(bk[r.k] / bkMax) * 100} style={{ width: `${(bk[r.k] / bkMax) * 100}%` }} />
+                        <i className="block h-full rounded-full" data-bar="w" data-val={(bk[r.k] / bkMax) * 100} style={{ width: `${(bk[r.k] / bkMax) * 100}%`, background: CHART_SECONDARY }} />
                       </div>
                       <span className="w-8 text-right text-[14px] font-extrabold tabular-nums text-ink" data-count={bk[r.k]}>{fmt(bk[r.k])}</span>
                     </div>
@@ -259,11 +260,11 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
           </Card>
           <Card padding="lg">
             <h2 className="flex items-center gap-1.5 text-[15.5px] font-bold tracking-tight text-ink"><Clock size={15} strokeWidth={2} className="text-faint" /> Personas por hora</h2>
-            <Bars items={hourItems} max={hourMax} color="#e65100" empty="Sin datos por hora todavía." />
+            <Bars items={hourItems} max={hourMax} color={CHART_MAIN} empty="Sin datos por hora todavía." />
           </Card>
           <Card padding="lg">
             <h2 className="text-[15.5px] font-bold tracking-tight text-ink">Personas por día</h2>
-            <Bars items={wdItems} max={wdMax} color="#8fb3ef" empty="Sin datos por día todavía." />
+            <Bars items={wdItems} max={wdMax} color={CHART_SECONDARY} empty="Sin datos por día todavía." />
           </Card>
         </div>
 
