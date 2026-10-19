@@ -73,3 +73,16 @@ export function zonedMidnight(ymd: string, tz: string = REPORT_TZ): Date {
   }
   return new Date(guess);
 }
+
+/**
+ * Valor de celda Excel para un instante: `Date` a medianoche UTC del día LOCAL del
+ * tenant (ExcelJS serializa en UTC; así la hoja muestra el día de RD, no el de UTC).
+ * Usar con numFmt 'dd/mm/yyyy'. Inválido -> null (celda vacía).
+ */
+export function excelDateCell(v: Input | null | undefined): Date | null {
+  if (v == null || v === '') return null;
+  const d = toDate(v);
+  if (Number.isNaN(d.getTime())) return null;
+  const { y, m, d: day } = zonedParts(d);
+  return new Date(Date.UTC(y, m - 1, day));
+}

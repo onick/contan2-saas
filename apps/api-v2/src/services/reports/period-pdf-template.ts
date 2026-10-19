@@ -13,7 +13,7 @@
 
 import { esc, pdfCover, pdfShellCss, pdfTheme } from './pdf-shell.js';
 import { loadLogoDataUri } from '../credential.js';
-import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
+import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz, ymdInTz } from './fmt.js';
 
 
 
@@ -203,7 +203,7 @@ export function periodPdfHeaderFooter({ organization, period }) {
 }
 
 export function periodPdfFilename(from, to) {
-  const f = new Date(from).toISOString().slice(0, 10);
-  const t = new Date(new Date(to).getTime() - 86400000).toISOString().slice(0, 10);
+  const f = ymdInTz(from);
+  const t = ymdInTz(new Date(new Date(to).getTime() - 86400000));
   return f === t ? `Informe_periodo_${f}.pdf` : `Informe_periodo_${f}_a_${t}.pdf`;
 }

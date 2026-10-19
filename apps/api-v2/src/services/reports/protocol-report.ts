@@ -8,6 +8,10 @@
 import ExcelJS from 'exceljs';
 import type { DbClient } from '@contan2/db';
 import { textArgb } from '../branding-tokens.js';
+import { excelDateCell } from './fmt.js';
+
+// Instante de actividad como ISO (UTC): ordenable por cadena y sin depender de String(Date).
+const isoDate = (v: unknown): string => (v instanceof Date ? v : new Date(v as string)).toISOString();
 
 const PROTO_CAT: Record<string, string> = {
   autoridad: 'Autoridad', diplomatico: 'Diplomático', prensa: 'Prensa',
@@ -83,7 +87,7 @@ export async function loadProtocolReportData(
 
     detail.push({
       activityName: r.activityName,
-      activityDate: String(r.activityDate),
+      activityDate: isoDate(r.activityDate),
       name: `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || '—',
       honorific: r.honorific,
       category,
@@ -102,9 +106,9 @@ export async function loadProtocolReportData(
     else if (r.status === 'declined' || r.status === 'expired') summary.declined += 1;
 
     // Por actividad
-    const key = `${r.activityName}__${String(r.activityDate)}`;
+    const key = `${r.activityName}__${isoDate(r.activityDate)}`;
     let a = byActMap.get(key);
-    if (!a) { a = { name: r.activityName, date: String(r.activityDate), invited: 0, confirmed: 0, attended: 0, partySize: 0 }; byActMap.set(key, a); }
+    if (!a) { a = { name: r.activityName, date: isoDate(r.activityDate), invited: 0, confirmed: 0, attended: 0, partySize: 0 }; byActMap.set(key, a); }
     a.invited += 1;
     if (attended) { a.attended += 1; a.partySize += party; }
     else if (r.status === 'confirmed') { a.confirmed += 1; a.partySize += party; }
@@ -194,7 +198,8 @@ export async function buildProtocolExcelReport(
   const H2 = ['Actividad', 'Fecha', 'Invitados', 'Confirmados', 'Asistieron', 'Personas'];
   const s2 = styledSheet(wb, 'Por actividad', `${organization.name} · Protocolo por actividad`, H2, brand, brandText, data.range);
   for (const a of data.byActivity) {
-    s2.addRow([a.name, a.date.slice(0, 10), a.invited, a.confirmed, a.attended, a.partySize]);
+    const r2 = s2.addRow([a.name, excelDateCell(a.date), a.invited, a.confirmed, a.attended, a.partySize]);
+    r2.getCell(2).numFmt = 'dd/mm/yyyy';
   }
   s2.getColumn(1).width = 40; s2.getColumn(2).width = 14;
   [3, 4, 5, 6].forEach((c) => (s2.getColumn(c).width = 13));
@@ -203,13 +208,14 @@ export async function buildProtocolExcelReport(
   const H3 = ['Actividad', 'Fecha', 'Invitado', 'Honorífico', 'Categoría', 'Institución', 'Estado', 'Acompañantes', 'Asistió'];
   const s3 = styledSheet(wb, 'Detalle', `${organization.name} · Detalle de invitados`, H3, brand, brandText, data.range);
   for (const d of data.detail) {
-    s3.addRow([
-      d.activityName, d.activityDate.slice(0, 10), d.name, d.honorific ?? '',
+    const r3 = s3.addRow([
+      d.activityName, excelDateCell(d.activityDate), d.name, d.honorific ?? '',
       PROTO_CAT[d.category] ?? d.category, d.institution ?? '',
       STATUS_LABEL[d.status] ?? d.status,
       d.plusOnes > 0 ? `+${d.plusOnes}` : '—',
       d.attended ? 'Sí' : 'No',
     ]);
+    r3.getCell(2).numFmt = 'dd/mm/yyyy';
   }
   s3.getColumn(1).width = 36; s3.getColumn(3).width = 24; s3.getColumn(6).width = 26;
   [2, 4, 5, 7, 8, 9].forEach((c) => (s3.getColumn(c).width = 14));

@@ -8,7 +8,7 @@
 import { esc, pdfCover, pdfShellCss, pdfTheme } from './pdf-shell.js';
 import { loadLogoDataUri } from '../credential.js';
 import type { AttendanceByActivityReport } from '../report-data.js';
-import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz } from './fmt.js';
+import { fmtDateTz, fmtTimeTz, fmtNowTz, hourInTz, ymdInTz } from './fmt.js';
 
 export interface AttendancePdfOrg {
   name: string;
@@ -91,7 +91,7 @@ export async function buildAttendancePdfHtml({ organization, report, category }:
   // Asistencia por fecha (personas por día de función) — barras verticales.
   const byDay = new Map<string, number>();
   for (const r of rows) {
-    const k = r.date.slice(0, 10);
+    const k = ymdInTz(r.date);
     byDay.set(k, (byDay.get(k) ?? 0) + r.people);
   }
   const dayEntries = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0]));

@@ -385,5 +385,18 @@ run('Protocolo · designar e invitar con acompañantes', () => {
     const todo = textos.join(' ');
     expect(todo).toContain('Sr. Embajador');
     expect(todo).toContain('Diplomático');
+    // REP-A05: la columna Fecha son celdas Date reales (no "Thu Jun 18"), con formato dd/mm/yyyy.
+    expect(todo).not.toMatch(/GMT|\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun) [A-Z][a-z]{2}\b/);
+    for (const [sheet, col] of [['Por actividad', 2], ['Detalle', 2]] as const) {
+      const ws = wb.getWorksheet(sheet)!;
+      const dates: Date[] = [];
+      ws.eachRow((row) => { const v = row.getCell(col).value; if (v instanceof Date) dates.push(v); });
+      expect(dates.length, sheet).toBeGreaterThan(0);
+      expect(ws.getRow(ws.rowCount).getCell(col).numFmt).toBe('dd/mm/yyyy');
+    }
+    // "Por actividad" ordenada por fecha descendente.
+    const pa: number[] = [];
+    wb.getWorksheet('Por actividad')!.eachRow((row) => { const v = row.getCell(2).value; if (v instanceof Date) pa.push(v.getTime()); });
+    expect([...pa].sort((a, b) => b - a)).toEqual(pa);
   });
 });
