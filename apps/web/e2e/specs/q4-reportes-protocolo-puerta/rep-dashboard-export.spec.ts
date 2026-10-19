@@ -431,19 +431,22 @@ test.describe('REP-03 Excel', { tag: '@write' }, () => {
     expect(mine, 'el invitado de la actividad [E2E]').toBeDefined();
     expect(mine![dh.col['Acompañantes declarados']!], 'declarados en la invitación').toBe('+2');
     expect(mine![dh.col['Acompañantes reales']!], 'sin check-in no hay acompañantes reales').toBe('—');
-    expect(mine![dh.col['Estado']!], 'invitación con asiento reservado, aún sin asistir').not.toBe('Asistió');
-    expect(mine![dh.col['Personas']!], 'confirmado sin llegar: 1 + 2 declarados = personas esperadas').toBe(3);
-    expect(mine![dh.col['Asistió']!], 'con asiento reservado pero sin check-in: no asistió').toBe('No');
+    // El fixture reserva asientos (+2) pero NO confirma: Estado «Invitado». Regla de producto (R8): solo los
+    // CONFIRMADOS sin llegar cuentan como personas esperadas; un invitado pendiente vale 0.
+    expect(mine![dh.col['Estado']!], 'invitación con asiento reservado, aún sin confirmar').toBe('Invitado');
+    expect(mine![dh.col['Personas']!], 'pendiente sin check-in: 0 personas (ni reales ni esperadas)').toBe(0);
+    expect(mine![dh.col['Asistió']!], 'sin check-in: no asistió').toBe('No');
 
     // Por actividad: confirmados INCLUYE asistentes; personas esperadas en vez de asistidas.
     const pa = sheetOf(wb, 'Por actividad')!;
     const ph = headerOf(pa, 'Actividad', 'Invitados', 'Confirmados (incluye asistentes)', 'Asistieron', 'Personas que asistieron', 'Personas esperadas');
     const act = pa.rows.slice(ph.row + 1).find((r) => r && r[ph.col['Actividad']!] === fx.act.name);
     expect(act, 'fila de la actividad [E2E] en Por actividad').toBeDefined();
-    expect(act![ph.col['Confirmados (incluye asistentes)']!]).toBe(1);
+    expect(act![ph.col['Invitados']!], 'el invitado pendiente cuenta como invitado').toBeGreaterThanOrEqual(1);
+    expect(act![ph.col['Confirmados (incluye asistentes)']!], 'pendiente: no confirmado').toBe(0);
     expect(act![ph.col['Asistieron']!]).toBe(0);
     expect(act![ph.col['Personas que asistieron']!]).toBe(0);
-    expect(act![ph.col['Personas esperadas']!]).toBe(3);
+    expect(act![ph.col['Personas esperadas']!], 'solo los confirmados suman esperadas').toBe(0);
 
     // Resumen: etiquetas en personas.
     const flat = sheetText(sheetOf(wb, 'Resumen')!);
