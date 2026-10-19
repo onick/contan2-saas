@@ -15,6 +15,7 @@ import { PADRON_READ_ROLES } from '../rbac-roles.js';
 import { puertaKpis, puertaBySala } from '../services/puerta-kpis.js';
 
 import { REPORT_TZ as TZ } from '../services/timezone.js';
+import { puertaExportRowCap } from '../services/puerta-export.js';
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
 const AFORO_MAX = 200; // mismo criterio que /puerta/salas: > esto ⇒ ilimitada
@@ -191,6 +192,7 @@ export const puertaStatsRoute: FastifyPluginAsync = async (app) => {
         visits: Number(r.visits), people: Number(r.people),
       })),
       bookings: { ...bk, attendedPct: decided > 0 ? Math.round((bk.attended / decided) * 100) : null },
+      exportRowCap: puertaExportRowCap(),
     };
     return body;
     });

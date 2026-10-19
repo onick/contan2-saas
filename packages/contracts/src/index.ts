@@ -1813,7 +1813,11 @@ export const PuertaBookingFullSchema = z.object({
 });
 export type PuertaBookingFull = z.infer<typeof PuertaBookingFullSchema>;
 
-export const PuertaBookingsResponseSchema = z.object({ bookings: z.array(PuertaBookingFullSchema) });
+export const PuertaBookingsResponseSchema = z.object({
+  bookings: z.array(PuertaBookingFullSchema),
+  /** true si la lista se cortó en el tope (hay más reservas que las mostradas). */
+  truncated: z.boolean().optional(),
+});
 export type PuertaBookingsResponse = z.infer<typeof PuertaBookingsResponseSchema>;
 
 // ── Reportes y estadísticas de la Puerta ─────────────────────────────────────
@@ -1867,6 +1871,9 @@ export const PuertaStatsResponseSchema = z.object({
     peopleExpected: z.number().int(),   // personas de reservas no canceladas
     attendedPct: z.number().nullable(), // asistieron / (asistieron + no vinieron)
   }),
+  // Tope de filas del Excel de la Puerta: si `kpis.entries` lo supera, el archivo
+  // se corta (con aviso en el propio archivo) y la UI lo anticipa.
+  exportRowCap: z.number().int().optional(),
 });
 export type PuertaStatsResponse = z.infer<typeof PuertaStatsResponseSchema>;
 

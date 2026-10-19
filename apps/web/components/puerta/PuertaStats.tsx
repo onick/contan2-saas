@@ -156,6 +156,14 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
         ))}
       </div>
 
+      {/* Aviso de truncado (REP-A25): el Excel tiene una cota de filas y no corta en silencio. */}
+      {data.exportRowCap && data.kpis.entries > data.exportRowCap ? (
+        <p role="status" className="mt-4 rounded-lg bg-warning-bg px-3 py-2 text-[12.5px] font-medium text-warning-fg">
+          Este período tiene {fmt(data.kpis.entries)} entradas y el Excel incluye como máximo las primeras {fmt(data.exportRowCap)}.
+          Acota el rango de fechas para descargarlas todas; el archivo también lo avisa en su última fila.
+        </p>
+      ) : null}
+
       <div className={cn('transition-opacity', loading && 'opacity-50')}>
         {/* KPIs */}
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

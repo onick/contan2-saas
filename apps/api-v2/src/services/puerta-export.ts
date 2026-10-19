@@ -23,7 +23,25 @@ export interface PuertaExportRow {
   partySize: number; // 1 + companions
 }
 
+/** Cota dura de filas del export (memoria acotada). `PUERTA_EXPORT_ROW_CAP` la ajusta (tests). */
+export function puertaExportRowCap(): number {
+  const n = Number(process.env.PUERTA_EXPORT_ROW_CAP);
+  return Number.isInteger(n) && n > 0 ? n : 50_000;
+}
+
+/** Aviso de truncado: filas del universo (`total`) y las que el archivo incluye (`shown`). */
+export interface PuertaExportTruncation { total: number; shown: number }
+
+/** "… 1.200 filas más no incluidas" · texto de la fila final y del subtítulo (REP-A25). */
+export function puertaTruncationNote(t: PuertaExportTruncation): string {
+  const missing = Math.max(0, t.total - t.shown);
+  return `… ${missing.toLocaleString('es-DO')} ${missing === 1 ? 'fila más no incluida' : 'filas más no incluidas'}`
+    + ` (el archivo trae las primeras ${t.shown.toLocaleString('es-DO')} de ${t.total.toLocaleString('es-DO')}). Acota el rango de fechas para ver el resto.`;
+}
+
 export interface PuertaExportMeta {
+  /** Presente solo si el export cortó filas por la cota. */
+  truncated?: PuertaExportTruncation;
   orgName: string;
   primaryColor: string | null;
   salaLabel: string; // "Todas las salas" | "Sala VR" | …
@@ -54,6 +72,11 @@ export async function buildPuertaExportWorkbook(
   brandTitleBand(ws, `${meta.orgName} · Datos de la puerta — ${meta.salaLabel}`, HEADERS.length, pal, 'left');
   const totalPeople = rows.reduce((n, r) => n + r.partySize, 0);
   subtitleRow(ws, 2, HEADERS.length, `Período: ${meta.rangeLabel} · ${rows.length} registros · ${totalPeople} personas`);
+  if (meta.truncated) {
+    // Aviso visible arriba (fila 3): quien abre el archivo ve que NO es el universo completo.
+    const warn = subtitleRow(ws, 3, HEADERS.length, `AVISO: ${puertaTruncationNote(meta.truncated)}`);
+    warn.font = { bold: true, color: { argb: 'FFB45309' } };
+  }
   brandHeaderRow(ws, 4, HEADERS, pal, { height: 20, alignment: { vertical: 'middle' } });
 
   for (const r of rows) {
@@ -80,6 +103,12 @@ export async function buildPuertaExportWorkbook(
   // Total.
   const total = ws.addRow(['TOTAL', '', '', '', '', '', '', '', '', '', totalPeople]);
   total.font = { bold: true };
+
+  // Fila final del aviso de truncado (REP-A25): el archivo nunca corta en silencio.
+  if (meta.truncated) {
+    const noteRow = ws.addRow([puertaTruncationNote(meta.truncated)]);
+    noteRow.getCell(1).font = { bold: true, italic: true, color: { argb: 'FFB45309' } };
+  }
 
   ws.columns.forEach((col, i) => {
     col.width = i === 3 || i === 6 ? 28 : i === 0 || i === 8 ? 22 : 13;
