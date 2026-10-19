@@ -128,6 +128,7 @@ describe('Panel «Descargas»', () => {
     expect(within(panel).getByRole('combobox', { name: 'Año' })).toHaveValue('2026');
     expect(within(panel).queryByRole('option', { name: 'Noviembre' })).toBeNull();
     expect(within(panel).getByRole('link', { name: 'Excel · Registro mensual' })).toHaveAttribute('href', '/app/reportes/api/month?year=2026&month=10');
+    expect(within(panel).getByRole('link', { name: 'Excel · Libro anual' })).toHaveAttribute('href', '/app/reportes/api/year?year=2026');
     // Un año pasado permite los 12 meses.
     await user.selectOptions(within(panel).getByRole('combobox', { name: 'Año' }), '2025');
     expect(within(panel).getByRole('option', { name: 'Diciembre' })).toBeInTheDocument();

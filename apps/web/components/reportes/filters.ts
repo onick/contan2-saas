@@ -96,3 +96,8 @@ export function attendanceHref(format: 'csv' | 'xlsx' | 'pdf', f: PeriodFilters 
 export function monthHref(year: number, month: number): string {
   return `/app/reportes/api/month?year=${year}&month=${month}`;
 }
+
+/** Libro anual (Ene–Dic + Resumen Mensual + Listas) en el formato oficial del departamento. */
+export function yearHref(year: number): string {
+  return `/app/reportes/api/year?year=${year}`;
+}

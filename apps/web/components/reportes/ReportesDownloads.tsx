@@ -10,7 +10,7 @@ import { FileText } from 'lucide-react';
 import { Popover, PopoverAnchor, PopoverContent, Sheet, cn, focusRing } from '../ui';
 import { SplitButton } from '../ui/arc/split-button/SplitButton';
 import { DEFAULT_TZ, formatRangeText, todayYmd } from '../ui/arc/date-range-picker/ymd';
-import { attendanceHref, monthHref, periodHref } from './filters';
+import { attendanceHref, monthHref, periodHref, yearHref } from './filters';
 import { DownloadLink } from './DownloadLink';
 import { useMediaQuery } from './useMediaQuery';
 import type { Downloads } from './useDownloads';
@@ -192,7 +192,7 @@ export function DownloadsBody({ filters, catList, catStatus, onRetryCats, dl, cy
         )}
       </Row>
 
-      <Row title="Registro mensual" hint="El mes completo en el formato del departamento. No usa el período de arriba.">
+      <Row title="Registro mensual" hint="El mes o el año completo en el formato del departamento (hojas por mes, Resumen Mensual y listas). No usa el período de arriba.">
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label htmlFor={monthId} className="mb-1 block text-[13px] font-medium text-ink">Mes</label>
@@ -210,8 +210,9 @@ export function DownloadsBody({ filters, catList, catStatus, onRetryCats, dl, cy
             </select>
           </div>
         </div>
-        <div className="mt-2.5 flex">
+        <div className="mt-2.5 flex flex-wrap gap-2">
           <DownloadLink id="month-xlsx" kind="Excel" scope="Registro mensual" href={monthHref(ym.year, Math.min(ym.month, maxMonth))} dl={dl} primary />
+          <DownloadLink id="year-xlsx" kind="Excel" scope="Libro anual" href={yearHref(ym.year)} dl={dl} />
         </div>
       </Row>
     </div>

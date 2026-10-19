@@ -1,67 +1,48 @@
-// apps/api-v2/src/services/reports/monthly-register.ts · arma el "registro
-// mensual" en el formato del departamento (Cine/Teatro): una fila por actividad
-// con fecha del mes, ordenada por fecha, con la asistencia = check-ins reales
-// (headcount, incluye acompañantes). Read-only, tenant-scoped (organization_id
-// es la frontera pre-RLS). Excluye salas permanentes (no son eventos con fecha).
+// apps/api-v2/src/services/reports/monthly-register.ts · arma el "registro de
+// actividades" en el formato del departamento (Registro_Actividades_Culturales):
+// una fila por actividad con fecha, ordenada por fecha, con la asistencia =
+// PERSONAS reales (check-in + acompañantes; las reservas no cuentan). Sirve al
+// registro mensual (`month.xlsx`) y al libro anual (`year.xlsx`) con el mismo
+// cargador: el mes es un recorte del año. Read-only, tenant-scoped
+// (organization_id es la frontera pre-RLS). Excluye salas permanentes y
+// canceladas (`reportableActivity`, la misma regla del PeriodEngine).
 //
 // TZ: el bucketing de mes/día/semana se hace en la zona del tenant
-// (America/Santo_Domingo por defecto, igual que la puerta y el check-in), NO en
-// UTC — si no, un evento de las 22:00 cerca del borde del mes cae en el mes o el
-// día equivocado. La fecha almacenada es timestamptz; la convertimos con
-// `AT TIME ZONE` para obtener el día calendario local.
+// (America/Santo_Domingo por defecto), NO en UTC — si no, un evento de las
+// 22:00 cerca del borde del mes cae en el mes o el día equivocado. La fecha
+// almacenada es timestamptz; la convertimos con `AT TIME ZONE`.
 
 import { sql, type DbClient } from '@contan2/db';
 import { ReportError, MAX_REPORT_ROWS } from '../report-data.js';
+import { normCategory } from '../category-norm.js';
 import { reportableActivity } from './scope.js';
-import { programSlug, editionLabel } from '../programs/edition.js';
+import { programSlug } from '../programs/edition.js';
+import { REPORT_TZ as TZ } from './fmt.js';
+import { tipoLabel, monthNameEs, PROGRAMA_SIN_CICLO, PROGRAMAS_DEPTO } from './labels.js';
 
-const TZ = process.env.CHECKIN_TZ ?? 'America/Santo_Domingo';
-
-// Mapa de los 7 `type` de v2 al vocabulario de 5 del departamento.
-const TIPO_LABEL: Record<string, string> = {
-  cine: 'Cine',
-  teatro: 'Teatro',
-  taller: 'Talleres',
-  conferencia: 'Charlas',
-  tertulia: 'Charlas', // tertulia = conversación/charla en el vocabulario del depto
-  concierto: 'Otras Actividades',
-  exposicion: 'Otras Actividades',
-  visita_guiada: 'Otras Actividades',
-  cuentacuentos: 'Otras Actividades',
-  otro: 'Otras Actividades',
-};
-// Orden estable para el resumen "por tipo".
-export const TIPO_ORDER = ['Cine', 'Teatro', 'Talleres', 'Charlas', 'Otras Actividades'] as const;
-const tipoLabel = (t: string) => TIPO_LABEL[t] ?? 'Otras Actividades';
-
-const MONTHS_ES = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-];
-export const monthNameEs = (m: number) => MONTHS_ES[m - 1] ?? '';
+export { TIPO_ORDER, monthNameEs } from './labels.js';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
 // Semana-del-mes determinista (lunes como inicio) sobre el día calendario LOCAL:
-// la semana 1 contiene el día 1; avanza en cada lunes. Reemplaza la numeración
-// manual e irregular del Excel.
-function weekOfMonth(year: number, month1: number, day: number): number {
+// la semana 1 contiene el día 1; avanza en cada lunes. Vocabulario del
+// departamento 1–5: los últimos días de un mes que empieza en domingo/sábado
+// caerían en una 6.ª semana, que se pliega a la 5.ª.
+export function weekOfMonth(year: number, month1: number, day: number): number {
   const firstDow = new Date(Date.UTC(year, month1 - 1, 1)).getUTCDay(); // 0=Dom..6=Sáb
   const offsetMon = (firstDow + 6) % 7; // 0=Lun..6=Dom
-  return Math.ceil((day + offsetMon) / 7);
+  return Math.min(5, Math.ceil((day + offsetMon) / 7));
 }
 
 export interface MonthlyRegisterRow {
   no: number;
   date: string; // ISO (mediodía UTC del día local → celda Date en el Excel, sin corrimiento)
-  semana: number;
-  tipo: string; // etiqueta de 5
-  programa: string; // category ?? ''
+  semana: number; // 1–5
+  tipo: string; // uno de los 5 tipos del departamento
+  programa: string; // ciclo/programa, o "Actividades Especiales" si no tiene
   nombre: string; // activity name
-  asistencia: number; // headcount real
+  asistencia: number; // personas reales
 }
-
-export interface MonthlySummaryRow { label: string; actividades: number; asistencia: number }
 
 export interface MonthlyRegisterReport {
   year: number;
@@ -70,27 +51,37 @@ export interface MonthlyRegisterReport {
   rows: MonthlyRegisterRow[];
   totalActividades: number;
   totalAsistencia: number;
-  porTipo: MonthlySummaryRow[];
-  porPrograma: MonthlySummaryRow[];
 }
 
-export async function monthlyRegister(
+/** Meses del libro + vocabulario completo que alimenta las listas ocultas. */
+export interface RegisterBook {
+  year: number;
+  months: MonthlyRegisterReport[]; // 12 (libro anual) o 1 (registro mensual)
+  programas: string[]; // vocabulario de Programa (depto + programas del tenant + ciclos usados)
+}
+
+/**
+ * Carga el libro del año (`month` omitido → 12 meses, vacíos incluidos) o de un
+ * solo mes. Una consulta; el mes de cada fila sale del día LOCAL del tenant.
+ */
+export async function loadRegisterBook(
   db: DbClient,
   orgId: string,
   year: number,
-  month: number,
-): Promise<MonthlyRegisterReport> {
+  month?: number,
+): Promise<RegisterBook> {
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
     throw new ReportError(400, 'Año inválido.');
   }
-  if (!Number.isInteger(month) || month < 1 || month > 12) {
+  if (month !== undefined && (!Number.isInteger(month) || month < 1 || month > 12)) {
     throw new ReportError(400, 'Mes inválido (1–12).');
   }
-  // Bordes del mes en hora LOCAL del tenant (timestamps naïve): [1ro 00:00, 1ro del mes siguiente 00:00).
-  const nextY = month === 12 ? year + 1 : year;
-  const nextM = month === 12 ? 1 : month + 1;
-  const localStart = `${year}-${pad2(month)}-01 00:00:00`;
-  const localEnd = `${nextY}-${pad2(nextM)}-01 00:00:00`;
+  // Bordes en hora LOCAL del tenant (timestamps naïve): [inicio, fin).
+  const m0 = month ?? 1;
+  const endY = month === undefined || month === 12 ? year + 1 : year;
+  const endM = month === undefined || month === 12 ? 1 : month + 1;
+  const localStart = `${year}-${pad2(m0)}-01 00:00:00`;
+  const localEnd = `${endY}-${pad2(endM)}-01 00:00:00`;
   // Día calendario local del evento (timestamp naïve en la TZ del tenant).
   const lts = () => sql`(a.date AT TIME ZONE ${sql.lit(TZ)})`;
 
@@ -115,64 +106,65 @@ export async function monthlyRegister(
     .execute();
 
   if (rows.length > MAX_REPORT_ROWS) {
-    throw new ReportError(400, `El mes tiene ${rows.length} actividades (máx ${MAX_REPORT_ROWS}).`);
+    throw new ReportError(400, `El período tiene ${rows.length} actividades (máx ${MAX_REPORT_ROWS}).`);
   }
 
-  // Programas del tenant → mapa slug→programa para enriquecer "Programa" con la
-  // edición derivada del año (ej. "Cine Dominicano · 5to ciclo").
+  // Programas del tenant → slug→nombre (el dropdown lista nombres sin edición).
   const programs = await db.selectFrom('programs')
-    .select(['slug', 'name', 'is_cyclical', 'edition_anchor_year', 'edition_anchor_number', 'edition_noun'])
-    .where('organization_id', '=', orgId).where('active', '=', true).execute();
-  const progBySlug = new Map(programs.map((p) => [p.slug, p]));
-  const displayPrograma = (cat: string): string => {
-    if (!cat) return '';
-    const p = progBySlug.get(programSlug(cat));
-    if (!p) return cat;
-    const ed = editionLabel(p, year);
-    return ed ? `${p.name} · ${ed}` : p.name;
+    .select(['slug', 'name'])
+    .where('organization_id', '=', orgId).where('active', '=', true)
+    .orderBy('name', 'asc').execute();
+  const progBySlug = new Map(programs.map((p) => [p.slug, p.name]));
+  const displayPrograma = (cat: string | null): string => {
+    if (!cat || !cat.trim()) return PROGRAMA_SIN_CICLO;
+    return progBySlug.get(programSlug(cat)) ?? cat;
   };
 
-  const mapped: MonthlyRegisterRow[] = rows.map((r, i) => {
-    const parts = String(r.localDate).split('-');
-    const Y = Number(parts[0]); const M = Number(parts[1]); const D = Number(parts[2]);
-    return {
-      no: i + 1,
+  const monthsToBuild = month === undefined ? Array.from({ length: 12 }, (_, i) => i + 1) : [month];
+  const byMonth = new Map<number, MonthlyRegisterRow[]>(monthsToBuild.map((m) => [m, []]));
+  const usedProgramas: string[] = [];
+  for (const r of rows) {
+    const [Y, M, D] = String(r.localDate).split('-').map(Number) as [number, number, number];
+    const bucket = byMonth.get(M);
+    if (!bucket) continue;
+    const programa = displayPrograma(r.category);
+    usedProgramas.push(programa);
+    bucket.push({
+      no: bucket.length + 1,
       // Mediodía UTC del día local: al escribir la celda Date, ningún corrimiento
       // de TZ del proceso/Excel la mueve de día.
       date: new Date(Date.UTC(Y, M - 1, D, 12, 0, 0)).toISOString(),
       semana: weekOfMonth(Y, M, D),
       tipo: tipoLabel(String(r.type)),
-      programa: displayPrograma(r.category ?? ''),
+      programa,
       nombre: r.name,
       asistencia: Number(r.asistencia),
-    };
-  });
-
-  // Resumen por tipo (las 5 etiquetas, en orden estable; sólo las con actividad).
-  const tipoAgg = new Map<string, { actividades: number; asistencia: number }>();
-  const progAgg = new Map<string, { actividades: number; asistencia: number }>();
-  for (const r of mapped) {
-    const t = tipoAgg.get(r.tipo) ?? { actividades: 0, asistencia: 0 };
-    t.actividades += 1; t.asistencia += r.asistencia; tipoAgg.set(r.tipo, t);
-    const pKey = r.programa || '(Sin programa)';
-    const p = progAgg.get(pKey) ?? { actividades: 0, asistencia: 0 };
-    p.actividades += 1; p.asistencia += r.asistencia; progAgg.set(pKey, p);
+    });
   }
-  const porTipo: MonthlySummaryRow[] = TIPO_ORDER
-    .filter((t) => tipoAgg.has(t))
-    .map((t) => ({ label: t, ...tipoAgg.get(t)! }));
-  const porPrograma: MonthlySummaryRow[] = [...progAgg.entries()]
-    .sort((a, b) => b[1].asistencia - a[1].asistencia)
-    .map(([label, v]) => ({ label, ...v }));
+
+  // Vocabulario completo de Programa, sin duplicados (normalizado sin acentos/mayúsculas).
+  const seen = new Set<string>();
+  const programas: string[] = [];
+  for (const p of [...PROGRAMAS_DEPTO, ...programs.map((x) => x.name), ...usedProgramas]) {
+    const k = normCategory(p);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    programas.push(p);
+  }
 
   return {
     year,
-    month,
-    monthName: monthNameEs(month),
-    rows: mapped,
-    totalActividades: mapped.length,
-    totalAsistencia: mapped.reduce((a, r) => a + r.asistencia, 0),
-    porTipo,
-    porPrograma,
+    months: monthsToBuild.map((m) => {
+      const mrows = byMonth.get(m)!;
+      return {
+        year,
+        month: m,
+        monthName: monthNameEs(m),
+        rows: mrows,
+        totalActividades: mrows.length,
+        totalAsistencia: mrows.reduce((a, r) => a + r.asistencia, 0),
+      };
+    }),
+    programas,
   };
 }
