@@ -138,8 +138,7 @@ run('RBAC en la API · Reportes', () => {
   it('GET activity/:id.xlsx → export', async () => {
     await gate('GET', `/api/v2/reports/activity/${actId}.xlsx`, EXPORT);
   });
-  it('GET period/preview y period.xlsx → export (puerta sigue exportando)', async () => {
-    await gate('GET', `/api/v2/reports/period/preview?${Q}`, EXPORT);
+  it('GET period.xlsx → export (puerta sigue exportando)', async () => {
     await gate('GET', `/api/v2/reports/period.xlsx?${Q}`, EXPORT);
   });
   it('GET period.pdf y activity pdf → 403 para roles sin export (antes de renderizar)', async () => {
@@ -192,10 +191,11 @@ run('RBAC en la API · Reportes', () => {
 
   it('plantilla PDF de período: sin correo ni teléfono', async () => {
     const { buildPeriodPdfHtml } = await import('../src/services/reports/period-pdf-template.js');
-    const { buildPeriodSummary } = await import('../src/services/reports/report-data.js');
-    const period = await buildPeriodSummary(db, orgId, { from: '2026-06-01T00:00:00Z', to: '2026-07-01T00:00:00Z', types: null, categories: null });
-    expect(period.topUsers.length).toBeGreaterThan(0);
-    expect(JSON.stringify(period.topUsers)).not.toMatch(/email|phone|secreto|555-7777/);
+    const { periodEngine } = await import('../src/services/reports/period-engine.js');
+    const { parseRange } = await import('../src/services/report-data.js');
+    const period = await periodEngine(db as never, orgId, parseRange('2026-06-01', '2026-06-30'));
+    expect(period.current.topUsers.length).toBeGreaterThan(0);
+    expect(JSON.stringify(period.current.topUsers)).not.toMatch(/email|phone|secreto|555-7777/);
     const html = await buildPeriodPdfHtml({ organization: { name: 'Org', primaryColor: '#0182a2', logoUrl: null }, period });
     expect(html).toContain('CCB-PII001');
     expect(html).not.toContain('secreto.test');

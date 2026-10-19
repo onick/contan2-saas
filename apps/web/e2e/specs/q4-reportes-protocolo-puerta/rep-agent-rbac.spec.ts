@@ -165,7 +165,6 @@ test.describe('REP-05 permisos de export (operator / consulta / puerta / protoco
     `/app/reportes/api/activity/${id}.pdf`,
     `/app/reportes/api/period?kind=xlsx&from=${from}&to=${to}`,
     `/app/reportes/api/period?kind=pdf&from=${from}&to=${to}`,
-    `/app/reportes/api/period?kind=preview&from=${from}&to=${to}`,
     `/app/reportes/api/month?year=2026&month=10`,
     `/app/reportes/api/attendance?from=${from}&to=${to}&format=csv`,
     `/app/reportes/api/protocol`,

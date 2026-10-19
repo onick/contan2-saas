@@ -1,5 +1,5 @@
 // apps/api-v2/test/reports-branded.test.ts · integration (skip sin DATABASE_URL).
-// Reportería S2 (paridad v1): preview JSON con summary/deltas exactos sobre un
+// Reportería S2 (paridad v1): period-summary JSON con summary/deltas exactos sobre un
 // fixture controlado; Excel de período y de actividad se RE-PARSEAN con exceljs
 // (workbook válido + hojas esperadas); el PDF se prueba sólo si hay un Chromium
 // local (PUPPETEER_EXECUTABLE_PATH o el de Playwright) — skip honesto si no.
@@ -146,29 +146,27 @@ run('reportería branded · period/activity xlsx+pdf+preview', () => {
     await shutdownPdfRenderer();
   });
 
-  it('preview: summary exacto + deltas vs período anterior + byDay continuo', async () => {
-    const res = await get(`/api/v2/reports/period/preview?from=${FROM}&to=${TO}`);
+  it('period-summary: KPIs exactos + deltas vs período anterior + serie diaria continua', async () => {
+    const res = await get(`/api/v2/reports/period-summary?from=${FROM}&to=${TO}`);
     expect(res.statusCode).toBe(200);
     const j = res.json();
-    expect(j.summary).toMatchObject({
-      activitiesCount: 2, attendancesCount: 4, uniqueAttendees: 2,
-    });
+    expect(j.kpis).toMatchObject({ activities: 2, attendances: 4, uniqueVisitors: 2 });
     expect(j.byType.find((t: { type: string }) => t.type === 'concierto').attendances).toBe(3);
-    expect(j.byDay).toHaveLength(31); // marzo completo, días sin actividad en 0
-    expect(j.byDay.find((d: { date: string }) => d.date === '2026-03-10').attendances).toBe(3);
+    expect(j.daily).toHaveLength(31); // marzo completo, días sin actividad en 0
+    expect(j.daily[9].current).toBe(3); // 10-mar
     // La reserva (invitada el 9) no cuenta ni en su día de invitación.
-    expect(j.byDay.find((d: { date: string }) => d.date === '2026-03-09').attendances).toBe(0);
+    expect(j.daily[8].current).toBe(0);
     // deltas vs febrero (1 actividad, 1 asistencia): 2 act → +100%, 4 att → +300%
-    expect(j.comparison.deltas.activitiesCount).toBe(100);
-    expect(j.comparison.deltas.attendancesCount).toBe(300);
+    expect(j.deltas.activities).toBe(100);
+    expect(j.deltas.attendances).toBe(300);
   });
 
   it('filtro por tipo y por categoría acotan el set', async () => {
-    const cine = (await get(`/api/v2/reports/period/preview?from=${FROM}&to=${TO}&types=cine`)).json();
-    expect(cine.summary.activitiesCount).toBe(1);
-    expect(cine.summary.attendancesCount).toBe(1);
-    const cat = (await get(`/api/v2/reports/period/preview?from=${FROM}&to=${TO}&categories=Ciclo Jazz`)).json();
-    expect(cat.summary.activitiesCount).toBe(1); // match case-insensitive
+    const cine = (await get(`/api/v2/reports/period-summary?from=${FROM}&to=${TO}&types=cine`)).json();
+    expect(cine.kpis.activities).toBe(1);
+    expect(cine.kpis.attendances).toBe(1);
+    const cat = (await get(`/api/v2/reports/period-summary?from=${FROM}&to=${TO}&categories=Ciclo Jazz`)).json();
+    expect(cat.kpis.activities).toBe(1); // match case-insensitive
   });
 
   it('period-summary con categories: el dashboard filtra por ciclo (normalizado)', async () => {
@@ -253,11 +251,10 @@ run('reportería branded · period/activity xlsx+pdf+preview', () => {
     expect(html).toContain('>Asistió</td>');
   });
 
-  it('RBAC: operator → 403 en preview/xlsx; rango inválido → 400', async () => {
-    expect((await get(`/api/v2/reports/period/preview?from=${FROM}&to=${TO}`, TOK.operator)).statusCode).toBe(403);
+  it('RBAC: operator → 403 en xlsx; rango inválido → 400', async () => {
     expect((await get(`/api/v2/reports/period.xlsx?from=${FROM}&to=${TO}`, TOK.operator)).statusCode).toBe(403);
-    expect((await get('/api/v2/reports/period/preview?from=2026-13-99&to=x')).statusCode).toBe(400);
-    expect((await get(`/api/v2/reports/period/preview?from=${TO}&to=${FROM}`)).statusCode).toBe(400);
+    expect((await get('/api/v2/reports/period.xlsx?from=2026-13-99&to=x')).statusCode).toBe(400);
+    expect((await get(`/api/v2/reports/period.xlsx?from=${TO}&to=${FROM}`)).statusCode).toBe(400);
   });
 
   (CHROME ? it : it.skip)('period.pdf y activity.pdf: PDFs reales (magic %PDF)', async () => {

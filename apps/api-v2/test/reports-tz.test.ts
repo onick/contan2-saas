@@ -21,7 +21,8 @@ import { hashToken } from '@contan2/auth';
 import { buildApp } from '../src/server.js';
 import { parseRange } from '../src/services/report-data.js';
 import { fmtTimeTz, fmtDateTz, hourInTz, ymdInTz, zonedMidnight } from '../src/services/reports/fmt.js';
-import { previousRange } from '../src/services/reports/period-summary.js';
+import { previousPeriodYmd } from '../src/services/reports/range.js';
+import { previousReportRange } from '../src/services/reports/period-engine.js';
 import { buildActivityPdfHtml } from '../src/services/reports/activity-pdf-template.js';
 import { buildPeriodPdfHtml } from '../src/services/reports/period-pdf-template.js';
 
@@ -46,13 +47,14 @@ describe('reportes TZ · helpers puros', () => {
   });
 
   it('previousRange: mes completo -> mes anterior completo (P4); rango libre -> N días previos, en DR', () => {
-    const p = previousRange(parseRange('2026-03-01', '2026-03-31'));
+    const p = previousPeriodYmd('2026-03-01', '2026-03-31');
     expect(p.from).toBe('2026-02-01');
     expect(p.to).toBe('2026-02-28');
-    const q = previousRange(parseRange('2026-03-10', '2026-03-19'));
+    const q = previousPeriodYmd('2026-03-10', '2026-03-19');
     expect(q.from).toBe('2026-02-28');
     expect(q.to).toBe('2026-03-09');
-    expect(p.toExclusive.toISOString()).toBe('2026-03-01T04:00:00.000Z');
+    // El motor la convierte a [00:00 DR, 00:00 DR del día siguiente).
+    expect(previousReportRange(parseRange('2026-03-01', '2026-03-31')).toExclusive.toISOString()).toBe('2026-03-01T04:00:00.000Z');
   });
 
   it('PDF de actividad: check-in e inicio en DR (12:09 / 12:00), sin hora UTC', async () => {
@@ -73,10 +75,15 @@ describe('reportes TZ · helpers puros', () => {
     const html = await buildPeriodPdfHtml({
       organization: { name: 'Centro', primaryColor: '#0182a2', secondaryColor: '#ff6f00', logoUrl: null },
       period: {
-        range: { from: '2026-03-31T04:00:00.000Z', to: '2026-04-01T04:00:00.000Z' },
-        summary: { activitiesCount: 1, attendancesCount: 0, uniqueAttendees: 0, avgOccupancy: 0, typesCount: 1, monthsSpan: 1 },
-        activities: [{ id: 'a', name: 'Noche', type: 'cine', typeLabel: 'Cine', date: '2026-04-01T02:30:00.000Z', location: 'Sala', capacity: 10, status: 'finalizada', attendances: 0, occupancyPct: 0, enrolledCount: 0 }],
-        topActivities: [], byType: [], byMonth: [], byDay: [], topUsers: [],
+        range: { from: '2026-03-31', to: '2026-03-31' },
+        previousRange: { from: '2026-03-30', to: '2026-03-30' },
+        current: {
+          kpis: { activities: 1, attendances: 0, people: 0, uniqueVisitors: 0, capacity: 10, occupancyPct: 0 },
+          activities: [{ id: 'a', name: 'Noche', type: 'cine', typeLabel: 'Cine', date: '2026-04-01T02:30:00.000Z', location: 'Sala', capacity: 10, status: 'finalizada', attendances: 0, people: 0, occupancyPct: 0, enrolledCount: 0 }],
+          byType: [], byMonth: [], topUsers: [],
+        },
+        previous: { kpis: { activities: 0, attendances: 0, people: 0, uniqueVisitors: 0, capacity: 0, occupancyPct: 0 } },
+        deltas: { activities: null, attendances: null, people: null, uniqueVisitors: null, occupancyPct: null },
       },
     });
     expect(html).toMatch(/31 mar/i);
@@ -209,11 +216,11 @@ run('reportes TZ · integración (dashboard, Excel actividad/período)', () => {
     expect(txt).not.toMatch(/01 abr/i);
   }, 30_000);
 
-  it('preview de período: byDay a fin de mes coherente (31-mar tiene 1 asistencia)', async () => {
-    const j = (await get('/api/v2/reports/period/preview?from=2026-03-01&to=2026-03-31')).json();
-    expect(j.summary.activitiesCount).toBe(2);
-    expect(j.byDay).toHaveLength(31);
-    expect(j.byDay.find((d: { date: string }) => d.date === '2026-03-31').attendances).toBe(1);
-    expect(j.byDay.find((d: { date: string }) => d.date === '2026-03-10').attendances).toBe(1);
+  it('period-summary: serie diaria a fin de mes coherente (31-mar tiene 1 asistencia)', async () => {
+    const j = (await get('/api/v2/reports/period-summary?from=2026-03-01&to=2026-03-31')).json();
+    expect(j.kpis.activities).toBe(2);
+    expect(j.daily).toHaveLength(31);
+    expect(j.daily[30]).toMatchObject({ label: '31 mar', current: 1, people: 1 });
+    expect(j.daily[9]).toMatchObject({ label: '10 mar', current: 1, people: 1 });
   });
 });

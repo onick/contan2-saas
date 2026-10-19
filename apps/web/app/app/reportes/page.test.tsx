@@ -27,21 +27,23 @@ vi.mock('../../../lib/api/reports', async (orig) => {
   const SAMPLE: PeriodSummaryResponse = {
     range: { from: '2026-06-01', to: '2026-06-13' },
     prevRange: { from: '2026-05-19', to: '2026-05-31' },
-    kpis: { activities: 4, attendances: 238, uniqueVisitors: 197, occupancyPct: 48 },
-    prev: { activities: 7, attendances: 521, uniqueVisitors: 448, occupancyPct: 58 },
-    deltas: { activities: -43, attendances: -54, uniqueVisitors: -56, occupancyPct: -17 },
+    kpis: { activities: 4, attendances: 238, people: 301, uniqueVisitors: 197, occupancyPct: 48 },
+    prev: { activities: 7, attendances: 521, people: 640, uniqueVisitors: 448, occupancyPct: 58 },
+    deltas: { activities: -43, attendances: -54, people: -53, uniqueVisitors: -56, occupancyPct: -10 },
     byType: [
-      { type: 'cine', label: 'Cine', attendances: 180, pct: 76 },
-      { type: 'conferencia', label: 'Conferencia', attendances: 58, pct: 24 },
+      { type: 'cine', label: 'Cine', attendances: 180, people: 230, pct: 76 },
+      { type: 'conferencia', label: 'Conferencia', attendances: 58, people: 71, pct: 24 },
     ],
     topActivities: [
-      { id: 'a1', name: 'Cine Dominicano: Los pasos del tiempo', type: 'cine', attendances: 80, occupancyPct: 53, imageUrl: null },
-      { id: 'a2', name: 'Conferencia Arte & Terapia', type: 'conferencia', attendances: 58, occupancyPct: 40, imageUrl: null },
+      { id: 'a1', name: 'Cine Dominicano: Los pasos del tiempo', type: 'cine', attendances: 80, people: 101, occupancyPct: 53, imageUrl: null },
+      { id: 'a2', name: 'Conferencia Arte & Terapia', type: 'conferencia', attendances: 58, people: 71, occupancyPct: 40, imageUrl: null },
     ],
+    activities: [],
+    byMonth: [],
     newVsReturning: { nuevos: 67, recurrentes: 130 },
-    daily: Array.from({ length: 13 }, (_, i) => ({ label: `${i + 1} jun`, current: 40 + i, previous: 30 + i, visitors: 20 + i, activities: 2 })),
-    byHour: [{ hour: 19, count: 52 }, { hour: 20, count: 30 }],
-    byWeekday: [{ weekday: 6, count: 55 }, { weekday: 0, count: 40 }],
+    daily: Array.from({ length: 13 }, (_, i) => ({ label: `${i + 1} jun`, current: 40 + i, previous: 30 + i, people: 50 + i, previousPeople: 40 + i, visitors: 20 + i, activities: 2 })),
+    byHour: [{ hour: 19, count: 52, people: 60 }, { hour: 20, count: 30, people: 36 }],
+    byWeekday: [{ weekday: 6, count: 55, people: 66 }, { weekday: 0, count: 40, people: 48 }],
   };
   return { ...actual, getPeriodSummary: vi.fn().mockResolvedValue(SAMPLE) };
 });
@@ -56,7 +58,9 @@ describe('/app/reportes · dashboard', () => {
     // KPIs (los labels también aparecen en "Comparación" → getAllByText)
     expect(screen.getAllByText('Actividades').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Visitantes únicos').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('238').length).toBeGreaterThan(0); // asistencias (KPI + comparación)
+    expect(screen.getAllByText('301').length).toBeGreaterThan(0); // PERSONAS: cifra principal (P2)
+    expect(screen.getAllByText('238 registros').length).toBeGreaterThan(0); // registros: dato secundario
+    expect(screen.getAllByText('10 pp').length).toBeGreaterThan(0); // ocupación: variación en puntos
     // Filtros
     expect(screen.getByText('Este mes')).toBeInTheDocument();
     expect(screen.getByText('Todos los tipos')).toBeInTheDocument();

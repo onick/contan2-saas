@@ -12,3 +12,15 @@ export function occupancyPct(peopleInRoom: number, capacity: number): number {
 export function peopleOf(a: { companionsChildren?: number | null; companionsAdults?: number | null }): number {
   return 1 + (a.companionsChildren || 0) + (a.companionsAdults || 0);
 }
+
+/** Variación porcentual como texto ("+12%", "-4%", "0%"); "—" si no hay base. */
+export function fmtDeltaPct(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '—';
+  return `${v > 0 ? '+' : ''}${v}%`;
+}
+
+/** Variación de ocupación en PUNTOS porcentuales ("+3 pp", "-4 pp"); "—" si no hay base. */
+export function fmtDeltaPoints(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '—';
+  return `${v > 0 ? '+' : ''}${v} pp`;
+}

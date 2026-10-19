@@ -74,6 +74,14 @@ export function zonedMidnight(ymd: string, tz: string = REPORT_TZ): Date {
   return new Date(guess);
 }
 
+/** Día calendario 'YYYY-MM-DD' (ya local del tenant) como "01 oct 2026", sin conversión de zona. */
+export function fmtYmd(ymd: string | null | undefined): string {
+  if (!ymd) return '—';
+  const d = new Date(`${ymd}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
 /**
  * Valor de celda Excel para un instante: `Date` a medianoche UTC del día LOCAL del
  * tenant (ExcelJS serializa en UTC; así la hoja muestra el día de RD, no el de UTC).

@@ -66,11 +66,11 @@ test.describe('REP-01 dashboard por periodo = period-summary', { tag: '@write' }
     const body = (await (await done).json()) as { kpis: Record<string, number>; prev: Record<string, number>; deltas: Record<string, number | null> };
     await page.waitForTimeout(400);
     const shown = await page.locator('[data-count]').evaluateAll((els) => els.slice(0, 4).map((e) => Number((e as HTMLElement).dataset.count)));
-    expect(shown, 'Actividades · Asistencias · Visitantes únicos · Ocupación').toEqual([
-      body.kpis.activities, body.kpis.attendances, body.kpis.uniqueVisitors, body.kpis.occupancyPct,
+    expect(shown, 'Actividades · Personas · Visitantes únicos · Ocupación').toEqual([
+      body.kpis.activities, body.kpis.people, body.kpis.uniqueVisitors, body.kpis.occupancyPct,
     ]);
     // El "antes" de cada tarjeta es el periodo anterior de la API.
-    await expect(page.getByText(`${body.prev.attendances!.toLocaleString('en-US')} antes`).first()).toBeVisible();
+    await expect(page.getByText(`${body.prev.people!.toLocaleString('en-US')} antes`).first()).toBeVisible();
     // La actividad [E2E] aporta al menos 1 actividad y 2 asistencias (la reserva NO suma).
     expect(body.kpis.activities).toBeGreaterThanOrEqual(1);
     expect(body.kpis.attendances).toBeGreaterThanOrEqual(2);
@@ -269,16 +269,18 @@ test.describe('REP-03 Excel', { tag: '@write' }, () => {
     expect(wb.sheets.map((s) => s.name)).toEqual(['Resumen', 'Actividades', 'Por tipo', 'Evolución mensual', 'Top visitantes']);
     const r1 = sheetOf(wb, 'Resumen')!;
     expect(kpiValue(r1, 'Actividades realizadas')).toBe(1);
-    expect(kpiValue(r1, 'Asistencias totales')).toBe(2);
+    expect(kpiValue(r1, 'Personas')).toBe(3);
+    expect(kpiValue(r1, 'Registros')).toBe(2);
     expect(kpiValue(r1, 'Visitantes únicos')).toBe(2);
     const acts = sheetOf(wb, 'Actividades')!;
-    expect(acts.rows[0]).toEqual(['#', 'Actividad', 'Tipo', 'Fecha', 'Ubicación', 'Capacidad', 'Asistencias', '% Ocupación', 'Estado']);
+    expect(acts.rows[0]).toEqual(['#', 'Actividad', 'Tipo', 'Fecha', 'Ubicación', 'Capacidad', 'Personas', 'Registros', '% Ocupación', 'Estado']);
     expect(acts.rows[1]?.[1]).toBe(fx.act.name);
-    expect(acts.rows[1]?.[6], 'la reserva no suma asistencias').toBe(2);
+    expect(acts.rows[1]?.[6], 'personas (con acompañantes)').toBe(3);
+    expect(acts.rows[1]?.[7], 'la reserva no suma registros').toBe(2);
     // Coherencia con el dashboard: misma ocupación que period-summary (15 %).
     const s = await summary(`from=${from}&to=${to}&${catQ(fx.category)}`);
-    expect(kpiValue(r1, '% Ocupación promedio'), 'Excel vs dashboard (period-summary)').toBe(`${s.body.kpis.occupancyPct}%`);
-    expect(acts.rows[1]?.[7], 'ocupación de la fila vs dashboard').toBe(`${s.body.topActivities[0].occupancyPct}%`);
+    expect(kpiValue(r1, 'Ocupación (personas / aforo)'), 'Excel vs dashboard (period-summary)').toBe(`${s.body.kpis.occupancyPct}%`);
+    expect(acts.rows[1]?.[8], 'ocupación de la fila vs dashboard').toBe(`${s.body.topActivities[0].occupancyPct}%`);
     const top = sheetOf(wb, 'Top visitantes')!;
     expect(top.rows[0]).toEqual(['#', 'Código', 'Nombre', 'Apellido', 'Email', 'Teléfono', 'Visitas en período', 'Total visitas']);
     expect(top.rows.slice(1).filter((r) => r && r[0] !== null)).toHaveLength(2);
