@@ -62,11 +62,13 @@ export function UsersTable({ users, canWrite = false }: UsersTableProps) {
           <span className={`grid h-9 w-9 flex-none place-items-center rounded-full text-[12px] font-semibold ${avatarFor(u.code)}`}>
             {initials(u.name)}
           </span>
-          <div className="min-w-0">
+          {/* flex-1: el bloque ocupa toda la celda; si no, su ancho era el del nombre y «Ver» quedaba
+              colgando al final del nombre en una posición distinta en cada fila. */}
+          <div className="min-w-0 flex-1">
             {/* whitespace-normal overrides the inherited white-space:nowrap from <td class="truncate"> */}
             <p className="min-w-0 whitespace-normal break-words text-[14px] font-semibold text-ink">{u.name}</p>
-            <div className="flex min-w-0 items-center gap-1.5">
-              <p className="flex-1 min-w-0 truncate text-[12px] text-muted">{u.email}</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="min-w-0 truncate text-[12px] text-muted">{u.email}</p>
               <ProfileLink code={u.code} />
             </div>
           </div>
