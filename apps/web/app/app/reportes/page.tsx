@@ -43,7 +43,7 @@ export default async function ReportesPage({ searchParams }: { searchParams?: Pr
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Reportes" activeKey="reportes">
-      <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+      <div className="mx-auto w-full max-w-[1600px]">{children}</div>
     </AppShell>
   );
 

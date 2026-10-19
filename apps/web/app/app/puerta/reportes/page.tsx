@@ -29,7 +29,7 @@ export default async function PuertaReportesPage() {
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Puerta" activeKey="puerta">
-      <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+      <div className="mx-auto w-full max-w-[1600px]">{children}</div>
     </AppShell>
   );
 

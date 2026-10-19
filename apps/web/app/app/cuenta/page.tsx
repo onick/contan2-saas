@@ -16,11 +16,13 @@ export default async function CuentaPage() {
   const branding = await getTenantBranding();
   return (
     <AppShell branding={branding} title="Mi cuenta" activeKey="cuenta">
-      <div className="mx-auto w-full max-w-[1000px]">
+      {/* Mismo ancho que el resto del admin (1600px); las dos tarjetas van lado a lado
+          desde lg para no dejar la página como una columna angosta al centro. */}
+      <div className="mx-auto w-full max-w-[1600px]">
         <div className="app-reveal">
           <SectionHeader level={1} title="Mi cuenta" subtitle="Contraseña y sesiones abiertas" />
         </div>
-        <div className="app-stagger mt-6 space-y-5">
+        <div className="app-stagger mt-6 grid items-start gap-5 lg:grid-cols-2">
           <ChangePasswordCard />
           <SessionsCard />
         </div>

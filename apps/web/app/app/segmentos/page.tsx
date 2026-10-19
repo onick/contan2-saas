@@ -25,7 +25,7 @@ export default async function SegmentosPage() {
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Segmentos" activeKey="segmentos">
-      <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+      <div className="mx-auto w-full max-w-[1600px]">{children}</div>
     </AppShell>
   );
 
