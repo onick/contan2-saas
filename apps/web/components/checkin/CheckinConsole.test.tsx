@@ -4,6 +4,7 @@ import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-li
 import { renderToString } from 'react-dom/server';
 import { hydrateRoot } from 'react-dom/client';
 import { CheckinConsole } from './CheckinConsole';
+import { CLOCK_PLACEHOLDER } from './LiveClock';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -43,7 +44,7 @@ describe('CheckinConsole', () => {
     installFetch({ metrics: () => J(200, { ...metricsBody, metrics: { ...metricsBody.metrics, checkinsToday: 9, checkinsTodayRecords: 3 } }), activities: okActs() });
     render(<CheckinConsole />);
     await waitFor(() => expect(screen.getByText('5')).toBeInTheDocument());
-    expect(screen.getByText('(3 registros)')).toBeInTheDocument();
+    expect(screen.getByText(/entradas registradas \(3 registros\)/)).toBeInTheDocument();
   });
 
   it('métricas + actividades REALES se renderizan', async () => {
@@ -68,7 +69,7 @@ describe('CheckinConsole', () => {
     render(<CheckinConsole />);
     await waitFor(() => expect(screen.getByText('Concierto')).toBeInTheDocument());
     expect(screen.queryByText('Listas de invitados')).not.toBeInTheDocument(); // ya no hay tarjeta aparte
-    expect(screen.getByText((_, el) => el?.tagName === 'P' && /2 de 5 llegaron · 3 pendientes/.test(el.textContent ?? ''))).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && /2 llegaron · 3 pendientes/.test(el.textContent ?? ''))).toBeInTheDocument();
     expect(screen.getAllByText('Concierto')).toHaveLength(1); // UNA sola tarjeta para la actividad
     expect(screen.getByRole('button', { name: /Invitados 2\/5/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Abrir lista/ })).not.toBeInTheDocument();
@@ -319,7 +320,7 @@ describe('CheckinConsole', () => {
       }),
     });
     render(<CheckinConsole />);
-    await waitFor(() => expect(screen.getByText('Check-ins de hoy')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Check-ins de hoy' })).toBeInTheDocument());
     expect(await screen.findByText('Sofía Méndez')).toBeInTheDocument();
     expect(screen.getByText('+1 sin credencial', { selector: 'span' })).toBeInTheDocument(); // fila anónima del feed
     expect(screen.getByText('hace 5 min')).toBeInTheDocument();
@@ -359,17 +360,18 @@ describe('CheckinConsole', () => {
   it('aforo: con inRoom/heldPeople → "N en sala · M reservados / cap"', async () => {
     installFetch({ metrics: okMetrics, activities: okActs([{ ...act1, enrolledCount: 40, inRoom: 12, heldPeople: 28 } as typeof act1]) });
     render(<CheckinConsole />);
-    expect(await screen.findByText(/12 en sala · 28 reservados \/ 100/)).toBeInTheDocument();
+    expect(await screen.findByText(/12 en sala · 28 reservados/)).toBeInTheDocument();
   });
 
   it('aforo: heldPeople 0 o API vieja → etiqueta de siempre', async () => {
     installFetch({ metrics: okMetrics, activities: okActs([{ ...act1, inRoom: 40, heldPeople: 0 } as typeof act1]) });
     render(<CheckinConsole />);
-    expect(await screen.findByText(/40\/100 en sala/)).toBeInTheDocument();
+    expect(await screen.findByText('60 plazas disponibles')).toBeInTheDocument();
+    expect(screen.queryByText(/en sala/)).toBeNull();
     cleanup();
     installFetch({ metrics: okMetrics, activities: okActs() });
     render(<CheckinConsole />);
-    expect(await screen.findByText(/40\/100 en sala/)).toBeInTheDocument();
+    expect(await screen.findByText('60 plazas disponibles')).toBeInTheDocument();
   });
 
   it('feed vacío → estado honesto (sin demo)', async () => {
@@ -396,5 +398,101 @@ describe('CheckinConsole', () => {
     await waitFor(() => expect(screen.getByText('Sofía Méndez')).toBeInTheDocument()); // seleccionado
     expect(screen.queryByRole('dialog')).toBeNull(); // modal cerró
     expect(fn.mock.calls.some((c) => String(c[0]).includes('q=CCB-7K2P9Q'))).toBe(true);
+  });
+  it('encabezado: título, subtítulo, "En vivo" y reloj con segundos (SSR-safe) que hace tick cada 1 s', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-06-10T20:43:29.000Z'));
+    installFetch({ metrics: okMetrics, activities: okActs() });
+    render(<CheckinConsole />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Check-in' })).toBeInTheDocument();
+    expect(screen.getByText('Registra entradas en puerta, en tiempo real.')).toBeInTheDocument();
+    expect(screen.getByText('En vivo')).toBeInTheDocument();
+    expect(screen.getByText('Hora local')).toBeInTheDocument();
+    const clock = screen.getByTestId('checkin-clock');
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(clock.textContent).not.toBe(CLOCK_PLACEHOLDER);
+    expect(clock.textContent).toMatch(/^\d{2}:\d{2}:\d{2}/); // con segundos
+    const before = clock.textContent;
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    expect(clock.textContent).not.toBe(before); // tick de 1 s
+    expect(CLOCK_PLACEHOLDER).toBe('--:--:--');
+  });
+
+  it('KPIs: 4 tarjetas con su texto secundario (singular/plural en "disponible(s) para registrar")', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs() });
+    const { unmount } = render(<CheckinConsole />);
+    await waitFor(() => expect(screen.getByText('7')).toBeInTheDocument());
+    for (const l of ['Check-ins de hoy', 'Últimos 10 min', 'Visitantes únicos', 'Actividades activas']) {
+      expect(screen.getAllByText(l).length).toBeGreaterThan(0);
+    }
+    expect(screen.getByText('entradas registradas')).toBeInTheDocument();
+    expect(screen.getByText('disponibles para registrar')).toBeInTheDocument(); // 2 activas
+    unmount();
+    installFetch({ metrics: () => J(200, { ...metricsBody, metrics: { ...metricsBody.metrics, activeActivities: 1 } }), activities: okActs() });
+    render(<CheckinConsole />);
+    expect(await screen.findByText('disponible para registrar')).toBeInTheDocument();
+  });
+
+  it('métricas caídas sin datos → una card con "Métricas no disponibles — reintenta."', async () => {
+    installFetch({ metrics: () => J(502, { error: 'down' }), activities: okActs() });
+    render(<CheckinConsole />);
+    expect(await screen.findByText('Métricas no disponibles — reintenta.')).toBeInTheDocument();
+    expect(screen.queryByText('entradas registradas')).toBeNull();
+  });
+
+  it('estado inicial: guía de búsqueda, helper, hint de Registrar y Registrar deshabilitado sin visitante', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs() });
+    render(<CheckinConsole />);
+    await waitFor(() => screen.getByText('Concierto'));
+    expect(screen.getByText('Empieza por encontrar al visitante')).toBeInTheDocument();
+    expect(screen.getByText('Escribe un dato del visitante (mín. 2 caracteres).')).toBeInTheDocument();
+    expect(screen.getByText('Selecciona un visitante para habilitar Registrar.')).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: /Buscar visitante/i })).toHaveAttribute('placeholder', 'Código, nombre, email o teléfono…');
+    expect(screen.getByRole('button', { name: 'Registrar' })).toBeDisabled();
+    expect(screen.getByText('Aún no hay check-ins hoy')).toBeInTheDocument();
+    expect(screen.getByText('En espera del primer check-in')).toBeInTheDocument();
+  });
+
+  it('con visitante seleccionado desaparecen la guía y el hint; Registrar queda habilitado', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs(), visitors: () => J(200, { items: [visitor] }) });
+    render(<CheckinConsole />);
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sofia' } });
+    await settle(400);
+    fireEvent.click(await screen.findByText('Sofía Méndez'));
+    expect(screen.queryByText('Empieza por encontrar al visitante')).toBeNull();
+    expect(screen.queryByText('Selecciona un visitante para habilitar Registrar.')).toBeNull();
+    const li = screen.getByRole('button', { name: '+1 sin credencial' }).closest('li')!;
+    expect(within(li).getByRole('button', { name: 'Registrar' })).toBeEnabled();
+  });
+
+  it('fila de actividad: fecha corta · lugar, pastilla Activa, aforo y plazas, sin lista de invitados', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs() });
+    render(<CheckinConsole />);
+    await waitFor(() => screen.getByText('Concierto'));
+    const li = screen.getByText('Concierto').closest('li')!;
+    expect(within(li).getByText(/10 jun 2030 · Sala 1/)).toBeInTheDocument();
+    expect(within(li).getByText('Activa')).toBeInTheDocument();
+    expect(within(li).getByText('40 / 100')).toBeInTheDocument();
+    expect(within(li).getByText('60 plazas disponibles')).toBeInTheDocument();
+    expect(within(li).getByText('Sin lista de invitados')).toBeInTheDocument();
+  });
+
+  it('cupo lleno: "Cupo lleno" y Registrar / +1 deshabilitados', async () => {
+    installFetch({ metrics: okMetrics, activities: okActs([actFull]), visitors: () => J(200, { items: [visitor] }) });
+    render(<CheckinConsole />);
+    await waitFor(() => screen.getByText('Lleno'));
+    const li = screen.getByText('Lleno').closest('li')!;
+    expect(within(li).getByText('Cupo lleno')).toBeInTheDocument();
+    expect(within(li).getByRole('button', { name: 'Registrar' })).toBeDisabled();
+    expect(within(li).getByRole('button', { name: '+1 sin credencial' })).toBeDisabled();
+  });
+
+  it('feed: pie "Último check-in hace N min"', async () => {
+    installFetch({
+      metrics: okMetrics, activities: okActs(),
+      recent: () => J(200, { items: [{ id: 'r1', userCode: 'CCB-7K2P9Q', firstName: 'Sofía', lastName: 'Méndez', activityId: 'A1', activityName: 'Concierto', anonymous: false, checkedInAt: new Date(Date.now() - 5 * 60_000 - 30_000).toISOString(), registeredAt: new Date().toISOString(), companionsChildren: 0, companionsAdults: 0 }], total: 1, limit: 8, offset: 0 }),
+    });
+    render(<CheckinConsole />);
+    expect(await screen.findByText('Último check-in hace 5 min')).toBeInTheDocument();
   });
 });

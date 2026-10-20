@@ -23,6 +23,12 @@ describe('/app/check-in', () => {
   it('renderiza el encabezado y la consola real (sin demo)', async () => {
     render(await CheckinPage());
     expect(screen.getByRole('heading', { name: 'Check-in' })).toBeInTheDocument();
+    expect(screen.getByText('Registra entradas en puerta, en tiempo real.')).toBeInTheDocument();
+    expect(screen.getByText('En vivo')).toBeInTheDocument();
+    expect(screen.getByTestId('checkin-clock').textContent).toMatch(/^\d{2}:\d{2}:\d{2}/); // reloj con segundos
+    expect(screen.getByText('Hora local')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Check-ins de hoy' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actualizar métricas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /nuevo visitante/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Actividades activas/i })).toBeInTheDocument();
   });

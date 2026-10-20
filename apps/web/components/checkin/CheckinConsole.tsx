@@ -9,7 +9,7 @@
 // sin credencial" con Idempotency-Key reutilizada en reintentos del MISMO click.
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History, Medal, ListChecks, Image as ImageIcon } from 'lucide-react';
+import { Search, X, UserPlus, Loader2, CheckCircle2, AlertTriangle, RotateCw, Crown, Sparkle, ScanLine, History, Medal, ListChecks, UserSearch, Image as ImageIcon, RefreshCw, type LucideIcon } from 'lucide-react';
 import { GuestListDrawer } from './GuestListDrawer';
 import { CoverThumb } from '../activities/CoverThumb';
 import { MAX_COMPANIONS_CHILDREN, MAX_COMPANIONS_ADULTS } from '@contan2/contracts';
@@ -17,9 +17,10 @@ import type { CheckinMetricsResponse, CheckinActivityItem, CheckinVisitorItem, A
 import { getCheckinMetrics, getCheckinActivities, searchCheckinVisitors, postCheckin, postCheckinAnonymous, getRecentCheckins } from '../../lib/api/checkin-client';
 import { NewVisitorDrawer } from './NewVisitorDrawer';
 import { CheckinScanModal } from './CheckinScanModal';
-import { Button, Card, Chip, IconButton, cn, focusRing } from '../ui';
+import { Button, Card, Chip, IconButton, Kbd, SectionHeader, cn, focusRing } from '../ui';
+import { KpiHero } from '../dashboard/KpiHero';
+import { LiveClock } from './LiveClock';
 import { NumberField } from '../ui/arc/number-field/NumberField';
-import { RefreshCw } from 'lucide-react';
 
 type Async<T> = { phase: 'loading' | 'ready' | 'error'; data?: T; error?: string };
 type Toast = { kind: 'success' | 'error'; msg: string } | null;
@@ -36,10 +37,6 @@ function timeAgo(iso: string, skewMs: number): string {
   return `hace ${h} h`;
 }
 
-// Strip de métricas (paridad v1, pedido 2026-06-11): una sola línea con las 4
-// métricas en vez de 4 tarjetas — el staff las lee de un vistazo en tablet. El
-// "EN VIVO" vive SOLO en el pill del header de la página (estaba duplicado);
-// con ese espacio entra el reloj local compacto.
 // Actividad de HOY (fecha local del dispositivo) → chip naranja (paridad v1).
 // Zona fija (America/Santo_Domingo) en servidor y cliente: sin depender de la TZ
 // del proceso, así el HTML de SSR y el primer render de cliente coinciden.
@@ -49,32 +46,28 @@ function isToday(iso: string): boolean {
   return dayKey(new Date(iso)) === dayKey(new Date());
 }
 const fmtHour = (iso: string) => new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+// Fecha corta "19 oct 2027" (sin "de": es-DO la trae como "19 oct de 2027").
+function fmtShortDate(iso: string): string {
+  const parts = new Intl.DateTimeFormat('es-DO', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric' }).formatToParts(new Date(iso));
+  const g = (t: string) => (parts.find((x) => x.type === t)?.value ?? '').replace(/\.$/, '');
+  return `${g('day')} ${g('month')} ${g('year')}`;
+}
 
-const METRIC_LABELS: { key: keyof CheckinMetricsResponse['metrics']; label: string }[] = [
-  { key: 'checkinsToday', label: 'check-ins hoy' },
-  { key: 'checkinsLast10Min', label: 'en últimos 10 min' },
-  { key: 'uniqueVisitorsToday', label: 'visitantes únicos' },
-  { key: 'activeActivities', label: 'activas' },
-];
+// Chip de icono de las cards (misma familia que ActivityForm).
+function IconChip({ icon: Icon, className }: { icon: LucideIcon; className?: string }) {
+  return (
+    <span className={cn('grid h-11 w-11 flex-none place-items-center rounded-xl bg-primary-container text-on-primary-container', className)}>
+      <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
+    </span>
+  );
+}
 
-
-
-// Reloj HH:MM local del dispositivo (la tablet de recepción). Tick 30s.
-// "Ahora" solo existe en el cliente: el SSR y el primer render del cliente pintan
-// el mismo placeholder y la hora real entra tras montar (evita el error #418).
-export const CLOCK_PLACEHOLDER = '--:--';
-function useLocalClock(): string {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-    const t = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(t);
-  }, []);
-  return now ? now.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' }) : CLOCK_PLACEHOLDER;
+// Cifra de un KPI: skeleton mientras no hay datos.
+function metricValue(n: number | undefined) {
+  return n !== undefined ? n : <span className="inline-block h-8 w-10 animate-pulse rounded bg-surface-container/60 align-middle" />;
 }
 
 export function CheckinConsole() {
-  const clock = useLocalClock();
   const [metrics, setMetrics] = useState<Async<CheckinMetricsResponse['metrics']>>({ phase: 'loading' });
   const [activities, setActivities] = useState<Async<CheckinActivityItem[]>>({ phase: 'loading' });
   const [query, setQuery] = useState('');
@@ -263,50 +256,63 @@ export function CheckinConsole() {
       {/* aria-live para feedback inmediato accesible */}
       <div id={liveId} role="status" aria-live="polite" className="sr-only">{toast?.msg ?? ''}</div>
 
-      {/* Métricas · strip de una línea + reloj local (paridad v1; poll 30s) */}
-      <Card padding="md" className="app-reveal mt-6">
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px]">
-          {metrics.phase === 'error' && !metrics.data ? (
-            <span className="text-danger-fg">Métricas no disponibles — reintenta.</span>
-          ) : (
-            METRIC_LABELS.map((m, i) => (
-              <span key={m.key} className="inline-flex items-baseline gap-1.5 text-muted">
-                {i > 0 ? <span aria-hidden="true" className="text-faint">·</span> : null}
-                <span className="text-[15px] font-bold tabular-nums text-ink">
-                  {metrics.data
-                    ? metrics.data[m.key]
-                    : <span className="inline-block h-4 w-6 animate-pulse rounded bg-surface-container align-middle" />}
-                </span>
-                {m.label}
-                {m.key === 'checkinsToday' && metrics.data?.checkinsTodayRecords !== undefined
-                  && metrics.data.checkinsTodayRecords !== metrics.data.checkinsToday ? (
-                  <span className="text-[12px] text-faint">({metrics.data.checkinsTodayRecords} {metrics.data.checkinsTodayRecords === 1 ? 'registro' : 'registros'})</span>
-                ) : null}
-              </span>
-            ))
-          )}
-          <span className="ml-auto inline-flex items-center gap-2">
-            <span className="inline-flex items-baseline gap-1.5">
-              <span className="text-[15px] font-bold tabular-nums text-ink">{clock}</span>
-              <span className="text-[11px] text-faint">hora local</span>
-            </span>
-            <IconButton label="Actualizar métricas" variant="ghost" size="sm" onClick={() => refreshLive()}>
-              <RefreshCw size={15} strokeWidth={2} aria-hidden="true" />
-            </IconButton>
-          </span>
+      {/* Encabezado: título + "En vivo" + reloj con segundos (tick propio, no re-renderiza la consola) */}
+      <div className="app-reveal">
+        <SectionHeader
+          level={1}
+          title="Check-in"
+          subtitle="Registra entradas en puerta, en tiempo real."
+          actions={
+            <div className="flex items-center gap-3 sm:gap-4">
+              <Chip tone="success" dot>En vivo</Chip>
+              <LiveClock />
+              <IconButton label="Actualizar métricas" variant="ghost" size="sm" onClick={() => refreshLive()}>
+                <RefreshCw size={15} strokeWidth={2} aria-hidden="true" />
+              </IconButton>
+            </div>
+          }
+        />
+      </div>
+
+      {/* KPIs · 4 tarjetas (poll 30s). Error sin datos → una card neutra a ancho completo. */}
+      {metrics.phase === 'error' && !metrics.data ? (
+        <Card padding="md" className="app-reveal mt-6">
+          <p className="text-[13px] text-danger-fg">Métricas no disponibles — reintenta.</p>
+        </Card>
+      ) : (
+        <div className="app-stagger mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiHero
+            tone="dark" compact label="Check-ins de hoy"
+            value={metricValue(metrics.data?.checkinsToday)}
+            secondary={`entradas registradas${metrics.data?.checkinsTodayRecords !== undefined && metrics.data.checkinsTodayRecords !== metrics.data.checkinsToday
+              ? ` (${metrics.data.checkinsTodayRecords} ${metrics.data.checkinsTodayRecords === 1 ? 'registro' : 'registros'})` : ''}`}
+          />
+          <KpiHero tone="neutral" compact label="Últimos 10 min" value={metricValue(metrics.data?.checkinsLast10Min)} secondary="check-ins" />
+          <KpiHero tone="neutral" compact label="Visitantes únicos" value={metricValue(metrics.data?.uniqueVisitorsToday)} secondary="hoy" />
+          <KpiHero
+            tone="warm" compact label="Actividades activas"
+            value={metricValue(metrics.data?.activeActivities)}
+            secondary={metrics.data?.activeActivities === 1 ? 'disponible para registrar' : 'disponibles para registrar'}
+          />
         </div>
-      </Card>
+      )}
 
       <div className="app-reveal mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]" style={{ animationDelay: '120ms' }}>
         <div className="flex min-w-0 flex-col gap-4">
           {/* Buscar / seleccionar visitante */}
           <Card padding="lg">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Encontrar visitante</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-[17px] font-semibold tracking-tight text-ink">Buscar visitante</h3>
+                <p className="mt-0.5 text-[13px] text-muted">Encuentra su registro para dar entrada.</p>
+              </div>
+              <Button variant="secondary" size="md" onClick={() => setNewOpen(true)} className="flex-none">
+                <UserPlus size={16} strokeWidth={2} aria-hidden="true" /> Nuevo visitante
+              </Button>
+            </div>
 
-            {/* Input y acciones (Escanear / Nuevo) en una fila SOLO en desktop (xl, cuando
-                el grid pasa a 2 columnas). En tablet/móvil los botones bajan DEBAJO del
-                input, a ancho completo (touch-friendly). */}
-            <div className="mt-3 flex flex-col gap-2 xl:flex-row xl:items-center">
+            {/* Buscador + Escanear en una fila desde sm; en móvil se apilan a ancho completo. */}
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
               {selected ? (
                 <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface-container px-4 py-2.5">
                   <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-primary-container text-[12px] font-semibold text-on-primary-container">
@@ -337,32 +343,32 @@ export function CheckinConsole() {
                   </IconButton>
                 </div>
               ) : (
-                <label className="relative block min-w-0 flex-1">
-                  <span className="sr-only">Buscar visitante por código, nombre, email o teléfono</span>
+                <div className="relative block min-w-0 flex-1">
                   <Search size={18} strokeWidth={1.75} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
                   <input
                     ref={searchRef}
                     type="search"
+                    aria-label="Buscar visitante"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Código, nombre, email o teléfono…   ( / )"
-                    className={cn('h-12 w-full rounded-xl border border-line bg-page pl-11 pr-4 text-[14px] text-ink placeholder:text-faint', focusRing)}
+                    placeholder="Código, nombre, email o teléfono…"
+                    className={cn('h-12 w-full rounded-xl border border-line bg-page pl-11 pr-4 text-[14px] text-ink placeholder:text-faint md:pr-14 [&::-webkit-search-cancel-button]:appearance-none', focusRing)}
                   />
-                  {results.phase === 'searching' ? <Loader2 size={16} aria-hidden="true" className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-faint" /> : null}
-                </label>
+                  {results.phase === 'searching' ? <Loader2 size={16} aria-hidden="true" className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-faint md:right-12" /> : null}
+                  <Kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 md:inline-flex"><span aria-hidden="true">/</span></Kbd>
+                </div>
               )}
-              <div className="flex flex-none items-stretch gap-2">
-                <Button variant="secondary" size="md" onClick={() => setScanOpen(true)} className="flex-1 xl:flex-none">
-                  <ScanLine size={16} strokeWidth={2} aria-hidden="true" /> Escanear
-                </Button>
-                <Button variant="primary" size="md" onClick={() => setNewOpen(true)} className="flex-1 xl:flex-none">
-                  <UserPlus size={16} strokeWidth={2} aria-hidden="true" /> Nuevo visitante
-                </Button>
-              </div>
+              <Button variant="primary" size="md" onClick={() => setScanOpen(true)} className="w-full flex-none sm:w-auto">
+                <ScanLine size={16} strokeWidth={2} aria-hidden="true" /> Escanear
+              </Button>
             </div>
 
+            {!selected ? (
+              <p className="mt-2 text-[12.5px] text-faint">Escribe un dato del visitante (mín. 2 caracteres).</p>
+            ) : null}
+
             {!selected && (query.trim().length >= 2 ? (
-              <div className="mt-2">
+              <div className="mt-3">
                 {results.phase === 'error' ? (
                   <p className="px-1 py-2 text-[13px] text-danger-fg">{results.error}</p>
                 ) : results.phase === 'ready' && results.items.length === 0 ? (
@@ -398,7 +404,13 @@ export function CheckinConsole() {
                 )}
               </div>
             ) : (
-              <p className="mt-3 text-[13px] text-muted">Busca por código o datos del visitante (mín. 2 caracteres).</p>
+              <div className="mt-5 flex items-center gap-4">
+                <IconChip icon={UserSearch} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">Empieza por encontrar al visitante</p>
+                  <p className="mt-0.5 text-[13px] text-muted">Busca sus datos o escanea su credencial. Luego elige la actividad y registra su entrada.</p>
+                </div>
+              </div>
             ))}
           </Card>
 
@@ -468,96 +480,105 @@ export function CheckinConsole() {
           ) : null}
 
           {/* Actividades activas (reales) */}
-          <Card padding="none">
-            <div className="flex items-center justify-between px-5 py-4 md:px-6">
-              <h3 className="text-[15px] font-semibold tracking-tight text-ink">Actividades activas</h3>
-              <div className="flex items-center gap-2">
+          <Card padding="lg">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="flex items-center gap-2 text-[17px] font-semibold tracking-tight text-ink">
+                Actividades activas
                 {activities.data ? <Chip tone="neutral" className="tabular-nums">{activities.data.length}</Chip> : null}
-                <IconButton label="Refrescar" variant="outline" size="sm" onClick={refreshLive}><RotateCw size={15} strokeWidth={2} aria-hidden="true" /></IconButton>
-              </div>
+              </h3>
+              <IconButton label="Refrescar" variant="outline" size="sm" onClick={refreshLive}><RotateCw size={15} strokeWidth={2} aria-hidden="true" /></IconButton>
             </div>
             {activities.phase === 'error' && !activities.data ? (
-              <p className="px-5 py-6 text-[13px] text-danger-fg md:px-6">{activities.error ?? 'No pudimos cargar las actividades.'}</p>
+              <p className="py-6 text-[13px] text-danger-fg">{activities.error ?? 'No pudimos cargar las actividades.'}</p>
             ) : activities.phase === 'loading' ? (
-              <p className="px-5 py-6 text-[13px] text-faint md:px-6">Cargando actividades…</p>
+              <p className="py-6 text-[13px] text-faint">Cargando actividades…</p>
             ) : activities.data && activities.data.length === 0 ? (
-              <p className="px-5 py-6 text-[13px] text-faint md:px-6">No hay actividades activas ahora mismo.</p>
+              <p className="py-6 text-[13px] text-faint">No hay actividades activas ahora mismo.</p>
             ) : (
-              <ul>
-                {activities.data?.map((a) => (
-                  <li key={a.id} className={cn('flex flex-col gap-3 border-t border-line px-5 py-4 md:px-6 transition-opacity sm:flex-row sm:flex-wrap sm:items-center', isToday(a.date) && 'bg-accent-soft', focusedActivity?.id === a.id && 'opacity-45')}>
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
-                      <span className="hidden h-11 w-[72px] flex-none overflow-hidden rounded-lg bg-surface-container sm:block">
-                        <CoverThumb
-                          src={a.imageUrl ?? null}
-                          posY={a.imagePosY}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          fallback={<span className="grid h-full w-full place-items-center text-faint"><ImageIcon size={16} strokeWidth={1.75} aria-hidden="true" /></span>}
-                        />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-2 truncate text-sm font-medium tracking-tight text-ink">
-                          <span className="truncate">{a.name}</span>
-                          {isToday(a.date) ? (
-                            <span className="flex-none rounded-md bg-brand-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
-                          ) : null}
-                        </p>
-                        <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-faint">
-                          <span className="min-w-0 max-w-full truncate">{a.location}</span>
-                          <span aria-hidden="true">·</span>
-                          <span className="whitespace-nowrap tabular-nums">{fmtHour(a.date)}</span>
-                          <span aria-hidden="true">·</span>
-                          <span className="whitespace-nowrap tabular-nums" title="Personas en sala (con acompañantes) y cupos reservados sobre el aforo">{(a.heldPeople ?? 0) > 0
-                            ? `${a.inRoom ?? a.enrolledCount} en sala · ${a.heldPeople} reservados / ${a.capacity} (${a.occupancyPct}%)`
-                            : `${a.enrolledCount}/${a.capacity} en sala (${a.occupancyPct}%)`}</span>
-                          {a.recentMovement > 0 ? <span className="whitespace-nowrap text-success-fg">+{a.recentMovement} en 10 min</span> : null}
-                          {a.full ? <span className="font-semibold text-danger-fg">Lleno</span> : null}
-                        </p>
-                        {/* Lista de invitados INTEGRADA en la misma tarjeta (antes era una
-                            sección aparte con la misma actividad y otro número → confundía). */}
-                        {a.guestList ? (() => {
-                          const gl = a.guestList;
-                          const pct = gl.total > 0 ? Math.round((gl.arrived / gl.total) * 100) : 0;
-                          return (
-                            <div className="mt-2 max-w-md">
-                              <div className="h-1.5 overflow-hidden rounded-full bg-surface-container" aria-hidden="true">
-                                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, var(--color-brand), var(--color-brand-accent))' }} />
-                              </div>
-                              <p className="mt-1 text-xs text-faint">
-                                <ListChecks size={12} strokeWidth={2} aria-hidden="true" className="mr-1 inline-block align-[-2px] text-brand-text" />
-                                Lista de invitados: <span className="font-semibold text-ink tabular-nums">{gl.arrived}</span> de {gl.total} llegaron · {Math.max(0, gl.total - gl.arrived)} pendientes
-                              </p>
-                            </div>
-                          );
-                        })() : null}
+              <ul className="mt-4 flex flex-col gap-3">
+                {activities.data?.map((a) => {
+                  const gl = a.guestList;
+                  const glPct = gl && gl.total > 0 ? Math.round((gl.arrived / gl.total) * 100) : 0;
+                  const pct = Math.max(0, Math.min(100, a.occupancyPct));
+                  const avail = a.available ?? Math.max(0, a.capacity - a.enrolledCount);
+                  return (
+                    <li key={a.id} className={cn('rounded-2xl border border-line p-4 transition-opacity md:p-5', isToday(a.date) && 'bg-accent-soft', focusedActivity?.id === a.id && 'opacity-45')}>
+                      <div className="flex items-start gap-3">
+                        <span className="block h-12 w-[72px] flex-none overflow-hidden rounded-xl bg-surface-container">
+                          <CoverThumb
+                            src={a.imageUrl ?? null}
+                            posY={a.imagePosY}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            fallback={<span className="grid h-full w-full place-items-center text-faint"><ImageIcon size={16} strokeWidth={1.75} aria-hidden="true" /></span>}
+                          />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-ink">
+                            <span className="truncate">{a.name}</span>
+                            {isToday(a.date) ? (
+                              <span className="flex-none rounded-md bg-brand-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Hoy</span>
+                            ) : null}
+                          </p>
+                          <p className="mt-0.5 truncate text-[13px] text-muted">{fmtShortDate(a.date)} · {a.location}</p>
+                        </div>
+                        <Chip tone="success" dot className="flex-none">Activa</Chip>
                       </div>
-                    </div>
-                    {/* Móvil: la info queda arriba a ancho completo y los botones
-                        bajan en grilla 2-col (con "+1 sin credencial" full-width),
-                        para que el texto de la actividad no se aplaste. */}
-                    <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-none sm:items-center">
-                      {/* Gateway al modal de lista de invitados · disponible en toda
-                          actividad activa (también vacía: ahí se empieza la lista). */}
-                      <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={() => setGuestListAct(a)}>
-                        <ListChecks size={15} strokeWidth={2} aria-hidden="true" />
-                        {a.guestList ? <>Invitados <span className="tabular-nums">{a.guestList.arrived}/{a.guestList.total}</span></> : 'Lista'}
-                      </Button>
-                      {/* Armado → naranja ACENTO. style inline: cn no hace
-                          tailwind-merge y el bg del variant ganaba por orden CSS. */}
-                      <Button size="sm" className="w-full sm:w-auto" disabled={!selected || a.full || busyActivity === a.id} onClick={() => registerExisting(a)}
-                        style={selected && !a.full ? { backgroundColor: 'var(--color-brand-accent)' } : undefined}>
-                        {busyActivity === a.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Registrar
-                      </Button>
-                      <Button variant="secondary" size="sm" className="col-span-2 w-full sm:col-span-1 sm:w-auto" disabled={a.full} onClick={() => openAnon(a)}>
-                        <Sparkle size={15} strokeWidth={2} aria-hidden="true" /> +1 sin credencial
-                      </Button>
-                    </div>
-                  </li>
-                ))}
+
+                      <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] sm:gap-0">
+                        <div className="sm:pr-6">
+                          <div className="flex items-baseline justify-between gap-2 text-[13px]">
+                            <span className="text-muted">Aforo</span>
+                            <span className="tabular-nums text-muted"><b className="font-semibold text-ink">{a.enrolledCount} / {a.capacity}</b> · {a.occupancyPct}%</span>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-container" role="img" aria-label={`Aforo ${a.occupancyPct}%`}>
+                            <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-xs text-faint">
+                            {(a.heldPeople ?? 0) > 0 ? <span className="tabular-nums">{a.inRoom ?? a.enrolledCount} en sala · {a.heldPeople} reservados ·</span> : null}
+                            {a.full ? <span className="font-semibold text-danger-fg">Cupo lleno</span> : <span className="tabular-nums">{avail} {avail === 1 ? 'plaza disponible' : 'plazas disponibles'}</span>}
+                            {a.recentMovement > 0 ? <span className="whitespace-nowrap text-success-fg">+{a.recentMovement} en 10 min</span> : null}
+                          </p>
+                        </div>
+                        <div className="sm:border-l sm:border-line sm:pl-6">
+                          <div className="flex items-baseline justify-between gap-2 text-[13px]">
+                            <span className="text-muted">Invitados</span>
+                            {gl ? <b className="font-semibold tabular-nums text-ink">{gl.arrived} / {gl.total}</b> : null}
+                          </div>
+                          {gl ? (
+                            <>
+                              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-container" aria-hidden="true">
+                                <div className="h-full rounded-full bg-brand" style={{ width: `${glPct}%` }} />
+                              </div>
+                              <p className="mt-1.5 text-xs text-brand-text">{gl.arrived} llegaron · {Math.max(0, gl.total - gl.arrived)} pendientes</p>
+                            </>
+                          ) : (
+                            <p className="mt-2 text-xs text-faint">Sin lista de invitados</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+                        {/* Gateway al modal de lista de invitados · disponible en toda
+                            actividad activa (también vacía: ahí se empieza la lista). */}
+                        <Button variant="secondary" size="sm" className="mr-auto" onClick={() => setGuestListAct(a)}>
+                          <ListChecks size={15} strokeWidth={2} aria-hidden="true" />
+                          {gl ? <>Invitados <span className="tabular-nums">{gl.arrived}/{gl.total}</span></> : 'Lista'}
+                        </Button>
+                        <Button size="sm" disabled={!selected || a.full || busyActivity === a.id} onClick={() => registerExisting(a)}>
+                          {busyActivity === a.id ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />} Registrar
+                        </Button>
+                        <Button variant="secondary" size="sm" disabled={a.full} onClick={() => openAnon(a)}>
+                          <Sparkle size={15} strokeWidth={2} aria-hidden="true" /> +1 sin credencial
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </Card>
+          {!selected ? <p className="px-1 text-[13px] text-muted">Selecciona un visitante para habilitar Registrar.</p> : null}
         </div>
 
         {/* Panel derecho: toast (si hay) + FEED de check-ins de hoy (paridad v1) */}
@@ -569,37 +590,49 @@ export function CheckinConsole() {
             </div>
           ) : null}
 
-          <Card padding="none">
-            <div className="flex items-center justify-between px-5 py-4">
-              <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-ink">
-                <History size={16} strokeWidth={1.75} aria-hidden="true" /> Check-ins de hoy
-              </h3>
+          <Card padding="lg" className="flex flex-col xl:min-h-[420px]">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[17px] font-semibold tracking-tight text-ink">Check-ins de hoy</h3>
               {recent.data ? <Chip tone="neutral" className="tabular-nums">{recent.data.length}</Chip> : null}
             </div>
+            <p className="mt-0.5 text-[13px] text-muted">Entradas registradas durante la jornada.</p>
+            <div className="mt-4 flex items-center justify-between border-y border-line py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
+              <span>Visitante / actividad</span>
+              <span>Hora</span>
+            </div>
             {recent.phase === 'error' && !recent.data ? (
-              <p className="px-5 pb-5 text-[13px] text-danger-fg">{recent.error ?? 'No pudimos cargar el feed.'}</p>
+              <p className="py-5 text-[13px] text-danger-fg">{recent.error ?? 'No pudimos cargar el feed.'}</p>
             ) : recent.phase === 'loading' ? (
-              <p className="px-5 pb-5 text-[13px] text-faint">Cargando…</p>
+              <p className="py-5 text-[13px] text-faint">Cargando…</p>
             ) : recent.data && recent.data.length === 0 ? (
-              <p className="px-5 pb-5 text-[13px] text-faint">Aún no hay check-ins hoy. Busca o crea un visitante y regístralo: aparecerá acá al instante.</p>
+              <div className="flex flex-1 flex-col items-center justify-center px-2 py-10 text-center">
+                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-surface-container text-muted">
+                  <History size={28} strokeWidth={1.5} aria-hidden="true" />
+                </span>
+                <p className="mt-4 text-[15px] font-semibold text-ink">Aún no hay check-ins hoy</p>
+                <p className="mt-1 max-w-[28ch] text-[13px] text-muted">Busca un visitante y registra su entrada. La verás aquí al instante.</p>
+              </div>
             ) : (
-              <ul>
+              <ul className="flex-1">
                 {recent.data?.map((r) => (
-                  <li key={r.id} className="flex items-center gap-3 border-t border-line px-5 py-2.5">
-                    <span className={cn('grid h-8 w-8 flex-none place-items-center rounded-full text-[11px] font-semibold', r.anonymous ? 'bg-surface-container text-faint' : 'bg-primary-container text-on-primary-container')}>
-                      {r.anonymous ? <Sparkle size={13} strokeWidth={2} aria-hidden="true" /> : `${r.firstName?.[0] ?? ''}${r.lastName?.[0] ?? ''}`}
-                    </span>
+                  <li key={r.id} className="flex items-center gap-3 border-b border-line py-2.5 last:border-b-0">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium text-ink">
+                      <span className="block truncate text-[13px] font-semibold text-ink">
                         {r.anonymous ? '+1 sin credencial' : `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim()}
                       </span>
-                      <span className="block truncate text-[11px] text-faint">{r.activityName}</span>
+                      <span className="block truncate text-[12px] text-muted">{r.activityName}</span>
                     </span>
-                    <span className="flex-none text-[11px] tabular-nums text-faint">{timeAgo(r.checkedInAt ?? r.registeredAt, skewMs.current)}</span>
+                    <span className="num flex-none text-[12px] tabular-nums text-muted">{timeAgo(r.checkedInAt ?? r.registeredAt, skewMs.current)}</span>
                   </li>
                 ))}
               </ul>
             )}
+            <p className="mt-auto flex items-center gap-2 border-t border-line pt-3 text-[12px] text-muted">
+              <span aria-hidden="true" className="h-[7px] w-[7px] flex-none rounded-full bg-brand-accent" />
+              {recent.data && recent.data.length > 0
+                ? `Último check-in ${timeAgo(recent.data[0]!.checkedInAt ?? recent.data[0]!.registeredAt, skewMs.current)}`
+                : 'En espera del primer check-in'}
+            </p>
           </Card>
         </div>
       </div>
