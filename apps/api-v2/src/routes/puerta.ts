@@ -3,7 +3,8 @@
 // fecha: acá CADA ENTRADA CUENTA (sin dedup, sin filtro de cupo). Grupos
 // escolares = profesor identificado + alumnos como cantidad (companions).
 //   GET  /puerta/salas               · salas + visitantes hoy + ocupación + reservas de hoy
-//   POST /puerta/registrar           · registra entrada (identified|anonymous|group) en 1+ salas
+//   POST /puerta/registrar           · registra entrada (identified|anonymous|group) en 1+ salas · idempotente
+//   DELETE /puerta/entries/:id       · Deshacer (mismo staff <=10 min; owner/admin siempre)
 //   POST /puerta/salas/:id/occupancy · ajusta el contador de ocupación (VR)
 
 import { randomUUID } from 'node:crypto';
@@ -13,6 +14,9 @@ import { generateUserCode } from '@contan2/codes';
 import {
   PuertaRegisterRequestSchema,
   PuertaOccupancyRequestSchema,
+  PUERTA_RECENT_ENTRY_MIN,
+  PUERTA_UNDO_WINDOW_MIN,
+  type PuertaVoidResponse,
   type PuertaSalasResponse,
   type PuertaRegisterResponse,
   type PuertaOccupancyResponse,
@@ -30,6 +34,14 @@ const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 import { REPORT_TZ as TZ } from '../services/timezone.js';
 const AFORO_MAX = 200; // capacity > esto ⇒ sala "ilimitada" (no muestra ocupación)
 const puertaLimiter = createRateLimiter({ max: 180, windowMs: 60_000, prefix: endpointPrefix('puerta') });
+
+const voidLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('puerta-void') });
+
+// Corta el handler con una respuesta de error DENTRO de la tx -> rollback (la
+// Idempotency-Key reclamada y los usuarios creados no quedan a medias).
+class PuertaAbort extends Error {
+  constructor(readonly status: number, readonly body: Record<string, unknown>) { super(String(body.error ?? 'abort')); }
+}
 
 function resolveCode(raw: string, prefix: string): string {
   const c = raw.trim().toUpperCase();
@@ -102,18 +114,29 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
   });
 
   // ── POST /puerta/registrar ─────────────────────────────────────────────────
+  // Idempotente (PUE-A01): header `Idempotency-Key` → una fila en
+  // `checkin_idempotency` por SALA (endpoint = 'puerta.registrar:<salaId>', TTL
+  // 24 h, claim dentro de la misma tx que la asistencia). Misma clave → replay
+  // (200, mismos entryIds, sin duplicar). Sin header se acepta (compat.) con aviso.
+  // `checkRecent` (PUE-A11): 409 sin registrar si el identificado entró < 15 min.
   app.post('/puerta/registrar', async (req: FastifyRequest, reply) => {
     const db = getDb();
     const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para registrar entradas en la puerta.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const orgId = guard.ctx.org.id;
-    return withTenant(db, orgId, async (db) => {
+    const staff = guard.ctx.staff;
+    try {
+    return await withTenant(db, orgId, async (db) => {
     if ((await puertaLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiados registros seguidos. Espera un momento.' }; }
 
     const parsed = PuertaRegisterRequestSchema.safeParse(req.body);
     if (!parsed.success) { reply.code(400); return { error: 'Datos de registro inválidos.' }; }
     const { salaIds, mode, code, group, visitor } = parsed.data;
     const extra = Math.max(0, Math.min(10, parsed.data.companions ?? 0)); // acompañantes (+N)
+
+    const idemKey = String(req.headers['idempotency-key'] ?? '').trim();
+    if (idemKey.length > 200) { reply.code(400); return { error: 'Idempotency-Key demasiado larga.' }; }
+    if (!idemKey) req.log.warn({ orgId, staffId: staff.id }, 'puerta.registrar sin Idempotency-Key (cliente sin protección de reintento)');
 
     // Validar que todas las salas sean permanentes del tenant.
     const salas: NonNullable<Awaited<ReturnType<typeof loadPermanentSala>>>[] = [];
@@ -123,7 +146,7 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
       salas.push(s);
     }
 
-    // Resolver/crear al visitante identificado (identified) o nuevo (new).
+    // Validaciones de entrada ANTES de reclamar la clave (un 4xx no la quema).
     let user: { id: string; code: string; first_name: string; last_name: string } | null = null;
     let bumpExisting = false; // sumar visita a un usuario que ya existía
     if (mode === 'identified') {
@@ -133,91 +156,232 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
         .where('deleted_at', 'is', null).executeTakeFirst()) ?? null;
       if (!user) { reply.code(404); return { error: 'No encontramos a nadie con ese código. Registra como nuevo o sin datos.' }; }
       bumpExisting = true;
-    } else if (mode === 'new') {
-      if (!visitor) { reply.code(400); return { error: 'Faltan los datos del visitante.' }; }
-      const email = visitor.email?.trim() ? visitor.email.trim().toLowerCase() : null;
-      // find-or-create por email: no duplicamos el CRM si ya existe.
-      if (email) {
-        const existing = await db.selectFrom('users').select(['id', 'code', 'first_name', 'last_name'])
-          .where('organization_id', '=', orgId).where('email', '=', email).where('deleted_at', 'is', null)
-          .executeTakeFirst();
-        if (existing) { user = existing; bumpExisting = true; }
+    } else if (mode === 'new' && !visitor) { reply.code(400); return { error: 'Faltan los datos del visitante.' }; }
+    if (mode === 'group' && !group) { reply.code(400); return { error: 'Faltan los datos del grupo.' }; }
+
+    // ── Claim de la Idempotency-Key, por sala (en la misma tx que las filas) ──
+    const ttl = sql<string>`now() + interval '24 hours'`;
+    const entryBySala = new Map<string, string>(); // salaId → attendance id (nuevo o previo)
+    const fresh = new Set<string>();               // salas que ESTA llamada registra
+    for (const s of salas) {
+      const candidate = randomUUID();
+      if (!idemKey) { entryBySala.set(s.id, candidate); fresh.add(s.id); continue; }
+      const endpoint = `puerta.registrar:${s.id}`;
+      const claimed = await db.insertInto('checkin_idempotency')
+        .values({ organization_id: orgId, endpoint, idempotency_key: idemKey, attendance_id: candidate, expires_at: ttl })
+        .onConflict((oc) => oc.columns(['organization_id', 'endpoint', 'idempotency_key'])
+          .doUpdateSet({ attendance_id: candidate, expires_at: ttl })
+          .where(sql<boolean>`checkin_idempotency.expires_at <= now()`))
+        .returning('attendance_id').executeTakeFirst();
+      if (claimed) { entryBySala.set(s.id, candidate); fresh.add(s.id); continue; }
+      const prev = await db.selectFrom('checkin_idempotency').select('attendance_id')
+        .where('organization_id', '=', orgId).where('endpoint', '=', endpoint).where('idempotency_key', '=', idemKey)
+        .executeTakeFirstOrThrow();
+      entryBySala.set(s.id, prev.attendance_id);
+    }
+    const replay = fresh.size === 0;
+
+    // Filas ya existentes de la clave (replay total o parcial): reconstruyen la respuesta.
+    const prevIds = salas.filter((s) => !fresh.has(s.id)).map((s) => entryBySala.get(s.id)!);
+    const prevRows = prevIds.length === 0 ? [] : await db.selectFrom('attendance as a')
+      .leftJoin('users as u', 'u.id', 'a.user_id')
+      .select(['a.id', 'a.activity_id', 'a.activity_name', 'a.user_code', 'a.companions_children', 'a.companions_adults',
+        'a.group_label', 'a.group_kind', 'u.first_name', 'u.last_name'])
+      .where('a.organization_id', '=', orgId).where('a.id', 'in', prevIds).execute();
+    if (replay && prevRows.length === 0) { reply.code(409); return { error: 'Este registro ya fue deshecho. Regístralo de nuevo.' }; }
+
+    // Aviso de reentrada (PUE-A11): última entrada HOY del identificado en estas salas.
+    const freshIds = salas.filter((s) => fresh.has(s.id)).map((s) => s.id);
+    let lastEntryToday: string | null = null;
+    const guardRecent = async (userId: string) => {
+      if (freshIds.length === 0) return;
+      const r = await db.selectFrom('attendance').select(sql<string | Date | null>`max(registered_at)`.as('t'))
+        .where('organization_id', '=', orgId).where('user_id', '=', userId).where('activity_id', 'in', freshIds)
+        .where('checked_in_at', 'is not', null).where(sql<boolean>`registered_at >= ${todaySql}`)
+        .executeTakeFirst();
+      lastEntryToday = r?.t ? new Date(r.t).toISOString() : null;
+      if (parsed.data.checkRecent && lastEntryToday
+        && Date.now() - new Date(lastEntryToday).getTime() < PUERTA_RECENT_ENTRY_MIN * 60_000) {
+        // throw → rollback: la clave NO queda consumida y no se crea nada.
+        throw new PuertaAbort(409, { error: `Ya entró hoy a las ${hhmm(lastEntryToday)}. ¿Registrar otra entrada?`, code: 'recent_entry', lastEntryToday });
       }
-      // find-or-create por TELÉFONO exacto (dígitos normalizados; tolera el 1 de
-      // país). NUNCA por nombre — homónimos reales en el padrón.
-      const phoneDigits = (visitor.phone ?? '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
-      if (!user && phoneDigits.length >= 7) {
-        const existing = await db.selectFrom('users').select(['id', 'code', 'first_name', 'last_name'])
-          .where('organization_id', '=', orgId).where('deleted_at', 'is', null)
-          .where(sql<boolean>`(regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g') = ${phoneDigits}
-                              or regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g') = ${'1' + phoneDigits})`)
-          .orderBy('visit_count', 'desc')
-          .executeTakeFirst();
-        if (existing) { user = existing; bumpExisting = true; }
-      }
-      if (!user) {
-        // Crea el visitante (silencioso, sin email de credencial). Loop por
-        // colisión de code (mismo patrón que el check-in).
-        for (let attempt = 0; attempt < 5 && !user; attempt += 1) {
-          const created = await db.insertInto('users').values({
-            id: randomUUID(), organization_id: orgId,
-            code: generateUserCode(guard.ctx.org.codePrefix),
-            first_name: visitor.firstName.trim(), last_name: visitor.lastName.trim(),
-            email, phone: visitor.phone?.trim() || null, visit_count: 1,
-          }).onConflict((oc) => oc.columns(['organization_id', 'code']).doNothing())
-            .returning(['id', 'code', 'first_name', 'last_name']).executeTakeFirst();
-          if (created) user = created;
+    };
+
+    if (!replay) {
+      if (user) await guardRecent(user.id);
+      else if (mode === 'new') {
+        const v = visitor!;
+        const email = v.email?.trim() ? v.email.trim().toLowerCase() : null;
+        // find-or-create por email: no duplicamos el CRM si ya existe.
+        if (email) {
+          const existing = await db.selectFrom('users').select(['id', 'code', 'first_name', 'last_name'])
+            .where('organization_id', '=', orgId).where('email', '=', email).where('deleted_at', 'is', null)
+            .executeTakeFirst();
+          if (existing) { user = existing; bumpExisting = true; }
         }
-        if (!user) { reply.code(500); return { error: 'No se pudo generar la credencial. Reintenta.' }; }
+        // find-or-create por TELÉFONO exacto (dígitos normalizados; tolera el 1 de
+        // país). NUNCA por nombre — homónimos reales en el padrón.
+        const phoneDigits = (v.phone ?? '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+        if (!user && phoneDigits.length >= 7) {
+          const existing = await db.selectFrom('users').select(['id', 'code', 'first_name', 'last_name'])
+            .where('organization_id', '=', orgId).where('deleted_at', 'is', null)
+            .where(sql<boolean>`(regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g') = ${phoneDigits}
+                                or regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g') = ${'1' + phoneDigits})`)
+            .orderBy('visit_count', 'desc')
+            .executeTakeFirst();
+          if (existing) { user = existing; bumpExisting = true; }
+        }
+        if (user) await guardRecent(user.id);
+        if (!user) {
+          // Crea el visitante (silencioso, sin email de credencial). Loop por
+          // colisión de code (mismo patrón que el check-in).
+          for (let attempt = 0; attempt < 5 && !user; attempt += 1) {
+            const created = await db.insertInto('users').values({
+              id: randomUUID(), organization_id: orgId,
+              code: generateUserCode(guard.ctx.org.codePrefix),
+              first_name: v.firstName.trim(), last_name: v.lastName.trim(),
+              email, phone: v.phone?.trim() || null, visit_count: 1,
+            }).onConflict((oc) => oc.columns(['organization_id', 'code']).doNothing())
+              .returning(['id', 'code', 'first_name', 'last_name']).executeTakeFirst();
+            if (created) user = created;
+          }
+          if (!user) throw new PuertaAbort(500, { error: 'No se pudo generar la credencial. Reintenta.' });
+        }
       }
     }
-    if (mode === 'group' && !group) { reply.code(400); return { error: 'Faltan los datos del grupo.' }; }
 
     const students = mode === 'group' ? (group!.studentCount) : 0;
     const registered: PuertaRegisterResponse['registered'] = [];
+    const prevById = new Map(prevRows.map((r) => [r.id, r]));
+    let visitorLabel: string | null = null;
+    let visitorCode: string | null = null;
 
-    await withTenant(db, orgId, async (tx) => {
-      for (const s of salas) {
-        // Bucket de acompañantes por audiencia de la sala (infantil→niños).
-        const infantil = s.audience === 'infantil';
-        const children = mode === 'group' ? students : (infantil ? extra : 0);
-        const adults = mode === 'group' ? 0 : (infantil ? 0 : extra);
-        await tx.insertInto('attendance').values({
-          id: randomUUID(),
-          user_id: user?.id ?? null,
-          user_code: user?.code ?? null,
-          activity_id: s.id,
-          activity_name: s.name,
-          organization_id: orgId,
-          checked_in_at: new Date().toISOString(),
-          anonymous: !user,
-          companions_children: children,
-          companions_adults: adults,
-          group_label: mode === 'group' ? group!.colegio : null,
-          group_kind: mode === 'group' ? (group!.kind?.trim() || null) : null, // null = colegio
-          group_level: mode === 'group' ? (group!.level ?? null) : null,
-          group_contact: mode === 'group' ? group!.contactName : null,
-          is_permanent: true, // fuera del índice único → cada re-entrada cuenta
-        }).execute();
-        // NO tocamos enrolled_count: la tabla tiene CHECK (enrolled_count <=
-        // capacity) y una sala permanente supera el aforo. Los visitantes se
-        // cuentan desde `attendance` (visitorsToday).
-        registered.push({ salaId: s.id, salaName: s.name, partySize: 1 + children + adults });
-      }
-      if (bumpExisting && user) {
-        await tx.updateTable('users').set({ visit_count: sql`visit_count + 1` }).where('id', '=', user.id).execute();
-      }
-    });
+    // Replay (total o parcial): el visitante sale de la fila original.
+    const any = prevRows[0];
+    if (any) {
+      visitorCode = any.user_code;
+      visitorLabel = any.first_name != null ? `${any.first_name} ${any.last_name ?? ''}`.trim()
+        : any.group_label ? `${any.group_label} (${any.companions_children} ${any.group_kind?.trim() ? 'integrantes' : 'alumnos'})` : null;
+    }
 
-    reply.code(201);
+    for (const s of salas) {
+      const entryId = entryBySala.get(s.id)!;
+      if (!fresh.has(s.id)) {
+        const r = prevById.get(entryId);
+        if (r) registered.push({ salaId: s.id, salaName: s.name, partySize: 1 + r.companions_children + r.companions_adults });
+        continue;
+      }
+      // Bucket de acompañantes por audiencia de la sala (infantil→niños).
+      const infantil = s.audience === 'infantil';
+      const children = mode === 'group' ? students : (infantil ? extra : 0);
+      const adults = mode === 'group' ? 0 : (infantil ? 0 : extra);
+      await db.insertInto('attendance').values({
+        id: entryId,
+        user_id: user?.id ?? null,
+        user_code: user?.code ?? null,
+        activity_id: s.id,
+        activity_name: s.name,
+        organization_id: orgId,
+        checked_in_at: new Date().toISOString(),
+        anonymous: !user,
+        companions_children: children,
+        companions_adults: adults,
+        group_label: mode === 'group' ? group!.colegio : null,
+        group_kind: mode === 'group' ? (group!.kind?.trim() || null) : null, // null = colegio
+        group_level: mode === 'group' ? (group!.level ?? null) : null,
+        group_contact: mode === 'group' ? group!.contactName : null,
+        is_permanent: true, // fuera del índice único → cada re-entrada cuenta
+      }).execute();
+      // NO tocamos enrolled_count: la tabla tiene CHECK (enrolled_count <=
+      // capacity) y una sala permanente supera el aforo. Los visitantes se
+      // cuentan desde `attendance` (visitorsToday).
+      const partySize = 1 + children + adults;
+      registered.push({ salaId: s.id, salaName: s.name, partySize });
+      // Auditoría por entrada (target_id = id de la asistencia): también es la
+      // fuente de "quién registró" que usa Deshacer.
+      await db.insertInto('tenant_audit_log').values({
+        organization_id: orgId, actor_staff_id: staff.id, actor_email_masked: null, actor_role: staff.role,
+        action: 'puerta.registered', target_type: 'attendance', target_id: entryId, target_label: s.name,
+        metadata: JSON.stringify({ salaId: s.id, mode, people: partySize, userId: user?.id ?? null, visitBumped: bumpExisting && !!user }),
+      }).execute();
+    }
+    if (!replay && bumpExisting && user) {
+      await db.updateTable('users').set({ visit_count: sql`visit_count + 1` }).where('id', '=', user.id).execute();
+    }
+    if (!replay && !any) {
+      visitorCode = user?.code ?? null;
+      visitorLabel = user ? `${user.first_name} ${user.last_name}`.trim()
+        : mode === 'group' ? `${group!.colegio} (${students} ${group!.kind?.trim() ? 'integrantes' : 'alumnos'})` : null;
+    }
+
+    reply.code(replay ? 200 : 201);
     const body: PuertaRegisterResponse = {
       ok: true,
       registered,
-      visitor: user ? `${user.first_name} ${user.last_name}`.trim()
-        : mode === 'group' ? `${group!.colegio} (${students} ${group!.kind?.trim() ? 'integrantes' : 'alumnos'})` : null,
-      code: user?.code ?? null,
+      visitor: visitorLabel,
+      code: visitorCode,
+      entryIds: salas.map((s) => entryBySala.get(s.id)!),
+      replay,
+      lastEntryToday: replay ? null : lastEntryToday,
     };
     return body;
+    });
+    } catch (e) {
+      if (e instanceof PuertaAbort) { reply.code(e.status); return e.body; }
+      throw e;
+    }
+  });
+
+  // ── DELETE /puerta/entries/:id · Deshacer una entrada (PUE-A01, decisión Q2) ─
+  // owner/admin: siempre. Resto de DOOR_WRITE_ROLES: solo SUS registros (según la
+  // auditoría `puerta.registered`) y hasta PUERTA_UNDO_WINDOW_MIN minutos después.
+  // Borra la fila (mismo mecanismo que DELETE /attendance/:id), revierte el
+  // visit_count SOLO si el registro lo había sumado, y audita `puerta.voided`.
+  app.delete('/puerta/entries/:id', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para deshacer entradas de la puerta.');
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const orgId = guard.ctx.org.id;
+    const staff = guard.ctx.staff;
+    if ((await voidLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas operaciones seguidas. Espera un momento.' }; }
+    const id = (req.params as { id: string }).id;
+    return withTenant(db, orgId, async (tx) => {
+      // FOR UPDATE: dos "Deshacer" simultáneos no restan dos veces el visit_count.
+      const att = await tx.selectFrom('attendance')
+        .select(['id', 'activity_id', 'user_id', 'companions_children', 'companions_adults', 'user_code',
+          sql<boolean>`registered_at > now() - make_interval(mins => ${PUERTA_UNDO_WINDOW_MIN})`.as('in_window')])
+        .where('organization_id', '=', orgId).where('id', '=', id).where('is_permanent', '=', true)
+        .forUpdate().executeTakeFirst();
+      if (!att) { reply.code(404); return { error: 'Registro no encontrado.' }; }
+
+      const manager = staff.role === 'owner' || staff.role === 'admin';
+      const regAudit = await tx.selectFrom('tenant_audit_log').select(['actor_staff_id', 'metadata'])
+        .where('organization_id', '=', orgId).where('action', '=', 'puerta.registered').where('target_id', '=', id)
+        .orderBy('created_at', 'asc').limit(1).executeTakeFirst();
+      if (!manager) {
+        if (!regAudit || regAudit.actor_staff_id !== staff.id) {
+          reply.code(403); return { error: 'Solo puedes deshacer las entradas que registraste tú. Pídele a un administrador que la quite desde Registros.' };
+        }
+        if (!att.in_window) {
+          reply.code(403); return { error: `Pasaron más de ${PUERTA_UNDO_WINDOW_MIN} minutos. Pídele a un administrador que la quite desde Registros.` };
+        }
+      }
+
+      await tx.deleteFrom('attendance').where('organization_id', '=', orgId).where('id', '=', id).execute();
+      const partySize = 1 + (att.companions_children ?? 0) + (att.companions_adults ?? 0);
+      const meta = (regAudit?.metadata ?? {}) as { visitBumped?: boolean };
+      const bumped = meta.visitBumped === true && !!att.user_id;
+      if (bumped) {
+        await tx.updateTable('users').set({ visit_count: sql`greatest(0, visit_count - 1)` })
+          .where('organization_id', '=', orgId).where('id', '=', att.user_id!).execute();
+      }
+      await tx.insertInto('tenant_audit_log').values({
+        organization_id: orgId, actor_staff_id: staff.id, actor_email_masked: null, actor_role: staff.role,
+        action: 'puerta.voided', target_type: 'attendance', target_id: id, target_label: att.user_code,
+        metadata: JSON.stringify({ salaId: att.activity_id, partySize, visitReverted: bumped, registeredBy: regAudit?.actor_staff_id ?? null, byManager: manager }),
+      }).execute();
+      const body: PuertaVoidResponse = { ok: true, entryId: id, partySize };
+      return body;
     });
   });
 
