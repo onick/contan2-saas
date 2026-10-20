@@ -6,7 +6,7 @@
 // la reserva el día de la visita. Lista agrupada por día. Integrada al kit.
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarPlus, Loader2, X, MailCheck, UserCheck, CalendarClock } from 'lucide-react';
+import { CalendarPlus, Loader2, X, MailCheck, UserCheck, UserX, CalendarClock, CalendarSync } from 'lucide-react';
 import type { PuertaBookingFull } from '@contan2/contracts';
 import { Card, Button, Field, Chip, EmptyState, ErrorState, IconButton, type ChipTone } from '../ui';
 import { DoorButton } from './DoorButton';
@@ -42,7 +42,10 @@ export function VrAgenda({ salaId, salaName, aforo = null }: { salaId: string; s
   const [err, setErr] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   // Resultado de la última acción sobre una reserva (confirmar/cancelar/check-in).
-  const [actMsg, setActMsg] = useState<{ k: 'ok' | 'err'; t: string } | null>(null);
+  const [actMsg, setActMsg] = useState<{ k: 'ok' | 'err'; t: string; forceId?: string } | null>(null);
+  // Reprogramar: reserva abierta en el formulario inline y la nueva fecha/hora.
+  const [reschedId, setReschedId] = useState<string | null>(null);
+  const [reschedWhen, setReschedWhen] = useState('');
   // Estado de la carga de la lista: error/sin permiso ≠ "sin reservas".
   // Las reservas canceladas no cuentan como activas: ocultas salvo que se pidan.
   const [showCancelled, setShowCancelled] = useState(false);
@@ -83,22 +86,48 @@ export function VrAgenda({ salaId, salaName, aforo = null }: { salaId: string; s
     } catch { setErr('Problema de red.'); } finally { setBusy(false); }
   }
 
-  async function act(id: string, action: 'confirm' | 'cancel' | 'no_show', checkin = false) {
+  // Una acción sobre una reserva. Los 409 (transición inválida, check-in repetido o
+  // fuera de día) llegan con un mensaje en español: se muestran tal cual. Si el servidor
+  // pide `force` (reserva de otro día), el aviso ofrece "Registrar igual hoy".
+  type Act =
+    | { kind: 'confirm' | 'cancel' }
+    | { kind: 'no_show' }
+    | { kind: 'checkin'; force?: boolean }
+    | { kind: 'reschedule'; scheduledAt: string };
+  async function act(id: string, a: Act): Promise<boolean> {
     setActingId(id); setActMsg(null);
     try {
-      const url = checkin ? `/app/puerta/api/bookings/${id}/checkin` : `/app/puerta/api/bookings/${id}`;
-      const r = await fetch(url, { method: checkin ? 'POST' : 'PATCH', headers: { 'content-type': 'application/json' }, body: checkin ? undefined : JSON.stringify({ action }) });
+      const base = `/app/puerta/api/bookings/${id}`;
+      const json = { 'content-type': 'application/json' };
+      const r = a.kind === 'checkin'
+        ? await fetch(`${base}/checkin`, { method: 'POST', headers: json, body: JSON.stringify(a.force ? { force: true } : {}) })
+        : a.kind === 'no_show'
+          ? await fetch(`${base}/no-show`, { method: 'POST', headers: json, body: '{}' })
+          : await fetch(base, { method: 'PATCH', headers: json, body: JSON.stringify(a.kind === 'reschedule' ? { action: 'reschedule', scheduledAt: a.scheduledAt } : { action: a.kind }) });
       if (!r.ok) {
-        // 409 (check-in repetido, estado inválido), 403, 5xx…: mostramos el mensaje del servidor.
-        const j = await r.json().catch(() => ({} as { error?: string }));
-        setActMsg({ k: 'err', t: j.error ?? (r.status === 403 ? 'No tienes permiso para esta acción.' : 'No se pudo completar la acción. Intenta de nuevo.') });
-      } else {
-        setActMsg({ k: 'ok', t: checkin ? 'Check-in registrado.' : action === 'confirm' ? 'Reserva confirmada.' : action === 'cancel' ? 'Reserva cancelada.' : 'Reserva actualizada.' });
+        const j = await r.json().catch(() => ({} as { error?: string; requiresForce?: boolean }));
+        setActMsg({
+          k: 'err',
+          t: j.error ?? (r.status === 403 ? 'No tienes permiso para esta acción.' : 'No se pudo completar la acción. Intenta de nuevo.'),
+          forceId: a.kind === 'checkin' && j.requiresForce === true ? id : undefined,
+        });
+        await refresh();
+        return false;
       }
+      setActMsg({ k: 'ok', t: a.kind === 'checkin' ? 'Check-in registrado.' : a.kind === 'confirm' ? 'Reserva confirmada.' : a.kind === 'cancel' ? 'Reserva cancelada.' : a.kind === 'no_show' ? 'Marcada como "No vino".' : 'Reserva reprogramada.' });
       await refresh();
+      return true;
     } catch {
       setActMsg({ k: 'err', t: 'Problema de red. Intenta de nuevo.' });
+      return false;
     } finally { setActingId(null); }
+  }
+
+  async function saveReschedule(id: string) {
+    if (!reschedWhen) return;
+    const when = new Date(reschedWhen);
+    if (Number.isNaN(when.getTime())) { setActMsg({ k: 'err', t: 'Fecha y hora inválidas.' }); return; }
+    if (await act(id, { kind: 'reschedule', scheduledAt: when.toISOString() })) { setReschedId(null); setReschedWhen(''); }
   }
 
   const all = bookings ?? [];
@@ -158,6 +187,9 @@ export function VrAgenda({ salaId, salaName, aforo = null }: { salaId: string; s
       {actMsg ? (
         <p role={actMsg.k === 'err' ? 'alert' : 'status'} className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-[12.5px] font-medium ${actMsg.k === 'err' ? 'bg-danger-bg text-danger-fg' : 'bg-success-bg text-success-fg'}`}>
           <span className="flex-1">{actMsg.t}</span>
+          {actMsg.forceId ? (
+            <Button variant="secondary" size="sm" disabled={actingId !== null} onClick={() => { const fid = actMsg.forceId!; void act(fid, { kind: 'checkin', force: true }); }}>Registrar igual hoy</Button>
+          ) : null}
           <button type="button" aria-label="Cerrar aviso" onClick={() => setActMsg(null)} className="opacity-60 hover:opacity-100"><X size={14} /></button>
         </p>
       ) : null}
@@ -190,23 +222,38 @@ export function VrAgenda({ salaId, salaName, aforo = null }: { salaId: string; s
             <div className="space-y-1.5">
               {groups[d]!.map((b) => {
                 const st = STATUS[b.status] ?? STATUS.scheduled!;
-                const terminal = b.status === 'cancelled' || b.status === 'attended' || b.status === 'no_show';
+                // attended y cancelled son terminales; "No vino" aún admite check-in tardío o reprogramar.
+                const terminal = b.status === 'cancelled' || b.status === 'attended';
+                const live = b.status === 'scheduled' || b.status === 'confirmed';
                 const acting = actingId === b.id;
                 return (
                   <div key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line p-3">
                     <span className="font-mono text-[13px] font-bold tabular-nums text-info-text">{hora(b.scheduledAt, { timeZone: TZ })}</span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[14px] font-semibold text-ink">{b.colegio}{b.level ? ` · ${b.level}` : ''}</div>
-                      <div className="text-[12px] text-muted">{b.kind ? `${b.kind} · ` : ''}{b.contactName} · {b.studentCount} {b.kind ? `integrante${b.studentCount === 1 ? '' : 's'}` : `alumno${b.studentCount === 1 ? '' : 's'}`}{b.notifiedAt ? ' · ✉ avisado' : ''}</div>
+                      <div className="text-[12px] text-muted">{b.kind ? `${b.kind} · ` : ''}{b.contactName} · {b.studentCount} {b.kind ? `integrante${b.studentCount === 1 ? '' : 's'}` : `alumno${b.studentCount === 1 ? '' : 's'}`}{b.notifiedAt ? ' · ✉ avisado' : ''}{b.emailError ? ' · ✉ no se pudo enviar el correo' : ''}{b.rescheduledFrom ? ' · reprogramada' : ''}</div>
                     </div>
                     <Chip tone={st.tone} dot>{st.label}</Chip>
                     {!terminal && (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {b.status === 'scheduled' && (
-                          <Button variant="secondary" size="sm" disabled={acting} onClick={() => act(b.id, 'confirm')} title="Confirmar (email al profesor)"><MailCheck size={14} /> Confirmar</Button>
+                          <Button variant="secondary" size="sm" disabled={acting} onClick={() => act(b.id, { kind: 'confirm' })} title="Confirmar (email al profesor)"><MailCheck size={14} /> Confirmar</Button>
                         )}
-                        <DoorButton size="sm" tone="vr" disabled={acting} onClick={() => act(b.id, 'confirm', true)} title="Check-in de la visita"><UserCheck size={14} /> Check-in</DoorButton>
-                        <IconButton label="Cancelar" variant="ghost" size="sm" disabled={acting} onClick={() => act(b.id, 'cancel')}>{acting ? <Loader2 size={14} className="animate-spin" /> : <X size={15} />}</IconButton>
+                        <DoorButton size="sm" tone="vr" disabled={acting} onClick={() => act(b.id, { kind: 'checkin' })} title="Check-in de la visita"><UserCheck size={14} /> Check-in</DoorButton>
+                        {live && (
+                          <Button variant="secondary" size="sm" disabled={acting} onClick={() => act(b.id, { kind: 'no_show' })} title="El grupo no llegó"><UserX size={14} /> No vino</Button>
+                        )}
+                        <Button variant="secondary" size="sm" disabled={acting} onClick={() => { setReschedId(reschedId === b.id ? null : b.id); setReschedWhen(''); }} aria-expanded={reschedId === b.id} title="Cambiar fecha y hora"><CalendarSync size={14} /> Reprogramar</Button>
+                        {live && (
+                          <IconButton label="Cancelar" variant="ghost" size="sm" disabled={acting} onClick={() => act(b.id, { kind: 'cancel' })}>{acting ? <Loader2 size={14} className="animate-spin" /> : <X size={15} />}</IconButton>
+                        )}
+                      </div>
+                    )}
+                    {reschedId === b.id && (
+                      <div className="flex w-full flex-wrap items-end gap-2 border-t border-line pt-2">
+                        <Field label="Nueva fecha y hora" type="datetime-local" value={reschedWhen} onChange={(e) => setReschedWhen(e.target.value)} />
+                        <Button size="sm" disabled={!reschedWhen || acting} onClick={() => void saveReschedule(b.id)}>Guardar</Button>
+                        <Button variant="secondary" size="sm" onClick={() => { setReschedId(null); setReschedWhen(''); }}>Cerrar</Button>
                       </div>
                     )}
                   </div>
