@@ -160,7 +160,7 @@ export function DataTableView<T>({
       : {};
 
   return (
-    <div className={cn('rounded-card border border-line bg-surface', className)}>
+    <div className={cn('rounded-panel border border-line bg-surface', className)}>
       {/* Desktop table — oculto en móvil */}
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full table-fixed" aria-label={ariaLabel}>
@@ -235,7 +235,7 @@ export function DataTableView<T>({
         {loading ? (
           <div className="flex flex-col gap-3 p-4">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-16 w-full rounded-card" />
+              <Skeleton key={i} className="h-16 w-full rounded-panel" />
             ))}
           </div>
         ) : error ? (

@@ -293,7 +293,7 @@ export function KioskClient({
         <div
           role="status"
           data-testid="kiosk-idle-warning"
-          className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl rounded-card border border-line bg-surface px-5 py-4 text-center shadow-lg motion-safe:animate-pulse"
+          className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl rounded-panel border border-line bg-surface px-5 py-4 text-center shadow-lg motion-safe:animate-pulse"
         >
           <p className="font-semibold text-ink">¿Sigues ahí?</p>
           <p className="text-sm text-muted">Volveremos al inicio en {idleWarn} s. Toca la pantalla para continuar.</p>

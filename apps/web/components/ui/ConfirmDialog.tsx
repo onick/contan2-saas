@@ -46,7 +46,7 @@ export function ConfirmDialog({
         <RadixDialog.Content
           className={cn(
             'drawer-panel fixed inset-x-4 top-[50%] z-50 max-w-md translate-y-[-50%] mx-auto',
-            'rounded-card border border-line bg-surface shadow-xl p-6',
+            'rounded-panel border border-line bg-surface shadow-xl p-6',
             'focus:outline-none',
           )}
           onPointerDownOutside={(e: { preventDefault: () => void }) => {

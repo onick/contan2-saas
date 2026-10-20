@@ -147,7 +147,7 @@ describe('DetailPanel · por debajo de xl (hoja inferior)', () => {
     stubMatchMedia(false);
     render(<Harness />);
     const dialog = screen.getByRole('dialog');
-    for (const c of ['detail-sheet', 'inset-x-0', 'bottom-0', 'rounded-t-2xl', 'max-h-[92dvh]']) expect(dialog.className).toContain(c);
+    for (const c of ['detail-sheet', 'inset-x-0', 'bottom-0', 'rounded-t-card', 'max-h-[92dvh]']) expect(dialog.className).toContain(c);
     expect(dialog.className).not.toContain('right-0');
     expect(document.querySelector('.detail-backdrop')).not.toBeNull();
     expect(dialog.querySelector('.detail-rise')).not.toBeNull();

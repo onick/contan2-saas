@@ -244,7 +244,7 @@ export function ActivityScreen({
         {activities.length > 0 ? <p className="mt-3 text-muted md:text-lg">Estas son las actividades con cupo disponible hoy</p> : null}
       </div>
       {activities.length === 0 ? (
-        <div role="status" data-testid="kiosk-activities-empty" className="mx-auto mt-16 flex w-full max-w-xl flex-col items-center rounded-card border border-line bg-surface px-6 py-12 text-center">
+        <div role="status" data-testid="kiosk-activities-empty" className="mx-auto mt-16 flex w-full max-w-xl flex-col items-center rounded-panel border border-line bg-surface px-6 py-12 text-center">
           <p className="text-xl font-bold text-ink">Hoy no hay actividades con cupo disponible.</p>
           <p className="mt-2 text-muted md:text-lg">Pregunta en la recepción.</p>
         </div>
@@ -277,7 +277,7 @@ function ActivityCard({ activity: a, index, onSelect }: { activity: KioskActivit
       onClick={() => onSelect(a)}
       style={{ animationDelay: `${index * 70}ms` }}
       className={cx(
-        'kiosk-card-in group relative flex flex-col overflow-hidden rounded-card border border-line text-left',
+        'kiosk-card-in group relative flex flex-col overflow-hidden rounded-panel border border-line text-left',
         'bg-surface motion-safe:transition-all motion-safe:duration-200',
         'hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)]',
         'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0',
@@ -370,7 +370,7 @@ function ChoiceCard({ index, icon, title, subtitle, onClick }: { index: number; 
       onClick={onClick}
       style={{ animationDelay: `${index * 90}ms` }}
       className={cx(
-        'kiosk-card-in group relative flex flex-col items-start gap-4 overflow-hidden rounded-card border border-line p-7 text-left',
+        'kiosk-card-in group relative flex flex-col items-start gap-4 overflow-hidden rounded-panel border border-line p-7 text-left',
         'bg-surface motion-safe:transition-all motion-safe:duration-200',
         'hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.10)]',
         kioskFocus,
@@ -489,7 +489,7 @@ export function CodeScreen({
         </p>
 
         {result ? (
-          <div className="mt-6 rounded-card border border-success-fg/20 bg-success-bg p-5">
+          <div className="mt-6 rounded-panel border border-success-fg/20 bg-success-bg p-5">
             <div className="flex items-center gap-3">
               <span className="grid h-12 w-12 place-items-center rounded-full bg-success-fg/10 text-success-fg">
                 <UserCheck size={24} aria-hidden="true" />
@@ -514,7 +514,7 @@ export function CodeScreen({
         ) : null}
 
         {matches ? (
-          <div className="mt-6 rounded-card border border-line bg-surface p-5">
+          <div className="mt-6 rounded-panel border border-line bg-surface p-5">
             <p className="text-center text-ink">Encontramos varias personas con ese nombre.</p>
             <p className="mt-1 text-center text-sm text-muted">¿Cuál eres tú? Verifica por tu código o número de visitas.</p>
             <div className="mt-4 flex flex-col gap-2">
@@ -537,7 +537,7 @@ export function CodeScreen({
         ) : null}
 
         {listOpen && suggests ? (
-          <div className="mt-6 rounded-card border-2 border-info-text/30 bg-info-soft p-5">
+          <div className="mt-6 rounded-panel border-2 border-info-text/30 bg-info-soft p-5">
             <p className="text-center text-xl font-bold text-ink">¿Eres tú?</p>
             <p className="mt-1 text-center text-muted">Sugerencias mientras escribes, toca una para continuar.</p>
             <div id="k-suggest-list" role="listbox" aria-label="Sugerencias" className="mt-4 flex flex-col gap-2">
@@ -563,14 +563,14 @@ export function CodeScreen({
         ) : null}
 
         {hint ? (
-          <div className="mt-6 rounded-card border border-line bg-surface p-5 text-center">
+          <div className="mt-6 rounded-panel border border-line bg-surface p-5 text-center">
             <p className="text-ink">Nos falta un dato</p>
             <p className="mt-1 text-sm text-muted">{hint}</p>
           </div>
         ) : null}
 
         {notFound ? (
-          <div className="mt-6 rounded-card border border-line bg-surface p-5 text-center">
+          <div className="mt-6 rounded-panel border border-line bg-surface p-5 text-center">
             <p className="text-ink">No te encontramos con ese dato.</p>
             <p className="mt-1 text-sm text-muted">¿Es tu primera vez? Regístrate en un paso.</p>
             <KioskButton variant="secondary" onClick={onNew} className="mt-4">
@@ -580,7 +580,7 @@ export function CodeScreen({
         ) : null}
 
         {error ? (
-          <div className="mt-6 rounded-card border border-warning-fg/20 bg-warning-bg p-5 text-center">
+          <div className="mt-6 rounded-panel border border-warning-fg/20 bg-warning-bg p-5 text-center">
             <p className="text-ink">No pudimos consultar el registro.</p>
             <p className="mt-1 text-sm text-muted">Revisa tu conexión e inténtalo de nuevo.</p>
           </div>
@@ -765,7 +765,7 @@ export function ConfirmationScreen({
         {showCred ? (
           <>
           {/* Credencial: fondo blanco, margen de silencio preservado en p-3 del QR */}
-          <div data-anim="cred" className="mt-8 flex flex-col items-center gap-6 rounded-card border border-line bg-surface p-8 text-center">
+          <div data-anim="cred" className="mt-8 flex flex-col items-center gap-6 rounded-panel border border-line bg-surface p-8 text-center">
             <div data-anim="qr">{real ? <RealQr code={visitor.code ?? ''} /> : <FauxQr code={visitor.code ?? ''} />}</div>
             <div className="flex flex-col items-center gap-2">
               <p data-anim="code" className="num text-2xl font-bold tracking-[0.08em] text-ink">{visitor.code}</p>
@@ -784,7 +784,7 @@ export function ConfirmationScreen({
           </>
         ) : (
           // Sin QR (6.21): confirmación mínima con nombre y cupos.
-          <div data-testid="kiosk-confirm-no-qr" className="mt-8 flex flex-col items-center gap-3 rounded-card border border-line bg-surface p-8 text-center">
+          <div data-testid="kiosk-confirm-no-qr" className="mt-8 flex flex-col items-center gap-3 rounded-panel border border-line bg-surface p-8 text-center">
             <p className="text-xl font-bold text-ink md:text-2xl">
               Listo, {visitor.firstName}. {party === 1 ? 'Entrará 1 persona.' : `Entrarán ${party} personas.`}
             </p>
@@ -823,7 +823,7 @@ export function CheckinErrorScreen({
     <div data-testid="kiosk-step-error" className="flex min-h-dvh w-full flex-col overflow-x-hidden px-6 pb-12 md:px-12">
       <KioskHeader />
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center">
-        <div className="kiosk-card-in rounded-card border border-danger-fg/20 bg-danger-bg p-8 text-center">
+        <div className="kiosk-card-in rounded-panel border border-danger-fg/20 bg-danger-bg p-8 text-center">
           <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-danger-fg/10 text-danger-fg">
             <X size={30} strokeWidth={2.5} aria-hidden="true" />
           </span>

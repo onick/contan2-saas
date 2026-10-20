@@ -199,7 +199,7 @@ export function DetailPanel({
           {...(labelledBy ? { 'aria-labelledby': labelledBy } : {})}
           className={cn(
             'detail-sheet fixed inset-x-0 bottom-0 z-50 max-h-[92dvh] overflow-y-auto',
-            'rounded-t-2xl border-t border-line bg-surface p-4 shadow-xl focus:outline-none md:mx-auto md:max-w-2xl md:p-5',
+            'rounded-t-card border-t border-line bg-surface p-4 shadow-xl focus:outline-none md:mx-auto md:max-w-2xl md:p-5',
             className,
           )}
         >

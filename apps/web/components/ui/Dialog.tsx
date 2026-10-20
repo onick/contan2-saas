@@ -35,7 +35,7 @@ export function Dialog({
         <RadixDialog.Content
           className={cn(
             'drawer-panel fixed inset-x-4 top-[50%] z-50 max-w-lg translate-y-[-50%] mx-auto',
-            'rounded-card border border-line bg-surface shadow-xl',
+            'rounded-panel border border-line bg-surface shadow-xl',
             'focus:outline-none',
             className,
           )}

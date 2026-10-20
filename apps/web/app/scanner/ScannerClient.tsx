@@ -210,7 +210,7 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
   if (screen === 'pin') {
     return (
       <div className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6 py-12">
-        <div className="rounded-card border border-line bg-surface p-6 shadow-sm">
+        <div className="rounded-panel border border-line bg-surface p-6 shadow-sm">
           {/* Lock icon */}
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft text-brand-text">
             <Lock className="h-7 w-7" aria-hidden="true" />
@@ -273,7 +273,7 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
         </header>
 
         {activities.length === 0 ? (
-          <div className="mt-10 rounded-card border border-line bg-surface px-5 py-8 text-center text-sm text-muted">
+          <div className="mt-10 rounded-panel border border-line bg-surface px-5 py-8 text-center text-sm text-muted">
             No hay actividades con cupo disponible ahora mismo.
           </div>
         ) : (
@@ -286,7 +286,7 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
                     setOutcome(null);
                     setScreen('scan');
                   }}
-                  className="flex w-full items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-4 text-left shadow-sm transition hover:border-brand/40 hover:shadow-md"
+                  className="flex w-full items-center justify-between gap-3 rounded-panel border border-line bg-surface px-4 py-4 text-left shadow-sm transition hover:border-brand/40 hover:shadow-md"
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold text-ink">{a.name}</span>
@@ -339,7 +339,7 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
       </header>
 
       {/* Visor de cámara */}
-      <div className="relative aspect-square w-full overflow-hidden rounded-card bg-ink">
+      <div className="relative aspect-square w-full overflow-hidden rounded-panel bg-ink">
         <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
         <canvas ref={canvasRef} className="hidden" />
         {/* Marco guía + texto de ayuda */}

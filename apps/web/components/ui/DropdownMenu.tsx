@@ -125,7 +125,7 @@ export function DropdownMenuContent({
         {...props}
         ref={motion.ref}
         className={cn(
-          'arc-menu relative z-50 min-w-[9rem] rounded-card border border-line bg-surface p-1 shadow-lg',
+          'arc-menu relative z-50 min-w-[9rem] rounded-panel border border-line bg-surface p-1 shadow-lg',
           className,
         )}
         onFocus={(e) => { onFocus?.(e); motion.handlers.onFocus(e); }}
@@ -252,7 +252,7 @@ export function DropdownMenuSubContent({
         {...props}
         ref={motion.ref}
         className={cn(
-          'arc-menu relative z-50 min-w-[9rem] rounded-card border border-line bg-surface p-1 shadow-lg',
+          'arc-menu relative z-50 min-w-[9rem] rounded-panel border border-line bg-surface p-1 shadow-lg',
           className,
         )}
         onFocus={(e) => { onFocus?.(e); motion.handlers.onFocus(e); }}

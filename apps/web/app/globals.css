@@ -96,7 +96,12 @@
   /* Geometría. */
   --radius-pill: 999px;
   --radius-field: 8px;
-  --radius-card: 12px;
+  /* Tarjetas de contenido (Card, StatCard, KpiHero, paneles de detalle): 22 px,
+     pedido del dueño 2026-10-20 para el Inicio «vista limpia» y aplicado a todo el admin.
+     Los contenedores funcionales (tablas, diálogos, menús, popovers) y las pantallas
+     del kiosko/scanner conservan 12 px en --radius-panel. */
+  --radius-card: 22px;
+  --radius-panel: 12px;
   --spacing-control: 40px;
 
   /* Movimiento. */

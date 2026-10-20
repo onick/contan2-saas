@@ -102,7 +102,7 @@ export function DownloadsMenu({ filters, catList, catStatus, onRetryCats, dl }: 
             if (wrapRef.current?.contains(e.target as Node)) e.preventDefault();
           }}
           onCloseAutoFocus={(e) => { e.preventDefault(); triggerRef.current?.focus(); }}
-          className="z-50 w-[min(400px,calc(100vw-24px))] rounded-card border border-line bg-surface p-4 text-ink shadow-xl"
+          className="z-50 w-[min(400px,calc(100vw-24px))] rounded-panel border border-line bg-surface p-4 text-ink shadow-xl"
         >
           <h2 className="text-[15px] font-bold tracking-tight text-ink">Descargas</h2>
           {body}
