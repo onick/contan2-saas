@@ -290,7 +290,7 @@ export function InventarioClient({ initial, sites }: {
               <div className="mt-7">
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-[11.5px] font-bold uppercase tracking-[0.08em] text-accent-strong-fg/70">Progreso</p>
+                    <p className="text-[11.5px] font-bold uppercase tracking-[0.08em] text-accent-strong-fg/85">Progreso</p>
                     <p className="mt-1 text-[16px] font-semibold tabular-nums">Escaneados: {fmt(viewing.scanned)} / {fmt(viewing.expected)}</p>
                   </div>
                   <p className="num text-[48px] font-medium leading-none tracking-tight tabular-nums md:text-[56px]">{pct}%</p>
