@@ -48,7 +48,7 @@ describe('PuertaBoard · error ≠ vacío', () => {
 });
 
 // ── PR-P2 · registrar idempotente, Deshacer y aviso de reentrada ──────────────
-const SALA = { id: 's1', name: 'Ada Balcácer', type: 'otro', audience: 'adultos', aforo: null, occupancy: 0, visitorsToday: 0, visitorsWeek: 0, todayBookings: [] };
+const SALA = { id: 's1', name: 'Ada Balcácer', type: 'otro', audience: 'adultos', aforo: null, kind: 'exposicion', hasAgenda: false, occupancy: 0, visitorsToday: 0, visitorsWeek: 0, todayBookings: [] };
 const OK_BODY = { ok: true, registered: [{ salaId: 's1', salaName: 'Ada Balcácer', partySize: 1 }], visitor: null, code: null, entryIds: ['e1'], replay: false, lastEntryToday: null };
 
 type Call = { url: string; method: string; headers: Record<string, string>; body: unknown };
@@ -57,6 +57,8 @@ function mockApi(handler: (c: Call, n: number) => Response | Promise<Response>) 
   const f = vi.fn(async (url: string, init?: RequestInit) => {
     const c: Call = { url, method: init?.method ?? 'GET', headers: (init?.headers ?? {}) as Record<string, string>, body: init?.body ? JSON.parse(String(init.body)) : undefined };
     if (c.url.endsWith('/api/salas')) return J(200, { salas: [SALA] });
+    // «Entradas de hoy» (PR-P4) consulta por su cuenta: no cuenta como llamada del registro.
+    if (c.method === 'GET' && c.url.includes('/api/entries?')) return J(200, { date: '2030-01-01', entries: [], total: 0, people: 0, limit: 50, offset: 0 });
     calls.push(c);
     return handler(c, calls.length);
   });

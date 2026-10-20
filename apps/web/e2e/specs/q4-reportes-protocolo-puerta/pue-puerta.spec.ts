@@ -291,6 +291,52 @@ test.describe('PUE-02 agenda VR', { tag: '@write' }, () => {
     await context.close();
   });
 
+  test('PUE-02d [S2] detalle de la reserva (PR-P4): hoja inferior en tablet-820, región en desktop-1440, con contacto, historial y acciones', async ({ asRole }, testInfo) => {
+    const { page, context } = await asRole('puerta');
+    const colegio = tag(`Colegio detalle ${testInfo.project.name}`);
+    const res = await door.post('/app/puerta/api/bookings', {
+      data: { salaId: vr.id, scheduledAt: isoFromDR(ymdDR(3), 9, 0), colegio, kind: null, level: '2.º', contactName: 'Profe Detalle', contactEmail: colegioEmail(), contactPhone: '809-555-0188', studentCount: 9, notes: 'e2e detalle' },
+    });
+    expect(res.status()).toBe(201);
+    const { booking } = await res.json();
+    trackBooking(booking.id, 'PUE-02d reserva');
+    await page.goto('/app/puerta');
+    await settle(page);
+    await page.getByRole('button', { name: new RegExp(`Ver reserva de ${colegio}`) }).click();
+    const wide = (page.viewportSize()?.width ?? 0) >= 1280;
+    const panel = wide ? page.getByRole('region', { name: 'Detalle de la reserva' }) : page.getByRole('dialog', { name: 'Detalle de la reserva' });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole('heading', { name: colegio })).toBeVisible();
+    await expect(panel.getByRole('link', { name: /809-555-0188/ })).toHaveAttribute('href', 'tel:8095550188');
+    await expect(panel.getByText('e2e detalle')).toBeVisible();
+    await expect(panel.getByText('Reserva creada')).toBeVisible();
+    for (const n of ['Check-in', 'Confirmar', 'No vino', 'Reprogramar', 'Editar', 'Cancelar']) await expect(panel.getByRole('button', { name: n, exact: true })).toBeVisible();
+    // Cancelar pide confirmación y no cancela hasta confirmar.
+    await panel.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(panel.getByRole('group', { name: 'Confirmar cancelación' })).toBeVisible();
+    await panel.getByRole('button', { name: 'Volver' }).click();
+    const still = await jsonOf<any>(await door.get(`/app/puerta/api/bookings?salaId=${vr.id}&from=${ymdDR(2)}T00:00:00-04:00&to=${ymdDR(5)}T00:00:00-04:00`));
+    expect(still.bookings.find((b: any) => b.id === booking.id)?.status).toBe('scheduled');
+    await expectNoHorizontalOverflow(page, `/app/puerta detalle (${testInfo.project.name})`);
+    await context.close();
+  });
+
+  test('PUE-02e [S2] «Entradas de hoy» (PR-P4): la lista cuadra con la API y el detalle de la visita abre como región/hoja', async ({ asRole }, testInfo) => {
+    const { page, context } = await asRole('puerta');
+    const reg = await registrar(door, owner, { salaIds: [ada.id], mode: 'anonymous', companions: 1 }, `PUE-02e-${testInfo.project.name}`);
+    expect(reg.status).toBe(201);
+    await page.goto('/app/puerta');
+    await settle(page);
+    await expect(page.getByRole('heading', { name: 'Entradas de hoy' })).toBeVisible();
+    await page.getByRole('button', { name: /^Ver visita de/ }).first().click();
+    const wide = (page.viewportSize()?.width ?? 0) >= 1280;
+    const panel = wide ? page.getByRole('region', { name: 'Detalle de la visita' }) : page.getByRole('dialog', { name: 'Detalle de la visita' });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole('button', { name: 'Deshacer' })).toBeVisible();
+    await expectNoHorizontalOverflow(page, `/app/puerta entradas (${testInfo.project.name})`);
+    await context.close();
+  });
+
   test('PUE-02c [S2] validaciones y estados: cancelada no hace check-in, no_show, inválidos y ajenos -> 4xx', async () => {
     const mk = async (extra: Record<string, unknown> = {}) =>
       door.post('/app/puerta/api/bookings', { data: { salaId: vr.id, scheduledAt: isoFromDR(ymdDR(3), 9, 0), colegio: tag('Colegio val'), contactName: 'Profe', studentCount: 3, ...extra } });

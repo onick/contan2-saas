@@ -14,6 +14,7 @@ import type { PuertaSala } from '@contan2/contracts';
 import { Card, Button, IconButton, Chip, EmptyState, ErrorState, cn } from '../ui';
 import { DoorButton } from './DoorButton';
 import { SalaAgenda } from './SalaAgenda';
+import { EntradasHoy } from './EntradasHoy';
 import { salaColor } from './salaColors';
 
 const money = (n: number) => n.toLocaleString('en-US');
@@ -37,6 +38,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
   const [toast, setToast] = useState<Toast | null>(null);
   const [confirmRecent, setConfirmRecent] = useState<Pending | null>(null);
   const [undoing, setUndoing] = useState(false);
+  const [entriesTick, setEntriesTick] = useState(0); // fuerza el refresco de «Entradas de hoy»
   const [reg, setReg] = useState<Reg>(null);
   const [busy, setBusy] = useState(false);
   // Estado de la carga de salas: distingue "aún no sé" / "falló" / "sin permiso"
@@ -102,6 +104,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
       if (undoTimer.current) clearTimeout(undoTimer.current);
       undoTimer.current = setTimeout(() => setToast((t) => (t?.k === 'ok' ? null : t)), UNDO_TOAST_MS);
       setReg(null);
+      setEntriesTick((n) => n + 1);
       refresh();
     } catch {
       // Red caida / timeout: la clave se conserva para "Reintentar".
@@ -131,6 +134,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
         setToast({ k: 'info', t: 'Entrada deshecha.' });
         undoTimer.current = setTimeout(() => setToast((t) => (t?.k === 'info' ? null : t)), 4000);
       }
+      setEntriesTick((n) => n + 1);
       refresh();
     } finally { setUndoing(false); }
   }
@@ -223,8 +227,8 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
             <EmptyState icon={DoorOpen} title="No hay salas permanentes" description="Todavía no se configuraron salas permanentes (Ada Balcácer, Sala VR) para este tenant." />
           </div>
         ) : salas.map((s) => {
-          const col = salaColor(s.aforo);
-          const isVR = s.aforo !== null;
+          const col = salaColor(s.kind);
+          const isVR = s.kind === 'vr';
           return (
             <Card key={s.id} padding="none" className="flex flex-col overflow-hidden">
               <div className="h-1.5" style={{ backgroundColor: col.c }} />
@@ -283,8 +287,11 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
 
       {/* La descarga de datos vive en /app/puerta/reportes (con sala + rango). */}
 
-      {/* Agenda de la Sala VR (aforo != null): agendar visitas de colegios. */}
-      {salas.filter((s) => s.aforo !== null).map((s) => (
+      {/* Entradas de hoy (lista + detalle con Deshacer) y la agenda de las salas que la tienen. */}
+      {salas.length > 0 ? (
+        <EntradasHoy salas={salas.map((s) => ({ id: s.id, name: s.name }))} refreshKey={entriesTick} onChanged={() => { setEntriesTick((n) => n + 1); void refresh(); }} />
+      ) : null}
+      {salas.filter((s) => s.hasAgenda).map((s) => (
         <SalaAgenda key={`agenda-${s.id}`} salaId={s.id} salaName={s.name} aforo={s.aforo} />
       ))}
 
