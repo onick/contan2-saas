@@ -85,10 +85,12 @@ export async function proxyAuth(
   path: string,
   body: unknown | undefined,
   withCookie: boolean,
+  extraHeaders?: Record<string, string>,
 ): Promise<Response> {
   const headers: Record<string, string> = {
     ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
     ...(await forwardingHeaders()),
+    ...(extraHeaders ?? {}),
   };
   if (withCookie) {
     const token = (await cookies()).get(SESSION_COOKIE)?.value;

@@ -8,9 +8,9 @@
 // físico lo maneja el staff → NO mostramos contador de ocupación. Integrado al
 // sistema de diseño (Card/Button/Chip/EmptyState + drawer estándar).
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, Check, AlertTriangle, Plus, QrCode, Users, X, UserPlus, Search, DoorOpen, UserCheck } from 'lucide-react';
+import { Loader2, Check, AlertTriangle, Plus, QrCode, Users, X, UserPlus, Search, DoorOpen, UserCheck, Undo2, RotateCw } from 'lucide-react';
 import type { PuertaSala, CheckinVisitorItem } from '@contan2/contracts';
 import { searchCheckinVisitors } from '../../lib/api/checkin-client';
 import { Card, Button, IconButton, Field, Chip, EmptyState, ErrorState, cn, focusRing, useDrawerLifecycle } from '../ui';
@@ -22,12 +22,31 @@ import { salaColor } from './salaColors';
 
 const money = (n: number) => n.toLocaleString('en-US');
 
-type OkData = { visitor: string | null; code?: string | null; registered: { salaName: string }[] };
+type OkData = {
+  visitor: string | null; code?: string | null;
+  registered: { salaName: string; partySize?: number }[];
+  entryIds?: string[]; replay?: boolean; lastEntryToday?: string | null;
+};
 type Reg = { salaIds: string[] } | null;
+type OkMsg = (r: OkData) => string;
+
+/** Duración del aviso "Deshacer" en pantalla (el API acepta deshacer hasta 10 min). */
+const UNDO_TOAST_MS = 10_000;
+const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: false });
+const newKey = () =>
+  (typeof crypto !== 'undefined' && 'randomUUID' in crypto) ? crypto.randomUUID() : `k-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+type Toast =
+  | { k: 'ok'; head: string; detail: string; entryIds: string[] }
+  | { k: 'err'; t: string; retry: boolean }
+  | { k: 'info'; t: string };
+type Pending = { body: Record<string, unknown>; okMsg: OkMsg; at: string };
 
 export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
   const [salas, setSalas] = useState<PuertaSala[]>(initial);
-  const [toast, setToast] = useState<{ k: 'ok' | 'err'; t: string } | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [confirmRecent, setConfirmRecent] = useState<Pending | null>(null);
+  const [undoing, setUndoing] = useState(false);
   const [reg, setReg] = useState<Reg>(null);
   const [busy, setBusy] = useState(false);
   // Estado de la carga de salas: distingue "aún no sé" / "falló" / "sin permiso"
@@ -49,30 +68,148 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
 
   const byId = useMemo(() => Object.fromEntries(salas.map((s) => [s.id, s])), [salas]);
 
-  async function submit(body: unknown, okMsg: (r: OkData) => string) {
-    if (busy) return;
-    setBusy(true); setToast(null);
+  // Idempotencia (PUE-A01): UNA clave por intento. Si el intento falla por red/timeout
+  // y el staff reintenta con los MISMOS datos, se reutiliza la clave (el servidor
+  // devuelve el registro original en vez de duplicarlo). Un intento exitoso o un
+  // rechazo definitivo (4xx) la descarta.
+  const inflight = useRef(false); // guard SINCRONO: `busy` (estado) puede ir un frame atrasado
+  const attempt = useRef<{ fp: string; key: string } | null>(null);
+  const lastReq = useRef<Pending | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
+
+  async function submit(body: unknown, okMsg: OkMsg, opts: { confirmed?: boolean } = {}) {
+    if (inflight.current) return;
+    inflight.current = true;
+    setBusy(true); setToast(null); setConfirmRecent(null);
+    const base = body as Record<string, unknown>;
+    const fp = JSON.stringify(base);
+    if (!attempt.current || attempt.current.fp !== fp) attempt.current = { fp, key: newKey() };
+    const payload = opts.confirmed ? base : { ...base, checkRecent: true };
+    lastReq.current = { body: base, okMsg, at: '' };
     try {
-      const res = await fetch('/app/puerta/api/registrar', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch('/app/puerta/api/registrar', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': attempt.current.key },
+        body: JSON.stringify(payload),
+      });
       const data = await res.json().catch(() => ({}));
-      setBusy(false);
-      if (!res.ok) { setToast({ k: 'err', t: data.error ?? 'No se pudo registrar.' }); return; }
-      setToast({ k: 'ok', t: okMsg(data) });
+      if (res.status === 409 && data?.code === 'recent_entry' && data.lastEntryToday) {
+        setConfirmRecent({ body: base, okMsg, at: data.lastEntryToday });
+        return;
+      }
+      if (!res.ok) {
+        // 5xx/429: conserva la clave (pudo procesarse); 4xx: rechazo definitivo.
+        const transient = res.status >= 500 || res.status === 429;
+        if (!transient) attempt.current = null;
+        setToast({ k: 'err', t: data.error ?? 'No se pudo registrar.', retry: transient });
+        return;
+      }
+      attempt.current = null; lastReq.current = null;
+      const r = data as OkData;
+      const people = r.registered.reduce((n, x) => n + (x.partySize ?? 1), 0);
+      setToast({ k: 'ok', head: `Entrada registrada · ${people} ${people === 1 ? 'persona' : 'personas'}`, detail: okMsg(r), entryIds: r.entryIds ?? [] });
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+      undoTimer.current = setTimeout(() => setToast((t) => (t?.k === 'ok' ? null : t)), UNDO_TOAST_MS);
       setReg(null);
       refresh();
-    } catch { setBusy(false); setToast({ k: 'err', t: 'Problema de red.' }); }
+    } catch {
+      // Red caida / timeout: la clave se conserva para "Reintentar".
+      setToast({ k: 'err', t: 'Problema de red. El registro pudo no haberse guardado.', retry: true });
+    } finally {
+      inflight.current = false;
+      setBusy(false);
+    }
   }
 
-  return (
-    <div>
-      <div role="status" aria-live="polite">
+  function retryLast() {
+    const r = lastReq.current;
+    if (r) void submit(r.body, r.okMsg);
+  }
+
+  async function undo(ids: string[]) {
+    if (undoing || ids.length === 0) return;
+    setUndoing(true);
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    try {
+      const results = await Promise.all(ids.map((id) => fetch(`/app/puerta/api/entries/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => null)));
+      const bad = results.find((r) => !r || !r.ok);
+      if (bad !== undefined) {
+        const j = bad ? await bad.json().catch(() => ({})) : {};
+        setToast({ k: 'err', t: j.error ?? 'No se pudo deshacer. Revisa tu conexión.', retry: false });
+      } else {
+        setToast({ k: 'info', t: 'Entrada deshecha.' });
+        undoTimer.current = setTimeout(() => setToast((t) => (t?.k === 'info' ? null : t)), 4000);
+      }
+      refresh();
+    } finally { setUndoing(false); }
+  }
+
+  // Ctrl/Cmd+Z mientras el aviso esta visible = Deshacer (teclado, sin tener que tabular).
+  useEffect(() => {
+    if (toast?.k !== 'ok') return;
+    const ids = toast.entryIds;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); void undo(ids); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast]);
+
+  // Avisos (toast + confirmacion de reentrada). Con el drawer abierto se renderizan DENTRO
+  // del dialogo (el drawer deja `inert` todo lo de afuera y atrapa el foco); si no, fijos abajo.
+  const notices = (inline: boolean) => (
+    <div className={inline ? 'flex flex-col gap-2 border-t border-line px-4 py-3' : 'pointer-events-none fixed inset-x-0 bottom-0 z-[70] flex flex-col items-center gap-2 px-4 pb-4'}>
+      <div role="status" aria-live="polite" aria-atomic="true" className={cn('w-full max-w-lg', !inline && 'pointer-events-auto')}>
         {toast ? (
-          <div role={toast.k === 'err' ? 'alert' : undefined} className={cn('mb-4 flex items-center gap-2 rounded-xl px-4 py-3 text-[14px] font-medium', toast.k === 'ok' ? 'bg-success-bg text-success-fg' : 'bg-danger-bg text-danger-fg')}>
-            {toast.k === 'ok' ? <Check size={17} /> : <AlertTriangle size={17} />} {toast.t}
-            <button onClick={() => setToast(null)} className="ml-auto opacity-60 hover:opacity-100"><X size={16} /></button>
+          <div role={toast.k === 'err' ? 'alert' : undefined}
+            className={cn('flex items-center gap-3 rounded-xl px-4 py-3 text-[14px] font-medium shadow-lg',
+              toast.k === 'err' ? 'bg-danger-bg text-danger-fg' : 'bg-success-bg text-success-fg')}>
+            {toast.k === 'err' ? <AlertTriangle size={18} className="flex-none" /> : <Check size={18} className="flex-none" />}
+            <div className="min-w-0 flex-1">
+              {toast.k === 'ok'
+                ? (<><div className="font-semibold">{toast.head}</div><div className="truncate text-[12.5px] font-normal opacity-80">{toast.detail}</div></>)
+                : <span>{toast.t}</span>}
+            </div>
+            {toast.k === 'ok' ? (
+              <Button variant="secondary" size="md" className="min-h-11 flex-none" disabled={undoing}
+                onClick={() => void undo(toast.entryIds)} aria-keyshortcuts="Control+Z Meta+Z">
+                <Undo2 size={16} /> Deshacer
+              </Button>
+            ) : null}
+            {toast.k === 'err' && toast.retry ? (
+              <Button variant="secondary" size="md" className="min-h-11 flex-none" disabled={busy} onClick={retryLast}>
+                <RotateCw size={15} /> Reintentar
+              </Button>
+            ) : null}
+            <IconButton label="Cerrar aviso" variant="ghost" size="md" className="flex-none" onClick={() => setToast(null)}>
+              <X size={16} />
+            </IconButton>
           </div>
         ) : null}
       </div>
+      {confirmRecent ? (
+        <div role="alertdialog" aria-labelledby="recent-title" className={cn('flex w-full max-w-lg items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-xl', !inline && 'pointer-events-auto')}>
+          <AlertTriangle size={18} className="flex-none text-warning-fg" />
+          <p id="recent-title" className="min-w-0 flex-1 text-[14px] font-medium text-ink">
+            Entró a las {hhmm(confirmRecent.at)}. ¿Registrar otra entrada?
+          </p>
+          <Button variant="secondary" size="md" className="min-h-11 flex-none" onClick={() => setConfirmRecent(null)}>Cancelar</Button>
+          <DoorButton size="md" className="flex-none" autoFocus
+            onClick={() => { const c = confirmRecent; void submit(c.body, c.okMsg, { confirmed: true }); }}>
+            Registrar otra
+          </DoorButton>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <div>
+      {!reg ? notices(false) : null}
 
       {salas.length >= 2 ? (
         <div className="mb-4 flex justify-end">
@@ -152,7 +289,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
         <VrAgenda key={`agenda-${s.id}`} salaId={s.id} salaName={s.name} aforo={s.aforo} />
       ))}
 
-      <RegisterSheet reg={reg} byId={byId} busy={busy} onClose={() => setReg(null)} onSubmit={submit} />
+      <RegisterSheet reg={reg} byId={byId} busy={busy} onClose={() => setReg(null)} onSubmit={submit} notice={reg ? notices(true) : null} />
     </div>
   );
 }
@@ -170,9 +307,9 @@ const TABS: { k: Tab; label: string; Icon: typeof UserPlus }[] = [
 const GROUP_KINDS = ['Colegio', 'Grupo comunitario', 'Empresa / institución', 'Otro'] as const;
 type GroupKindSel = (typeof GROUP_KINDS)[number];
 
-function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
-  reg: Reg; byId: Record<string, PuertaSala | undefined>; busy: boolean;
-  onClose: () => void; onSubmit: (body: unknown, okMsg: (r: OkData) => string) => void;
+function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
+  notice?: ReactNode; reg: Reg; byId: Record<string, PuertaSala | undefined>; busy: boolean;
+  onClose: () => void; onSubmit: (body: unknown, okMsg: OkMsg) => void;
 }) {
   const titleId = useId();
   const [tab, setTab] = useState<Tab>('new');
@@ -219,7 +356,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
   const { mounted, closing, panelRef } = useDrawerLifecycle({ open: reg !== null, onEscape: () => requestClose.current(), onClosed: reset });
   if (!mounted || typeof document === 'undefined') return null;
 
-  const okMsg = (r: OkData) =>
+  const okMsg: OkMsg = (r) =>
     `Registrado${r.visitor ? ` · ${r.visitor}` : ''}${r.code ? ` (${r.code})` : ''} en ${r.registered.map((x) => x.salaName).join(' y ')}.`;
 
   return createPortal(
@@ -244,7 +381,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
           {/* Pestañas */}
           <div className="mb-4 flex gap-1 rounded-xl bg-surface-container p-1">
             {TABS.map((t) => (
-              <Button key={t.k} variant="pill" selected={tab === t.k} size="sm" className="flex-1" onClick={() => setTab(t.k)}>
+              <Button key={t.k} variant="pill" selected={tab === t.k} size="sm" className="flex-1" onClick={() => { setTab(t.k); setComp(0); /* PUE-A11: el +N de otra pestana no viaja oculto */ }}>
                 <t.Icon size={15} /> {t.label}
               </Button>
             ))}
@@ -327,6 +464,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit }: {
             Registrar sin datos (anónimo)
           </Button>
         </div>
+        {notice}
       </div>
     </div>,
     document.body,
