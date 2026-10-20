@@ -22,7 +22,7 @@ export function SectionHeader({ title, subtitle, actions, level = 2, className }
       <div className="min-w-0">
         <Heading className={titleCls}>{title}</Heading>
         {subtitle ? (
-          <p className={cn('mt-1', level === 1 ? 'text-muted' : 'text-[13px] text-muted')}>{subtitle}</p>
+          <p className={cn('mt-1 max-w-prose', level === 1 ? 'text-muted' : 'text-[13px] text-muted')}>{subtitle}</p>
         ) : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}

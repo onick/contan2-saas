@@ -114,6 +114,16 @@
 
 :root {
   color-scheme: light;
+
+  /* Ancho del contenido del admin: ÚNICA regla, la aplica AppShell al hijo de <main>
+     (las páginas NO llevan su propio max-w; lo vigila components/shell/AppShell.test.tsx).
+     110rem = 1760px: a 1440 y 1920 con barra lateral abierta el área útil (1144 / 1624)
+     queda por debajo del tope y se usa entera; a 2200–2560 corta en 1760 → tablas con
+     panel de detalle (380 + 20) dejan la lista en ~1360px, KPIs de 4 columnas ~425px.
+     --content-max-wide (120rem = 1920px) solo con <AppShell wide> (tablas de muchas
+     columnas que lo necesiten de verdad). */
+  --content-max: 110rem;
+  --content-max-wide: 120rem;
 }
 
 body {

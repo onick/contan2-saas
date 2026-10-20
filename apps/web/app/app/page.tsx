@@ -167,27 +167,25 @@ export default async function TenantAdminDashboard({
 
   return (
     <AppShell branding={branding} title="Inicio" activeKey="dashboard">
-      <div className="mx-auto w-full max-w-[1600px]">
-        {isDemoFallbackAllowed() ? <DemoBanner /> : null}
+      {isDemoFallbackAllowed() ? <DemoBanner /> : null}
 
-        {/* Cabecera */}
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-ink">Inicio</h1>
-            <p className="mt-0.5 text-sm text-muted">
-              Resumen de {branding.name} · actualizado {fechaHora(new Date())}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <SegmentedControl items={PERIOD_ITEMS(period)} />
-            <NewActivityButton />
-          </div>
+      {/* Cabecera */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">Inicio</h1>
+          <p className="mt-0.5 text-sm text-muted">
+            Resumen de {branding.name} · actualizado {fechaHora(new Date())}
+          </p>
         </div>
-
-        <Suspense key={period} fallback={<OverviewSkeleton />}>
-          <OverviewData period={period} />
-        </Suspense>
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl items={PERIOD_ITEMS(period)} />
+          <NewActivityButton />
+        </div>
       </div>
+
+      <Suspense key={period} fallback={<OverviewSkeleton />}>
+        <OverviewData period={period} />
+      </Suspense>
     </AppShell>
   );
 }

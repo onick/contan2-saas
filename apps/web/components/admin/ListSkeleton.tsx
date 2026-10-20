@@ -4,7 +4,7 @@ import { Card, Skeleton } from '../ui';
 // loading.tsx de /usuarios y /registros durante la navegación RSC inicial.
 export function ListSkeleton({ rows = 8 }: { rows?: number }) {
   return (
-    <div className="mx-auto w-full max-w-[1600px]">
+    <>
       <div className="flex items-center justify-between">
         <div>
           <Skeleton className="h-7 w-44" />
@@ -32,6 +32,6 @@ export function ListSkeleton({ rows = 8 }: { rows?: number }) {
           ))}
         </div>
       </Card>
-    </div>
+    </>
   );
 }

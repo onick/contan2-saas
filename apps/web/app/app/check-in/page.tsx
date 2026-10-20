@@ -16,17 +16,15 @@ export default async function CheckinPage() {
   const branding = await getTenantBranding();
   return (
     <AppShell branding={branding} title="Check-in" activeKey="checkin">
-      <div className="mx-auto w-full max-w-[1600px]">
-        <div className="app-reveal">
-          <SectionHeader
-            level={1}
-            title="Check-in"
-            subtitle="Registra asistencias en puerta, en tiempo real"
-            actions={<Chip tone="success" dot className="uppercase tracking-[0.04em]">En vivo</Chip>}
-          />
-        </div>
-        <CheckinConsole />
+      <div className="app-reveal">
+        <SectionHeader
+          level={1}
+          title="Check-in"
+          subtitle="Registra asistencias en puerta, en tiempo real"
+          actions={<Chip tone="success" dot className="uppercase tracking-[0.04em]">En vivo</Chip>}
+        />
       </div>
+      <CheckinConsole />
     </AppShell>
   );
 }

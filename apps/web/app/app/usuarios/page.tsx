@@ -80,7 +80,7 @@ export default async function UsuariosPage({
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Usuarios" activeKey="usuarios">
-      <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+      {children}
     </AppShell>
   );
 
