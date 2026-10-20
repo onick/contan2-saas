@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
-import { VrAgenda } from './VrAgenda';
+import { SalaAgenda } from './SalaAgenda';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -13,27 +13,27 @@ const booking = {
   status: 'confirmed', notes: null, confirmedAt: null, notifiedAt: null, attendanceId: null,
 };
 
-describe('VrAgenda', () => {
+describe('SalaAgenda', () => {
   it('lista fallida → error con Reintentar, no "Sin reservas próximas"', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(500, {})));
-    render(<VrAgenda salaId="s1" salaName="Sala VR" />);
+    render(<SalaAgenda salaId="s1" salaName="Sala VR" />);
     expect(await screen.findByText('No pudimos cargar la agenda')).toBeInTheDocument();
     expect(screen.queryByText('Sin reservas próximas')).not.toBeInTheDocument();
   });
 
   it('lista 200 vacía → "Sin reservas próximas"', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(200, { bookings: [] })));
-    render(<VrAgenda salaId="s1" salaName="Sala VR" />);
+    render(<SalaAgenda salaId="s1" salaName="Sala VR" />);
     expect(await screen.findByText('Sin reservas próximas')).toBeInTheDocument();
   });
 
   it('lista cortada en el tope (truncated) → aviso visible; sin truncado, nada', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(200, { bookings: [booking], truncated: true })));
-    const { unmount } = render(<VrAgenda salaId="s1" salaName="Sala VR" />);
+    const { unmount } = render(<SalaAgenda salaId="s1" salaName="Sala VR" />);
     expect(await screen.findByText(/solo las primeras reservas/)).toBeInTheDocument();
     unmount();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(J(200, { bookings: [booking] })));
-    render(<VrAgenda salaId="s1" salaName="Sala VR" />);
+    render(<SalaAgenda salaId="s1" salaName="Sala VR" />);
     await screen.findByText('Colegio Demo');
     expect(screen.queryByText(/solo las primeras reservas/)).not.toBeInTheDocument();
   });
@@ -44,7 +44,7 @@ describe('VrAgenda', () => {
       return J(200, { bookings: [booking] });
     });
     vi.stubGlobal('fetch', f);
-    render(<VrAgenda salaId="s1" salaName="Sala VR" />);
+    render(<SalaAgenda salaId="s1" salaName="Sala VR" />);
     fireEvent.click(await screen.findByRole('button', { name: /Check-in/ }));
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Esta reserva ya tiene check-in.');
@@ -56,7 +56,7 @@ describe('VrAgenda', () => {
       return J(200, { bookings: [{ ...booking, status: 'scheduled' }] });
     });
     vi.stubGlobal('fetch', f);
-    render(<VrAgenda salaId="s1" salaName="Sala VR" />);
+    render(<SalaAgenda salaId="s1" salaName="Sala VR" />);
     fireEvent.click(await screen.findByRole('button', { name: /Confirmar/ }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/red/i));
   });
@@ -67,7 +67,7 @@ describe('VrAgenda', () => {
       return J(200, { bookings: [booking] });
     });
     vi.stubGlobal('fetch', f);
-    render(<VrAgenda salaId="s1" salaName="Sala VR" />);
+    render(<SalaAgenda salaId="s1" salaName="Sala VR" />);
     fireEvent.click(await screen.findByRole('button', { name: /Check-in/ }));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Check-in registrado.'));
   });

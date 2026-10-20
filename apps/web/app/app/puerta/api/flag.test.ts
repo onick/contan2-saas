@@ -8,6 +8,8 @@ import { GET as stats } from './stats/route';
 import { GET as bookings, POST as createBooking } from './bookings/route';
 import { GET as exportXlsx } from './export/route';
 import { POST as registrar } from './registrar/route';
+import { GET as entriesDay } from './entries/route';
+import { GET as bookingHistory } from './bookings/[id]/history/route';
 
 afterEach(() => { vi.unstubAllEnvs(); });
 
@@ -20,8 +22,9 @@ describe('BFF de Puerta respeta el flag', () => {
       salas(), stats(req()), bookings(req()), exportXlsx(req()),
       createBooking(req('http://x/a', { method: 'POST', body: '{}' })),
       registrar(req('http://x/a', { method: 'POST', body: '{}' })),
+      entriesDay(req()), bookingHistory(req(), { params: Promise.resolve({ id: 'b1' }) }),
     ]);
-    expect(rs.map((r) => r.status)).toEqual([404, 404, 404, 404, 404, 404]);
+    expect(rs.map((r) => r.status)).toEqual([404, 404, 404, 404, 404, 404, 404, 404]);
   });
 
   it('flag encendido → proxy normal', async () => {

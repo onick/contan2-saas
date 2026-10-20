@@ -4,6 +4,7 @@
 // escolares = profesor identificado + alumnos como cantidad (companions).
 //   GET  /puerta/salas               · salas (kind/hasAgenda/aforo) + visitantes hoy/semana + reservas de hoy
 //   POST /puerta/registrar           · registra entrada (identified|anonymous|group) en 1+ salas · idempotente
+//   GET  /puerta/entries?date=&salaId= · entradas del día (REPORT_TZ), sin PII, paginadas
 //   DELETE /puerta/entries/:id       · Deshacer (mismo staff <=10 min; owner/admin siempre)
 //   GET  /puerta/export.xlsx         · descarga de las salas (REPORT_EXPORT_ROLES, limitador propio)
 
@@ -17,11 +18,12 @@ import {
   PUERTA_UNDO_WINDOW_MIN,
   type PuertaVoidResponse,
   type PuertaSalasResponse,
+  type PuertaEntriesResponse,
   type PuertaRegisterResponse,
   type PuertaSala,
 } from '@contan2/contracts';
 import { requireRole, requireTenantStaff } from '../guard.js';
-import { DOOR_WRITE_ROLES, REPORT_EXPORT_ROLES } from '../rbac-roles.js';
+import { DOOR_WRITE_ROLES, PADRON_READ_ROLES, REPORT_EXPORT_ROLES } from '../rbac-roles.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { buildPuertaExportWorkbook, puertaExportRowCap, type PuertaExportRow } from '../services/puerta-export.js';
 import { safeFilename } from '../services/csv.js';
@@ -391,6 +393,81 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
         metadata: JSON.stringify({ salaId: att.activity_id, partySize, visitReverted: bumped, registeredBy: regAudit?.actor_staff_id ?? null, byManager: manager }),
       }).execute();
       const body: PuertaVoidResponse = { ok: true, entryId: id, partySize };
+      return body;
+    });
+  });
+
+  // ── GET /puerta/entries?date=YYYY-MM-DD&salaId=&limit=&offset= ─────────────────
+  // Entradas de UN día (en REPORT_TZ, sin default de rango abierto) de las salas
+  // permanentes: hora, quién o grupo, personas y qué staff registró (auditoría
+  // `puerta.registered`). NUNCA devuelve correo ni teléfono. `canUndo` anticipa la regla
+  // de DELETE /puerta/entries/:id para no ofrecer un botón que el servidor va a rechazar.
+  app.get('/puerta/entries', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para ver las entradas de la puerta.');
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const orgId = guard.ctx.org.id;
+    const staff = guard.ctx.staff;
+    const q = req.query as Record<string, unknown>;
+    const rawDate = typeof q.date === 'string' && q.date ? q.date : null;
+    if (rawDate && (!YMD_RE.test(rawDate) || new Date(`${rawDate}T00:00:00Z`).toISOString().slice(0, 10) !== rawDate)) {
+      reply.code(400); return { error: 'Fecha inválida. Usa el formato AAAA-MM-DD.' };
+    }
+    const limit = Math.min(200, Math.max(1, Number.parseInt(String(q.limit ?? ''), 10) || 50));
+    const offset = Math.max(0, Number.parseInt(String(q.offset ?? ''), 10) || 0);
+    const salaId = typeof q.salaId === 'string' && q.salaId ? q.salaId : null;
+
+    return withTenant(db, orgId, async (tx) => {
+      const date = rawDate ?? (await sql<{ d: string }>`select to_char((now() AT TIME ZONE ${sql.lit(TZ)})::date, 'YYYY-MM-DD') as d`.execute(tx)).rows[0]!.d;
+      // [00:00 del día, 00:00 del siguiente) en la zona del reporte → usa el índice por fecha.
+      const inDay = sql<boolean>`a.checked_in_at >= (${date}::date::timestamp AT TIME ZONE ${sql.lit(TZ)})
+        AND a.checked_in_at < ((${date}::date + 1)::timestamp AT TIME ZONE ${sql.lit(TZ)})`;
+      const base = () => {
+        let b = tx.selectFrom('attendance as a')
+          .where('a.organization_id', '=', orgId).where('a.is_permanent', '=', true).where(inDay);
+        if (salaId) b = b.where('a.activity_id', '=', salaId);
+        return b;
+      };
+      const agg = await base().select([
+        sql<string>`count(*)`.as('n'),
+        sql<string>`coalesce(sum(1 + a.companions_children + a.companions_adults), 0)`.as('people'),
+      ]).executeTakeFirstOrThrow();
+      const rows = await base()
+        .leftJoin('users as u', 'u.id', 'a.user_id')
+        .select(['a.id', 'a.activity_id', 'a.activity_name', 'a.checked_in_at', 'a.anonymous', 'a.user_code', 'a.group_label', 'a.group_kind',
+          'a.companions_children', 'a.companions_adults', 'u.first_name', 'u.last_name',
+          sql<boolean>`a.registered_at > now() - make_interval(mins => ${PUERTA_UNDO_WINDOW_MIN})`.as('in_window')])
+        .orderBy('a.checked_in_at', 'desc').orderBy('a.id', 'asc').limit(limit).offset(offset).execute();
+
+      // Quién registró: primera fila de auditoría `puerta.registered` de cada entrada.
+      const regBy = new Map<string, { staffId: string | null; name: string | null }>();
+      if (rows.length > 0) {
+        const aud = await tx.selectFrom('tenant_audit_log as l')
+          .leftJoin('staff_members as s', 's.id', 'l.actor_staff_id')
+          .select(['l.target_id', 'l.actor_staff_id', 's.full_name'])
+          .where('l.organization_id', '=', orgId).where('l.action', '=', 'puerta.registered')
+          .where('l.target_id', 'in', rows.map((r) => r.id)).orderBy('l.created_at', 'asc').execute();
+        for (const a of aud) if (a.target_id && !regBy.has(a.target_id)) regBy.set(a.target_id, { staffId: a.actor_staff_id, name: a.full_name });
+      }
+      const manager = staff.role === 'owner' || staff.role === 'admin';
+      const canWrite = DOOR_WRITE_ROLES.has(staff.role);
+      const body: PuertaEntriesResponse = {
+        date, total: Number(agg.n), people: Number(agg.people), limit, offset,
+        entries: rows.map((r) => {
+          const by = regBy.get(r.id);
+          const group = !!r.group_label;
+          const name = r.user_code ? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || null : group ? r.group_label : null;
+          return {
+            id: r.id, salaId: r.activity_id, salaName: r.activity_name ?? '',
+            at: new Date(r.checked_in_at as Date | string).toISOString(),
+            mode: r.user_code ? 'identified' : group ? 'group' : 'anonymous',
+            name, code: r.user_code ?? null, groupKind: group ? (r.group_kind?.trim() || null) : null,
+            people: 1 + (r.companions_children ?? 0) + (r.companions_adults ?? 0),
+            registeredBy: by?.name ?? null,
+            canUndo: manager || (canWrite && !!by && by.staffId === staff.id && r.in_window === true),
+          };
+        }),
+      };
       return body;
     });
   });

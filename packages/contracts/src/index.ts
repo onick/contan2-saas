@@ -1816,8 +1816,19 @@ export type PuertaBookingCreateRequest = z.infer<typeof PuertaBookingCreateReque
 
 // PATCH: transiciones de estado + reprogramar (cambiar fecha/hora).
 export const PuertaBookingUpdateRequestSchema = z.object({
-  action: z.enum(['confirm', 'cancel', 'no_show', 'reschedule']),
+  action: z.enum(['confirm', 'cancel', 'no_show', 'reschedule', 'edit']),
   scheduledAt: z.string().optional(),                          // sólo para reschedule
+  // Sólo para `edit` (PR-P4): corrige los datos de la reserva sin cambiar su estado.
+  edit: z.object({
+    colegio: z.string().trim().min(1).max(160).optional(),
+    kind: z.string().trim().max(60).nullable().optional(),
+    level: z.string().trim().max(80).nullable().optional(),
+    contactName: z.string().trim().min(1).max(120).optional(),
+    contactEmail: z.string().trim().email().max(200).nullable().optional().or(z.literal('')),
+    contactPhone: z.string().trim().max(40).nullable().optional(),
+    studentCount: z.number().int().min(0).max(2000).optional(),
+    notes: z.string().trim().max(1000).nullable().optional(),
+  }).strict().optional(),
 }).strict();
 export type PuertaBookingUpdateRequest = z.infer<typeof PuertaBookingUpdateRequestSchema>;
 
@@ -1867,6 +1878,44 @@ export const PuertaBookingsResponseSchema = z.object({
   truncated: z.boolean().optional(),
 });
 export type PuertaBookingsResponse = z.infer<typeof PuertaBookingsResponseSchema>;
+
+// GET /puerta/bookings/:id/history · filas `puerta.booking.*` de la auditoría de una reserva.
+export const PuertaBookingHistoryItemSchema = z.object({
+  id: z.string(),
+  action: z.string(),                         // created | confirmed | cancelled | no_show | rescheduled | checked_in | edited
+  at: z.string(),                             // ISO
+  actor: z.string().nullable(),               // nombre del staff (null = sistema, p. ej. cierre automático)
+  metadata: z.record(z.unknown()),
+});
+export type PuertaBookingHistoryItem = z.infer<typeof PuertaBookingHistoryItemSchema>;
+export const PuertaBookingHistoryResponseSchema = z.object({ history: z.array(PuertaBookingHistoryItemSchema) });
+export type PuertaBookingHistoryResponse = z.infer<typeof PuertaBookingHistoryResponseSchema>;
+
+// GET /puerta/entries?date=YYYY-MM-DD&salaId= · entradas del día (sin correo ni teléfono).
+export const PuertaEntrySchema = z.object({
+  id: z.string(),
+  salaId: z.string(),
+  salaName: z.string(),
+  at: z.string(),                             // ISO (checked_in_at)
+  mode: z.enum(['identified', 'anonymous', 'group']),
+  name: z.string().nullable(),                // visitante identificado o nombre del grupo
+  code: z.string().nullable(),
+  groupKind: z.string().nullable(),           // tipo de grupo · null = colegio
+  people: z.number().int(),                   // 1 + acompañantes/alumnos
+  registeredBy: z.string().nullable(),        // staff que registró (auditoría); null = desconocido
+  /** El servidor dejaría deshacer ahora mismo a quien consulta (owner/admin, o su propio registro <= 10 min). */
+  canUndo: z.boolean(),
+});
+export type PuertaEntry = z.infer<typeof PuertaEntrySchema>;
+export const PuertaEntriesResponseSchema = z.object({
+  date: z.string(),
+  entries: z.array(PuertaEntrySchema),
+  total: z.number().int(),                    // filas del día (para paginar)
+  people: z.number().int(),                   // personas del día en el filtro
+  limit: z.number().int(),
+  offset: z.number().int(),
+});
+export type PuertaEntriesResponse = z.infer<typeof PuertaEntriesResponseSchema>;
 
 // ── Reportes y estadísticas de la Puerta ─────────────────────────────────────
 // GET /puerta/stats?from&to&sala → dashboard PROPIO del módulo: todo en PERSONAS
