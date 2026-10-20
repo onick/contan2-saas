@@ -126,7 +126,16 @@ test.describe('PUE-01 salas permanentes: registrar', { tag: '@write' }, () => {
     await dlg.getByRole('button', { name: 'Buscar', exact: true }).click();
     const post = page.waitForResponse((r) => r.url().includes('/app/puerta/api/registrar') && r.request().method() === 'POST');
     await dlg.getByRole('button', { name: /Registrar entrada/ }).last().click();
-    expect((await post).status()).toBe(201);
+    const first = await post;
+    if (first.status() === 409) {
+      // P2: el mismo carné entró hace < 15 min (otro caso de esta corrida) → la UI pide confirmar la reentrada.
+      expect((await first.json()).code).toBe('recent_entry');
+      const again = page.waitForResponse((r) => r.url().includes('/app/puerta/api/registrar') && r.request().method() === 'POST');
+      await page.getByRole('button', { name: 'Registrar otra' }).click();
+      expect((await again).status()).toBe(201);
+    } else {
+      expect(first.status()).toBe(201);
+    }
     await trackNew(owner, snap, 'PUE-01d');
     expect(await visitorsToday(ada.id)).toBe(before + 1);
     await context.close();
@@ -302,7 +311,7 @@ test.describe('PUE-02 agenda VR', { tag: '@write' }, () => {
     trackBooking(booking.id, 'PUE-02d reserva');
     await page.goto('/app/puerta');
     await settle(page);
-    await page.getByRole('button', { name: new RegExp(`Ver reserva de ${colegio}`) }).click();
+    await page.getByRole('button', { name: new RegExp(`Ver reserva de ${colegio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) }).click();
     const wide = (page.viewportSize()?.width ?? 0) >= 1280;
     const panel = wide ? page.getByRole('region', { name: 'Detalle de la reserva' }) : page.getByRole('dialog', { name: 'Detalle de la reserva' });
     await expect(panel).toBeVisible();
@@ -345,8 +354,14 @@ test.describe('PUE-02 agenda VR', { tag: '@write' }, () => {
     const id = (await ok.json()).booking.id;
     trackBooking(id, 'PUE-02c reserva');
     expect((await door.patch(`/app/puerta/api/bookings/${id}`, { data: { action: 'no_show' } })).status()).toBe(200);
-    expect((await door.patch(`/app/puerta/api/bookings/${id}`, { data: { action: 'cancel' } })).status()).toBe(200);
-    const ci = await door.post(`/app/puerta/api/bookings/${id}/checkin`);
+    // P3: desde 'no_show' no se cancela (409); cancelar se prueba sobre otra reserva.
+    expect((await door.patch(`/app/puerta/api/bookings/${id}`, { data: { action: 'cancel' } })).status(), 'no_show → cancel es inválido').toBe(409);
+    const ok2 = await mk({ colegio: tag('Colegio val cancel') });
+    expect(ok2.status()).toBe(201);
+    const id2 = (await ok2.json()).booking.id;
+    trackBooking(id2, 'PUE-02c reserva cancelada');
+    expect((await door.patch(`/app/puerta/api/bookings/${id2}`, { data: { action: 'cancel' } })).status()).toBe(200);
+    const ci = await door.post(`/app/puerta/api/bookings/${id2}/checkin`);
     expect(ci.status(), 'cancelada: no se puede hacer check-in').toBe(409);
     expect((await door.patch(`/app/puerta/api/bookings/${id}`, { data: { action: 'volar' } })).status()).toBe(400);
     expect((await door.patch(`/app/puerta/api/bookings/${id}`, { data: { action: 'reschedule' } })).status(), 'reschedule sin fecha').toBe(400);
@@ -369,7 +384,7 @@ test.describe('PUE-03 ventanas de fecha (TZ America/Santo_Domingo)', { tag: '@wr
     const manana = ymdDR(1);
     const names = { early: tag('Borde 00:10'), late: tag('Borde 23:30'), next: tag('Borde mañana 00:30') };
     const mk = async (colegio: string, iso: string) => {
-      const r = await door.post('/app/puerta/api/bookings', { data: { salaId: ada.id, scheduledAt: iso, colegio, contactName: 'Borde', studentCount: 1 } });
+      const r = await door.post('/app/puerta/api/bookings', { data: { salaId: vr.id, scheduledAt: iso, colegio, contactName: 'Borde', studentCount: 1 } });
       expect(r.status(), colegio).toBe(201);
       const id = (await r.json()).booking.id as string;
       trackBooking(id, colegio);
@@ -378,15 +393,15 @@ test.describe('PUE-03 ventanas de fecha (TZ America/Santo_Domingo)', { tag: '@wr
     const early = await mk(names.early, isoFromDR(hoy, 0, 10)); // 04:10 UTC de hoy
     const late = await mk(names.late, isoFromDR(hoy, 23, 30)); // 03:30 UTC de MAÑANA
     const next = await mk(names.next, isoFromDR(manana, 0, 30)); // 04:30 UTC de mañana
-    const todayIds = ((await salasOf(door)).find((s) => s.id === ada.id)!.todayBookings).map((b) => b.id);
+    const todayIds = ((await salasOf(door)).find((s) => s.id === vr.id)!.todayBookings).map((b) => b.id);
     expect(todayIds, '00:10 DR de hoy').toContain(early);
     expect(todayIds, '23:30 DR de hoy (ya es mañana en UTC)').toContain(late);
     expect(todayIds, '00:30 DR de mañana NO es de hoy').not.toContain(next);
     // La lista por defecto de la agenda ("desde el inicio de hoy") incluye las tres.
-    const all = (await jsonOf<any>(await door.get(`/app/puerta/api/bookings?salaId=${ada.id}`))).bookings.map((b: any) => b.id);
+    const all = (await jsonOf<any>(await door.get(`/app/puerta/api/bookings?salaId=${vr.id}`))).bookings.map((b: any) => b.id);
     expect(all).toEqual(expect.arrayContaining([early, late, next]));
     // Ventana explícita [hoy 00:00 DR, mañana 00:00 DR): solo early y late.
-    const win = (await jsonOf<any>(await door.get(`/app/puerta/api/bookings?salaId=${ada.id}&from=${encodeURIComponent(isoFromDR(hoy, 0, 0))}&to=${encodeURIComponent(isoFromDR(manana, 0, 0))}`))).bookings.map((b: any) => b.id);
+    const win = (await jsonOf<any>(await door.get(`/app/puerta/api/bookings?salaId=${vr.id}&from=${encodeURIComponent(isoFromDR(hoy, 0, 0))}&to=${encodeURIComponent(isoFromDR(manana, 0, 0))}`))).bookings.map((b: any) => b.id);
     expect(win).toEqual(expect.arrayContaining([early, late]));
     expect(win).not.toContain(next);
   });
