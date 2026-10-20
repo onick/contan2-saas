@@ -1718,8 +1718,13 @@ export const PuertaSalaSchema = z.object({
   name: z.string(),
   type: z.string(),
   audience: z.enum(['adultos', 'infantil']),
-  aforo: z.number().int().nullable(),   // null = ilimitada (no muestra ocupación)
-  occupancy: z.number().int(),
+  // Aforo REAL de la sala (activities.aforo, mig. 057); null = sin límite. Ya NO se
+  // deduce de la capacidad. El tipo/color/agenda salen de kind/hasAgenda, no de esto.
+  aforo: z.number().int().nullable(),
+  // Mig. 057 (PUE-A09). Opcionales por compat con clientes/fixtures previos; la API siempre los envía.
+  kind: z.enum(['exposicion', 'vr', 'otra']).optional(),
+  hasAgenda: z.boolean().optional(),
+  occupancy: z.number().int(), // OBSOLETO: contador congelado, sin uso desde R4
   visitorsToday: z.number().int(),
   // Personas de los últimos 7 días (hoy incluido). Optional para compat.
   visitorsWeek: z.number().int().optional(),
@@ -1790,12 +1795,6 @@ export const PuertaVoidResponseSchema = z.object({
   partySize: z.number().int(),
 });
 export type PuertaVoidResponse = z.infer<typeof PuertaVoidResponseSchema>;
-
-export const PuertaOccupancyRequestSchema = z.object({ delta: z.number().int().min(-50).max(50) }).strict();
-export type PuertaOccupancyRequest = z.infer<typeof PuertaOccupancyRequestSchema>;
-
-export const PuertaOccupancyResponseSchema = z.object({ occupancy: z.number().int(), aforo: z.number().int().nullable() });
-export type PuertaOccupancyResponse = z.infer<typeof PuertaOccupancyResponseSchema>;
 
 // ── Agenda de reservas (Sala VR): agendar visitas de colegios ────────────────
 export const BOOKING_STATUSES = ['scheduled', 'confirmed', 'attended', 'no_show', 'cancelled'] as const;
@@ -1935,7 +1934,10 @@ export const PuertaStatsResponseSchema = z.object({
   range: z.object({ from: z.string(), to: z.string() }),
   prevRange: z.object({ from: z.string(), to: z.string() }),
   // Salas permanentes del tenant (para el filtro), histórico completo.
-  salas: z.array(z.object({ id: z.string(), name: z.string(), aforo: z.number().int().nullable() })),
+  salas: z.array(z.object({
+    id: z.string(), name: z.string(), aforo: z.number().int().nullable(),
+    kind: z.enum(['exposicion', 'vr', 'otra']).optional(), // mig. 057
+  })),
   kpis: PuertaStatsKpisSchema,
   prev: PuertaStatsKpisSchema,
   deltas: z.object({
@@ -1948,6 +1950,7 @@ export const PuertaStatsResponseSchema = z.object({
   daily: z.array(z.object({ label: z.string(), current: z.number().int(), previous: z.number().int() })),
   bySala: z.array(z.object({
     id: z.string(), name: z.string(), aforo: z.number().int().nullable(),
+    kind: z.enum(['exposicion', 'vr', 'otra']).optional(), // mig. 057
     entries: z.number().int(), people: z.number().int(),
   })),
   // Composición del público del período (partición de los registros).

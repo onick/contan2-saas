@@ -16,7 +16,10 @@ BEGIN;
 
 -- (a) huérfanos
 UPDATE space_bookings
-   SET attendance_id = NULL, status = 'confirmed', updated_at = now()
+   SET attendance_id = NULL,
+       -- Solo una reserva marcada 'attended' vuelve a 'confirmed'; una cancelada sigue cancelada.
+       status = CASE WHEN status = 'attended' THEN 'confirmed' ELSE status END,
+       updated_at = now()
  WHERE attendance_id IS NOT NULL
    AND attendance_id NOT IN (SELECT id FROM attendance);
 

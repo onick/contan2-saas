@@ -24,6 +24,7 @@ type Role = (typeof ROLES)[number];
 
 const DOOR_WRITE: ReadonlySet<Role> = new Set(['owner', 'admin', 'operator', 'puerta']);
 const PADRON_READ: ReadonlySet<Role> = new Set(['owner', 'admin', 'operator', 'consulta', 'puerta']);
+const REPORT_EXPORT: ReadonlySet<Role> = new Set(['owner', 'admin', 'puerta']);
 const VISITOR_SEARCH: ReadonlySet<Role> = new Set([...PADRON_READ, 'protocolo']);
 const USER_CREATE = new Set<Role>(['owner', 'admin', 'operator']);
 
@@ -162,11 +163,33 @@ run('RBAC en la API · check-in / padrón / puerta', () => {
     }
   });
 
-  it('RBAC-R01 · un lector del padrón sigue recibiendo código y correo completos', async () => {
+  it('RBAC-R01 · owner/admin/operator/consulta siguen recibiendo código y correo completos', async () => {
+    for (const role of ['owner', 'admin', 'operator', 'consulta'] as const) {
+      const res = await call('GET', '/api/v2/checkin/visitors?q=Pii', role);
+      const it0 = (res.json() as { items: { code: string; email: string }[] }).items[0]!;
+      expect(it0.code, role).toBe(userCode);
+      expect(it0.email, role).toBe(`pii-${stamp}@t.local`);
+    }
+  });
+
+  it('PUE-A08 · el rol puerta recibe nombre + código + visitas, SIN correo, protocolo ni invitaciones; la búsqueda por correo/teléfono sigue sirviendo de sugerencia', async () => {
     const res = await call('GET', '/api/v2/checkin/visitors?q=Pii', 'puerta');
-    const it0 = (res.json() as { items: { code: string; email: string }[] }).items[0]!;
+    expect(res.statusCode).toBe(200);
+    const it0 = (res.json() as { items: { code: string; email: string | null; firstName: string; protocol: unknown; invitedTo: unknown[] }[] }).items[0]!;
+    expect(it0.firstName).toBe('Pii');
     expect(it0.code).toBe(userCode);
-    expect(it0.email).toBe(`pii-${stamp}@t.local`);
+    expect(it0.email).toBeNull();
+    expect(it0.protocol).toBeNull();
+    expect(it0.invitedTo).toEqual([]);
+    expect(res.body).not.toContain(`pii-${stamp}@t.local`);
+    // Sugerencia de duplicado: tipear el correo/teléfono ya existente encuentra a la persona (sin devolver el dato).
+    for (const q of [`pii-${stamp}`, '8095550123']) {
+      const r = await call('GET', `/api/v2/checkin/visitors?q=${encodeURIComponent(q)}`, 'puerta');
+      const items = (r.json() as { items: { id: string; email: string | null }[] }).items;
+      expect(items.length, q).toBe(1);
+      expect(items[0]!.email).toBeNull();
+      expect(r.body).not.toContain(`pii-${stamp}@t.local`);
+    }
   });
 
   it('RBAC-R02 · GET /attendance (feed de asistencia con nombre+código) → padrón; protocolo/biblioteca 403', async () => {
@@ -187,16 +210,15 @@ run('RBAC en la API · check-in / padrón / puerta', () => {
     await expectGate('GET', `/api/v2/activities/${randomUUID()}/invitations`, PADRON_READ);
   });
 
-  it('RBAC-W04..W07 · escrituras de puerta (bookings, occupancy) → owner/admin/operator/puerta', async () => {
+  it('RBAC-W04..W07 · escrituras de puerta (bookings) → owner/admin/operator/puerta', async () => {
     await expectGate('POST', '/api/v2/puerta/bookings', DOOR_WRITE);
     await expectGate('PATCH', `/api/v2/puerta/bookings/${randomUUID()}`, DOOR_WRITE);
     await expectGate('POST', `/api/v2/puerta/bookings/${randomUUID()}/checkin`, DOOR_WRITE);
-    await expectGate('POST', `/api/v2/puerta/salas/${randomUUID()}/occupancy`, DOOR_WRITE);
   });
 
-  it('RBAC-R25/R26 · lecturas de puerta (bookings, export.xlsx, stats) → padrón (incluye consulta)', async () => {
+  it('RBAC-R25/R26 · lecturas de puerta (bookings, stats) → padrón (incluye consulta); export.xlsx → solo owner/admin/puerta (PUE-A08)', async () => {
     await expectGate('GET', '/api/v2/puerta/bookings', PADRON_READ);
-    await expectGate('GET', '/api/v2/puerta/export.xlsx', PADRON_READ);
+    await expectGate('GET', '/api/v2/puerta/export.xlsx', REPORT_EXPORT);
     await expectGate('GET', '/api/v2/puerta/stats', PADRON_READ);
   });
 });

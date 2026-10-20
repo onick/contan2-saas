@@ -6,7 +6,7 @@ import { PuertaStats } from './PuertaStats';
 
 const DATA = {
   range: { from: '2026-10-01', to: '2026-10-16' }, prevRange: { from: '2026-09-15', to: '2026-09-30' },
-  salas: [{ id: 'vr', name: 'Sala VR', aforo: 10 }],
+  salas: [{ id: 'vr', name: 'Sala VR', aforo: 10, kind: 'vr' }],
   kpis: { people: 10, entries: 8, identified: 6, groupPeople: 2 }, prev: { people: 5, entries: 4, identified: 3, groupPeople: 1 },
   deltas: { people: 100, entries: 100, identified: 100, groupPeople: 100 },
   daily: [], bySala: [], composition: [], byHour: [], byWeekday: [], groups: [],

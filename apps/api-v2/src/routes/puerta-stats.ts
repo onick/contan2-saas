@@ -12,13 +12,12 @@ import { getDb, sql, withTenant } from '@contan2/db';
 import { type PuertaStatsResponse } from '@contan2/contracts';
 import { requireRole, requireTenantStaff } from '../guard.js';
 import { PADRON_READ_ROLES } from '../rbac-roles.js';
-import { puertaKpis, puertaBySala } from '../services/puerta-kpis.js';
+import { puertaKpis, puertaBySala, puertaBase, listPuertaSalas, PEOPLE } from '../services/puerta-kpis.js';
 
 import { REPORT_TZ as TZ } from '../services/timezone.js';
 import { puertaExportRowCap } from '../services/puerta-export.js';
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
-const AFORO_MAX = 200; // mismo criterio que /puerta/salas: > esto ⇒ ilimitada
 const MAX_RANGE_DAYS = 400;
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -31,9 +30,6 @@ function shiftYmd(ymd: string, days: number): string {
 function dayLabel(ymd: string): string {
   return `${Number(ymd.slice(8, 10))} ${MESES[Number(ymd.slice(5, 7)) - 1]}`;
 }
-
-// Personas de una fila de asistencia (el registrado + su grupo/acompañantes).
-const PEOPLE = sql<string>`coalesce(sum(1 + a.companions_children + a.companions_adults), 0)`;
 
 export const puertaStatsRoute: FastifyPluginAsync = async (app) => {
   app.get('/puerta/stats', async (req: FastifyRequest, reply) => {
@@ -54,35 +50,20 @@ export const puertaStatsRoute: FastifyPluginAsync = async (app) => {
 
     // Salas permanentes del tenant — sin filtrar status: el histórico de una
     // sala desactivada sigue contando en sus reportes.
-    const salasRows = await db.selectFrom('activities')
-      .select(['id', 'name', 'capacity'])
-      .where('organization_id', '=', orgId).where('is_permanent', '=', true)
-      .orderBy('name', 'asc').execute();
+    const salasRows = await listPuertaSalas(db, orgId);
     if (salasRows.length === 0) { reply.code(404); return { error: 'No hay salas permanentes configuradas.' }; }
-    const salas = salasRows.map((s) => ({ id: s.id, name: s.name, aforo: s.capacity <= AFORO_MAX ? s.capacity : null }));
+    const salas = salasRows.map((s) => ({ id: s.id, name: s.name, aforo: s.aforo, kind: s.kind }));
     const allIds = salas.map((s) => s.id);
     const salaId = typeof q.sala === 'string' && q.sala.trim() ? q.sala.trim() : null;
     if (salaId && !allIds.includes(salaId)) { reply.code(404); return { error: 'Sala no encontrada.' }; }
     const scopeIds = salaId ? [salaId] : allIds;
 
-    // Ventana [f, t] inclusiva en la TZ de la puerta. OJO: el cast ::timestamp
-    // ANTES del AT TIME ZONE es obligatorio — con un operando date, Postgres lo
-    // vuelve timestamptz de sesión PRIMERO y AT TIME ZONE lo re-interpreta al
-    // revés (la ventana quedaba corrida 8h; lo cazó el test corriendo de tarde).
-    // '<ymd>'::timestamp AT TIME ZONE tz = "medianoche EN esa zona" (correcto).
-    const winGe = (f: string) => sql<boolean>`a.registered_at >= (${f}::timestamp AT TIME ZONE ${sql.lit(TZ)})`;
-    const winLt = (t: string) => sql<boolean>`a.registered_at < ((${t}::date + 1)::timestamp AT TIME ZONE ${sql.lit(TZ)})`;
-    const base = (ids: string[], f: string, t: string) =>
-      db.selectFrom('attendance as a')
-        .where('a.organization_id', '=', orgId)
-        .where('a.is_permanent', '=', true)
-        .where('a.activity_id', 'in', ids)
-        .where(winGe(f)).where(winLt(t));
+    // Ventana [f, t] inclusiva en la TZ de la puerta: puertaBase (puerta-kpis, la
+    // fuente única; el cast ::timestamp ANTES del AT TIME ZONE vive ahí).
+    const base = (ids: string[], f: string, t: string) => puertaBase(db, orgId, ids, f, t);
 
     // KPIs de una ventana: consulta compartida con el Asistente de Reportes.
     const kpisOf = (f: string, t: string) => puertaKpis(db, orgId, scopeIds, f, t);
-    const kpis = await kpisOf(from, to);
-    const prev = await kpisOf(prevFrom, prevTo);
 
     // Serie diaria de personas. registered_at es timestamptz: UNA sola
     // AT TIME ZONE la convierte a hora de pared de la puerta (correcto).
@@ -93,15 +74,18 @@ export const puertaStatsRoute: FastifyPluginAsync = async (app) => {
         .groupBy(dayExpr).execute();
       return new Map(rows.map((r) => [r.d, Number(r.people)]));
     }
-    const curDaily = await dailyOf(from, to);
-    const prevDaily = await dailyOf(prevFrom, prevTo);
+    // Las consultas son independientes entre sí: en paralelo (antes ~9 en serie).
+    const [kpis, prev, curDaily, prevDaily, bySalaMap] = await Promise.all([
+      kpisOf(from, to), kpisOf(prevFrom, prevTo),
+      dailyOf(from, to), dailyOf(prevFrom, prevTo),
+      puertaBySala(db, orgId, allIds, from, to),
+    ]);
     const daily = Array.from({ length: days }, (_, i) => {
       const d = shiftYmd(from, i);
       return { label: dayLabel(d), current: curDaily.get(d) ?? 0, previous: prevDaily.get(shiftYmd(prevFrom, i)) ?? 0 };
     });
 
     // Por sala — SIEMPRE todas las salas (vista comparativa, ignora ?sala=).
-    const bySalaMap = await puertaBySala(db, orgId, allIds, from, to);
     const bySala = salas.map((s) => ({
       ...s,
       entries: Number(bySalaMap.get(s.id)?.entries ?? 0),
