@@ -267,4 +267,4 @@ run('reportería branded · period/activity xlsx+pdf+preview', () => {
     expect(p2.statusCode).toBe(200);
     expect(p2.rawPayload.subarray(0, 4).toString()).toBe('%PDF');
   }, 30_000);
-});
+}, 30_000); // Chromium bajo carga supera los 5 s por defecto
