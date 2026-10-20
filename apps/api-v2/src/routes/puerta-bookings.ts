@@ -2,7 +2,8 @@
 // permanente (Sala VR): el encargado agenda visitas de colegios.
 //   GET   /puerta/bookings?from=&to=&salaId=   · agenda (rango; default próximos)
 //   POST  /puerta/bookings                     · crear reserva (scheduled)
-//   PATCH /puerta/bookings/:id                 · confirm | cancel | no_show | reschedule
+//   PATCH /puerta/bookings/:id                 · confirm | cancel | no_show | reschedule | edit
+//   GET   /puerta/bookings/:id/history         · filas `puerta.booking.*` de la auditoría de esa reserva
 //   POST  /puerta/bookings/:id/no-show         · "No vino" manual
 //   POST  /puerta/bookings/:id/checkin         · check-in → attendance (atómico; solo el día, o force)
 //   POST  /puerta/bookings/close-day?date=     · cierre del día: vencidas sin asistencia → no_show
@@ -14,6 +15,7 @@
 //   cancel      scheduled | confirmed          → cancelled
 //   no_show     scheduled | confirmed          → no_show
 //   reschedule  scheduled | confirmed | no_show → confirmed (guarda rescheduled_from)
+//   edit        scheduled | confirmed | no_show → (mismo estado; corrige datos del grupo/contacto)
 //   checkin     scheduled | confirmed | no_show → attended (no_show→attended: llegó tarde)
 //   attended y cancelled son terminales. Borrar la asistencia (Deshacer) devuelve la
 //   reserva a confirmed (trigger de la migración 056).
@@ -28,6 +30,8 @@ import {
   PuertaBookingCheckinRequestSchema,
   PuertaBookingCreateRequestSchema,
   PuertaBookingUpdateRequestSchema,
+  type PuertaBookingHistoryResponse,
+  type PuertaBookingUpdateRequest,
   type PuertaBookingCloseDayResponse,
   type PuertaBookingFull,
   type PuertaBookingsResponse,
@@ -46,13 +50,14 @@ const actionLimiter = createRateLimiter({ max: 120, windowMs: 60_000, prefix: en
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-type Act = 'confirm' | 'cancel' | 'no_show' | 'reschedule';
+type Act = 'confirm' | 'cancel' | 'no_show' | 'reschedule' | 'edit';
 // Estados DESDE los que se permite cada acción (la tabla de arriba, en código).
 const FROM = {
   confirm: ['scheduled'],
   cancel: ['scheduled', 'confirmed'],
   no_show: ['scheduled', 'confirmed'],
   reschedule: ['scheduled', 'confirmed', 'no_show'],
+  edit: ['scheduled', 'confirmed', 'no_show'],
   checkin: ['scheduled', 'confirmed', 'no_show'],
 } as const satisfies Record<string, readonly string[]>;
 
@@ -62,7 +67,7 @@ const STATE_ES: Record<string, string> = {
 };
 const VERB_ES: Record<keyof typeof FROM, string> = {
   confirm: 'confirmar', cancel: 'cancelar', no_show: 'marcar como "No vino"',
-  reschedule: 'reprogramar', checkin: 'registrar la entrada de',
+  reschedule: 'reprogramar', edit: 'editar', checkin: 'registrar la entrada de',
 };
 const stateError = (a: keyof typeof FROM, status: string) =>
   `No se puede ${VERB_ES[a]} esta reserva: ya está ${STATE_ES[status] ?? status}.`;
@@ -153,7 +158,8 @@ async function deliverEmail(db: DbClient, orgId: string, id: string, kind: Booki
 }
 
 // El cuerpo se valida DESPUÉS del guard de rol (un rol sin permiso recibe 403, no 400).
-type Resolved = { act: Act; when?: Date } | { status: number; error: string };
+type EditFields = NonNullable<PuertaBookingUpdateRequest['edit']>;
+type Resolved = { act: Act; when?: Date; edit?: EditFields } | { status: number; error: string };
 async function runTransition(req: FastifyRequest, reply: FastifyReply, resolve: () => Resolved) {
   const db = getDb();
   const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para modificar reservas de la puerta.');
@@ -163,7 +169,7 @@ async function runTransition(req: FastifyRequest, reply: FastifyReply, resolve: 
   if ((await actionLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas acciones seguidas. Espera un momento.' }; }
   const r = resolve();
   if ('error' in r) { reply.code(r.status); return { error: r.error }; }
-  const { act, when } = r;
+  const { act, when, edit } = r;
   const id = (req.params as { id: string }).id;
 
   const out = await withTenant(db, orgId, async (tx) => {
@@ -175,7 +181,17 @@ async function runTransition(req: FastifyRequest, reply: FastifyReply, resolve: 
     if (act === 'confirm') { set.status = 'confirmed'; set.confirmed_at = nowIso; }
     else if (act === 'cancel') { set.status = 'cancelled'; set.cancelled_at = nowIso; }
     else if (act === 'no_show') { set.status = 'no_show'; set.no_show_at = nowIso; }
-    else {
+    else if (act === 'edit') {
+      const e = edit!;
+      if (e.colegio !== undefined) set.colegio = e.colegio.trim();
+      if (e.kind !== undefined) set.group_kind = e.kind?.trim() || null;
+      if (e.level !== undefined) set.level = e.level?.trim() || null;
+      if (e.contactName !== undefined) set.contact_name = e.contactName.trim();
+      if (e.contactEmail !== undefined) set.contact_email = e.contactEmail?.trim() || null;
+      if (e.contactPhone !== undefined) set.contact_phone = e.contactPhone?.trim() || null;
+      if (e.studentCount !== undefined) set.student_count = e.studentCount;
+      if (e.notes !== undefined) set.notes = e.notes?.trim() || null;
+    } else {
       set.status = 'confirmed';
       set.scheduled_at = when!.toISOString();
       set.rescheduled_from = sql`scheduled_at`; // el valor ANTERIOR (el SET evalúa con la fila vieja)
@@ -190,8 +206,9 @@ async function runTransition(req: FastifyRequest, reply: FastifyReply, resolve: 
       const cur = (await loadBooking(tx, orgId, id))?.status ?? existing.status;
       return { status: 409, body: { error: stateError(act, cur) } };
     }
-    await audit(tx, orgId, staff, act === 'no_show' ? 'no_show' : act === 'confirm' ? 'confirmed' : act === 'cancel' ? 'cancelled' : 'rescheduled', id,
-      act === 'reschedule' ? { from: new Date(existing.scheduled_at).toISOString(), to: when!.toISOString() } : {});
+    await audit(tx, orgId, staff, act === 'no_show' ? 'no_show' : act === 'confirm' ? 'confirmed' : act === 'cancel' ? 'cancelled' : act === 'edit' ? 'edited' : 'rescheduled', id,
+      act === 'reschedule' ? { from: new Date(existing.scheduled_at).toISOString(), to: when!.toISOString() }
+        : act === 'edit' ? { fields: Object.keys(edit!).filter((k) => (edit as Record<string, unknown>)[k] !== undefined) } : {});
     return { status: 200, body: {}, existing };
   });
 
@@ -288,10 +305,45 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     return runTransition(req, reply, () => {
       const parsed = PuertaBookingUpdateRequestSchema.safeParse(req.body);
       if (!parsed.success) return { status: 400, error: 'Datos inválidos.' };
+      if (parsed.data.action === 'edit') {
+        const e = parsed.data.edit;
+        if (!e || Object.values(e).every((v) => v === undefined)) return { status: 400, error: 'No hay cambios que guardar.' };
+        return { act: 'edit', edit: e };
+      }
       if (parsed.data.action !== 'reschedule') return { act: parsed.data.action };
       const when = parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : undefined;
       if (!when || Number.isNaN(when.getTime())) return { status: 400, error: 'Nueva fecha/hora inválida.' };
       return { act: 'reschedule', when };
+    });
+  });
+
+  // ── GET /puerta/bookings/:id/history · historial de una reserva ───────────────
+  // Las filas `puerta.booking.*` de la auditoría con ESA reserva como objetivo, en orden
+  // cronológico, con el nombre del staff (null = sistema, p. ej. el cierre automático).
+  app.get('/puerta/bookings/:id/history', async (req: FastifyRequest, reply) => {
+    const db = getDb();
+    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para ver las reservas de la puerta.');
+    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
+    const orgId = guard.ctx.org.id;
+    const id = (req.params as { id: string }).id;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) { reply.code(404); return { error: 'Reserva no encontrada.' }; }
+    return withTenant(db, orgId, async (tx) => {
+      const exists = await tx.selectFrom('space_bookings').select('id').where('id', '=', id).where('organization_id', '=', orgId).executeTakeFirst();
+      if (!exists) { reply.code(404); return { error: 'Reserva no encontrada.' }; }
+      const rows = await tx.selectFrom('tenant_audit_log as l')
+        .leftJoin('staff_members as s', 's.id', 'l.actor_staff_id')
+        .select(['l.id', 'l.action', 'l.created_at', 'l.metadata', 's.full_name'])
+        .where('l.organization_id', '=', orgId).where('l.target_type', '=', 'space_booking').where('l.target_id', '=', id)
+        .where('l.action', 'like', 'puerta.booking.%')
+        .orderBy('l.created_at', 'asc').orderBy('l.id', 'asc').execute();
+      const body: PuertaBookingHistoryResponse = {
+        history: rows.map((r) => ({
+          id: String(r.id), action: r.action.replace(/^puerta\.booking\./, ''),
+          at: new Date(r.created_at as Date | string).toISOString(), actor: r.full_name ?? null,
+          metadata: (typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata ?? {}) as Record<string, unknown>,
+        })),
+      };
+      return body;
     });
   });
 
