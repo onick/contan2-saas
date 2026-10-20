@@ -26,6 +26,7 @@ export interface DataTableClientProps<T> {
   empty?: ReactNode;
   error?: ReactNode;
   onRowClick?: (row: T) => void;
+  selectedRowId?: string | null;
   pagination?: DataTableClientPaginationProps;
   mobileCard?: DataTableViewProps<T>['mobileCard'];
   className?: string;
@@ -34,7 +35,7 @@ export interface DataTableClientProps<T> {
 
 export function DataTableClient<T>({
   data, columns, getRowId, loading, empty, error,
-  onRowClick, pagination, mobileCard, className, ariaLabel,
+  onRowClick, selectedRowId, pagination, mobileCard, className, ariaLabel,
 }: DataTableClientProps<T>) {
   return (
     <DataTableView
@@ -45,6 +46,7 @@ export function DataTableClient<T>({
       empty={empty}
       error={error}
       onRowClick={onRowClick}
+      selectedRowId={selectedRowId}
       pagination={pagination}
       mobileCard={mobileCard}
       className={className}
