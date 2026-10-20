@@ -150,20 +150,31 @@ export function RegistrosChart({ series }: Props) {
                     desbordaban la página. Cada celda es flex-1 + min-w-0 (nunca más ancha
                     que su columna) y, cuando hay más de 12, solo se rotula 1 de cada
                     `labelStep` (la resaltada siempre). */}
-                <div className="mt-1.5 flex gap-px sm:gap-[3px]">
+                <div className="mt-1.5 flex h-4 gap-px sm:gap-[3px]">
                   {items.map((it, k) => {
                     const show = hi === k || k % labelStep === 0;
+                    // Con 30 días cada celda mide ~20 px y «21/09» no cabe: la etiqueta se
+                    // centra en absoluto sobre su columna y desborda hacia las vecinas, que
+                    // quedan vacías por `labelStep`. En móvil se oculta 1 de cada 2 rotuladas
+                    // (nunca la resaltada) para que no se pisen.
+                    const thin = show && hi !== k && Math.floor(k / labelStep) % 2 === 1;
                     return (
-                      <span
-                        key={k}
-                        className={cn(
-                          'num min-w-0 flex-1 overflow-hidden text-center text-[10px] tabular-nums transition-colors',
-                          hi === k ? 'font-bold text-ink' : 'text-faint',
-                        )}
-                      >
+                      <span key={k} className="relative min-w-0 flex-1">
                         {/* Un <span> sin rol no admite aria-label (axe aria-prohibited-attr):
                             la etiqueta omitida queda como texto solo para lectores de pantalla. */}
-                        {show ? it.label : <span className="sr-only">{it.label}</span>}
+                        {show ? (
+                          <span
+                            className={cn(
+                              'num absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap text-[10px] tabular-nums transition-colors',
+                              hi === k ? 'font-bold text-ink' : 'text-faint',
+                              thin && 'max-sm:sr-only',
+                            )}
+                          >
+                            {it.label}
+                          </span>
+                        ) : (
+                          <span className="sr-only">{it.label}</span>
+                        )}
                       </span>
                     );
                   })}
