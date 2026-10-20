@@ -22,6 +22,13 @@ import { salaColor } from './salaColors';
 
 const money = (n: number) => n.toLocaleString('en-US');
 
+// La puerta se opera en una tablet (820 px): todo control mide >=44 px TAMBIEN desde md
+// (el Button del kit baja a 40 px en md+, por eso el `md:min-h-11` explicito).
+const T44 = 'min-h-11 md:min-h-11';
+// Field del kit usa md:min-h-10 en su caja; en la puerta sube a 44 px (variante de hijo, mayor especificidad).
+const FIELD44 = '[&>div]:md:min-h-11';
+const TAB_KEY = 'puerta:reg-tab';
+
 type OkData = {
   visitor: string | null; code?: string | null;
   registered: { salaName: string; partySize?: number }[];
@@ -29,6 +36,8 @@ type OkData = {
 };
 type Reg = { salaIds: string[] } | null;
 type OkMsg = (r: OkData) => string;
+const defaultOkMsg: OkMsg = (r) =>
+  `Registrado${r.visitor ? ` · ${r.visitor}` : ''}${r.code ? ` (${r.code})` : ''} en ${r.registered.map((x) => x.salaName).join(' y ')}.`;
 
 /** Duración del aviso "Deshacer" en pantalla (el API acepta deshacer hasta 10 min). */
 const UNDO_TOAST_MS = 10_000;
@@ -175,13 +184,13 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
                 : <span>{toast.t}</span>}
             </div>
             {toast.k === 'ok' ? (
-              <Button variant="secondary" size="md" className="min-h-11 flex-none" disabled={undoing}
+              <Button variant="secondary" size="md" className={cn(T44, 'flex-none')} disabled={undoing}
                 onClick={() => void undo(toast.entryIds)} aria-keyshortcuts="Control+Z Meta+Z">
                 <Undo2 size={16} /> Deshacer
               </Button>
             ) : null}
             {toast.k === 'err' && toast.retry ? (
-              <Button variant="secondary" size="md" className="min-h-11 flex-none" disabled={busy} onClick={retryLast}>
+              <Button variant="secondary" size="md" className={cn(T44, 'flex-none')} disabled={busy} onClick={retryLast}>
                 <RotateCw size={15} /> Reintentar
               </Button>
             ) : null}
@@ -197,7 +206,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
           <p id="recent-title" className="min-w-0 flex-1 text-[14px] font-medium text-ink">
             Entró a las {hhmm(confirmRecent.at)}. ¿Registrar otra entrada?
           </p>
-          <Button variant="secondary" size="md" className="min-h-11 flex-none" onClick={() => setConfirmRecent(null)}>Cancelar</Button>
+          <Button variant="secondary" size="md" className={cn(T44, 'flex-none')} onClick={() => setConfirmRecent(null)}>Cancelar</Button>
           <DoorButton size="md" className="flex-none" autoFocus
             onClick={() => { const c = confirmRecent; void submit(c.body, c.okMsg, { confirmed: true }); }}>
             Registrar otra
@@ -213,23 +222,23 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
 
       {salas.length >= 2 ? (
         <div className="mb-4 flex justify-end">
-          <Button variant="secondary" size="sm" onClick={() => setReg({ salaIds: salas.map((s) => s.id) })}>
+          <Button variant="secondary" className={T44} onClick={() => setReg({ salaIds: salas.map((s) => s.id) })}>
             <Users size={15} /> Registrar en ambas salas
           </Button>
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {salas.length === 0 && load === 'loading' ? (
-          <p className="py-6 text-center text-[13px] text-muted lg:col-span-2">Cargando salas…</p>
+          <p className="py-6 text-center text-[13px] text-muted md:col-span-2">Cargando salas…</p>
         ) : salas.length === 0 && load !== 'ok' ? (
-          <div className="lg:col-span-2">
+          <div className="md:col-span-2">
             {load === 'forbidden'
               ? <ErrorState kind="forbidden" title="No tienes permiso para ver las salas" />
               : <ErrorState title="No pudimos cargar las salas" description="La conexión con el servidor falló. Esto no significa que no haya salas configuradas." onRetry={() => { setLoad('loading'); void refresh(); }} />}
           </div>
         ) : salas.length === 0 ? (
-          <div className="lg:col-span-2">
+          <div className="md:col-span-2">
             <EmptyState icon={DoorOpen} title="No hay salas permanentes" description="Todavía no se configuraron salas permanentes (Ada Balcácer, Sala VR) para este tenant." />
           </div>
         ) : salas.map((s) => {
@@ -273,9 +282,18 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
               ) : null}
 
               <div className="mt-auto p-5 pt-4">
-                <DoorButton size="lg" tone={isVR ? 'vr' : 'brand'} className="w-full" onClick={() => setReg({ salaIds: [s.id] })}>
-                  <Plus size={20} strokeWidth={2.4} /> Registrar entrada
-                </DoorButton>
+                <div className="flex gap-2">
+                  <DoorButton size="lg" tone={isVR ? 'vr' : 'brand'} className="min-w-0 flex-1" onClick={() => setReg({ salaIds: [s.id] })}>
+                    <Plus size={20} strokeWidth={2.4} /> Registrar entrada
+                  </DoorButton>
+                  {/* Acceso directo: 1 persona anónima en esta sala, sin abrir el drawer.
+                      Misma ruta que el registro: clave por intento, aviso fijo con Deshacer. */}
+                  <Button variant="secondary" className={cn(T44, 'flex-none')} disabled={busy}
+                    aria-label={`+1 anónimo en ${s.name}`}
+                    onClick={() => void submit({ salaIds: [s.id], mode: 'anonymous', companions: 0 }, defaultOkMsg)}>
+                    <UserPlus size={16} aria-hidden="true" /> +1 anónimo
+                  </Button>
+                </div>
               </div>
             </Card>
           );
@@ -296,6 +314,14 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
 
 // ── Drawer de registro: pestañas Nuevo / Buscar / Grupo + "sin datos" ───────────
 type Tab = 'new' | 'search' | 'group';
+// Última pestaña usada (localStorage, tolerante a fallos: modo privado, datos bloqueados, SSR).
+function readTab(): Tab {
+  try {
+    const v = window.localStorage.getItem(TAB_KEY);
+    return v === 'search' || v === 'group' || v === 'new' ? v : 'new';
+  } catch { return 'new'; }
+}
+function writeTab(t: Tab) { try { window.localStorage.setItem(TAB_KEY, t); } catch { /* sin persistencia */ } }
 const TABS: { k: Tab; label: string; Icon: typeof UserPlus }[] = [
   { k: 'new', label: 'Nuevo visitante', Icon: UserPlus },
   { k: 'search', label: 'Buscar / QR', Icon: Search },
@@ -312,7 +338,8 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
   onClose: () => void; onSubmit: (body: unknown, okMsg: OkMsg) => void;
 }) {
   const titleId = useId();
-  const [tab, setTab] = useState<Tab>('new');
+  const [tab, setTabState] = useState<Tab>(readTab);
+  const setTab = (t: Tab) => { setTabState(t); writeTab(t); };
   const [nv, setNv] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   // Dedup: sugerencias del padrón mientras se escribe (nombre/email/teléfono).
   // "Usar" registra como IDENTIFICADO (misma credencial, +1 visita) en vez de
@@ -332,7 +359,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
   const busyRef = useRef(busy); busyRef.current = busy;
   const requestClose = useRef(() => {});
   requestClose.current = () => { if (busyRef.current) return; onClose(); };
-  const reset = () => { setTab('new'); setNv({ firstName: '', lastName: '', email: '', phone: '' }); setDup([]); setComp(0); setG({ colegio: '', level: '', contactName: '', studentCount: 30 }); setGKind('Colegio'); setGKindCustom(''); };
+  const reset = () => { setTabState(readTab()); setNv({ firstName: '', lastName: '', email: '', phone: '' }); setDup([]); setComp(0); setG({ colegio: '', level: '', contactName: '', studentCount: 30 }); setGKind('Colegio'); setGKindCustom(''); };
 
   // Typeahead de dedup (email > teléfono > nombre completo), debounce 350ms.
   useEffect(() => {
@@ -356,8 +383,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
   const { mounted, closing, panelRef } = useDrawerLifecycle({ open: reg !== null, onEscape: () => requestClose.current(), onClosed: reset });
   if (!mounted || typeof document === 'undefined') return null;
 
-  const okMsg: OkMsg = (r) =>
-    `Registrado${r.visitor ? ` · ${r.visitor}` : ''}${r.code ? ` (${r.code})` : ''} en ${r.registered.map((x) => x.salaName).join(' y ')}.`;
+  const okMsg = defaultOkMsg;
 
   return createPortal(
     <div tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
@@ -372,7 +398,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Registrar entrada</p>
             <h2 id={titleId} className="mt-1 truncate text-lg font-bold leading-tight tracking-tight text-ink">{title || 'Sala permanente'}</h2>
           </div>
-          <IconButton label="Cerrar" variant="outline" size="sm" onClick={() => requestClose.current()} disabled={busy}>
+          <IconButton label="Cerrar" variant="outline" size="md" onClick={() => requestClose.current()} disabled={busy}>
             <X size={18} strokeWidth={2} aria-hidden="true" />
           </IconButton>
         </header>
@@ -381,7 +407,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
           {/* Pestañas */}
           <div className="mb-4 flex gap-1 rounded-xl bg-surface-container p-1">
             {TABS.map((t) => (
-              <Button key={t.k} variant="pill" selected={tab === t.k} size="sm" className="flex-1" onClick={() => { setTab(t.k); setComp(0); /* PUE-A11: el +N de otra pestana no viaja oculto */ }}>
+              <Button key={t.k} variant="pill" selected={tab === t.k} className={cn(T44, 'min-w-0 flex-1 px-2 text-[13px]')} onClick={() => { setTab(t.k); setComp(0); /* PUE-A11: el +N de otra pestana no viaja oculto */ }}>
                 <t.Icon size={15} /> {t.label}
               </Button>
             ))}
@@ -390,10 +416,10 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
           {tab === 'new' ? (
             <form onSubmit={(e) => { e.preventDefault(); onSubmit({ salaIds, mode: 'new', companions: comp, visitor: { firstName: nv.firstName.trim(), lastName: nv.lastName.trim(), email: nv.email.trim() || null, phone: nv.phone.trim() || null } }, okMsg); }}>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Nombre" autoFocus value={nv.firstName} onChange={(e) => setNv({ ...nv, firstName: e.target.value })} required />
-                <Field label="Apellido" value={nv.lastName} onChange={(e) => setNv({ ...nv, lastName: e.target.value })} required />
-                <Field label="Email (opcional)" type="email" value={nv.email} onChange={(e) => setNv({ ...nv, email: e.target.value })} />
-                <Field label="Teléfono (opcional)" value={nv.phone} onChange={(e) => setNv({ ...nv, phone: e.target.value })} />
+                <Field label="Nombre" className={FIELD44} autoFocus value={nv.firstName} onChange={(e) => setNv({ ...nv, firstName: e.target.value })} required />
+                <Field label="Apellido" className={FIELD44} value={nv.lastName} onChange={(e) => setNv({ ...nv, lastName: e.target.value })} required />
+                <Field label="Email (opcional)" className={FIELD44} type="email" value={nv.email} onChange={(e) => setNv({ ...nv, email: e.target.value })} />
+                <Field label="Teléfono (opcional)" className={FIELD44} value={nv.phone} onChange={(e) => setNv({ ...nv, phone: e.target.value })} />
               </div>
               {dup.length > 0 ? (
                 <div className="mt-3 rounded-xl border border-line bg-surface-container/60 p-3">
@@ -405,7 +431,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
                           <span className="block truncate text-[13.5px] font-semibold text-ink">{v.firstName} {v.lastName}</span>
                           <span className="block text-[11.5px] tabular-nums text-muted">{v.code} · {v.visitCount} {v.visitCount === 1 ? 'visita' : 'visitas'}</span>
                         </span>
-                        <Button type="button" variant="secondary" size="sm" disabled={busy}
+                        <Button type="button" variant="secondary" className={T44} disabled={busy}
                           onClick={() => onSubmit({ salaIds, mode: 'identified', code: v.code, companions: comp }, okMsg)}>
                           <UserCheck size={14} /> Usar
                         </Button>
@@ -431,18 +457,18 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
                   <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">Tipo de grupo</span>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {GROUP_KINDS.map((k) => (
-                      <Button key={k} variant="pill" size="sm" selected={gKind === k} onClick={() => setGKind(k)} type="button">{k}</Button>
+                      <Button key={k} variant="pill" className={T44} selected={gKind === k} onClick={() => setGKind(k)} type="button">{k}</Button>
                     ))}
                   </div>
                 </div>
                 {gKind === 'Otro' ? (
                   <div className="mb-3">
-                    <Field label="¿Qué tipo de grupo?" autoFocus value={gKindCustom} onChange={(e) => setGKindCustom(e.target.value)} placeholder="Grupo juvenil, iglesia, fundación…" required />
+                    <Field label="¿Qué tipo de grupo?" className={FIELD44} autoFocus value={gKindCustom} onChange={(e) => setGKindCustom(e.target.value)} placeholder="Grupo juvenil, iglesia, fundación…" required />
                   </div>
                 ) : null}
-                <Field label={isCol ? 'Colegio' : 'Nombre del grupo'} autoFocus={gKind !== 'Otro'} value={g.colegio} onChange={(e) => setG({ ...g, colegio: e.target.value })} required />
+                <Field label={isCol ? 'Colegio' : 'Nombre del grupo'} className={FIELD44} autoFocus={gKind !== 'Otro'} value={g.colegio} onChange={(e) => setG({ ...g, colegio: e.target.value })} required />
                 <div className="mt-3 grid grid-cols-2 gap-3">
-                  <Field label={isCol ? 'Nivel / grado' : 'Detalle (opcional)'} value={g.level} onChange={(e) => setG({ ...g, level: e.target.value })} placeholder={isCol ? '5.º primaria' : 'Sector, edades, comunidad…'} />
+                  <Field label={isCol ? 'Nivel / grado' : 'Detalle (opcional)'} className={FIELD44} value={g.level} onChange={(e) => setG({ ...g, level: e.target.value })} placeholder={isCol ? '5.º primaria' : 'Sector, edades, comunidad…'} />
                   {/* div, no label: un label activaría su primer control (el botón −) al tocar el texto */}
                   <div className="block">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{isCol ? 'Alumnos' : 'Integrantes'}</span>
@@ -450,7 +476,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
                   </div>
                 </div>
                 <div className="mt-3">
-                  <Field label={isCol ? 'Profesor responsable' : 'Responsable'} value={g.contactName} onChange={(e) => setG({ ...g, contactName: e.target.value })} required />
+                  <Field label={isCol ? 'Profesor responsable' : 'Responsable'} className={FIELD44} value={g.contactName} onChange={(e) => setG({ ...g, contactName: e.target.value })} required />
                 </div>
                 <p className="mb-1 mt-3 rounded-lg bg-success-bg px-3 py-2 text-[12.5px] font-semibold text-success-fg">
                   Se registran 1 {isCol ? 'profesor' : 'responsable'} + {g.studentCount} {isCol ? 'alumnos' : 'integrantes'} = {1 + g.studentCount} visitas.
@@ -460,7 +486,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
             );
           })()}
 
-          <Button variant="ghost" size="sm" className="mx-auto mt-3" onClick={() => onSubmit({ salaIds, mode: 'anonymous', companions: comp }, okMsg)} disabled={busy}>
+          <Button variant="ghost" className={cn(T44, 'mx-auto mt-3')} onClick={() => onSubmit({ salaIds, mode: 'anonymous', companions: comp }, okMsg)} disabled={busy}>
             Registrar sin datos (anónimo)
           </Button>
         </div>
@@ -473,7 +499,7 @@ function RegisterSheet({ reg, byId, busy, onClose, onSubmit, notice }: {
 
 function Stepper({ value, onChange, label, min = 0 }: { value: number; onChange: (v: number) => void; label: string; min?: number }) {
   return (
-    <NumberField block editable size="md" hideLabel label={label} value={value} onValueChange={onChange} min={min} max={2000}
+    <NumberField block editable size="kiosk" hideLabel label={label} value={value} onValueChange={onChange} min={min} max={2000}
       className="mt-1" decrementLabel={`Menos ${label.toLowerCase()}`} incrementLabel={`Más ${label.toLowerCase()}`} />
   );
 }
@@ -481,7 +507,7 @@ export function Companions({ value, onChange }: { value: number; onChange: (v: n
   return (
     <div className="my-3 flex items-center justify-between rounded-lg border border-line px-3 py-2">
       <span className="text-[13.5px] font-semibold text-ink">Acompañantes <span className="font-normal text-muted">(+1 por cada uno)</span></span>
-      <NumberField size="md" editable={false} hideLabel label="Acompañantes" value={value} onValueChange={onChange} min={0} max={10}
+      <NumberField size="kiosk" editable={false} hideLabel label="Acompañantes" value={value} onValueChange={onChange} min={0} max={10}
         decrementLabel="Menos acompañantes" incrementLabel="Más acompañantes" />
     </div>
   );

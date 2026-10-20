@@ -19,6 +19,9 @@ export interface AppShellProps {
   // Tope de ancho alternativo (--content-max-wide) para la página que de verdad lo
   // necesite (p. ej. una tabla de muchas columnas). Nunca una clase max-w suelta.
   wide?: boolean;
+  // Estado de la barra lateral cuando el usuario aún no eligió (cookie ausente). 'collapsed' =
+  // riel de iconos por defecto (Puerta en tablet). Su preferencia explícita siempre gana.
+  sidebarDefault?: 'expanded' | 'collapsed';
   children: ReactNode;
 }
 
@@ -39,7 +42,7 @@ export const CONTENT_WIDTH_CLASS = {
 // `minmax(0,1fr)` en la columna de contenido evita overflow horizontal.
 // getAdminGate usa React.cache → una sola llamada por request compartida con
 // el layout; en tests (sin contexto Next.js) el try/catch deja role=null.
-export async function AppShell({ branding, title, activeKey, meta, children, role: roleProp, wide = false }: AppShellProps) {
+export async function AppShell({ branding, title, activeKey, meta, children, role: roleProp, wide = false, sidebarDefault = 'expanded' }: AppShellProps) {
   // Cuando roleProp no se pasa (undefined), leemos el rol del gate cacheado.
   // En tests, getAdminGate lanza (cookies() no está disponible) → role=null.
   let role: string | null = roleProp !== undefined ? roleProp : null;
@@ -53,7 +56,7 @@ export async function AppShell({ branding, title, activeKey, meta, children, rol
   }
 
   return (
-    <SidebarShell role={role}>
+    <SidebarShell role={role} defaultCollapsed={sidebarDefault === 'collapsed'}>
       <Sidebar branding={branding} activeKey={activeKey} role={role} />
       {/* Navegación mobile (<md): barra inferior fija; el Sidebar existe md+. */}
       <MobileNav activeKey={activeKey} role={role} />

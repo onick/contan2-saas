@@ -26,9 +26,28 @@ describe('PuertaStats · exportación (REP-U14)', () => {
     expect(screen.getByRole('menuitem', { name: /Excel completo/ })).toHaveAttribute('href', '/app/puerta/api/export');
   });
 
-  it('las pastillas de sala miden 44 px en móvil', () => {
+  it('las pastillas de sala miden 44 px en móvil y en tablet (sin bajar a 36 px en sm/md)', () => {
     render(<PuertaStats initial={DATA} initialRange={DATA.range} />);
-    for (const name of ['Ambas salas', 'Sala VR']) expect(screen.getByRole('button', { name }).className).toMatch(/min-h-11/);
+    for (const name of ['Ambas salas', 'Sala VR']) {
+      const cls = screen.getByRole('button', { name }).className;
+      expect(cls).toMatch(/min-h-11/);
+      expect(cls).not.toMatch(/(sm|md):min-h-(9|10)\b/);
+    }
+  });
+
+  it('los controles de la cabecera (Registro, Exportar, período) miden 44 px también en tablet', () => {
+    render(<PuertaStats initial={DATA} initialRange={DATA.range} />);
+    const ctl = [
+      screen.getByRole('link', { name: /Registro/ }),
+      screen.getByRole('link', { name: 'Exportar Excel' }).closest('[role="group"]')!,
+      screen.getByRole('button', { name: /Período/ }),
+    ];
+    for (const el of ctl) {
+      expect(el.className).toMatch(/min-h-11/);
+      expect(el.className).toMatch(/md:min-h-11/);
+    }
+    // La flecha del Excel (40 px de ancho en el kit) sube a 44 px desde el grupo.
+    expect(ctl[1]!.className).toMatch(/last-child\]:min-w-11/);
   });
 });
 

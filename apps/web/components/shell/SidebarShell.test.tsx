@@ -7,10 +7,10 @@ afterEach(() => {
   document.cookie = `${SIDEBAR_COOKIE}=; path=/; max-age=0`;
 });
 
-function setup(cookieCollapsed = false) {
+function setup(cookieCollapsed = false, props: { defaultCollapsed?: boolean } = {}) {
   if (cookieCollapsed) document.cookie = `${SIDEBAR_COOKIE}=1; path=/`;
   render(
-    <SidebarShell>
+    <SidebarShell {...props}>
       <aside id="app-sidebar"><SidebarToggle /></aside>
       <main>contenido</main>
     </SidebarShell>,
@@ -50,5 +50,20 @@ describe('SidebarShell', () => {
     fireEvent.keyDown(input, { key: 'b', ctrlKey: true });
     expect(shellState()).toBe('collapsed'); // sin cambios
     input.remove();
+  });
+
+  it('defaultCollapsed: sin cookie arranca plegada ("modo puerta"), sin afectar el valor por defecto de las demás páginas', () => {
+    setup(false, { defaultCollapsed: true });
+    expect(shellState()).toBe('collapsed');
+    expect(screen.getByRole('button', { name: 'Expandir navegación' })).toHaveAttribute('aria-expanded', 'false');
+    cleanup();
+    setup(false);
+    expect(shellState()).toBe('expanded');
+  });
+
+  it('defaultCollapsed: la preferencia explícita del usuario (cookie =0) gana al valor por defecto', () => {
+    document.cookie = `${SIDEBAR_COOKIE}=0; path=/`;
+    setup(false, { defaultCollapsed: true });
+    expect(shellState()).toBe('expanded');
   });
 });
