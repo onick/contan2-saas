@@ -1,10 +1,13 @@
 import Link from 'next/link';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from './cn';
 
 export interface SegmentedControlItem {
   label: string;
   href: string;
   active?: boolean;
+  // Icono opcional a la izquierda de la etiqueta (decorativo, aria-hidden).
+  icon?: LucideIcon;
 }
 
 export interface SegmentedControlProps {
@@ -28,7 +31,9 @@ export function SegmentedControl({ items, variant = 'outline', label = 'Segmento
         className,
       )}
     >
-      {items.map((item) => (
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
         <Link
           key={item.href}
           href={item.href}
@@ -36,14 +41,17 @@ export function SegmentedControl({ items, variant = 'outline', label = 'Segmento
           className={cn(
             'rounded-pill px-4 text-sm font-semibold transition-colors',
             tray ? 'inline-flex min-h-11 items-center justify-center' : 'py-1.5',
+            Icon && 'inline-flex items-center gap-2 whitespace-nowrap',
             item.active
               ? tray ? 'bg-accent-strong text-accent-strong-fg' : 'bg-ink text-white'
               : 'text-muted hover:text-ink',
           )}
         >
+          {Icon ? <Icon size={16} strokeWidth={1.9} aria-hidden="true" className="flex-none" /> : null}
           {item.label}
         </Link>
-      ))}
+        );
+      })}
     </nav>
   );
 }

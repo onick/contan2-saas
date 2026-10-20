@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+import { Users } from 'lucide-react';
 import { SegmentedControl } from './SegmentedControl';
 
 afterEach(cleanup);
@@ -14,6 +15,12 @@ describe('SegmentedControl', () => {
     render(<SegmentedControl items={items} />);
     expect(screen.getByRole('navigation', { name: 'Segmentos' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '30 días' }).className).toContain('bg-ink');
+  });
+
+  it('icono opcional: se dibuja decorativo antes de la etiqueta', () => {
+    render(<SegmentedControl items={[{ label: 'Hoy', href: '/x', icon: Users }]} />);
+    const link = screen.getByRole('link', { name: 'Hoy' });
+    expect(link.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
   });
 
   it('variante tray: activo en accent-strong, items de 44 px y nombre propio', () => {
