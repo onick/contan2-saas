@@ -33,7 +33,7 @@ import { optimizeCover, OptimizeError, formatBytes, type OptimizeResult } from '
 import { CoverReframe } from './CoverReframe';
 import { ProgramPicker } from './ProgramPicker';
 import { StatusBadge } from './StatusBadge';
-import { Button, Card, cn, focusRing } from '../ui';
+import { Button, Card, DateTimeField, cn, focusRing } from '../ui';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
 
@@ -560,16 +560,16 @@ export function ActivityForm({ mode, initial, onSaved, onCancel }: ActivityFormP
                   </div>
                   <div>
                     <Label htmlFor={id('date')} required>Fecha y hora</Label>
-                    {/* TODO: reemplazar por DateTimeField del kit cuando esté disponible. */}
-                    <DateTimeInput id={id('date')} value={form.date} onChange={(v) => set('date', v)} invalid={!!errors.date}
-                      describedBy={describedBy('date')} required className={fieldCls(!!errors.date, 'pr-10')} />
+                    <DateTimeField id={id('date')} value={form.date} onChange={(v) => set('date', v)} invalid={!!errors.date}
+                      aria-invalid={!!errors.date} aria-describedby={describedBy('date')} required minuteStep={5} />
                     <FieldError k="date" />
                   </div>
                 </div>
                 <div>
                   <Label htmlFor={id('endDate')} optional>Cierre</Label>
-                  <DateTimeInput id={id('endDate')} value={form.endDate} onChange={(v) => set('endDate', v)} invalid={!!errors.endDate}
-                    describedBy={describedBy('endDate', id('endDate-help'))} className={fieldCls(!!errors.endDate, 'pr-10')} />
+                  <DateTimeField id={id('endDate')} value={form.endDate} onChange={(v) => set('endDate', v)} invalid={!!errors.endDate}
+                    aria-invalid={!!errors.endDate} aria-describedby={describedBy('endDate', id('endDate-help'))}
+                    min={form.date || undefined} minuteStep={5} />
                   <Helper k="endDate">Puedes dejarlo vacío si aún no tienes una fecha y hora de cierre.</Helper>
                   <FieldError k="endDate" />
                 </div>
@@ -729,21 +729,5 @@ export function ActivityForm({ mode, initial, onSaved, onCancel }: ActivityFormP
         </div>
       </div>
     </form>
-  );
-}
-
-// datetime-local con el icono del calendario del kit. El indicador nativo queda
-// invisible pero clicable encima del icono (un solo control visible).
-function DateTimeInput({ id, value, onChange, invalid, describedBy, required, className }: {
-  id: string; value: string; onChange: (v: string) => void; invalid: boolean;
-  describedBy?: string; required?: boolean; className: string;
-}) {
-  return (
-    <div className="relative">
-      <input id={id} type="datetime-local" required={required} aria-required={required ? 'true' : undefined} value={value}
-        onChange={(e) => onChange(e.target.value)} aria-invalid={invalid} aria-describedby={describedBy}
-        className={cn(className, '[&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-y-0 [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:w-11 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0')} />
-      <CalendarDays size={17} strokeWidth={1.75} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
-    </div>
   );
 }

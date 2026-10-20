@@ -15,6 +15,13 @@ import { withRateLimitRetry } from '../../support/q3-api';
 
 test.describe.configure({ mode: 'serial', retries: 0 });
 
+// localDateTime(n) ('YYYY-MM-DDTHH:mm') -> 'd/m/yyyy H:mm' que acepta el DateTimeField.
+const localDateTimeText = (n: number): string => {
+  const [d, t] = localDateTime(n).split('T');
+  const [y, m, day] = d!.split('-');
+  return `${Number(day)}/${Number(m)}/${y} ${t}`;
+};
+
 let api: APIRequestContext;
 test.beforeAll(async () => {
   api = await apiFor('owner');
@@ -66,8 +73,15 @@ test.describe('ADM-03/04 · crear con portada, editar y estados (UI)', () => {
     await page.getByLabel('Tipo', { exact: true }).selectOption('otro');
     await page.getByLabel('Capacidad').fill('15');
     await page.getByLabel('Lugar').fill('Sala E2E');
-    await page.getByLabel('Fecha y hora').fill(localDateTime(5));
-    await page.getByLabel(/Cierre/).fill(localDateTime(185));
+    // DateTimeField: texto tipeable (d/m/yyyy H:mm, 24 h); parsea al perder el foco.
+    const dateField = page.getByLabel('Fecha y hora');
+    await dateField.fill(localDateTimeText(5));
+    await dateField.press('Tab');
+    await expect(dateField).toHaveValue(/^\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2} [ap]\. m\.$/);
+    const endField = page.getByLabel(/Cierre/);
+    await endField.fill(localDateTimeText(185));
+    await endField.press('Tab');
+    await expect(endField).toHaveValue(/[ap]\. m\.$/);
     await expect(submit).not.toHaveAttribute('aria-disabled', 'true');
 
     const created = page.waitForResponse((r) => r.url().includes('/app/actividades/api/with-cover') && r.request().method() === 'POST');

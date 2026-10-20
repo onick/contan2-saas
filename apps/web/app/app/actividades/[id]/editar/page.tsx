@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { z } from 'zod';
 import { notFound } from 'next/navigation';
 import { ActivityDetailSchema, type ActivityDetail } from '@contan2/contracts';
 import { AppShell } from '../../../../../components/shell/AppShell';
@@ -43,7 +44,8 @@ export default async function EditarActividadPage({ params }: { params: Promise<
 
   let detail: ActivityDetail;
   try {
-    detail = await apiGet(`/api/v2/activities/${encodeURIComponent(id)}`, ActivityDetailSchema);
+    // El schema tiene defaults (entrada ≠ salida): se valida aparte para tipar la salida.
+    detail = ActivityDetailSchema.parse(await apiGet(`/api/v2/activities/${encodeURIComponent(id)}`, z.unknown()));
   } catch (e) {
     if (e instanceof ApiError && (e.status === 404 || e.status === 400)) notFound();
     return shell(

@@ -12,6 +12,12 @@ vi.mock('../../lib/images/optimizeCover', async (orig) => {
 });
 
 const DATE_LOCAL = '2030-06-10T19:00';
+// El campo de fecha es tipeable (d/m/yyyy H:mm) y parsea al perder el foco.
+const typeDate = (label: string, text: string) => {
+  const el = screen.getByLabelText(label);
+  fireEvent.change(el, { target: { value: text } });
+  fireEvent.blur(el);
+};
 const DATE_ISO = new Date(DATE_LOCAL).toISOString();
 
 const okResult = (optimized = true): OptimizeResult => ({
@@ -63,7 +69,7 @@ function fillFields() {
   fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Recital con portada' } });
   fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'concierto' } });
   fireEvent.change(screen.getByLabelText('Lugar'), { target: { value: 'Sala 2' } });
-  fireEvent.change(screen.getByLabelText('Fecha y hora'), { target: { value: DATE_LOCAL } });
+  typeDate('Fecha y hora', '10/6/2030 19:00');
   fireEvent.change(screen.getByLabelText('Capacidad'), { target: { value: '120' } });
 }
 const createBtn = () => screen.getByRole('button', { name: /Crear actividad|Creando/ });
@@ -79,6 +85,20 @@ describe('ActivityForm · crear · estructura y accesibilidad', () => {
     expect(screen.getByRole('radiogroup', { name: 'Público' })).toBeInTheDocument();
     expect((screen.getByLabelText('Nombre') as HTMLInputElement).required).toBe(true);
     expect(screen.getByLabelText('Nombre')).toHaveAttribute('aria-required', 'true');
+  });
+
+  it('fecha tipeada (24 h y 12 h) se muestra formateada y se envía como ISO; Cierre admite texto', async () => {
+    const fetchFn = mockFetch(201, { activity: { id: 'A1' } });
+    renderForm();
+    await selectCover(); fillFields();
+    expect((screen.getByLabelText('Fecha y hora') as HTMLInputElement).value).toBe('10/6/2030, 7:00 p. m.');
+    typeDate('Cierre', '10/6/2030 9:30 p. m.');
+    expect((screen.getByLabelText('Cierre') as HTMLInputElement).value).toBe('10/6/2030, 9:30 p. m.');
+    fireEvent.click(createBtn());
+    await waitFor(() => expect(fetchFn.mock.calls.some((c) => c[0] === '/app/actividades/api/with-cover')).toBe(true));
+    const fd = fetchFn.mock.calls.find((c) => c[0] === '/app/actividades/api/with-cover')![1].body as FormData;
+    expect(fd.get('date')).toBe(new Date('2030-06-10T19:00').toISOString());
+    expect(fd.get('endDate')).toBe(new Date('2030-06-10T21:30').toISOString());
   });
 
   it('Público: Adultos por defecto; cambiar a Infantil viaja en el submit', async () => {
@@ -268,7 +288,7 @@ describe('ActivityForm · editar', () => {
   it('convierte datetime-local a ISO al modificar la fecha', async () => {
     const fetchFn = mockFetch(200);
     const { onSaved } = renderEdit();
-    fireEvent.change(screen.getByLabelText('Fecha y hora'), { target: { value: '2031-01-01T10:00' } });
+    typeDate('Fecha y hora', '1/1/2031 10:00');
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     const patchCall = fetchFn.mock.calls.find((c) => c[1]?.method === 'PATCH')!;
