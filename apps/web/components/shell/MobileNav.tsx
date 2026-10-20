@@ -110,7 +110,7 @@ export function MobileNav({ activeKey, role }: { activeKey?: string; role?: stri
                     aria-current={active ? 'page' : undefined}
                     onClick={() => setMoreOpen(false)}
                     className={cn(
-                      'flex h-11 items-center gap-3 rounded-[8px] px-3 text-[14px] font-medium transition-colors',
+                      'flex h-11 items-center gap-3 rounded-[12px] px-3 text-[14px] font-medium transition-colors',
                       active
                         ? 'bg-brand-soft font-semibold text-brand-text'
                         : 'text-muted hover:bg-surface-container hover:text-ink',

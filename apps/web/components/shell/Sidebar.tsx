@@ -87,7 +87,7 @@ export function Sidebar({ branding, activeKey, role }: SidebarProps) {
                       aria-current={active ? 'page' : undefined}
                       title={item.label}
                       className={
-                        'relative flex h-9 items-center gap-2.5 rounded-[8px] px-3 text-[14px] transition-colors ' +
+                        'relative flex h-9 items-center gap-2.5 rounded-[12px] px-3 text-[14px] transition-colors ' +
                         'group-data-[sidebar=collapsed]/shell:justify-center group-data-[sidebar=collapsed]/shell:px-0 ' +
                         (active
                           ? 'bg-brand-soft font-semibold text-brand-text'
