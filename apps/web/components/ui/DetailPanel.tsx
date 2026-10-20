@@ -2,18 +2,22 @@
 
 // components/ui/DetailPanel.tsx · patrón "lista + panel de detalle" (master-detail).
 //
-//  - xl (≥1280px): el detalle es una COLUMNA FIJA a la derecha de la lista (la tabla no
-//    se tapa). Cerrado, la columna muestra un estado vacío ("Selecciona una fila…").
-//    Raíz: <aside role="region" aria-label={title} data-detail-panel>. Escape lo cierra
-//    (foco dentro, en el disparador o en el body).
-//  - < xl: PANEL LATERAL (overlay modal): <div role="dialog" aria-modal data-detail-panel>
-//    con fondo, foco atrapado, Escape y clic fuera para cerrar (Radix Dialog). Cerrado
-//    no renderiza nada.
+//  - xl (≥1280px): el detalle es una COLUMNA PLEGABLE a la derecha de la lista (la tabla no
+//    se tapa). Cerrado, la columna mide 0 y la lista ocupa todo el ancho; al abrir, la
+//    grilla anima `grid-template-columns` (0 → ancho) y el contenido SUBE desde abajo
+//    (`.detail-rise`, se reanima al cambiar `contentKey`). Con `reserve` + `empty` la
+//    columna se reserva siempre con un estado vacío. Raíz: <aside role="region"
+//    aria-label={title} data-detail-panel data-detail-state="open|closed|reserved">.
+//    Escape lo cierra (foco dentro, en el disparador o en el body).
+//  - < xl: HOJA INFERIOR (overlay modal): <div role="dialog" aria-modal data-detail-panel>
+//    que sube desde abajo (`.detail-sheet`), con fondo, foco atrapado, Escape y clic fuera
+//    para cerrar (Radix Dialog). Cerrado no renderiza nada.
 //  - Una sola instancia a la vez (matchMedia): el estado del contenido vive en el
 //    consumidor, así que ensanchar/estrechar la ventana no pierde nada.
 //
 // Uso: el consumidor pone <DetailLayout> alrededor de [lista + <DetailPanel/>]; la grilla
-// `xl:grid-cols-[minmax(0,1fr)_380px]` es de DetailLayout (ancho "md"=320 o "lg"=380).
+// es de DetailLayout (ancho "md"=320 o "lg"=380) y se pliega sola con `:has()` cuando el
+// aside declara data-detail-state="closed" (sin plomería de props entre hermanos).
 // `children` son los <TabsContent> (si hay `tabs`) o el cuerpo directo.
 // `mode="overlay"` fuerza siempre el panel lateral (páginas sin columna reservada).
 
@@ -58,8 +62,12 @@ export interface DetailPanelProps {
   children?: ReactNode;
   /** Acciones al pie. */
   footer?: ReactNode;
-  /** Contenido de la columna cuando no hay selección (solo xl). */
+  /** Contenido de la columna cuando no hay selección (solo xl y solo con `reserve`). */
   empty?: DetailPanelEmpty;
+  /** Reserva la columna aunque no haya selección, mostrando `empty`. Por defecto la columna se pliega. */
+  reserve?: boolean;
+  /** Identidad del contenido (id/código): al cambiar, el cuerpo vuelve a entrar desde abajo. */
+  contentKey?: string | number | null;
   /** id de un elemento que nombra el panel (reemplaza a aria-label). */
   labelledBy?: string;
   closeLabel?: string;
@@ -69,7 +77,7 @@ export interface DetailPanelProps {
 }
 
 export function DetailPanel({
-  open, onClose, title, header, tabs, tab, defaultTab, onTabChange, children, footer, empty,
+  open, onClose, title, header, tabs, tab, defaultTab, onTabChange, children, footer, empty, reserve = false, contentKey,
   labelledBy, closeLabel = 'Cerrar detalles', mode = 'auto', className,
 }: DetailPanelProps) {
   const xl = useSyncExternalStore(subscribeXl, xlSnapshot, xlServerSnapshot);
@@ -137,29 +145,39 @@ export function DetailPanel({
     </>
   );
 
-  // ── Columna (xl) ──
+  // ── Columna plegable (xl) ──
   if (asColumn) {
     const Icon = empty?.icon;
+    const reserved = !open && reserve && !!empty;
+    const state = open ? 'open' : reserved ? 'reserved' : 'closed';
     return (
       <aside
         ref={asideRef}
         role="region"
         data-detail-panel
+        data-detail-state={state}
         {...labelProps}
-        className={cn(
-          'app-reveal mt-5 hidden xl:sticky xl:top-4 xl:mt-0 xl:block xl:max-h-[calc(100dvh-2rem)] xl:overflow-y-auto',
-          'rounded-card border border-line bg-surface p-5 md:p-6',
-          !open && 'text-center',
-          className,
-        )}
+        {...(state === 'closed' ? { 'aria-hidden': true, inert: true } : {})}
+        className="sticky top-4 hidden min-w-0 overflow-hidden xl:block"
       >
-        {open ? body(false) : empty ? (
-          <>
-            {Icon ? <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-surface-container text-faint"><Icon size={22} strokeWidth={1.7} /></span> : null}
-            <p className="mt-3 text-[13.5px] font-bold text-ink">{empty.title}</p>
-            {empty.description ? <p className="mt-1 text-[12.5px] leading-relaxed text-muted">{empty.description}</p> : null}
-          </>
-        ) : null}
+        {/* Ancho fijo (var --detail-w de DetailLayout): al animar la columna el contenido no se re-envuelve, solo se revela. */}
+        <div
+          className={cn(
+            'max-h-[calc(100dvh-2rem)] w-[var(--detail-w,380px)] overflow-y-auto rounded-card border border-line bg-surface p-5 md:p-6',
+            !open && 'text-center',
+            className,
+          )}
+        >
+          {open ? (
+            <div key={contentKey ?? 'detail'} className="detail-rise">{body(false)}</div>
+          ) : reserved && empty ? (
+            <>
+              {Icon ? <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-surface-container text-faint"><Icon size={22} strokeWidth={1.7} /></span> : null}
+              <p className="mt-3 text-[13.5px] font-bold text-ink">{empty.title}</p>
+              {empty.description ? <p className="mt-1 text-[12.5px] leading-relaxed text-muted">{empty.description}</p> : null}
+            </>
+          ) : null}
+        </div>
       </aside>
     );
   }
@@ -168,7 +186,7 @@ export function DetailPanel({
   return (
     <RadixDialog.Root open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className="drawer-backdrop fixed inset-0 z-40 bg-ink/40" />
+        <RadixDialog.Overlay className="detail-backdrop fixed inset-0 z-40 bg-ink/40" />
         <RadixDialog.Content
           data-detail-panel
           aria-describedby={undefined}
@@ -180,24 +198,37 @@ export function DetailPanel({
           }}
           {...(labelledBy ? { 'aria-labelledby': labelledBy } : {})}
           className={cn(
-            'drawer-panel fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto',
-            'border-l border-line bg-surface p-4 shadow-xl focus:outline-none md:p-5',
+            'detail-sheet fixed inset-x-0 bottom-0 z-50 max-h-[92dvh] overflow-y-auto',
+            'rounded-t-2xl border-t border-line bg-surface p-4 shadow-xl focus:outline-none md:mx-auto md:max-w-2xl md:p-5',
             className,
           )}
         >
-          {body(true)}
+          <div key={contentKey ?? 'detail'} className="detail-rise">{body(true)}</div>
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>
   );
 }
 
+// Ancho de la columna por tamaño. Plegado (`data-detail-state="closed"` en el aside hijo) la columna
+// y el gap valen 0 → la lista ocupa todo el ancho; el cambio se anima (grid-template-columns, Chromium
+// 107+, Firefox 66+, Safari 16+; antes de eso simplemente salta sin transición).
 const COLS = {
-  md: 'xl:grid-cols-[minmax(0,1fr)_320px]',
-  lg: 'xl:grid-cols-[minmax(0,1fr)_380px]',
+  md: '[--detail-w:320px] xl:grid-cols-[minmax(0,1fr)_var(--detail-w)]',
+  lg: '[--detail-w:380px] xl:grid-cols-[minmax(0,1fr)_var(--detail-w)]',
 } as const;
+const COLLAPSE = 'xl:has-[>aside[data-detail-state=closed]]:grid-cols-[minmax(0,1fr)_0px] xl:has-[>aside[data-detail-state=closed]]:gap-x-0';
 
 /** Grilla lista + columna de detalle. Hijos: [lista, <DetailPanel/>] (el panel solo ocupa columna en xl). */
 export function DetailLayout({ children, width = 'lg', className }: { children: ReactNode; width?: keyof typeof COLS; className?: string }) {
-  return <div className={cn('xl:grid xl:items-start xl:gap-5', COLS[width], className)}>{children}</div>;
+  return (
+    <div
+      className={cn(
+        'xl:grid xl:items-start xl:gap-x-5 xl:transition-[grid-template-columns,column-gap] xl:duration-300 xl:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+        COLS[width], COLLAPSE, className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }

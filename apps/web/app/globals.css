@@ -265,7 +265,23 @@ body {
   .drawer-panel.drawer-panel--closing { animation-name: drawer-out-right; }
 }
 
+/* DetailPanel · (a) contenido de la columna xl y de la hoja: sube desde abajo con fade cada vez
+   que se abre o cambia la persona (key); (b) hoja inferior < xl: sube desde abajo en TODAS las
+   pantallas, y Radix la desmonta al terminar la animación de salida (data-state=closed). */
+@keyframes detail-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes detail-fade { from { opacity: 0; } to { opacity: 1; } }
+.detail-rise { animation: detail-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.detail-sheet[data-state="open"] { animation: drawer-in-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.detail-sheet[data-state="closed"] { animation: drawer-out-down 0.26s cubic-bezier(0.64, 0, 0.78, 0) both; }
+.detail-backdrop[data-state="open"] { animation: drawer-backdrop-in 0.22s ease both; }
+.detail-backdrop[data-state="closed"] { animation: drawer-backdrop-out 0.26s ease both; }
+
 @media (prefers-reduced-motion: reduce) {
+  /* Sin traslación: solo un fade corto al entrar; la salida es instantánea. */
+  .detail-rise { animation: detail-fade 0.15s ease both; }
+  .detail-sheet[data-state="open"] { animation: detail-fade 0.15s ease both; }
+  .detail-sheet[data-state="closed"] { animation: none; }
+  .detail-backdrop[data-state="open"], .detail-backdrop[data-state="closed"] { animation: none; }
   .drawer-panel.drawer-panel--closing { animation: none; }
   .drawer-backdrop.drawer-backdrop--closing { animation: none; }
   .kiosk-pulse { animation: none; }

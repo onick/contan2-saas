@@ -3,6 +3,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, within, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IdCard } from 'lucide-react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { DetailPanel, DetailLayout } from './DetailPanel';
 import { TabsContent } from './Tabs';
 
@@ -23,13 +25,13 @@ function stubMatchMedia(matches: boolean) {
 const EMPTY = { icon: IdCard, title: 'Detalles de la persona', description: 'Selecciona una fila…' };
 const TABS = [{ value: 'a', label: 'Información' }, { value: 'b', label: 'Visitas' }];
 
-function Harness({ initialOpen = true, onClose = () => {}, mode }: { initialOpen?: boolean; onClose?: () => void; mode?: 'auto' | 'overlay' }) {
+function Harness({ initialOpen = true, onClose = () => {}, mode, reserve, contentKey }: { initialOpen?: boolean; onClose?: () => void; mode?: 'auto' | 'overlay'; reserve?: boolean; contentKey?: string }) {
   const [open, setOpen] = useState(initialOpen);
   return (
     <DetailLayout>
       <button onClick={() => setOpen(true)}>Abrir</button>
       <DetailPanel
-        open={open} onClose={() => { setOpen(false); onClose(); }} title="Detalles de la persona" mode={mode}
+        open={open} onClose={() => { setOpen(false); onClose(); }} title="Detalles de la persona" mode={mode} reserve={reserve} contentKey={contentKey}
         header={<p>Sofía Méndez</p>} tabs={TABS} empty={EMPTY} closeLabel="Cerrar perfil"
         footer={<button>Archivar</button>}
       >
@@ -53,11 +55,41 @@ describe('DetailPanel · xl (columna fija)', () => {
     expect(within(region).getByRole('button', { name: 'Archivar' })).toBeInTheDocument();
   });
 
-  it('cerrado: la columna queda con el estado vacío', () => {
+  it('cerrado (por defecto): la columna se pliega, sin estado vacío ni contenido, oculta a AT', () => {
     stubMatchMedia(true);
-    render(<Harness initialOpen={false} />);
+    const { container } = render(<Harness initialOpen={false} />);
+    const aside = container.querySelector('aside[data-detail-panel]')!;
+    expect(aside).toHaveAttribute('data-detail-state', 'closed');
+    expect(aside).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByText('Selecciona una fila…')).toBeNull();
+    expect(screen.queryByRole('tab')).toBeNull();
+    // La grilla se pliega con :has() sobre el estado del aside y anima grid-template-columns.
+    const layout = aside.parentElement!;
+    expect(layout.className).toContain('xl:has-[>aside[data-detail-state=closed]]:grid-cols-[minmax(0,1fr)_0px]');
+    expect(layout.className).toContain('xl:transition-[grid-template-columns,column-gap]');
+    expect(layout.className).toContain('motion-reduce:transition-none');
+  });
+
+  it('abierto: data-detail-state="open" y el contenido lleva .detail-rise (sube desde abajo)', () => {
+    stubMatchMedia(true);
+    const { container } = render(<Harness />);
+    expect(container.querySelector('aside')).toHaveAttribute('data-detail-state', 'open');
+    expect(container.querySelector('aside .detail-rise')).not.toBeNull();
+  });
+
+  it('cambiar contentKey remonta el cuerpo (reinicia la entrada)', () => {
+    stubMatchMedia(true);
+    const { container, rerender } = render(<Harness contentKey="A" />);
+    const first = container.querySelector('.detail-rise');
+    rerender(<Harness contentKey="B" />);
+    expect(container.querySelector('.detail-rise')).not.toBe(first);
+  });
+
+  it('reserve + empty: la columna se reserva con el estado vacío', () => {
+    stubMatchMedia(true);
+    const { container } = render(<Harness initialOpen={false} reserve />);
     const region = screen.getByRole('region', { name: 'Detalles de la persona' });
-    expect(region).toHaveAttribute('data-detail-panel');
+    expect(container.querySelector('aside')).toHaveAttribute('data-detail-state', 'reserved');
     expect(within(region).getByText('Selecciona una fila…')).toBeInTheDocument();
     expect(within(region).queryByRole('tab')).toBeNull();
   });
@@ -74,7 +106,7 @@ describe('DetailPanel · xl (columna fija)', () => {
     fireEvent.click(close);
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(document.activeElement).toBe(trigger);
-    expect(screen.getByText('Selecciona una fila…')).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).toBeNull();
   });
 
   it('Escape cierra la columna (foco dentro o en el disparador) y no hace nada con el panel cerrado', async () => {
@@ -85,7 +117,7 @@ describe('DetailPanel · xl (columna fija)', () => {
     screen.getByRole('button', { name: 'Cerrar perfil' }).focus();
     await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('Selecciona una fila…')).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).toBeNull();
     await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -100,7 +132,7 @@ describe('DetailPanel · xl (columna fija)', () => {
   });
 });
 
-describe('DetailPanel · por debajo de xl (panel lateral)', () => {
+describe('DetailPanel · por debajo de xl (hoja inferior)', () => {
   it('abierto: diálogo modal con nombre y data-detail-panel; sin región', () => {
     stubMatchMedia(false);
     render(<Harness />);
@@ -109,6 +141,16 @@ describe('DetailPanel · por debajo de xl (panel lateral)', () => {
     expect(screen.queryByRole('region')).toBeNull();
     expect(within(dialog).getByText('Sofía Méndez')).toBeInTheDocument();
     expect(within(dialog).getByText('Datos A')).toBeInTheDocument();
+  });
+
+  it('es una hoja inferior: sube desde abajo, esquinas superiores redondeadas y tope de altura', () => {
+    stubMatchMedia(false);
+    render(<Harness />);
+    const dialog = screen.getByRole('dialog');
+    for (const c of ['detail-sheet', 'inset-x-0', 'bottom-0', 'rounded-t-2xl', 'max-h-[92dvh]']) expect(dialog.className).toContain(c);
+    expect(dialog.className).not.toContain('right-0');
+    expect(document.querySelector('.detail-backdrop')).not.toBeNull();
+    expect(dialog.querySelector('.detail-rise')).not.toBeNull();
   });
 
   it('cerrado: no renderiza nada (ni estado vacío)', () => {
@@ -163,5 +205,21 @@ describe('DetailPanel · por debajo de xl (panel lateral)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('region', { name: 'Detalles de la persona' })).toBeInTheDocument();
     expect(screen.getByText('Datos B')).toBeInTheDocument();
+  });
+});
+
+describe('DetailPanel · movimiento (CSS)', () => {
+  const css = readFileSync(resolve(__dirname, '../../app/globals.css'), 'utf8');
+  const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)', css.indexOf('@keyframes detail-rise')));
+
+  it('la entrada traslada 24px hacia arriba y la hoja usa drawer-in-up', () => {
+    expect(css).toMatch(/@keyframes detail-rise \{ from \{ opacity: 0; transform: translateY\(24px\); \}/);
+    expect(css).toMatch(/\.detail-sheet\[data-state="open"\] \{ animation: drawer-in-up/);
+  });
+
+  it('prefers-reduced-motion: solo fade corto, sin transform (ni en contenido ni en hoja)', () => {
+    expect(reduced).toMatch(/\.detail-rise \{ animation: detail-fade 0\.15s/);
+    expect(reduced).toMatch(/\.detail-sheet\[data-state="open"\] \{ animation: detail-fade/);
+    expect(css).toMatch(/@keyframes detail-fade \{ from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);
   });
 });
