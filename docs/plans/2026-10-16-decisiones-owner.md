@@ -31,3 +31,12 @@ El dueño respondió "dale sí" a las cinco preguntas:
 - **P4** "Este mes" se compara con el mismo tramo del mes anterior (día 1 al día N), no con los N días previos.
 - **P5** Se adopta el vocabulario exacto del departamento y el libro anual enero–diciembre (Registro_Actividades_Culturales).
 Orden: PR-R1 y PR-R2 en paralelo → PR-R3 → PR-R4 → R5–R8.
+
+## 2026-10-20 · Puerta (auditoría docs/plans/2026-10-20-auditoria-plan-puerta.md)
+El dueño dijo "dale… manda un agente a implementar" sin objetar las recomendaciones; quedan como decisiones por defecto, ajustables:
+- **Q1** Agenda de reservas solo para la Sala VR (Ada Balcácer sin agenda por ahora).
+- **Q2** El rol puerta puede deshacer sus propios registros durante 10 minutos (después, solo owner/admin).
+- **Q3** Las reservas sin check-in pasan a "No vino" automáticamente al cierre del día, corregible a mano.
+- **Q4** Frecuencia de cortes de internet: sin dato → P8 en su versión mínima (cola local + reintento), después de P2.
+- **Q5** Sin turnos fijos en la VR por ahora (la agenda no impone franjas).
+Orden: PR-P1 y PR-P2 en paralelo → P3 → P4 → P5 → P6 → P7 → P8 → P9.
