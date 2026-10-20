@@ -12,6 +12,8 @@ import {
   CSS_VAR_BRAND_STRONG,
   CSS_VAR_CHART_1,
   CSS_VAR_CHART_2,
+  CSS_VAR_ACCENT_STRONG,
+  CSS_VAR_ACCENT_STRONG_FG,
 } from './theme';
 import { contrastRatio } from './contrast';
 import { getLocalBranding, DEFAULT_BRANDING } from './config';
@@ -33,7 +35,7 @@ describe('brandingToCssVars', () => {
     expect(contrastRatio('#ffffff', vars[CSS_VAR_BRAND_STRONG])).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('produce exactamente las once CSS vars esperadas', () => {
+  it('produce exactamente las trece CSS vars esperadas', () => {
     const vars = brandingToCssVars(DEFAULT_BRANDING);
     const expected = [
       CSS_VAR_BRAND,
@@ -47,6 +49,8 @@ describe('brandingToCssVars', () => {
       CSS_VAR_BRAND_STRONG,
       CSS_VAR_CHART_1,
       CSS_VAR_CHART_2,
+      CSS_VAR_ACCENT_STRONG,
+      CSS_VAR_ACCENT_STRONG_FG,
     ].sort();
     expect(Object.keys(vars).sort()).toEqual(expected);
   });
@@ -73,6 +77,18 @@ describe('brandingToCssVars', () => {
     expect(vars[CSS_VAR_FOCUS]).toBe('#269ed9');
     expect(contrastRatio(vars[CSS_VAR_FOCUS], '#ffffff')).toBeGreaterThanOrEqual(3);
     expect(vars[CSS_VAR_FOCUS]).not.toBe(vars[CSS_VAR_BRAND_STRONG]);
+  });
+
+  it('accent-strong deriva del secundario CCB (#31a3db) oscurecido a >=7:1 con texto blanco', () => {
+    const vars = brandingToCssVars({ ...DEFAULT_BRANDING, secondaryColor: '#31a3db' });
+    expect(vars[CSS_VAR_ACCENT_STRONG_FG]).toBe('#ffffff');
+    expect(contrastRatio(vars[CSS_VAR_ACCENT_STRONG_FG], vars[CSS_VAR_ACCENT_STRONG])).toBeGreaterThanOrEqual(7);
+    expect(vars[CSS_VAR_ACCENT_STRONG]).not.toBe('#31a3db');
+  });
+
+  it('accent-strong cae a un azul profundo (>=7:1) si el secundario no es hex valido', () => {
+    const vars = brandingToCssVars({ ...DEFAULT_BRANDING, secondaryColor: 'azul' });
+    expect(contrastRatio('#ffffff', vars[CSS_VAR_ACCENT_STRONG])).toBeGreaterThanOrEqual(7);
   });
 
   it('focus cae a brand-strong si el secundario no es un hex válido', () => {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { contrastRatio, textShade } from './contrast';
-import { brandingToCssVars, CSS_VAR_BRAND_FG, CSS_VAR_BRAND_TEXT, CSS_VAR_INFO_TEXT, CSS_VAR_FOCUS, CSS_VAR_BRAND_STRONG } from './theme';
+import { brandingToCssVars, CSS_VAR_BRAND_FG, CSS_VAR_BRAND_TEXT, CSS_VAR_INFO_TEXT, CSS_VAR_FOCUS, CSS_VAR_BRAND_STRONG, CSS_VAR_ACCENT_STRONG, CSS_VAR_ACCENT_STRONG_FG } from './theme';
 import { DEFAULT_BRANDING } from './config';
 
 const PRIMARIES   = ['#f39228', '#e65100', '#0182a2'];
@@ -40,6 +40,10 @@ describe('contraste de tokens derivados por tenant', () => {
 
         it('focus deriva del secundario oscurecido a ≥3:1 (no del primario)', () => {
           expect(vars[CSS_VAR_FOCUS]).toBe(textShade(secondary, BG_WHITE, 3));
+        });
+
+        it('accent-strong ≥7:1 con su texto (tarjeta oscura del Inicio)', () => {
+          expect(contrastRatio(vars[CSS_VAR_ACCENT_STRONG_FG], vars[CSS_VAR_ACCENT_STRONG])).toBeGreaterThanOrEqual(7);
         });
 
         it('brand-strong ≥4.5:1 con texto blanco', () => {
