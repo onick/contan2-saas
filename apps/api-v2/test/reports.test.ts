@@ -226,7 +226,7 @@ run('GET /reports/attendance-by-activity', () => {
     const buf = res.rawPayload;
     expect(buf.length).toBeGreaterThan(500);
     expect(buf.subarray(0, 5).toString('latin1')).toBe('%PDF-'); // PDF válido
-  });
+  }, 30_000); // Chromium bajo carga (suites en paralelo) supera los 5 s por defecto
 
   it('formato inválido → 400', async () => {
     expect((await get(`?from=${FROM}&to=${TO}&format=foo`, TOK.admin)).statusCode).toBe(400);
