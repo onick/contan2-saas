@@ -124,21 +124,19 @@ export default async function ActividadesPage() {
 
   return (
     <AppShell branding={branding} title="Actividades" activeKey="actividades">
-      <div className="mx-auto w-full max-w-[1600px]">
-        {isDemoFallbackAllowed() ? <DemoBanner /> : null}
-        <div className="app-reveal">
-          <SectionHeader
-            level={1}
-            title="Actividades"
-            subtitle="Gestiona los eventos del centro cultural"
-            actions={<NewActivityButton />}
-          />
-        </div>
-
-        <Suspense fallback={<ActivitiesSkeleton />}>
-          <ActivitiesData />
-        </Suspense>
+      {isDemoFallbackAllowed() ? <DemoBanner /> : null}
+      <div className="app-reveal">
+        <SectionHeader
+          level={1}
+          title="Actividades"
+          subtitle="Gestiona los eventos del centro cultural"
+          actions={<NewActivityButton />}
+        />
       </div>
+
+      <Suspense fallback={<ActivitiesSkeleton />}>
+        <ActivitiesData />
+      </Suspense>
     </AppShell>
   );
 }

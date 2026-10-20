@@ -42,87 +42,85 @@ export default async function SegmentMembersPage({ params }: { params: Promise<{
 
   return (
     <AppShell branding={branding} title="Segmentos" activeKey="segmentos">
-      <div className="mx-auto w-full max-w-[1600px]">
-        {!result.ok ? (
-          <Unavailable inline title="Segmento no disponible" description="No pudimos cargar los miembros. Reintenta en unos segundos." />
-        ) : (
-          <>
-            {/* relative z-20: el menú "Exportar" (dropdown absolute) debe pintar por
-                encima de la tabla; app-reveal deja un transform → stacking context, y
-                sin esto el contenedor de la tabla (posterior en el DOM) lo tapa. */}
-            <div className="app-reveal relative z-20">
-              <a href="/app/segmentos" className={cn('inline-flex items-center gap-1.5 rounded text-[13px] font-semibold text-muted hover:text-ink', focusRing)}>
-                <ArrowLeft size={15} strokeWidth={2} aria-hidden="true" /> Todos los segmentos
-              </a>
-              <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
-                <SectionHeader
-                  level={1}
-                  title={result.data.segment.label}
-                  subtitle={`${result.data.total.toLocaleString('en-US')} miembro${result.data.total === 1 ? '' : 's'} · ${result.data.segment.description.toLowerCase()}`}
-                />
-                {canExport && result.data.total > 0 ? (
-                  <SegmentExportButton segmentId={id} total={result.data.total} />
-                ) : null}
-              </div>
-            </div>
-
-            <div className="app-reveal mt-6" style={{ animationDelay: '80ms' }}>
-              {result.data.members.length === 0 ? (
-                <EmptyState icon={UsersRound} title="Sin miembros" description="Nadie cumple los criterios de este segmento todavía." />
-              ) : (
-                <Card padding="none" className="overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] border-collapse">
-                      <thead>
-                        <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-                          <th className="px-5 py-3 md:px-6">Visitante</th>
-                          <th className="px-4 py-3">Contacto</th>
-                          <th className="px-4 py-3 text-right">Asistencias</th>
-                          <th className="hidden px-4 py-3 md:table-cell">Última visita</th>
-                          <th className="px-4 py-3">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody className="app-stagger">
-                        {result.data.members.map((m) => {
-                          const tone = STATUS_TONE[m.status];
-                          return (
-                            <tr key={m.id} className="border-t border-line align-middle hover:bg-page">
-                              <td className="px-5 py-3.5 md:px-6">
-                                <a href={`/app/usuarios?q=${encodeURIComponent(m.code)}`} className={cn('group/link block min-w-0 rounded', focusRing)}>
-                                  <p className="truncate text-sm font-medium tracking-tight text-ink group-hover/link:text-brand-text">{m.firstName} {m.lastName}</p>
-                                  <p className="font-mono text-[11px] tracking-wide text-faint">{m.code}</p>
-                                </a>
-                              </td>
-                              <td className="px-4 py-3.5 text-[13px] text-muted">
-                                {m.email ?? <span className="text-faint">Sin email</span>}
-                                {m.phone ? <span className="block text-[12px] text-faint">{m.phone}</span> : null}
-                              </td>
-                              <td className="px-4 py-3.5 text-right">
-                                <span className="text-sm font-semibold tabular-nums text-ink">{m.totalAttendances}</span>
-                              </td>
-                              <td className="hidden whitespace-nowrap px-4 py-3.5 text-[13px] text-muted md:table-cell">
-                                {m.lastAttendanceAt
-                                  ? <>{DATE_FMT.format(new Date(m.lastAttendanceAt))}{m.daysSinceLastVisit !== null ? <span className="text-faint"> · hace {m.daysSinceLastVisit} d</span> : null}</>
-                                  : <span className="text-faint">—</span>}
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <Chip className={tone.cls}>{tone.label}</Chip>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-              )}
-              {result.data.total > result.data.members.length ? (
-                <p className="mt-3 text-[12px] text-faint">Mostrando los primeros {result.data.members.length} (de {result.data.total}) por asistencias.</p>
+      {!result.ok ? (
+        <Unavailable inline title="Segmento no disponible" description="No pudimos cargar los miembros. Reintenta en unos segundos." />
+      ) : (
+        <>
+          {/* relative z-20: el menú "Exportar" (dropdown absolute) debe pintar por
+              encima de la tabla; app-reveal deja un transform → stacking context, y
+              sin esto el contenedor de la tabla (posterior en el DOM) lo tapa. */}
+          <div className="app-reveal relative z-20">
+            <a href="/app/segmentos" className={cn('inline-flex items-center gap-1.5 rounded text-[13px] font-semibold text-muted hover:text-ink', focusRing)}>
+              <ArrowLeft size={15} strokeWidth={2} aria-hidden="true" /> Todos los segmentos
+            </a>
+            <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+              <SectionHeader
+                level={1}
+                title={result.data.segment.label}
+                subtitle={`${result.data.total.toLocaleString('en-US')} miembro${result.data.total === 1 ? '' : 's'} · ${result.data.segment.description.toLowerCase()}`}
+              />
+              {canExport && result.data.total > 0 ? (
+                <SegmentExportButton segmentId={id} total={result.data.total} />
               ) : null}
             </div>
-          </>
-        )}
-      </div>
+          </div>
+
+          <div className="app-reveal mt-6" style={{ animationDelay: '80ms' }}>
+            {result.data.members.length === 0 ? (
+              <EmptyState icon={UsersRound} title="Sin miembros" description="Nadie cumple los criterios de este segmento todavía." />
+            ) : (
+              <Card padding="none" className="overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] border-collapse">
+                    <thead>
+                      <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
+                        <th className="px-5 py-3 md:px-6">Visitante</th>
+                        <th className="px-4 py-3">Contacto</th>
+                        <th className="px-4 py-3 text-right">Asistencias</th>
+                        <th className="hidden px-4 py-3 md:table-cell">Última visita</th>
+                        <th className="px-4 py-3">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="app-stagger">
+                      {result.data.members.map((m) => {
+                        const tone = STATUS_TONE[m.status];
+                        return (
+                          <tr key={m.id} className="border-t border-line align-middle hover:bg-page">
+                            <td className="px-5 py-3.5 md:px-6">
+                              <a href={`/app/usuarios?q=${encodeURIComponent(m.code)}`} className={cn('group/link block min-w-0 rounded', focusRing)}>
+                                <p className="truncate text-sm font-medium tracking-tight text-ink group-hover/link:text-brand-text">{m.firstName} {m.lastName}</p>
+                                <p className="font-mono text-[11px] tracking-wide text-faint">{m.code}</p>
+                              </a>
+                            </td>
+                            <td className="px-4 py-3.5 text-[13px] text-muted">
+                              {m.email ?? <span className="text-faint">Sin email</span>}
+                              {m.phone ? <span className="block text-[12px] text-faint">{m.phone}</span> : null}
+                            </td>
+                            <td className="px-4 py-3.5 text-right">
+                              <span className="text-sm font-semibold tabular-nums text-ink">{m.totalAttendances}</span>
+                            </td>
+                            <td className="hidden whitespace-nowrap px-4 py-3.5 text-[13px] text-muted md:table-cell">
+                              {m.lastAttendanceAt
+                                ? <>{DATE_FMT.format(new Date(m.lastAttendanceAt))}{m.daysSinceLastVisit !== null ? <span className="text-faint"> · hace {m.daysSinceLastVisit} d</span> : null}</>
+                                : <span className="text-faint">—</span>}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <Chip className={tone.cls}>{tone.label}</Chip>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
+            {result.data.total > result.data.members.length ? (
+              <p className="mt-3 text-[12px] text-faint">Mostrando los primeros {result.data.members.length} (de {result.data.total}) por asistencias.</p>
+            ) : null}
+          </div>
+        </>
+      )}
     </AppShell>
   );
 }

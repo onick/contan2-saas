@@ -84,7 +84,7 @@ export default async function RegistrosPage({
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Registros" activeKey="registros">
-      <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+      {children}
     </AppShell>
   );
   const actions = (

@@ -20,22 +20,20 @@ export default async function PuertaPage() {
   const branding = await getTenantBranding();
   return (
     <AppShell branding={branding} title="Puerta" activeKey="puerta">
-      <div className="mx-auto w-full max-w-[1600px]">
-        <div className="app-reveal">
-          <SectionHeader
-            level={1}
-            title="Puerta · Salas permanentes"
-            subtitle="Elige la sala (o ambas) y registra al visitante. Cada entrada suma a la estadística de esa sala."
-            actions={
-              <Link href="/app/puerta/reportes" className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
-                <BarChart3 size={16} strokeWidth={1.9} aria-hidden="true" /> Reportes y estadísticas
-              </Link>
-            }
-          />
-        </div>
-        <div className="app-reveal mt-6" style={{ animationDelay: '80ms' }}>
-          <PuertaBoard initial={[]} />
-        </div>
+      <div className="app-reveal">
+        <SectionHeader
+          level={1}
+          title="Puerta · Salas permanentes"
+          subtitle="Elige la sala (o ambas) y registra al visitante. Cada entrada suma a la estadística de esa sala."
+          actions={
+            <Link href="/app/puerta/reportes" className={cn('inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+              <BarChart3 size={16} strokeWidth={1.9} aria-hidden="true" /> Reportes y estadísticas
+            </Link>
+          }
+        />
+      </div>
+      <div className="app-reveal mt-6" style={{ animationDelay: '80ms' }}>
+        <PuertaBoard initial={[]} />
       </div>
     </AppShell>
   );

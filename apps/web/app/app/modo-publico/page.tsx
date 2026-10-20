@@ -19,16 +19,14 @@ export default async function ModoPublicoPage() {
   const branding = await getTenantBranding();
   return (
     <AppShell branding={branding} title="Modo público" activeKey="modo-publico">
-      <div className="mx-auto w-full max-w-[1600px]">
-        <div className="app-reveal">
-          <SectionHeader
-            level={1}
-            title="Modo público"
-            subtitle="Las pantallas que el público y el staff usan en la entrada. Configúralas una vez en cada tablet y déjalas corriendo."
-          />
-        </div>
-        <PublicAppsHub />
+      <div className="app-reveal">
+        <SectionHeader
+          level={1}
+          title="Modo público"
+          subtitle="Las pantallas que el público y el staff usan en la entrada. Configúralas una vez en cada tablet y déjalas corriendo."
+        />
       </div>
+      <PublicAppsHub />
     </AppShell>
   );
 }

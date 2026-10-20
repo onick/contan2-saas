@@ -25,13 +25,11 @@ export default async function IdentidadPage() {
 
   return (
     <AppShell branding={branding} title="Identidad" activeKey="identidad">
-      <div className="mx-auto w-full max-w-[1600px]">
-        <div className="app-reveal">
-          <SectionHeader level={1} title="Identidad" subtitle="La marca de tu organización aplicada en toda la plataforma" />
-        </div>
-        <div className="app-reveal mt-6" style={{ animationDelay: '80ms' }}>
-          <BrandingEditor initial={initial} canEdit={canEdit} />
-        </div>
+      <div className="app-reveal">
+        <SectionHeader level={1} title="Identidad" subtitle="La marca de tu organización aplicada en toda la plataforma" />
+      </div>
+      <div className="app-reveal mt-6" style={{ animationDelay: '80ms' }}>
+        <BrandingEditor initial={initial} canEdit={canEdit} />
       </div>
     </AppShell>
   );

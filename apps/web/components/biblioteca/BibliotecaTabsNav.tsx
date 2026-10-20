@@ -2,7 +2,11 @@
 
 // BibliotecaTabsNav — sub-navegación del módulo Biblioteca.
 // Cliente hoja: solo lee usePathname() para determinar la pestaña activa.
-// Full-bleed: extiende el nav al borde del área de contenido del AppShell.
+// Alineado al contenido (mismo contenedor --content-max que el resto del admin): la
+// primera pestaña arranca en la misma x que el h1 de cualquier sección y el borde
+// inferior mide lo mismo que las tablas/tarjetas de abajo. Antes era full-bleed
+// (márgenes negativos del padding de <main>), lo que en pantallas anchas lo
+// desalineaba del contenido.
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -24,12 +28,11 @@ export function BibliotecaTabsNav() {
   const activeKey = activeTabKey(pathname);
 
   return (
-    // Negativa de márgenes del AppShell para que el borde inferior llegue de lado a lado.
     <nav
       aria-label="Secciones de Biblioteca"
-      className="-mx-5 mb-6 overflow-x-auto border-b border-line md:-mx-7 xl:-mx-8"
+      className="mb-6 overflow-x-auto border-b border-line"
     >
-      <div className="flex px-5 [scroll-snap-type:x_mandatory] md:px-7 xl:px-8">
+      <div className="flex [scroll-snap-type:x_mandatory]">
         {BIBLIOTECA_TABS.map((t) => (
           <Link
             key={t.href}

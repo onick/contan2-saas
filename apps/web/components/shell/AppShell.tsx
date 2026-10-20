@@ -16,8 +16,19 @@ export interface AppShellProps {
   // Rol del staff: filtra nav en Sidebar y MobileNav.
   // undefined → se lee del gate (producción); null → sin filtro (tests).
   role?: string | null;
+  // Tope de ancho alternativo (--content-max-wide) para la página que de verdad lo
+  // necesite (p. ej. una tabla de muchas columnas). Nunca una clase max-w suelta.
+  wide?: boolean;
   children: ReactNode;
 }
+
+// Regla ÚNICA de ancho del contenido del admin: el hijo directo de <main> centra y
+// topa el contenido con el token CSS (app/globals.css). Las páginas no envuelven su
+// contenido en su propio max-w → misma x de arranque del h1 en todas las secciones.
+export const CONTENT_WIDTH_CLASS = {
+  default: 'mx-auto w-full max-w-[var(--content-max)]',
+  wide: 'mx-auto w-full max-w-[var(--content-max-wide)]',
+} as const;
 
 // Estructura base del tenant-admin: Sidebar + (Topbar + main).
 //   base (mobile 375): columna única, Sidebar oculto, barra inferior fija.
@@ -28,7 +39,7 @@ export interface AppShellProps {
 // `minmax(0,1fr)` en la columna de contenido evita overflow horizontal.
 // getAdminGate usa React.cache → una sola llamada por request compartida con
 // el layout; en tests (sin contexto Next.js) el try/catch deja role=null.
-export async function AppShell({ branding, title, activeKey, meta, children, role: roleProp }: AppShellProps) {
+export async function AppShell({ branding, title, activeKey, meta, children, role: roleProp, wide = false }: AppShellProps) {
   // Cuando roleProp no se pasa (undefined), leemos el rol del gate cacheado.
   // En tests, getAdminGate lanza (cookies() no está disponible) → role=null.
   let role: string | null = roleProp !== undefined ? roleProp : null;
@@ -50,7 +61,11 @@ export async function AppShell({ branding, title, activeKey, meta, children, rol
       <div className="flex min-w-0 flex-col">
         <Topbar branding={branding} title={title} meta={meta} />
         {/* pb-[...] reserva espacio para la barra inferior en mobile. */}
-        <main className="flex-1 p-5 pb-[calc(5rem+env(safe-area-inset-bottom))] md:p-7 md:pb-7 xl:p-8 xl:pb-8">{children}</main>
+        <main className="flex-1 p-5 pb-[calc(5rem+env(safe-area-inset-bottom))] md:p-7 md:pb-7 xl:p-8 xl:pb-8">
+          <div data-content-width={wide ? 'wide' : 'default'} className={CONTENT_WIDTH_CLASS[wide ? 'wide' : 'default']}>
+            {children}
+          </div>
+        </main>
       </div>
     </SidebarShell>
   );

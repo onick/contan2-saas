@@ -23,7 +23,7 @@ export default async function HistorialPage() {
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Historial" activeKey="historial">
-      <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+      {children}
     </AppShell>
   );
 

@@ -26,7 +26,7 @@ export default async function EquipoPage() {
 
   const shell = (children: ReactNode) => (
     <AppShell branding={branding} title="Mi equipo" activeKey="equipo">
-      <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+      {children}
     </AppShell>
   );
 
