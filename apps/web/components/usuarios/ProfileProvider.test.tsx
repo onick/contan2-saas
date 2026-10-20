@@ -80,16 +80,19 @@ describe('ProfileProvider · UI-2b interacción', () => {
 });
 
 describe('ProfileProvider · master-detail (layout="column")', () => {
-  it('xl: columna fija con estado vacío; "Ver perfil" llena la región sin abrir un diálogo', async () => {
+  it('xl: la columna está plegada hasta elegir; "Ver perfil" la abre sin diálogo y se cierra de nuevo', async () => {
     stubViewport(true);
-    render(<Table layout="column" />);
-    const region = screen.getByRole('region', { name: 'Detalles de la persona' });
-    expect(region).toHaveTextContent(/Selecciona una fila/);
+    const { container } = render(<Table layout="column" />);
+    const aside = container.querySelector('aside[data-detail-panel]')!;
+    expect(aside).toHaveAttribute('data-detail-state', 'closed');
+    expect(aside).not.toHaveTextContent(/Selecciona una fila/);
     fireEvent.click(screen.getAllByRole('button', { name: /Ver perfil/ })[0]!);
-    await waitFor(() => expect(region).toHaveTextContent(/Sofía Méndez/));
+    await waitFor(() => expect(aside).toHaveTextContent(/Sofía Méndez/));
+    expect(aside).toHaveAttribute('data-detail-state', 'open');
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar perfil' }));
-    expect(region).toHaveTextContent(/Selecciona una fila/);
+    expect(aside).toHaveAttribute('data-detail-state', 'closed');
+    expect(aside).not.toHaveTextContent(/Sofía Méndez/);
   });
 
   it('xl: el deep-link ?ver= abre el perfil en la columna', async () => {

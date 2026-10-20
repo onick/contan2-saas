@@ -20,20 +20,28 @@ function stubViewport(xl: boolean) {
 }
 
 describe('LectoresClient · panel de detalles (DetailPanel)', () => {
-  it('xl: columna con estado vacío; al elegir una fila muestra el lector en la región', () => {
+  it('xl: la columna está plegada sin selección; al elegir una fila se abre, resalta la fila y cierra de nuevo', () => {
     stubViewport(true);
-    render(<LectoresClient initial={initial} initialStats={null} />);
-    const region = screen.getByRole('region', { name: 'Detalles del lector' });
-    expect(within(region).getByText(/Selecciona una fila/)).toBeInTheDocument();
+    const { container } = render(<LectoresClient initial={initial} initialStats={null} />);
+    const aside = container.querySelector('aside[data-detail-panel]')!;
+    expect(aside).toHaveAttribute('data-detail-state', 'closed');
+    expect(screen.queryByText(/Selecciona una fila/)).toBeNull();
+    expect(container.querySelector('tr[aria-current="true"]')).toBeNull();
     fireEvent.click(screen.getAllByRole('button', { name: 'Ver detalles de Ana Pérez' })[0]!);
+    expect(aside).toHaveAttribute('data-detail-state', 'open');
+    const region = screen.getByRole('region', { name: 'Detalles del lector' });
     expect(within(region).getByText('Ana Pérez')).toBeInTheDocument();
     expect(within(region).getByText('CCB-AAA111')).toBeInTheDocument();
     expect(within(region).getByRole('tab', { name: 'Préstamos' })).toBeInTheDocument();
+    const current = container.querySelector('tr[aria-current="true"]')!;
+    expect(current).toHaveTextContent('Ana Pérez');
+    expect(current.className).toContain('bg-brand-soft/60');
     fireEvent.click(within(region).getByRole('button', { name: 'Cerrar detalles' }));
-    expect(within(region).getByText(/Selecciona una fila/)).toBeInTheDocument();
+    expect(aside).toHaveAttribute('data-detail-state', 'closed');
+    expect(container.querySelector('tr[aria-current="true"]')).toBeNull();
   });
 
-  it('< xl: panel lateral como diálogo', () => {
+  it('< xl: hoja inferior como diálogo', () => {
     stubViewport(false);
     render(<LectoresClient initial={initial} initialStats={null} />);
     expect(screen.queryByRole('dialog')).toBeNull();

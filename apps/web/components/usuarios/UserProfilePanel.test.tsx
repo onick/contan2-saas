@@ -123,11 +123,12 @@ describe.each([['xl · columna fija', true], ['< xl · panel lateral', false]] a
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('code=null: sin diálogo; la columna muestra el estado vacío', () => {
+  it('code=null: sin diálogo; la columna queda plegada (sin estado vacío)', () => {
     installFetch({});
     render(<UserProfilePanel code={null} onClose={() => {}} />);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    if (xl) expect(screen.getByText(/Selecciona una fila/)).toBeInTheDocument(); // columna con estado vacío
+    expect(screen.queryByText(/Selecciona una fila/)).toBeNull();
+    if (xl) expect(document.querySelector('aside[data-detail-panel]')).toHaveAttribute('data-detail-state', 'closed');
     else expect(panelEl()).toBeNull();
   });
 

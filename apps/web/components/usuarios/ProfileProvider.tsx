@@ -14,8 +14,8 @@ import { useSearchParamsSafe } from '../../lib/navigation/safe';
 import { UserProfilePanel } from './UserProfilePanel';
 import { DetailLayout, IconButton } from '../ui';
 
-interface ProfileActions { open: (code: string) => void; openEdit: (code: string) => void; }
-const ProfileCtx = createContext<ProfileActions>({ open: () => {}, openEdit: () => {} });
+interface ProfileActions { open: (code: string) => void; openEdit: (code: string) => void; /** Código del perfil abierto (para resaltar su fila). */ activeCode: string | null; }
+const ProfileCtx = createContext<ProfileActions>({ open: () => {}, openEdit: () => {}, activeCode: null });
 export function useProfileActions() { return useContext(ProfileCtx); }
 
 const CODE_RE = /^[A-Za-z]{2,6}-[A-Za-z0-9]{4,10}$/;
@@ -56,7 +56,7 @@ export function ProfileProvider({ children, canEdit = false, layout = 'overlay' 
   );
 
   return (
-    <ProfileCtx.Provider value={{ open, openEdit }}>
+    <ProfileCtx.Provider value={{ open, openEdit, activeCode: code }}>
       {layout === 'column' ? (
         <DetailLayout>
           <div className="min-w-0" onClick={onWrapClick} onKeyDown={onWrapKeyDown}>{children}</div>
