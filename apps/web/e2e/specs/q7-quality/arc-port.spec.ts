@@ -183,31 +183,40 @@ test.describe('arc · NumberField', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
-// B · OtpInput en el PIN del escáner (sin enviar: límite 8/min por IP)
+// B · OtpInput en el PIN del escáner (un solo envío por corrida: límite 8/min por IP)
 // ───────────────────────────────────────────────────────────────────────────────
 test.describe('arc · OtpInput', () => {
   test.use({ storageState: EMPTY });
-  test('ARC-B1 /scanner: un input real, casillas aria-hidden, pegado saneado, Backspace de a uno', async ({ page }) => {
+  test('ARC-B1 /scanner: un input real, 4 casillas fijas, pegado saneado, Backspace de a uno, recorte + autoenvío al 4.º dígito', async ({ page }) => {
     await gotoSettled(page, '/scanner');
     const pin = page.getByLabel('PIN del centro');
     await expect(pin).toBeVisible();
     await expect(pin).toHaveAttribute('inputmode', 'numeric');
     await expect(pin).toBeFocused();
     await expect(page.locator('input[aria-label="PIN del centro"]')).toHaveCount(1);
+    // PIN de puerta = 4 dígitos exactos (2026-10-20): cuatro casillas fijas y maxlength 4.
     const slots = page.locator('.arc-otp-slots[aria-hidden="true"] > *');
-    // PIN de puerta = 4 dígitos exactos (2026-10-20): cuatro casillas fijas y el campo recorta lo que sobre.
     await expect(slots).toHaveCount(4);
     await expect(pin).toHaveAttribute('maxlength', '4');
-    await pin.fill('123456');
-    await expect(pin).toHaveValue('1234');
-    await expect(slots).toHaveCount(4);
-    await pin.fill('12 34');
-    await expect(pin).toHaveValue('1234');
-    await expect(page.locator('.arc-otp-slots > [data-filled="true"]')).toHaveCount(4);
-    await page.keyboard.press('Backspace');
+    // Con menos de 4 dígitos no se envía: pegado saneado y Backspace de a uno.
+    await pin.fill('12 3');
     await expect(pin).toHaveValue('123');
     await expect(page.locator('.arc-otp-slots > [data-filled="true"]')).toHaveCount(3);
+    await page.keyboard.press('Backspace');
+    await expect(pin).toHaveValue('12');
+    await expect(page.locator('.arc-otp-slots > [data-filled="true"]')).toHaveCount(2);
     await pin.fill('');
     await expect(page.locator('.arc-otp-slots > [data-filled="true"]')).toHaveCount(0);
+    // Al 4.º dígito se envía solo con el PIN recortado a 4 (el resto se descarta); un PIN falso → 401,
+    // el campo se vacía y se muestra el error. Sigue habiendo 4 casillas.
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/scanner/api/pin') && r.request().method() === 'POST'),
+      pin.fill('000012'),
+    ]);
+    expect(resp.request().postDataJSON()).toEqual({ pin: '0000' });
+    expect(resp.status()).toBe(401);
+    await expect(page.locator('#scanner-pin-error')).toContainText('PIN incorrecto'); // getByRole('alert') choca con el route-announcer de Next
+    await expect(pin).toHaveValue('');
+    await expect(slots).toHaveCount(4);
   });
 });
