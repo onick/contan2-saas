@@ -9,7 +9,7 @@ import {
   type CreatedActivity, type CreatedVisitor,
 } from '../../support/q3-api';
 import { isPng, isXlsx } from '../../support/downloads';
-import { CODE_RE, settle } from '../../support/q3-ui';
+import { CODE_RE, profilePanel, settle } from '../../support/q3-ui';
 import { expectNoHorizontalOverflow } from '../../support/layout';
 
 test.describe.configure({ retries: 0 });
@@ -90,7 +90,7 @@ test.describe('ADM-10 · usuarios: busqueda, facetas y perfil', () => {
     await settle(page);
     const ver = rowOf(page, v1.code).getByRole('button', { name: `Ver perfil ${v1.code}` });
     await ver.click();
-    const dialog = page.getByRole('dialog').filter({ hasText: v1.code });
+    const dialog = profilePanel(page, v1.code);
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText('Credencial', { exact: true })).toBeVisible();
     await expect(dialog.getByRole('link', { name: /Imprimir credencial/ })).toHaveAttribute('href', new RegExp(`/api/credentials/${v1.code}\\.png`));
@@ -134,7 +134,7 @@ test.describe('ADM-11 · alta, edicion, archivar y reactivar', () => {
     await page.goto(`/app/usuarios?q=${encodeURIComponent(email)}`);
     await settle(page);
     await rowOf(page, code).getByRole('button', { name: `Ver perfil ${code}` }).click();
-    const dialog = page.getByRole('dialog').filter({ hasText: code });
+    const dialog = profilePanel(page, code);
     await dialog.getByRole('button', { name: 'Editar' }).click();
     await dialog.getByLabel('Teléfono').fill(e2ePhone(62));
     const patch = page.waitForResponse((r) => r.url().includes(`/app/usuarios/api/${code}`) && r.request().method() === 'PATCH');

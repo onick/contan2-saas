@@ -94,13 +94,31 @@ export default async function UsuariosPage({
       <>
         <DemoBanner />
         <SectionHeader level={1} title="Usuarios" subtitle="Personas con cuenta en la plataforma" actions={actions} />
-        <ProfileProvider canEdit={canWrite}><div className="mt-4"><UsersTable users={USERS} canWrite={canWrite} /></div></ProfileProvider>
+        <ProfileProvider canEdit={canWrite} layout="column"><div className="mt-4"><UsersTable users={USERS} canWrite={canWrite} /></div></ProfileProvider>
       </>,
     );
   }
 
   const hasFilters = q.trim() !== '' || cohort !== 'all' || status !== 'active';
   const totalLabel = hasFilters ? 'Resultados' : 'Total';
+
+  // Toolbar
+  const toolbar = (
+      <Card padding="none" className="p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-0 flex-1 sm:w-72 sm:flex-none">
+            <SearchBar label="Buscar por nombre o correo" placeholder="Buscar por nombre o correo" />
+          </div>
+          <CohortFilterButton />
+          <EstadoFilterButton />
+          {canWrite ? (
+            <div className="ml-auto">
+              <BulkCredentialsButton pendingCount={pendingCreds} className="border-dashed" />
+            </div>
+          ) : null}
+        </div>
+      </Card>
+  );
 
   return shell(
     <>
@@ -139,45 +157,36 @@ export default async function UsuariosPage({
         />
       </div>
 
-      {/* Toolbar */}
-      <Card padding="none" className="mt-4 p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="min-w-0 flex-1 sm:w-72 sm:flex-none">
-            <SearchBar label="Buscar por nombre o correo" placeholder="Buscar por nombre o correo" />
-          </div>
-          <CohortFilterButton />
-          <EstadoFilterButton />
-          {canWrite ? (
-            <div className="ml-auto">
-              <BulkCredentialsButton pendingCount={pendingCreds} className="border-dashed" />
-            </div>
-          ) : null}
-        </div>
-      </Card>
-
+      {/* Lista + columna de detalle (master-detail): la tabla no se tapa en xl */}
+      <div className="mt-4">
       {view.total === 0 ? (
-        <Card padding="lg" className="mt-4">
-          <EmptyState
-            icon={SearchX}
-            title="Sin resultados"
-            description={
-              q.trim()
-                ? 'No encontramos usuarios para tu búsqueda. Prueba con otro término.'
-                : cohort !== 'all'
-                  ? 'No hay usuarios en esta cohorte.'
-                  : 'Aún no hay visitantes registrados.'
-            }
-          />
-        </Card>
+        <>
+          {toolbar}
+          <Card padding="lg" className="mt-4">
+            <EmptyState
+              icon={SearchX}
+              title="Sin resultados"
+              description={
+                q.trim()
+                  ? 'No encontramos usuarios para tu búsqueda. Prueba con otro término.'
+                  : cohort !== 'all'
+                    ? 'No hay usuarios en esta cohorte.'
+                    : 'Aún no hay visitantes registrados.'
+              }
+            />
+          </Card>
+          <Pagination total={view.total} page={page} pageSize={pageSize} />
+        </>
       ) : (
-        <ProfileProvider canEdit={canWrite}>
+        <ProfileProvider canEdit={canWrite} layout="column">
+          {toolbar}
           <div className="mt-4">
             <UsersTable users={view.users} canWrite={canWrite} />
           </div>
+          <Pagination total={view.total} page={page} pageSize={pageSize} />
         </ProfileProvider>
       )}
-
-      <Pagination total={view.total} page={page} pageSize={pageSize} />
+      </div>
     </>,
   );
 }

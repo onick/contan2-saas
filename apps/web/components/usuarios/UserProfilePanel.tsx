@@ -1,18 +1,18 @@
 'use client';
 
-// components/usuarios/UserProfileDrawer.tsx · perfil READ-ONLY del visitante en un
-// drawer accesible (UI-2a). Reutiliza useDrawerLifecycle (cierre animado, Escape,
-// scroll-lock, foco). Al abrir, carga en paralelo detalle + historial (1ª página) +
-// afinidad, cada sección con estado honesto (loading/error/empty). Copiar código con
-// feedback accesible. SIN acciones de escritura (editar/reenviar/archivar) en UI-2a.
+// components/usuarios/UserProfilePanel.tsx · perfil del visitante en el panel de detalle
+// (master-detail): columna fija en xl, panel lateral debajo (DetailPanel del kit). Al abrir
+// carga en paralelo detalle + historial (1ª página) + afinidad, cada sección con estado
+// honesto (loading/error/empty). Pestañas: Información (datos, edición en línea, credencial),
+// Visitas (métricas + historial) y Afinidad (sólo si hay asistencias). Archivar/reactivar al pie.
+// Con canEdit=false (operator/consulta) es solo lectura.
 
-import { useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles, Pencil, Send, Archive, ArchiveRestore, Printer } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Copy, Check, CalendarDays, MapPin, Tag, Users, Mail, Phone, FileText, Loader2, Sparkles, Pencil, Send, Archive, ArchiveRestore, Printer, QrCode, IdCard } from 'lucide-react';
 import type { UserListItem, UserActivityHistoryItem, UserAffinityResponse, AffinityBucket, AdminUserUpdateRequest, AdminCredentialResendResponse } from '@contan2/contracts';
 import { getUserDetail, getUserActivities, getUserAffinity, updateUser, resendCredential, archiveUser, reactivateUser } from '../../lib/api/profile-client';
 import { initials, avatarFor } from './UsersTable';
-import { Button, IconButton, Chip, cn, focusRing, useDrawerLifecycle, type ChipTone } from '../ui';
+import { Button, Chip, DetailPanel, TabsContent, cn, focusRing, type ChipTone } from '../ui';
 
 type Async<T> = { phase: 'loading' } | { phase: 'error'; error: string } | { phase: 'ready'; data: T };
 const HISTORY_PAGE = 10;
@@ -51,24 +51,21 @@ const RESEND_TONE: Record<AdminCredentialResendResponse['result'], string> = {
   error: 'bg-danger-bg text-danger-fg',
 };
 
-export interface UserProfileDrawerProps {
+export interface UserProfilePanelProps {
   code: string | null;
   onClose: () => void;
-  canEdit?: boolean; // owner/admin → habilita editar (el API igual arbitra el rol)
+  canEdit?: boolean; // owner/admin → habilita editar/reenviar/archivar (el API igual arbitra el rol)
   initialEdit?: boolean; // abrir directo en modo edición (acción "Editar" de la fila)
+  mode?: 'auto' | 'overlay'; // 'overlay' = siempre panel lateral (páginas sin columna reservada)
 }
 
-export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit = false }: UserProfileDrawerProps) {
-  const titleId = useId();
-  const open = code !== null;
-  const { mounted, closing, panelRef } = useDrawerLifecycle({ open, onEscape: onClose });
-  const containerRef = useRef<HTMLDivElement>(null);
-  const editIntentConsumed = useRef(false);
-  // Snapshot del último code no-nulo: retiene el contenido durante la animación de cierre.
-  const shownRef = useRef(code);
-  if (code) shownRef.current = code;
-  const shown = shownRef.current;
+type TabKey = 'informacion' | 'visitas' | 'afinidad';
 
+export function UserProfilePanel({ code, onClose, canEdit = false, initialEdit = false, mode = 'auto' }: UserProfilePanelProps) {
+  const editIntentConsumed = useRef(false);
+  const shown = code;
+
+  const [tab, setTab] = useState<TabKey>('informacion');
   const [detail, setDetail] = useState<Async<UserListItem>>({ phase: 'loading' });
   const [affinity, setAffinity] = useState<Async<UserAffinityResponse>>({ phase: 'loading' });
   const [history, setHistory] = useState<Async<UserActivityHistoryItem[]>>({ phase: 'loading' });
@@ -95,6 +92,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
   useEffect(() => {
     if (!code) return;
     const ac = new AbortController();
+    setTab('informacion');
     setDetail({ phase: 'loading' }); setAffinity({ phase: 'loading' });
     setHistory({ phase: 'loading' }); setHistoryTotal(0); setCopied(false);
     setEditing(false); setSaveError(null); editIntentConsumed.current = false;
@@ -109,9 +107,6 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
     }).catch(() => {});
     return () => ac.abort();
   }, [code]);
-
-  // Foco inicial al contenedor al abrir.
-  useEffect(() => { if (mounted) containerRef.current?.focus(); }, [mounted]);
 
   // Acción "Editar" de la fila: entra directo en modo edición cuando el detalle
   // queda listo (una sola vez por apertura, y sólo con permiso).
@@ -140,7 +135,7 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
     if (detail.phase !== 'ready') return;
     const d = detail.data;
     setForm({ firstName: d.firstName, lastName: d.lastName, email: d.email ?? '', phone: d.phone ?? '' });
-    setSaveError(null); setEditing(true);
+    setSaveError(null); setTab('informacion'); setEditing(true);
   }
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -195,172 +190,192 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
     else setArchiveError(r.error);
   }
 
-  if (!mounted || !shown || typeof document === 'undefined') return null;
-
   const labelCls = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-faint';
+  const ready = detail.phase === 'ready' ? detail.data : null;
+  const hasAffinity = affinity.phase === 'ready' && affinity.data.totalAttended > 0;
+  const tabs = [
+    { value: 'informacion', label: 'Información' },
+    { value: 'visitas', label: 'Visitas' },
+    ...(hasAffinity ? [{ value: 'afinidad', label: 'Afinidad' }] : []),
+  ];
+  const fullName = ready ? `${ready.firstName} ${ready.lastName}`.trim() : '…';
 
-  return createPortal(
-    <div ref={containerRef} tabIndex={-1} className="fixed inset-0 z-50 outline-none" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <button type="button" aria-label="Cerrar" tabIndex={-1} onClick={onClose}
-        className={cn('drawer-backdrop absolute inset-0 bg-ink/40 motion-safe:transition-opacity', closing && 'drawer-backdrop--closing')} />
-      <div ref={panelRef} className={cn(
-        'drawer-panel absolute inset-x-0 bottom-0 max-h-[92dvh] md:max-h-none rounded-t-2xl border-t border-line bg-surface shadow-xl',
-        'md:inset-y-0 md:right-0 md:left-auto md:h-auto md:w-full md:max-w-md md:rounded-none md:border-l md:border-t-0',
-        'flex flex-col', closing && 'drawer-panel--closing')}>
-        {/* aria-live para el feedback de copiar */}
-        <div aria-live="polite" className="sr-only">{copied ? 'Código copiado al portapapeles' : ''}</div>
-
-        {/* Header con avatar (mismo color-hash que la tabla) · paridad v1. La acción
-            Editar vive en el footer fijo (siempre visible), no acá. */}
-        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className={cn('grid h-12 w-12 flex-none place-items-center rounded-full text-[15px] font-bold', avatarFor(shown))}>
-              {detail.phase === 'ready' ? initials(`${detail.data.firstName} ${detail.data.lastName}`) : '…'}
-            </span>
-            <div className="min-w-0">
-              <p className={labelCls}>Perfil del visitante</p>
-              <h2 id={titleId} className="mt-0.5 truncate text-lg font-bold leading-tight tracking-tight text-ink">
-                {detail.phase === 'ready' ? `${detail.data.firstName} ${detail.data.lastName}`.trim() : '…'}
-              </h2>
-              <div className="mt-0.5 flex items-center gap-2">
-                <code className="text-[13px] tabular-nums text-muted">{shown}</code>
-                <button type="button" onClick={copyCode}
-                  className={cn('inline-flex items-center gap-1 rounded px-1 text-[12px] font-semibold text-brand-text', focusRing)}>
-                  {copied ? <><Check size={13} strokeWidth={2.5} aria-hidden="true" /> Copiado</> : <><Copy size={13} strokeWidth={2} aria-hidden="true" /> Copiar</>}
-                </button>
-              </div>
-            </div>
+  const header = shown ? (
+    <div>
+      {/* aria-live para el feedback de copiar */}
+      <div aria-live="polite" className="sr-only">{copied ? 'Código copiado al portapapeles' : ''}</div>
+      <div className="flex items-center gap-3">
+        <span className={cn('grid h-12 w-12 flex-none place-items-center rounded-full text-[15px] font-bold', avatarFor(shown))}>
+          {ready ? initials(fullName) : '…'}
+        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="truncate text-[15px] font-extrabold leading-tight tracking-tight text-ink">{fullName}</h3>
+            {ready?.deletedAt ? <Chip tone="neutral" dot>Archivado</Chip> : null}
+            {ready?.status ? <Chip tone={STATUS[ready.status].tone} dot>{STATUS[ready.status].label}</Chip> : null}
           </div>
-          <IconButton label="Cerrar perfil" variant="outline" size="sm" onClick={onClose}>
-            <X size={18} strokeWidth={2} aria-hidden="true" />
-          </IconButton>
-        </header>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <QrCode size={12} aria-hidden="true" className="flex-none text-faint" />
+            <code className="font-mono text-[11.5px] tabular-nums text-muted">{shown}</code>
+            <button type="button" onClick={copyCode}
+              className={cn('inline-flex min-h-8 items-center gap-1 rounded px-1 text-[12px] font-semibold text-brand-text', focusRing)}>
+              {copied ? <><Check size={13} strokeWidth={2.5} aria-hidden="true" /> Copiado</> : <><Copy size={13} strokeWidth={2} aria-hidden="true" /> Copiar</>}
+            </button>
+          </div>
+        </div>
+      </div>
+      {detail.phase === 'error' ? (
+        <p role="alert" className="mt-3 rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{detail.error}</p>
+      ) : null}
+    </div>
+  ) : null;
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-          {detail.phase === 'error' ? (
-            <p role="alert" className="rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{detail.error}</p>
-          ) : null}
+  // Pie: archivar/reactivar (F2D) · confirmación explícita antes de archivar.
+  const footer = shown && ready && canEdit ? (
+    <div className="space-y-2">
+      {archiveError ? <p role="alert" className="text-[12px] text-danger-fg">{archiveError}</p> : null}
+      {ready.deletedAt ? (
+        <Button type="button" variant="secondary" size="sm" className="w-full" onClick={doReactivate} disabled={archiveBusy}>
+          {archiveBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Reactivando…</> : <><ArchiveRestore size={14} strokeWidth={2} aria-hidden="true" /> Reactivar visitante</>}
+        </Button>
+      ) : !archiveConfirm ? (
+        <Button type="button" variant="secondary" size="sm" className="w-full text-danger-fg" onClick={() => { setArchiveError(null); setArchiveConfirm(true); }}>
+          <Archive size={14} strokeWidth={2} aria-hidden="true" /> Archivar visitante
+        </Button>
+      ) : (
+        <div className="rounded-lg border border-line bg-surface-container p-3">
+          <p className="text-[13px] text-ink">¿Archivar a este visitante? Se ocultará del listado; su historial y asistencias se preservan. Puedes reactivarlo luego.</p>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={() => setArchiveConfirm(false)} disabled={archiveBusy}>Cancelar</Button>
+            <Button type="button" size="sm" className="text-danger-fg" onClick={doArchive} disabled={archiveBusy}>
+              {archiveBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Archivando…</> : 'Sí, archivar'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  ) : null;
 
-          {/* Chips de estado */}
-          {detail.phase === 'ready' ? (
-            <div className="flex flex-wrap gap-2">
-              {detail.data.deletedAt ? <Chip tone="neutral" dot>Archivado</Chip> : null}
-              {detail.data.status ? <Chip tone={STATUS[detail.data.status].tone} dot>{STATUS[detail.data.status].label}</Chip> : null}
-            </div>
-          ) : null}
-
-          {/* Credencial · TARJETA de estado (paridad v1): icono + estado + fecha/hora
-              exacta del envío + acción inline. El confirm (con email enmascarado e
-              Idempotency-Key reusada en reintentos, F2C) se despliega dentro. */}
-          {detail.phase === 'ready' && !editing ? (
-            <div className="space-y-2">
-              <p className={labelCls}>Credencial</p>
-              <div className={cn('rounded-xl border p-3', detail.data.credentialSentAt ? 'border-success-fg/25 bg-success-bg/40' : detail.data.email ? 'border-line bg-accent-soft/50' : 'border-line bg-surface-container')}>
-                <div className="flex items-center gap-3">
-                  <span className={cn('grid h-9 w-9 flex-none place-items-center rounded-full', detail.data.credentialSentAt ? 'bg-success-fg text-white' : detail.data.email ? 'bg-[#b35400] text-white' : 'bg-surface text-faint')}>
-                    {detail.data.credentialSentAt ? <Check size={16} strokeWidth={2.5} aria-hidden="true" /> : <Send size={14} strokeWidth={2} aria-hidden="true" />}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-ink">{credentialChip(detail.data).label}</p>
-                    <p className="text-xs text-muted">
-                      {detail.data.credentialSentAt
-                        ? fmtDateTime(detail.data.credentialSentAt)
-                        : detail.data.email
-                          ? 'Aún no se envió a su email.'
-                          : 'Agrega un email para enviarle su credencial QR.'}
-                    </p>
-                  </div>
-                  {canEdit && detail.data.email && !resendOpen ? (
-                    <Button type="button" variant="secondary" size="sm" className="flex-none" onClick={openResend}>
-                      <Send size={13} strokeWidth={2} aria-hidden="true" /> {detail.data.credentialSentAt ? 'Reenviar' : 'Enviar'}
-                    </Button>
-                  ) : null}
-                </div>
-                {resendOpen ? (
-                  <div className="mt-3 border-t border-line pt-3">
-                    <p className="text-[13px] text-ink">¿{detail.data.credentialSentAt ? 'Reenviar' : 'Enviar'} la credencial a <strong className="font-semibold">{maskEmail(detail.data.email ?? '')}</strong>?</p>
-                    {resendError ? <p role="alert" className="mt-2 text-[12px] text-danger-fg">{resendError}</p> : null}
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                      <Button type="button" variant="secondary" size="sm" onClick={() => setResendOpen(false)} disabled={resendBusy}>Cancelar</Button>
-                      <Button type="button" size="sm" onClick={confirmResend} disabled={resendBusy}>
-                        {resendBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Enviando…</> : 'Sí, enviar'}
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              {resendResult ? (
-                <p role="status" aria-live="polite" className={cn('rounded-lg px-3 py-2 text-[12px]', RESEND_TONE[resendResult.result])}>
-                  {resendResult.message}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          {/* Métricas · fila con divisores (paridad v1, más liviana que cajas) */}
-          <dl className="grid grid-cols-3 divide-x divide-line rounded-xl border border-line">
-            <Metric label="Visitas" value={detail.phase === 'ready' ? String(detail.data.visitCount) : '—'} />
-            <Metric label="Última visita" value={detail.phase === 'ready' ? relAgo(detail.data.lastVisitAt) : '—'} />
-            <Metric label="Registro" value={detail.phase === 'ready' ? relAgo(detail.data.createdAt) : '—'} />
-          </dl>
-
-          {/* Contacto · lectura o edición (F2B) */}
-          {detail.phase === 'ready' && editing ? (
+  return (
+    <DetailPanel
+      open={code !== null}
+      onClose={onClose}
+      mode={mode}
+      title="Detalles de la persona"
+      closeLabel="Cerrar perfil"
+      header={header}
+      tabs={tabs}
+      tab={tab}
+      onTabChange={(v) => setTab(v as TabKey)}
+      footer={footer}
+      empty={{ icon: IdCard, title: 'Detalles de la persona', description: 'Selecciona una fila para ver su perfil y su historial de visitas.' }}
+    >
+      {shown ? (<>
+        <TabsContent value="informacion" className="space-y-5 pt-2">
+          {ready && editing ? (
             <form onSubmit={save} className="space-y-3">
               <p className={labelCls}>Editar datos</p>
               {saveError ? <p role="alert" className="rounded-lg border border-danger-fg/30 bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{saveError}</p> : null}
-              <fieldset disabled={saving} className="m-0 grid grid-cols-1 gap-3 border-0 p-0 sm:grid-cols-2">
+              <fieldset disabled={saving} className="m-0 grid grid-cols-1 gap-3 border-0 p-0">
                 <Field label="Nombre" value={form.firstName} onChange={(v) => setForm((f) => ({ ...f, firstName: v }))} />
                 <Field label="Apellido" value={form.lastName} onChange={(v) => setForm((f) => ({ ...f, lastName: v }))} />
-                <Field label="Email" type="email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} className="sm:col-span-2" />
-                <Field label="Teléfono" type="tel" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} className="sm:col-span-2" />
+                <Field label="Email" type="email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} />
+                <Field label="Teléfono" type="tel" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
               </fieldset>
-              {/* Separador + aire: el focus ring del último input no debe tocar los
-                  botones (mismo lenguaje que los footers de los drawers). */}
+              {/* Separador + aire: el focus ring del último input no debe tocar los botones. */}
               <div className="flex items-center justify-end gap-2 border-t border-line pt-3">
                 <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(false)} disabled={saving}>Cancelar</Button>
                 <Button type="submit" size="sm" disabled={saving}>{saving ? <><Loader2 size={15} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Guardando…</> : 'Guardar cambios'}</Button>
               </div>
             </form>
-          ) : detail.phase === 'ready' ? (
-            <div className="space-y-2">
-              <p className={labelCls}>Contacto</p>
-              <CopyRow icon={Mail} value={detail.data.email} empty="Sin email" />
-              <CopyRow icon={Phone} value={detail.data.phone} empty="Sin teléfono" />
-            </div>
-          ) : null}
-
-          {/* Afinidad / intereses */}
-          <div className="space-y-2">
-            <p className={cn(labelCls, 'flex items-center gap-1.5')}><Sparkles size={13} strokeWidth={1.75} aria-hidden="true" /> Intereses y ubicaciones</p>
-            {affinity.phase === 'loading' ? <SkeletonLine /> :
-             affinity.phase === 'error' ? <p className="text-[13px] text-faint">{affinity.error}</p> :
-             affinity.data.totalAttended === 0 ? <p className="text-[13px] text-faint">Aún sin asistencias registradas.</p> : (
-              <div className="space-y-3">
-                <Bars title="Tipos de actividad" buckets={affinity.data.byType} icon={Tag} />
-                {affinity.data.byCategory.length ? <Bars title="Categorías" buckets={affinity.data.byCategory} icon={Tag} /> : null}
-                {affinity.data.byLocation.length ? (
-                  <div>
-                    <p className="mb-1 flex items-center gap-1.5 text-[12px] font-medium text-muted"><MapPin size={12} strokeWidth={2} aria-hidden="true" /> Ubicaciones frecuentes</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {affinity.data.byLocation.map((b) => <Chip key={b.key} tone="neutral">{b.key} · {b.count}</Chip>)}
-                    </div>
+          ) : ready ? (
+            <>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className={labelCls}>Contacto</p>
+                  {canEdit && !ready.deletedAt ? (
+                    <Button type="button" variant="secondary" size="sm" onClick={startEdit}>
+                      <Pencil size={14} strokeWidth={2} aria-hidden="true" /> Editar
+                    </Button>
+                  ) : null}
+                </div>
+                <CopyRow icon={Mail} value={ready.email} empty="Sin email" />
+                <CopyRow icon={Phone} value={ready.phone} empty="Sin teléfono" />
+                <dl className="divide-y divide-line/60 pt-1">
+                  <div className="flex items-baseline justify-between gap-3 py-1.5">
+                    <dt className="flex-none text-[12.5px] text-muted">Registro</dt>
+                    <dd className="text-right text-[12.5px] font-semibold text-ink">{relAgo(ready.createdAt)}</dd>
                   </div>
-                ) : null}
+                </dl>
               </div>
-            )}
-          </div>
 
-          {/* Historial */}
+              {/* Credencial · estado + fecha/hora exacta del envío + acción inline. El confirm
+                  (email enmascarado e Idempotency-Key reusada en reintentos, F2C) se despliega dentro. */}
+              <div className="space-y-2">
+                <p className={labelCls}>Credencial</p>
+                <div className={cn('rounded-xl border p-3', ready.credentialSentAt ? 'border-success-fg/25 bg-success-bg/40' : ready.email ? 'border-line bg-accent-soft/50' : 'border-line bg-surface-container')}>
+                  <div className="flex items-center gap-3">
+                    <span className={cn('grid h-9 w-9 flex-none place-items-center rounded-full', ready.credentialSentAt ? 'bg-success-fg text-white' : ready.email ? 'bg-[#b35400] text-white' : 'bg-surface text-faint')}>
+                      {ready.credentialSentAt ? <Check size={16} strokeWidth={2.5} aria-hidden="true" /> : <Send size={14} strokeWidth={2} aria-hidden="true" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-ink">{credentialChip(ready).label}</p>
+                      <p className="text-xs text-muted">
+                        {ready.credentialSentAt
+                          ? fmtDateTime(ready.credentialSentAt)
+                          : ready.email
+                            ? 'Aún no se envió a su email.'
+                            : 'Agrega un email para enviarle su credencial QR.'}
+                      </p>
+                    </div>
+                    {canEdit && ready.email && !resendOpen ? (
+                      <Button type="button" variant="secondary" size="sm" className="flex-none" onClick={openResend}>
+                        <Send size={13} strokeWidth={2} aria-hidden="true" /> {ready.credentialSentAt ? 'Reenviar' : 'Enviar'}
+                      </Button>
+                    ) : null}
+                  </div>
+                  {resendOpen ? (
+                    <div className="mt-3 border-t border-line pt-3">
+                      <p className="text-[13px] text-ink">¿{ready.credentialSentAt ? 'Reenviar' : 'Enviar'} la credencial a <strong className="font-semibold">{maskEmail(ready.email ?? '')}</strong>?</p>
+                      {resendError ? <p role="alert" className="mt-2 text-[12px] text-danger-fg">{resendError}</p> : null}
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        <Button type="button" variant="secondary" size="sm" onClick={() => setResendOpen(false)} disabled={resendBusy}>Cancelar</Button>
+                        <Button type="button" size="sm" onClick={confirmResend} disabled={resendBusy}>
+                          {resendBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Enviando…</> : 'Sí, enviar'}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                {resendResult ? (
+                  <p role="status" aria-live="polite" className={cn('rounded-lg px-3 py-2 text-[12px]', RESEND_TONE[resendResult.result])}>
+                    {resendResult.message}
+                  </p>
+                ) : null}
+                {/* Imprimir abre el PNG REAL de la credencial (mismo que el email), listo para imprimir. */}
+                <a href={`/api/credentials/${encodeURIComponent(shown)}.png`} target="_blank" rel="noopener noreferrer"
+                  className={cn('inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-line bg-surface px-4 text-sm font-semibold text-muted transition-colors hover:bg-page hover:text-ink', focusRing)}>
+                  <Printer size={16} strokeWidth={2} aria-hidden="true" /> Imprimir credencial
+                </a>
+              </div>
+            </>
+          ) : detail.phase === 'loading' ? <SkeletonLine /> : null}
+        </TabsContent>
+
+        <TabsContent value="visitas" className="space-y-4 pt-2">
+          <dl className="grid grid-cols-2 divide-x divide-line rounded-xl border border-line">
+            <Metric label="Visitas" value={ready ? String(ready.visitCount) : '—'} />
+            <Metric label="Última visita" value={ready ? relAgo(ready.lastVisitAt) : '—'} />
+          </dl>
           <div className="space-y-2">
             <p className={cn(labelCls, 'flex items-center gap-1.5')}><FileText size={13} strokeWidth={1.75} aria-hidden="true" /> Historial de actividades{historyTotal ? ` (${historyTotal})` : ''}</p>
             {history.phase === 'loading' ? <SkeletonLine /> :
              history.phase === 'error' ? <p className="text-[13px] text-faint">{history.error}</p> :
              history.data.length === 0 ? <p className="text-[13px] text-faint">Todavía no participó en actividades.</p> : (
               <>
-                <ul className="space-y-2">
+                <ul className="divide-y divide-line/60">
                   {history.data.map((h, i) => (
-                    <li key={`${h.activityId}-${i}`} className="rounded-lg border border-line bg-surface px-3 py-2">
+                    <li key={`${h.activityId}-${i}`} className="py-2.5">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-ink">{h.name}</p>
@@ -383,54 +398,27 @@ export function UserProfileDrawer({ code, onClose, canEdit = false, initialEdit 
               </>
             )}
           </div>
+        </TabsContent>
 
-          {/* Archivar/reactivar (F2D) · acción separada al final, confirmación explícita. */}
-          {detail.phase === 'ready' && canEdit ? (
-            <div className="space-y-2 border-t border-line pt-4">
-              <p className={labelCls}>Estado del visitante</p>
-              {archiveError ? <p role="alert" className="text-[12px] text-danger-fg">{archiveError}</p> : null}
-              {detail.data.deletedAt ? (
-                <Button type="button" variant="secondary" size="sm" onClick={doReactivate} disabled={archiveBusy}>
-                  {archiveBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Reactivando…</> : <><ArchiveRestore size={14} strokeWidth={2} aria-hidden="true" /> Reactivar visitante</>}
-                </Button>
-              ) : !archiveConfirm ? (
-                <Button type="button" variant="secondary" size="sm" className="text-danger-fg" onClick={() => { setArchiveError(null); setArchiveConfirm(true); }}>
-                  <Archive size={14} strokeWidth={2} aria-hidden="true" /> Archivar visitante
-                </Button>
-              ) : (
-                <div className="rounded-lg border border-line bg-surface-container p-3">
-                  <p className="text-[13px] text-ink">¿Archivar a este visitante? Se ocultará del listado; su historial y asistencias se preservan. Puedes reactivarlo luego.</p>
-                  <div className="mt-3 flex items-center justify-end gap-2">
-                    <Button type="button" variant="secondary" size="sm" onClick={() => setArchiveConfirm(false)} disabled={archiveBusy}>Cancelar</Button>
-                    <Button type="button" size="sm" className="text-danger-fg" onClick={doArchive} disabled={archiveBusy}>
-                      {archiveBusy ? <><Loader2 size={14} strokeWidth={2.25} aria-hidden="true" className="animate-spin" /> Archivando…</> : 'Sí, archivar'}
-                    </Button>
+        <TabsContent value="afinidad" className="space-y-3 pt-2">
+          {affinity.phase === 'ready' && affinity.data.totalAttended > 0 ? (
+            <>
+              <p className={cn(labelCls, 'flex items-center gap-1.5')}><Sparkles size={13} strokeWidth={1.75} aria-hidden="true" /> Intereses y ubicaciones</p>
+              <Bars title="Tipos de actividad" buckets={affinity.data.byType} icon={Tag} />
+              {affinity.data.byCategory.length ? <Bars title="Categorías" buckets={affinity.data.byCategory} icon={Tag} /> : null}
+              {affinity.data.byLocation.length ? (
+                <div>
+                  <p className="mb-1 flex items-center gap-1.5 text-[12px] font-medium text-muted"><MapPin size={12} strokeWidth={2} aria-hidden="true" /> Ubicaciones frecuentes</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {affinity.data.byLocation.map((b) => <Chip key={b.key} tone="neutral">{b.key} · {b.count}</Chip>)}
                   </div>
                 </div>
-              )}
-            </div>
+              ) : null}
+            </>
           ) : null}
-        </div>
-
-        {/* Footer FIJO (paridad v1): acciones principales siempre visibles.
-            Imprimir abre el PNG REAL de la credencial (mismo que el email) listo
-            para imprimir. En edición se oculta (mandan Cancelar/Guardar del form). */}
-        {!editing ? (
-          <footer className="flex flex-none items-center gap-2 border-t border-line px-5 py-4">
-            <a href={`/api/credentials/${encodeURIComponent(shown)}.png`} target="_blank" rel="noopener noreferrer"
-              className={cn('inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-line bg-surface px-4 text-sm font-semibold text-muted transition-colors hover:bg-page hover:text-ink', focusRing)}>
-              <Printer size={16} strokeWidth={2} aria-hidden="true" /> Imprimir credencial
-            </a>
-            {canEdit && detail.phase === 'ready' && !detail.data.deletedAt ? (
-              <Button type="button" className="flex-1" onClick={startEdit}>
-                <Pencil size={15} strokeWidth={2} aria-hidden="true" /> Editar
-              </Button>
-            ) : null}
-          </footer>
-        ) : null}
-      </div>
-    </div>,
-    document.body,
+        </TabsContent>
+      </>) : null}
+    </DetailPanel>
   );
 }
 

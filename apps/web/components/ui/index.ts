@@ -19,6 +19,7 @@ export { Tabs, TabsContent, type TabsProps, type TabItem } from './Tabs';
 export { SegmentedControlClient, type SegmentedControlClientProps, type SegmentedControlClientItem } from './SegmentedControlClient';
 export { Dialog, type DialogProps } from './Dialog';
 export { Sheet, type SheetProps } from './Sheet';
+export { DetailPanel, DetailLayout, type DetailPanelProps, type DetailPanelEmpty } from './DetailPanel';
 export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog';
 export {
   DropdownMenu,

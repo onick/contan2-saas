@@ -85,15 +85,17 @@ test.describe('q7 a11y · estados', () => {
     await expect(dlg).toBeHidden();
   });
 
-  test('drawer de perfil de usuario (Sheet)', async ({ page }, testInfo) => {
+  test('panel de perfil de usuario (columna en xl, panel lateral debajo)', async ({ page }, testInfo) => {
     await gotoSettled(page, '/app/usuarios');
     await page.getByRole('button', { name: /^Ver perfil/ }).first().click();
-    const dlg = page.getByRole('dialog').first();
+    // En xl es una region fija y debajo un dialogo; ambos llevan data-detail-panel. Abierto contiene la pestaña "Información"
+    // (el estado vacio de la columna no), asi que al cerrar el locator queda en 0.
+    const dlg = page.locator('[data-detail-panel]').filter({ hasText: 'Información' }).filter({ visible: true });
     await expect(dlg).toBeVisible();
     await page.waitForTimeout(600);
     await q7Axe(page, testInfo, 'state:drawer-usuario');
     await page.keyboard.press('Escape');
-    await expect(dlg).toBeHidden();
+    await expect(dlg).toHaveCount(0);
   });
 
   test('ConfirmDialog (Archivar usuario; solo se abre y se cancela)', async ({ page }, testInfo) => {
