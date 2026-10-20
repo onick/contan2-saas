@@ -19,7 +19,7 @@ export default async function PuertaPage() {
   if (!PUERTA_ENABLED) notFound();
   const branding = await getTenantBranding();
   return (
-    <AppShell branding={branding} title="Puerta" activeKey="puerta">
+    <AppShell branding={branding} title="Puerta" activeKey="puerta" sidebarDefault="collapsed">
       <div className="app-reveal">
         <SectionHeader
           level={1}

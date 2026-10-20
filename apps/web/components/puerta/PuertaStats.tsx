@@ -123,11 +123,12 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
           <p className="mt-1 text-[14px] text-muted">Personas que entraron a las salas permanentes, comparado con el período anterior de igual duración.</p>
         </div>
         <div className="flex flex-none gap-2.5 sm:ml-auto">
-          <Link href="/app/puerta" className={cn('inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 md:min-h-10 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+          <Link href="/app/puerta" className={cn('inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 md:min-h-11 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
             <ArrowLeft size={16} strokeWidth={1.9} /> Registro
           </Link>
           <SplitButton
             label="Exportar Excel"
+            className="min-h-11 md:min-h-11 [&>*:last-child]:min-w-11"
             href={`/app/puerta/api/export?${exportQs}`}
             icon={Download}
             menuLabel="Más opciones de exportación"
@@ -142,15 +143,15 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
 
       {/* filtros: períodos + salas + rango */}
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
-        <DateRangePicker label="Período" value={range} presetKey={periodKey} onChange={pickRange} max="today" maxDays={MAX_RANGE_DAYS} collisionPadding={{ top: 8, left: 8, right: 8, bottom: 84 }} />
+        <DateRangePicker className="min-h-11 md:min-h-11" label="Período" value={range} presetKey={periodKey} onChange={pickRange} max="today" maxDays={MAX_RANGE_DAYS} collisionPadding={{ top: 8, left: 8, right: 8, bottom: 84 }} />
         <span className="mx-0.5 hidden h-5 w-px bg-line sm:block" aria-hidden="true" />
         <button type="button" onClick={() => setSala('all')}
-          className={cn('inline-flex min-h-11 items-center rounded-full px-4 text-[12.5px] font-semibold transition-colors sm:min-h-9', focusRing, sala === 'all' ? 'bg-ink text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
+          className={cn('inline-flex min-h-11 items-center rounded-full px-4 text-[12.5px] font-semibold transition-colors', focusRing, sala === 'all' ? 'bg-ink text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
           Ambas salas
         </button>
         {data.salas.map((s) => (
           <button key={s.id} type="button" onClick={() => setSala(s.id)}
-            className={cn('inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[12.5px] font-semibold transition-colors sm:min-h-9', focusRing, sala === s.id ? 'bg-ink text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
+            className={cn('inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[12.5px] font-semibold transition-colors', focusRing, sala === s.id ? 'bg-ink text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
             <span className="h-2 w-2 flex-none rounded-full" style={{ background: salaColor(s.aforo).c }} aria-hidden="true" /> {s.name}
           </button>
         ))}

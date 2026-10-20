@@ -21,11 +21,19 @@ import { CommandPalette } from './CommandPalette';
 
 export const SIDEBAR_COOKIE = 'sidebar_collapsed';
 
-const readCookie = (): boolean =>
-  typeof document !== 'undefined' && document.cookie.split('; ').includes(`${SIDEBAR_COOKIE}=1`);
+// Preferencia explícita: =1 plegada, =0 desplegada; sin cookie manda el valor por defecto de la
+// página (`defaultCollapsed`, p. ej. la Puerta en tablet). En el servidor no hay cookie → defecto.
+const readCookie = (fallback: boolean): boolean => {
+  if (typeof document === 'undefined') return fallback;
+  const parts = document.cookie.split('; ');
+  if (parts.includes(`${SIDEBAR_COOKIE}=1`)) return true;
+  if (parts.includes(`${SIDEBAR_COOKIE}=0`)) return false;
+  return fallback;
+};
 
-// Corre ANTES del paint (inline, bloqueante): aplica el estado guardado al shell.
-const PREPAINT = `try{if(document.cookie.split('; ').includes('${SIDEBAR_COOKIE}=1')){document.currentScript.parentElement.setAttribute('data-sidebar','collapsed')}}catch(e){}`;
+// Corre ANTES del paint (inline, bloqueante): aplica al shell la preferencia guardada (si existe;
+// sin cookie queda el valor por defecto con el que se renderizó el servidor).
+const PREPAINT = `try{var m=document.cookie.match(/(?:^|; )${SIDEBAR_COOKIE}=([01])/);if(m){document.currentScript.parentElement.setAttribute('data-sidebar',m[1]==='1'?'collapsed':'expanded')}}catch(e){}`;
 
 // collapsed/toggle = riel de desktop (md+). La navegación mobile la gestiona
 // la barra inferior fija (MobileNav), no un drawer off-canvas.
@@ -33,10 +41,10 @@ interface SidebarCtx { collapsed: boolean; toggle: () => void }
 const Ctx = createContext<SidebarCtx>({ collapsed: false, toggle: () => {} });
 export function useSidebar(): SidebarCtx { return useContext(Ctx); }
 
-export function SidebarShell({ children, role = null }: { children: ReactNode; role?: string | null }) {
+export function SidebarShell({ children, role = null, defaultCollapsed = false }: { children: ReactNode; role?: string | null; defaultCollapsed?: boolean }) {
   // Initializer (no effect): en hidratación el estado ya es el de la cookie →
   // coincide con el DOM que el script inline corrigió pre-paint.
-  const [collapsed, setCollapsed] = useState(readCookie);
+  const [collapsed, setCollapsed] = useState(() => readCookie(defaultCollapsed));
 
   const toggle = useCallback(() => {
     setCollapsed((c) => {
