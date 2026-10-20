@@ -26,7 +26,7 @@ export function salaSeriesColors(salas: Array<{ aforo: number | null }>): string
 
 // Relleno (con su texto) de los botones primarios de la puerta, AA verificado en
 // DoorButton.test.tsx: marca = bg-brand + brand-fg (derivado por contraste en el tema);
-// VR = info-text (#1d7aa7 por defecto, secundario del tenant oscurecido a ≥4,5:1 con blanco).
+// VR = info-text (azul secundario por defecto, secundario del tenant oscurecido a ≥4,5:1 con blanco).
 export const DOOR_FILL = {
   brand: 'bg-brand text-brand-fg',
   vr: 'bg-info-text text-white',
