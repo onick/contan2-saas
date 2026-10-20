@@ -152,13 +152,18 @@ async function deliverEmail(db: DbClient, orgId: string, id: string, kind: Booki
   } catch { /* el estado ya quedó; el correo se puede reintentar a mano */ }
 }
 
-async function runTransition(req: FastifyRequest, reply: FastifyReply, act: Act, when?: Date) {
+// El cuerpo se valida DESPUÉS del guard de rol (un rol sin permiso recibe 403, no 400).
+type Resolved = { act: Act; when?: Date } | { status: number; error: string };
+async function runTransition(req: FastifyRequest, reply: FastifyReply, resolve: () => Resolved) {
   const db = getDb();
   const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para modificar reservas de la puerta.');
   if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
   const orgId = guard.ctx.org.id;
   const staff = guard.ctx.staff;
   if ((await actionLimiter.hit(`${orgId}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas acciones seguidas. Espera un momento.' }; }
+  const r = resolve();
+  if ('error' in r) { reply.code(r.status); return { error: r.error }; }
+  const { act, when } = r;
   const id = (req.params as { id: string }).id;
 
   const out = await withTenant(db, orgId, async (tx) => {
@@ -280,18 +285,18 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
 
   // ── PATCH /puerta/bookings/:id · confirmar/cancelar/no-vino/reprogramar ──────
   app.patch('/puerta/bookings/:id', async (req: FastifyRequest, reply) => {
-    const parsed = PuertaBookingUpdateRequestSchema.safeParse(req.body);
-    if (!parsed.success) { reply.code(400); return { error: 'Datos inválidos.' }; }
-    let when: Date | undefined;
-    if (parsed.data.action === 'reschedule') {
-      when = parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : undefined;
-      if (!when || Number.isNaN(when.getTime())) { reply.code(400); return { error: 'Nueva fecha/hora inválida.' }; }
-    }
-    return runTransition(req, reply, parsed.data.action, when);
+    return runTransition(req, reply, () => {
+      const parsed = PuertaBookingUpdateRequestSchema.safeParse(req.body);
+      if (!parsed.success) return { status: 400, error: 'Datos inválidos.' };
+      if (parsed.data.action !== 'reschedule') return { act: parsed.data.action };
+      const when = parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : undefined;
+      if (!when || Number.isNaN(when.getTime())) return { status: 400, error: 'Nueva fecha/hora inválida.' };
+      return { act: 'reschedule', when };
+    });
   });
 
   // ── POST /puerta/bookings/:id/no-show · "No vino" manual ─────────────────────
-  app.post('/puerta/bookings/:id/no-show', async (req: FastifyRequest, reply) => runTransition(req, reply, 'no_show'));
+  app.post('/puerta/bookings/:id/no-show', async (req: FastifyRequest, reply) => runTransition(req, reply, () => ({ act: 'no_show' })));
 
   // ── POST /puerta/bookings/close-day?date= · cierre del día (decisión Q3) ─────
   // owner/admin. Marca "No vino" las reservas del día (default hoy) ya vencidas y sin
