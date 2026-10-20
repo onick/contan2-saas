@@ -169,7 +169,9 @@ test.describe('ADM-08 · consola de check-in (S0)', () => {
   test('ADM-08f [S1] lista de invitados integrada en la tarjeta (sin seccion duplicada)', { tag: '@write' }, async ({ page }) => {
     await openConsole(page);
     const c = card(page, act.name);
-    await expect(c).toContainText(/Lista de invitados: .*\d+.* de \d+ llegaron/);
+    // Piel 2026-10-20: «Invitados 0 / 6» + «0 llegaron · 6 pendientes» (antes «Lista de invitados: 0 de 6 llegaron»).
+    await expect(c).toContainText(/Invitados\s*\d+ \/ \d+/);
+    await expect(c).toContainText(/\d+ llegaron · \d+ pendientes/);
     const gateway = c.getByRole('button', { name: /Invitados \d+\/\d+/ });
     await expect(gateway).toBeVisible();
     // Una sola tarjeta por actividad aunque tenga lista.
@@ -192,7 +194,7 @@ test.describe('ADM-08 · consola de check-in (S0)', () => {
     await page.goto('/app/check-in');
     await settle(page);
     const c = card(page, full.name);
-    await expect(c).toContainText('Lleno');
+    await expect(c).toContainText(/Cupo lleno/i); // piel 2026-10-20: la leyenda del aforo dice «Cupo lleno»
     await expect(c.getByRole('button', { name: '+1 sin credencial' })).toBeDisabled();
   });
 });

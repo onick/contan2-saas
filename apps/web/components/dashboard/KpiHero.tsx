@@ -70,13 +70,14 @@ export function KpiHero({
       data-compact={compact ? 'true' : undefined}
       className={cn(
         'relative flex min-w-0 flex-col rounded-card',
-        big ? 'min-h-[188px] p-5 md:min-h-[200px] md:p-6' : compact ? 'min-h-[124px] p-4' : 'min-h-[148px] p-4 md:p-5',
+        // `compact` manda sobre el tono: fila de KPI uniforme (Check-in) o las pequeñas del Inicio.
+        compact ? 'min-h-[124px] p-4 md:p-5' : big ? 'min-h-[188px] p-5 md:min-h-[200px] md:p-6' : 'min-h-[148px] p-4 md:p-5',
         SURFACE[tone],
         className,
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className={cn('leading-snug', big ? 'text-[13px] font-semibold md:text-[15px]' : compact ? 'text-[12px] font-medium' : 'text-[13px] font-medium', LABEL[tone])}>
+        <p className={cn('leading-snug', compact ? 'text-[13px] font-semibold' : big ? 'text-[13px] font-semibold md:text-[15px]' : 'text-[13px] font-medium', LABEL[tone])}>
           {label}
         </p>
         {corner && Icon ? (
@@ -115,7 +116,7 @@ export function KpiHero({
       </div>
 
       <div className={cn('flex flex-wrap items-baseline gap-x-3 gap-y-0.5', compact ? 'mt-2' : 'mt-3')}>
-        <p className={cn('num font-medium leading-none tracking-tight tabular-nums', big ? 'text-[56px] md:text-[64px]' : compact ? 'text-[32px] md:text-[36px]' : 'text-[40px] md:text-[44px]')}>
+        <p className={cn('num font-medium leading-none tracking-tight tabular-nums', compact ? 'text-[36px] md:text-[40px]' : big ? 'text-[56px] md:text-[64px]' : 'text-[40px] md:text-[44px]')}>
           {value}
         </p>
         {secondary ? <span className={cn('text-[13px]', SECONDARY[tone])}>{secondary}</span> : null}
