@@ -18,6 +18,7 @@ import {
   Tabs, TabsContent, DataTableClient, cn, focusRing,
 } from '../ui';
 import type { DataTableColumn } from '../ui';
+import { BibliotecaTabsNav } from './BibliotecaTabsNav';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
@@ -229,6 +230,7 @@ export function ReservasClient({ initial, initialSummary }: {
             actions={<Button ref={nuevaReservaBtnRef} variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nueva reserva</Button>}
           />
         </div>
+        <BibliotecaTabsNav />
 
         {/* ── Tabs del kit ── */}
         <div className="app-reveal mt-4" style={{ animationDelay: '30ms' }}>

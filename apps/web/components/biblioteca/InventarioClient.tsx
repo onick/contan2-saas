@@ -20,6 +20,7 @@ import {
   Tabs, TabsContent, DataTableClient, cn, focusRing,
 } from '../ui';
 import type { DataTableColumn } from '../ui';
+import { BibliotecaTabsNav } from './BibliotecaTabsNav';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
@@ -263,6 +264,7 @@ export function InventarioClient({ initial, sites }: {
             actions={!active ? <Button ref={nuevoInventarioBtnRef} variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nuevo inventario</Button> : undefined}
           />
         </div>
+        <BibliotecaTabsNav />
 
         {/* ── Sesión activa / última ── */}
         {viewing ? (

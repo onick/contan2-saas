@@ -24,6 +24,7 @@ import type { DataTableColumn } from '../ui';
 import { SplitButton } from '../ui/arc/split-button/SplitButton';
 import { numero } from '../../lib/format';
 import { spineColor } from '../../lib/biblioteca/spine';
+import { BibliotecaTabsNav } from './BibliotecaTabsNav';
 
 const KIND_META: Record<BiblioKind, { label: string; Icon: typeof BookOpen }> = {
   libro:       { label: 'Libro',       Icon: BookOpen    },
@@ -225,6 +226,7 @@ export function CatalogClient({ initial, initialQ = '', sites, facets }: {
           }
         />
       </div>
+      <BibliotecaTabsNav />
 
       {/* Toolbar: búsqueda + Género + Disponibilidad */}
       <div className="app-reveal mt-5 flex flex-wrap items-end gap-2.5" style={{ animationDelay: '40ms' }}>
