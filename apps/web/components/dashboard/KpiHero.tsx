@@ -14,7 +14,7 @@ export type KpiTone = 'dark' | 'warm' | 'neutral';
 export interface KpiHeroProps {
   tone: KpiTone;
   label: string;
-  value: string;
+  value: ReactNode;
   // Cifra secundaria junto al valor (p. ej. "(420 registros)").
   secondary?: string;
   // Variación vs período anterior (% o puntos según `deltaUnit`). Sin `delta` no hay pastilla.
