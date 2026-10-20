@@ -210,9 +210,12 @@ export function ActivityForm({ mode, initial, onSaved, onCancel }: ActivityFormP
   else if (cover.phase === 'optimizing') bar = { tone: 'warn', title: 'Optimizando imagen…', hint: 'Un momento, preparando la portada.' };
   else if (!isEdit && missingFields.length === 0 && coverMissing) bar = { tone: 'warn', title: 'Solo falta la portada', hint: 'Añade una imagen para habilitar la creación.' };
   else if (incomplete) {
+    // Título con el conteo y, en la línea de ayuda, la lista COMPLETA (sin recortar a 3 con «…»):
+    // «Nombre, tipo, capacidad, lugar, fecha y hora y portada.»
     const n = missingLabels.length;
-    const shown = missingLabels.slice(0, 3).join(', ') + (n > 3 ? '…' : '');
-    bar = { tone: 'warn', title: `${n === 1 ? 'Falta 1 campo' : `Faltan ${n} campos`}: ${shown}`, hint: 'Complétalos para continuar.' };
+    const list = n === 1 ? missingLabels[0]! : `${missingLabels.slice(0, -1).join(', ')} y ${missingLabels[n - 1]}`;
+    const hint = list.charAt(0).toUpperCase() + list.slice(1) + '.';
+    bar = { tone: 'warn', title: n === 1 ? 'Falta 1 campo obligatorio' : `Faltan ${n} campos obligatorios`, hint };
   } else if (isEdit && !hasChanges) bar = { tone: 'ok', title: 'Sin cambios por guardar', hint: 'Modifica algún dato para habilitar el guardado.' };
   else bar = { tone: 'ok', title: isEdit ? 'Todo listo para guardar' : 'Todo listo para crear', hint: 'Revisa los datos y confirma.' };
 
@@ -599,8 +602,9 @@ export function ActivityForm({ mode, initial, onSaved, onCancel }: ActivityFormP
                     Portada{!isEdit ? <> <span aria-hidden="true" className="text-danger-fg">*</span><span className="sr-only"> (requerida)</span></> : null}
                   </h2>
                   <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold',
-                    coverReady ? 'bg-success-bg text-success-fg' : 'bg-warning-bg text-warning-fg')}>
-                    {coverReady ? 'Lista' : 'Pendiente'}
+                    coverReady ? 'bg-success-bg text-success-fg' : isEdit ? 'bg-surface-container text-muted' : 'bg-warning-bg text-warning-fg')}>
+                    {/* En editar la portada es opcional: «Sin portada» en neutro, no «Pendiente» en aviso. */}
+                    {coverReady ? 'Lista' : isEdit ? 'Sin portada' : 'Pendiente'}
                   </span>
                 </div>
 

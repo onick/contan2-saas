@@ -120,7 +120,8 @@ describe('ActivityForm · crear · portada obligatoria y barra', () => {
     renderForm();
     expect(createBtn()).toHaveAttribute('aria-disabled', 'true');
     expect(createBtn()).not.toBeDisabled();
-    expect(live()).toHaveTextContent(/Faltan 6 campos: nombre, tipo, capacidad…/);
+    expect(live()).toHaveTextContent(/Faltan 6 campos obligatorios/);
+    expect(live()).toHaveTextContent(/Nombre, tipo, capacidad, lugar, fecha y hora y portada\./);
     expect(screen.getByText('Pendiente')).toBeInTheDocument();
   });
 
@@ -299,7 +300,8 @@ describe('ActivityForm · editar', () => {
     const fetchFn = mockFetch(200);
     renderEdit();
     fireEvent.change(screen.getByLabelText('Lugar'), { target: { value: '' } });
-    expect(live()).toHaveTextContent(/Falta 1 campo: lugar/);
+    expect(live()).toHaveTextContent(/Falta 1 campo obligatorio/);
+    expect(live()).toHaveTextContent(/Lugar\./);
     fireEvent.click(saveBtn());
     expect(fetchFn.mock.calls.filter((c) => c[1]?.method === 'PATCH')).toHaveLength(0);
     expect(screen.getByLabelText('Lugar')).toHaveAttribute('aria-invalid', 'true');
@@ -339,10 +341,10 @@ describe('ActivityForm · editar', () => {
     await waitFor(() => expect(patchCalls()).toHaveLength(1));
   });
 
-  it('sin portada: dropzone vacío (Pendiente); con portada: reencuadre + Cambiar imagen, sin Quitar', () => {
+  it('sin portada: dropzone vacío (Sin portada); con portada: reencuadre + Cambiar imagen, sin Quitar', () => {
     renderEdit();
     expect(screen.getByText(/no tiene portada/i)).toBeInTheDocument();
-    expect(screen.getByText('Pendiente')).toBeInTheDocument();
+    expect(screen.getByText('Sin portada')).toBeInTheDocument();
     expect(screen.queryByRole('slider')).toBeNull();
 
     cleanup();
