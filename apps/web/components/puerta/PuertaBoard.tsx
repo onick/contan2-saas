@@ -4,7 +4,7 @@
 // permanentes (Ada Balcácer, Sala VR). Cada entrada CUENTA (sin cupo/dedup). El
 // registro captura al visitante como usuario real (reusa la infra del check-in):
 // drawer con pestañas Nuevo visitante / Buscar-QR / Grupo, + "sin datos"
-// secundario. La VR además tiene su agenda de colegios (VrAgenda). El aforo
+// secundario. La VR además tiene su agenda de colegios (SalaAgenda). El aforo
 // físico lo maneja el staff → NO mostramos contador de ocupación. Integrado al
 // sistema de diseño (Card/Button/Chip/EmptyState + drawer estándar).
 
@@ -13,7 +13,7 @@ import { Check, AlertTriangle, Plus, QrCode, Users, X, UserPlus, DoorOpen, Undo2
 import type { PuertaSala } from '@contan2/contracts';
 import { Card, Button, IconButton, Chip, EmptyState, ErrorState, cn } from '../ui';
 import { DoorButton } from './DoorButton';
-import { VrAgenda } from './VrAgenda';
+import { SalaAgenda } from './SalaAgenda';
 import { salaColor } from './salaColors';
 
 const money = (n: number) => n.toLocaleString('en-US');
@@ -285,7 +285,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
 
       {/* Agenda de la Sala VR (aforo != null): agendar visitas de colegios. */}
       {salas.filter((s) => s.aforo !== null).map((s) => (
-        <VrAgenda key={`agenda-${s.id}`} salaId={s.id} salaName={s.name} aforo={s.aforo} />
+        <SalaAgenda key={`agenda-${s.id}`} salaId={s.id} salaName={s.name} aforo={s.aforo} />
       ))}
 
       <RegisterSheet reg={reg} byId={byId} busy={busy} onClose={() => setReg(null)} onSubmit={submit} notice={reg ? notices(true) : null} />
