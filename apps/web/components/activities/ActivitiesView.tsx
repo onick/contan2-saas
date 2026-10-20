@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParamsSafe } from '../../lib/navigation/safe';
-import { Search, List, LayoutGrid } from 'lucide-react';
+import { Search, List, LayoutGrid, ChevronDown } from 'lucide-react';
 import type { Activity } from '../../lib/activities/demoData';
 import {
   filterActivities, deriveStatusPills, uniqueCategories, rangeFromParams,
@@ -18,15 +18,21 @@ import { ActivitiesTable } from './ActivitiesTable';
 import { ActivitiesGrid } from './ActivitiesGrid';
 import { ActivityDetailDrawer } from './ActivityDetailDrawer';
 import { EditActivityDrawer } from './EditActivityDrawer';
-import { Button, Card, cn, focusRing } from '../ui';
+import { Card, cn, focusRing } from '../ui';
 import { DateRangePicker } from '../ui/arc/date-range-picker/DateRangePicker';
 import { matchPreset, type RangePreset } from '../ui/arc/date-range-picker/presets';
 import { addDays, addMonths, monthEnd, monthStart, startOfWeek, todayYmd, type YmdRange } from '../ui/arc/date-range-picker/ymd';
 
+// Select nativo con flecha propia (ChevronDown absoluto): `appearance-none pr-9` separa el chevrón del borde.
 const SELECT_CLS = cn(
-  'h-9 rounded-lg border border-line bg-surface px-3 text-[13px] text-ink',
-  'appearance-none bg-[length:0] cursor-pointer', focusRing,
+  'min-h-11 appearance-none cursor-pointer rounded-field border border-line bg-surface pl-3 pr-9 text-[13px] text-ink',
+  focusRing,
 );
+
+// Items de los trays (estado y fecha): 44 px de alto, activo oscuro (bg-ink).
+const TRAY_ITEM = cn('inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-pill px-4 text-sm font-semibold transition-colors', focusRing);
+const TRAY_ON = 'bg-ink text-white';
+const TRAY_OFF = 'text-muted hover:text-ink';
 
 const DATE_PILLS: Array<{ value: DateFilter; label: string }> = [
   { value: 'todas', label: 'Fecha: todas' },
@@ -106,32 +112,75 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
     <>
       {/* Barra de filtros (interactiva) */}
       <Card padding="none" className="app-reveal mt-6 p-4" style={{ animationDelay: '120ms' }}>
-        <div className="flex flex-wrap gap-2">
-          {pills.map((t) => (
-            <Button
-              key={t.key}
-              variant="pill"
-              size="sm"
-              selected={status === t.key}
-              onClick={() => setStatus(t.key)}
-            >
-              {t.label} <span className="tabular-nums opacity-70">({t.count})</span>
-            </Button>
-          ))}
+        {/* Fila 1: estado (tray) · buscador · vista. A 390 px el tray se desplaza en horizontal. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="max-w-full overflow-x-auto rounded-pill bg-surface-container p-[3px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex w-max gap-1">
+              {pills.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  aria-pressed={status === t.key}
+                  onClick={() => setStatus(t.key)}
+                  className={cn(TRAY_ITEM, status === t.key ? TRAY_ON : TRAY_OFF)}
+                >
+                  {t.label} <span className="num tabular-nums opacity-70">({t.count})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex w-full items-center gap-3 md:ml-auto md:w-auto">
+            <div className="flex min-h-11 flex-1 items-center gap-2 rounded-pill bg-surface-container px-4 md:w-72 md:flex-none">
+              <Search size={16} strokeWidth={1.75} aria-hidden="true" className="flex-none text-faint" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar actividad…"
+                aria-label="Buscar actividad"
+                className={cn('min-h-6 w-full bg-transparent text-[13px] text-ink placeholder:text-faint focus:outline-none', focusRing)}
+              />
+            </div>
+            <div className="flex flex-none items-center gap-0.5 rounded-[12px] bg-surface-container p-[3px]">
+              {([['list', 'Vista lista', List], ['grid', 'Vista cuadrícula', LayoutGrid]] as const).map(([key, label, VIcon]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-label={label}
+                  aria-pressed={view === key}
+                  onClick={() => setView(key)}
+                  className={cn('grid h-9 w-9 place-items-center rounded-[10px] transition-colors', view === key ? 'bg-ink text-white' : 'text-muted hover:text-ink', focusRing)}
+                >
+                  <VIcon size={17} strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+        {/* Fila 2: categoría · fecha (tray) · rango */}
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-line pt-3">
           <label className="sr-only" htmlFor="act-cat">Categoría</label>
-          <select id="act-cat" value={category} onChange={(e) => setCategory(e.target.value)} className={SELECT_CLS}>
-            <option value="todas">Categoría: todas</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <div className="relative">
+            <select id="act-cat" value={category} onChange={(e) => setCategory(e.target.value)} className={SELECT_CLS}>
+              <option value="todas">Categoría: todas</option>
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <ChevronDown size={16} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
+          </div>
 
-          <div role="group" aria-label="Fecha" className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="Fecha" className="flex max-w-full gap-1 overflow-x-auto rounded-pill bg-surface-container p-[3px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {DATE_PILLS.map((o) => (
-              <Button key={o.value} variant="pill" size="sm" selected={date === o.value} onClick={() => setDate(o.value)}>
+              <button
+                key={o.value}
+                type="button"
+                aria-pressed={date === o.value}
+                onClick={() => setDate(o.value)}
+                className={cn(TRAY_ITEM, 'shrink-0', date === o.value ? TRAY_ON : TRAY_OFF)}
+              >
                 {o.label}
-              </Button>
+              </button>
             ))}
           </div>
 
@@ -145,40 +194,6 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
             onChange={(r, key) => { setRange(r); setPresetKey(key); }}
             onClear={() => { setRange(null); setPresetKey(null); }}
           />
-
-          <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
-            <div className="flex flex-1 items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 sm:flex-none">
-              <Search size={16} strokeWidth={1.75} aria-hidden="true" className="text-faint" />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar actividad…"
-                aria-label="Buscar actividad"
-                className={cn('min-h-6 w-full bg-transparent text-[13px] text-ink placeholder:text-faint focus:outline-none sm:w-48', focusRing)}
-              />
-            </div>
-            <div className="flex items-center rounded-lg border border-line bg-surface p-0.5">
-              <button
-                type="button"
-                aria-label="Vista lista"
-                aria-pressed={view === 'list'}
-                onClick={() => setView('list')}
-                className={cn('grid h-8 w-8 place-items-center rounded-md', view === 'list' ? 'bg-surface-container text-ink' : 'text-faint hover:text-muted', focusRing)}
-              >
-                <List size={17} strokeWidth={1.75} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                aria-label="Vista cuadrícula"
-                aria-pressed={view === 'grid'}
-                onClick={() => setView('grid')}
-                className={cn('grid h-8 w-8 place-items-center rounded-md', view === 'grid' ? 'bg-surface-container text-ink' : 'text-faint hover:text-muted', focusRing)}
-              >
-                <LayoutGrid size={17} strokeWidth={1.75} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
         </div>
       </Card>
 

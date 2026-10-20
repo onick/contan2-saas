@@ -54,7 +54,7 @@ export function ActivitiesTable({ activities, onView, onEdit, onChanged }: Activ
           return (
             <li key={a.id} onClick={() => onView?.(a)} className={cn('border-t border-line px-4 py-3.5 first:border-t-0 hover:bg-page', onView && 'cursor-pointer')}>
               <div className="flex items-center gap-3">
-                <span className="block h-10 w-[68px] flex-none overflow-hidden rounded-lg bg-surface-container">
+                <span className="block h-12 w-16 flex-none overflow-hidden rounded-[10px] bg-surface-container">
                   <CoverThumb src={a.imageUrl ?? null} posY={a.imagePosY} alt="" className="h-full w-full object-cover"
                     fallback={<span className="grid h-full w-full place-items-center text-muted"><CatIcon size={18} strokeWidth={1.75} aria-hidden="true" /></span>} />
                 </span>
@@ -116,7 +116,7 @@ export function ActivitiesTable({ activities, onView, onEdit, onChanged }: Activ
                   {/* Actividad */}
                   <td className="px-5 py-4 md:px-6">
                     <div className="flex items-center gap-3">
-                      <span className="block h-10 w-[68px] flex-none overflow-hidden rounded-lg bg-surface-container">
+                      <span className="block h-12 w-16 flex-none overflow-hidden rounded-[10px] bg-surface-container">
                         <CoverThumb
                           src={a.imageUrl ?? null}
                           posY={a.imagePosY}

@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
-import type { LucideIcon } from 'lucide-react';
 import { Suspense } from 'react';
-import { CalendarDays, CalendarClock, TrendingUp } from 'lucide-react';
 import { AppShell } from '../../../components/shell/AppShell';
+import { ActivitiesKpis } from '../../../components/activities/ActivitiesKpis';
 import { ActivitiesView } from '../../../components/activities/ActivitiesView';
 import { NewActivityButton } from '../../../components/activities/NewActivityButton';
 import { SectionHeader, Card, Skeleton } from '../../../components/ui';
@@ -25,8 +24,6 @@ export const metadata: Metadata = {
   description: 'Gestión de actividades del centro cultural',
 };
 
-interface Kpi { key: string; label: string; value: string; icon: LucideIcon }
-
 // Sección de datos · async. KPIs server + pasa el set a la vista interactiva.
 async function ActivitiesData() {
   const view = await getActivitiesView();
@@ -41,37 +38,26 @@ async function ActivitiesData() {
   const activities: Activity[] = view?.activities ?? ACTIVITIES;
   const total = view?.total ?? activities.length;
 
-  const kpis: Kpi[] = view
-    ? [
-        { key: 'total', label: 'Total', value: String(view.total), icon: CalendarDays },
-        { key: 'activas', label: 'Activas', value: String(view.activas), icon: CalendarClock },
-        { key: 'ocupacion', label: 'Ocupación promedio', value: `${view.avgOccupancyPct}%`, icon: TrendingUp },
-      ]
-    : [
-        { key: 'total', label: 'Total', value: String(ACTIVITIES_KPIS.total), icon: CalendarDays },
-        { key: 'proximas', label: 'Próximas', value: String(ACTIVITIES_KPIS.proximas), icon: CalendarClock },
-        { key: 'ocupacion', label: 'Ocupación promedio', value: ACTIVITIES_KPIS.ocupacionPromedio, icon: TrendingUp },
-      ];
+  // Conteos por estado: reales desde la vista; en demo se derivan del set demo.
+  const counts = view
+    ? { total: view.total, activas: view.activas, finalizadas: view.finalizadas, canceladas: view.canceladas, avg: view.avgOccupancyPct }
+    : {
+        total: activities.length,
+        activas: activities.filter((x) => x.status === 'soon' || x.status === 'live').length,
+        finalizadas: activities.filter((x) => x.status === 'done').length,
+        canceladas: activities.filter((x) => x.status === 'draft').length,
+        avg: parseInt(ACTIVITIES_KPIS.ocupacionPromedio, 10) || 0,
+      };
 
   return (
     <>
-      {/* Mini-KPIs (server, agregados) */}
-      <div className="app-stagger mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {kpis.map((k) => {
-          const KIcon = k.icon;
-          return (
-            <Card key={k.key} padding="md" className="flex items-center gap-4">
-              <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-primary-container text-on-primary-container">
-                <KIcon size={20} strokeWidth={1.75} aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">{k.label}</p>
-                <p className="text-2xl font-bold tabular-nums text-ink">{k.value}</p>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+      <ActivitiesKpis
+        total={counts.total}
+        activas={counts.activas}
+        finalizadas={counts.finalizadas}
+        canceladas={counts.canceladas}
+        avgOccupancyPct={counts.avg}
+      />
 
       {/* Filtros + vista (lista/grid) + detalle · interactivo, en memoria */}
       <ProfileProvider canEdit={canWrite}><ActivitiesView activities={activities} total={total} canWrite={canWrite} /></ProfileProvider>
@@ -83,16 +69,10 @@ async function ActivitiesData() {
 function ActivitiesSkeleton() {
   return (
     <>
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i} padding="md" className="flex items-center gap-4">
-            <Skeleton className="h-11 w-11 flex-none rounded-xl" />
-            <div className="flex-1">
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="mt-1.5 h-6 w-12" />
-            </div>
-          </Card>
-        ))}
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-[1.5fr_1fr_1fr]">
+        <Skeleton className="min-h-[188px] rounded-card md:min-h-[200px]" />
+        <Skeleton className="min-h-[188px] rounded-card md:min-h-[200px]" />
+        <Skeleton className="min-h-[148px] rounded-card md:min-h-[200px]" />
       </div>
       <Card padding="none" className="mt-6 p-4">
         <div className="flex flex-wrap gap-2">
