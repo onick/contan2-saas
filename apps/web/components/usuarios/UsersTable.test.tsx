@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { renderToString } from 'react-dom/server';
 import { hydrateRoot } from 'react-dom/client';
 import { act } from 'react';
@@ -12,6 +12,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { UsersTable } from './UsersTable';
+import { ProfileProvider } from './ProfileProvider';
 import { USERS } from '../../lib/usuarios/demoData';
 
 afterEach(cleanup);
@@ -64,6 +65,26 @@ describe('UsersTable', () => {
       // Sin posición absoluta ni fixed que cause solapamiento
       expect(verBtn.className).not.toMatch(/\babsolute\b|\bfixed\b/);
     }
+  });
+});
+
+describe('UsersTable · fila abierta', () => {
+  it('la fila cuyo perfil está abierto lleva aria-current y fondo de marca; al cerrar se quita', () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('sin red'))));
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('min-width'), media: q, addEventListener: () => {}, removeEventListener: () => {} }));
+    const { container } = render(<ProfileProvider layout="column"><UsersTable users={USERS} /></ProfileProvider>);
+    expect(container.querySelector('[aria-current="true"]')).toBeNull();
+    const u = USERS[1]!;
+    fireEvent.click(screen.getAllByRole('button', { name: `Ver perfil ${u.code}` })[0]!);
+    const rows = container.querySelectorAll('[aria-current="true"]');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r.getAttribute('data-row-id')).toBe(u.id);
+      expect(r.className).toContain('bg-brand-soft/60');
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar perfil' }));
+    expect(container.querySelector('[aria-current="true"]')).toBeNull();
+    vi.unstubAllGlobals();
   });
 });
 

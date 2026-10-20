@@ -5,7 +5,7 @@ import { SearchX } from 'lucide-react';
 import type { UserRow, UserStatus } from '../../lib/usuarios/demoData';
 import { fecha } from '../../lib/format';
 import { DataTableClient, type DataTableColumn, EmptyState, Chip, type ChipTone } from '../ui';
-import { ProfileLink } from './ProfileProvider';
+import { ProfileLink, useProfileActions } from './ProfileProvider';
 import { RowActions } from './RowActions';
 
 export function initials(name: string): string {
@@ -51,6 +51,7 @@ export interface UsersTableProps {
 }
 
 export function UsersTable({ users, canWrite = false }: UsersTableProps) {
+  const { activeCode } = useProfileActions();
   const columns: DataTableColumn<UserRow>[] = [
     {
       id: 'persona',
@@ -145,6 +146,7 @@ export function UsersTable({ users, canWrite = false }: UsersTableProps) {
       data={users}
       columns={columns}
       getRowId={(u) => u.id}
+      selectedRowId={activeCode ? users.find((u) => u.code === activeCode)?.id ?? null : null}
       mobileCard={mobileCard}
       empty={
         <EmptyState

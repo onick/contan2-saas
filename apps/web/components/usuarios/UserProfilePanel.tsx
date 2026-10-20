@@ -261,6 +261,7 @@ export function UserProfilePanel({ code, onClose, canEdit = false, initialEdit =
       open={code !== null}
       onClose={onClose}
       mode={mode}
+      contentKey={code}
       title="Detalles de la persona"
       closeLabel="Cerrar perfil"
       header={header}

@@ -250,6 +250,7 @@ export function LectoresClient({ initial, initialStats }: {
             getRowId={(r) => r.userId}
             ariaLabel="Lista de lectores"
             onRowClick={(r) => setSelected(r)}
+            selectedRowId={selected?.userId ?? null}
             empty={
               <EmptyState icon={Users}
                 title={data.total === 0 && !hasFilters ? 'Todavía no hay lectores' : 'Sin resultados'}
@@ -415,6 +416,7 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
     <DetailPanel
       open={reader !== null}
       onClose={onClose}
+      contentKey={reader?.userId}
       title="Detalles del lector"
       tab={tab}
       onTabChange={(v) => setTab(v as typeof tab)}

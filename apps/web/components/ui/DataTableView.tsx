@@ -38,6 +38,8 @@ export interface DataTableViewProps<T> {
   empty?: ReactNode;
   error?: ReactNode;
   onRowClick?: (row: T) => void;
+  /** id (getRowId) de la fila abierta en un panel de detalle: aria-current + fondo de marca. */
+  selectedRowId?: string | null;
   pagination?: DataTableViewPaginationProps;
   mobileCard?: (row: T, cells: ReactNode[]) => ReactNode;
   className?: string;
@@ -131,7 +133,7 @@ function PaginationBar({
 
 export function DataTableView<T>({
   data, columns, getRowId, loading = false, empty, error,
-  onRowClick, pagination, mobileCard, className, ariaLabel,
+  onRowClick, selectedRowId, pagination, mobileCard, className, ariaLabel,
 }: DataTableViewProps<T>) {
   const alwaysCols = columns.filter((c) => !c.priority || c.priority === 'always');
   const isInteractive = !!onRowClick;
@@ -201,9 +203,11 @@ export function DataTableView<T>({
                   key={id}
                   data-row-id={id}
                   {...rowInteractionProps(row)}
+                  {...(id === selectedRowId ? { 'aria-current': 'true' as const } : {})}
                   className={cn(
                     'border-b border-line last:border-0',
                     isInteractive && 'cursor-pointer hover:bg-surface-container focus-visible:bg-surface-container',
+                    id === selectedRowId && 'bg-brand-soft/60 hover:bg-brand-soft/60',
                   )}
                 >
                   {columns.map((col, ci) => (
@@ -258,9 +262,11 @@ export function DataTableView<T>({
                   key={id}
                   data-row-id={id}
                   {...rowInteractionProps(row)}
+                  {...(id === selectedRowId ? { 'aria-current': 'true' as const } : {})}
                   className={cn(
                     'border-b border-line last:border-0',
                     isInteractive && 'cursor-pointer hover:bg-surface-container focus-visible:bg-surface-container',
+                    id === selectedRowId && 'bg-brand-soft/60 hover:bg-brand-soft/60',
                   )}
                 >
                   {card}
