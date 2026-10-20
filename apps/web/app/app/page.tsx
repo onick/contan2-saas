@@ -1,38 +1,19 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { AppShell } from '../../components/shell/AppShell';
-import { InsightBanner, PERIOD_LABEL } from '../../components/dashboard/Overview';
+import { PERIOD_LABEL } from '../../components/dashboard/Overview';
+import { OverviewData } from '../../components/dashboard/OverviewData';
 import { NewActivityButton } from '../../components/activities/NewActivityButton';
 import { SegmentedControl, Card, Skeleton } from '../../components/ui';
-import { StatCardWithInfo } from '../../components/dashboard/StatCardWithInfo';
-import { RegistrosChart } from '../../components/dashboard/RegistrosChart';
-import { SalasHoyCard } from '../../components/dashboard/SalasHoyCard';
-import { PUERTA_ENABLED } from '../../lib/shell/nav';
-import { RecentActivity } from '../../components/dashboard/RecentActivity';
-import { Unavailable } from '../../components/shell/Unavailable';
 import { DemoBanner } from '../../components/shell/DemoBanner';
 import { getTenantBranding } from '../../lib/branding/tenant';
 import { isDemoFallbackAllowed } from '../../lib/auth/demo';
-import { getDashboardOverview } from '../../lib/api/dashboard';
-import { fechaHora, numero } from '../../lib/format';
+import { fecha, hora } from '../../lib/format';
 import type { DashboardOverviewResponse } from '@contan2/contracts';
 
 export const metadata: Metadata = { title: 'Inicio' };
 
 export const dynamic = 'force-dynamic';
-
-const KPI_DEFS = {
-  attendance: 'Personas que entraron en el periodo, con sus acompañantes. Cada persona registrada cuenta una vez, más quienes vienen con ella.',
-  newVisitors: 'Personas que se registraron por primera vez en el periodo',
-  avgOccupancyPct: 'Promedio de cupos ocupados en las actividades del periodo',
-  returnRatePct: 'Asistencias de personas que ya habían venido antes',
-} as const;
-
-const toTrend = (deltaPct: number) => ({
-  dir: (deltaPct > 0 ? 'up' : deltaPct < 0 ? 'down' : 'flat') as 'up' | 'down' | 'flat',
-  value: `${deltaPct > 0 ? '+' : ''}${deltaPct}%`,
-  hint: 'vs período anterior',
-});
 
 const PERIOD_ITEMS = (active: DashboardOverviewResponse['period']) =>
   (Object.keys(PERIOD_LABEL) as (keyof typeof PERIOD_LABEL)[]).map((p) => ({
@@ -41,112 +22,19 @@ const PERIOD_ITEMS = (active: DashboardOverviewResponse['period']) =>
     active: p === active,
   }));
 
-async function OverviewData({ period }: { period: string }) {
-  const data = await getDashboardOverview(period);
-  if (!data) {
-    return (
-      <Unavailable
-        inline
-        title="Dashboard no disponible"
-        description="No pudimos cargar las métricas. Intenta de nuevo en unos segundos."
-      />
-    );
-  }
-
-  return (
-    <>
-      {data.insights.length > 0 && (
-        <div className="mt-4 space-y-2">
-          {data.insights.map((i) => <InsightBanner key={i.type} insight={i} />)}
-        </div>
-      )}
-
-      {/* 4 KPIs */}
-      <div className="app-reveal mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCardWithInfo
-          label="Asistencias del periodo"
-          value={numero(data.attendance.current)}
-          secondary={data.attendance.records !== undefined && data.attendance.records !== data.attendance.current
-            ? `(${numero(data.attendance.records)} ${data.attendance.records === 1 ? 'registro' : 'registros'})` : undefined}
-          trend={toTrend(data.attendance.deltaPct)}
-          tooltipText={KPI_DEFS.attendance}
-        />
-        <StatCardWithInfo
-          label="Visitantes nuevos del periodo"
-          value={numero(data.newVisitors.current)}
-          trend={toTrend(data.newVisitors.deltaPct)}
-          tooltipText={KPI_DEFS.newVisitors}
-        />
-        <StatCardWithInfo
-          label="Ocupación promedio del periodo"
-          value={`${data.avgOccupancyPct.current}%`}
-          trend={toTrend(data.avgOccupancyPct.deltaPct)}
-          tooltipText={KPI_DEFS.avgOccupancyPct}
-        />
-        <StatCardWithInfo
-          label="Tasa de retorno del periodo"
-          value={`${data.returnRatePct.current}%`}
-          trend={toTrend(data.returnRatePct.deltaPct)}
-          tooltipText={KPI_DEFS.returnRatePct}
-        />
-      </div>
-
-      {/* Gráfico + Actividad reciente */}
-      <div
-        className="app-reveal mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[1.6fr_1fr]"
-        style={{ animationDelay: '60ms' }}
-      >
-        <RegistrosChart series={data.series} />
-        <RecentActivity demoAllowed={isDemoFallbackAllowed()} period={period} />
-      </div>
-
-      {/* Salas hoy: las salas permanentes viven en Puerta, fuera de los KPIs de eventos */}
-      {PUERTA_ENABLED && data.salasHoy ? (
-        <div className="app-reveal mt-4 max-w-md" style={{ animationDelay: '100ms' }}>
-          <SalasHoyCard data={data.salasHoy} />
-        </div>
-      ) : null}
-
-      {/* Próximas actividades */}
-      {data.upcoming ? (
-        <div className="app-reveal mt-4" style={{ animationDelay: '120ms' }}>
-          <Card padding="md">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-              Próximas actividades
-            </p>
-            <ul className="mt-3 divide-y divide-line">
-              <li className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">
-                    {data.upcoming.name}
-                  </p>
-                  <p className="mt-0.5 text-[12px] text-muted">
-                    {fechaHora(data.upcoming.date)}
-                  </p>
-                </div>
-                <span className="num flex-none text-[13px] font-semibold tabular-nums text-muted">
-                  {data.upcoming.enrolledCount} / {data.upcoming.capacity}
-                </span>
-              </li>
-            </ul>
-          </Card>
-        </div>
-      ) : null}
-    </>
-  );
-}
-
 function OverviewSkeleton() {
+  const kpi = (big: boolean, i: number) => (
+    <Card key={i} padding="md" className={big ? 'min-h-[188px]' : 'min-h-[148px]'}>
+      <Skeleton className="h-3 w-28" />
+      <Skeleton className={big ? 'mt-4 h-14 w-32' : 'mt-4 h-10 w-20'} />
+      <Skeleton className="mt-4 h-5 w-14" />
+    </Card>
+  );
   return (
     <>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} padding="md">
-            <Skeleton className="h-3 w-28" />
-            <Skeleton className="mt-3 h-8 w-20" />
-            <Skeleton className="mt-2 h-4 w-16" />
-          </Card>
-        ))}
+      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr_1fr]">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{[0, 1].map((i) => kpi(true, i))}</div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{[2, 3].map((i) => kpi(false, i))}</div>
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr_1fr]">
         <Card padding="lg">
@@ -173,23 +61,26 @@ export default async function TenantAdminDashboard({
     ? (rawPeriod as keyof typeof PERIOD_LABEL)
     : '30d';
   const branding = await getTenantBranding();
+  const now = new Date();
 
   return (
     <AppShell branding={branding} title="Inicio" activeKey="dashboard">
       {isDemoFallbackAllowed() ? <DemoBanner /> : null}
 
       {/* Cabecera */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-ink">Inicio</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            Resumen de {branding.name} · actualizado {fechaHora(new Date())}
-          </p>
+          <h1 className="text-[32px] font-semibold leading-tight tracking-tight text-ink">Inicio</h1>
+          <p className="mt-0.5 text-sm text-muted">Resumen de {branding.name}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SegmentedControl items={PERIOD_ITEMS(period)} />
-          <NewActivityButton />
-        </div>
+        <p className="mt-2 inline-flex items-center gap-2 text-[13px] text-muted">
+          <span aria-hidden="true" className="h-1.5 w-1.5 flex-none rounded-full bg-brand" />
+          Actualizado {fecha(now)} · {hora(now)}
+        </p>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <SegmentedControl variant="tray" label="Período" items={PERIOD_ITEMS(period)} />
+        <NewActivityButton />
       </div>
 
       <Suspense key={period} fallback={<OverviewSkeleton />}>
