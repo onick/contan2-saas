@@ -311,6 +311,12 @@ export interface SpaceBookingsTable {
   attendance_id: string | null;
   confirmed_at: NullableTs;
   notified_at: NullableTs;
+  // Migración 056: último error de envío del correo (NULL = sin error / no se intentó).
+  email_error: string | null;
+  cancelled_at: NullableTs;
+  no_show_at: NullableTs;
+  // Fecha original antes de la última reprogramación (NULL = nunca reprogramada).
+  rescheduled_from: NullableTs;
   created_by_staff_id: string | null;
   created_at: CreatedAt;
   updated_at: UpdatedAt;

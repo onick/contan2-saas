@@ -59,6 +59,13 @@ const ACTION_META_MAP: Record<string, ActionMeta> = {
   'biblio.reservation.created':   { frase: 'Reserva creada',           icono: Bookmark,     tono: 'success' },
   // — Sala / Puerta —
   'booking.created':              { frase: 'Reserva de sala creada',   icono: CalendarPlus, tono: 'success' },
+  'puerta.booking.created':       { frase: 'Reserva de sala creada',   icono: CalendarPlus, tono: 'success' },
+  'puerta.booking.confirmed':     { frase: 'Reserva de sala confirmada', icono: CalendarPlus, tono: 'success' },
+  'puerta.booking.cancelled':     { frase: 'Reserva de sala cancelada', icono: XCircle,     tono: 'danger'  },
+  'puerta.booking.rescheduled':   { frase: 'Reserva de sala reprogramada', icono: CalendarPlus, tono: 'info' },
+  'puerta.booking.no_show':       { frase: 'Reserva de sala: no vino', icono: XCircle,      tono: 'neutral' },
+  'puerta.booking.checked_in':    { frase: 'Check-in de una reserva de sala', icono: UserCheck, tono: 'success' },
+  'puerta.booking.day_closed':    { frase: 'Cierre del día: reserva sin asistencia', icono: XCircle, tono: 'neutral' },
   'puerta.exported':              { frase: 'Registros de sala exportados', icono: Download, tono: 'info'   },
   // — Identidad —
   'branding.updated':             { frase: 'Identidad visual actualizada', icono: Palette,  tono: 'brand'   },

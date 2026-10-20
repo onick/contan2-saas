@@ -83,7 +83,8 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'id', 'organization_id', 'activity_id', 'scheduled_at', 'colegio', 'level',
     'contact_name', 'contact_email', 'contact_phone', 'student_count', 'status',
     'notes', 'attendance_id', 'confirmed_at', 'notified_at', 'created_by_staff_id',
-    'created_at', 'updated_at',
+    'created_at', 'updated_at', 'group_kind',
+    'email_error', 'cancelled_at', 'no_show_at', 'rescheduled_from', // 056
   ],
   invitations: [
     'id', 'organization_id', 'activity_id', 'user_id', 'token', 'status',

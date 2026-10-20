@@ -1822,6 +1822,22 @@ export const PuertaBookingUpdateRequestSchema = z.object({
 }).strict();
 export type PuertaBookingUpdateRequest = z.infer<typeof PuertaBookingUpdateRequestSchema>;
 
+// POST /puerta/bookings/:id/checkin · cuerpo opcional. `force` (solo owner/admin)
+// permite el check-in de una reserva que NO es de hoy.
+export const PuertaBookingCheckinRequestSchema = z.object({
+  force: z.boolean().optional(),
+}).strict();
+export type PuertaBookingCheckinRequest = z.infer<typeof PuertaBookingCheckinRequestSchema>;
+
+// POST /puerta/bookings/close-day?date=YYYY-MM-DD · cierre del día (owner/admin):
+// marca "No vino" las reservas vencidas sin asistencia. Idempotente.
+export const PuertaBookingCloseDayResponseSchema = z.object({
+  date: z.string(),
+  closed: z.number().int(),
+  bookingIds: z.array(z.string()),
+});
+export type PuertaBookingCloseDayResponse = z.infer<typeof PuertaBookingCloseDayResponseSchema>;
+
 export const PuertaBookingFullSchema = z.object({
   id: z.string(),
   salaId: z.string(),
@@ -1839,6 +1855,10 @@ export const PuertaBookingFullSchema = z.object({
   confirmedAt: z.string().nullable(),
   notifiedAt: z.string().nullable(),
   attendanceId: z.string().nullable(),
+  /** Fecha original antes de la última reprogramación (null = nunca). */
+  rescheduledFrom: z.string().nullable().optional(),
+  /** Último error al enviar el correo al responsable (null = sin error). */
+  emailError: z.string().nullable().optional(),
 });
 export type PuertaBookingFull = z.infer<typeof PuertaBookingFullSchema>;
 
