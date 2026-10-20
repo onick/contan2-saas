@@ -84,6 +84,34 @@ export async function OverviewData({ period }: { period: string }) {
           >
             <RegistrosChart series={data.series} />
           </div>
+          {/* Próximas actividades: debajo de la gráfica, en la columna izquierda (pedido del dueño 2026-10-20). */}
+          {data.upcoming ? (
+            <div
+              className="app-reveal order-7 min-w-0"
+              style={{ animationDelay: "160ms" }}
+            >
+              <Card padding="md">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
+                  Próximas actividades
+                </p>
+                <ul className="mt-3 divide-y divide-line">
+                  <li className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {data.upcoming.name}
+                      </p>
+                      <p className="mt-0.5 text-[12px] text-muted">
+                        {fechaHora(data.upcoming.date)}
+                      </p>
+                    </div>
+                    <span className="num flex-none text-[13px] font-semibold tabular-nums text-muted">
+                      {data.upcoming.enrolledCount} / {data.upcoming.capacity}
+                    </span>
+                  </li>
+                </ul>
+              </Card>
+            </div>
+          ) : null}
         </div>
 
         <div
@@ -127,32 +155,6 @@ export async function OverviewData({ period }: { period: string }) {
           ) : null}
         </div>
       </div>
-
-      {/* Próximas actividades */}
-      {data.upcoming ? (
-        <div className="app-reveal mt-4" style={{ animationDelay: "160ms" }}>
-          <Card padding="md">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-              Próximas actividades
-            </p>
-            <ul className="mt-3 divide-y divide-line">
-              <li className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">
-                    {data.upcoming.name}
-                  </p>
-                  <p className="mt-0.5 text-[12px] text-muted">
-                    {fechaHora(data.upcoming.date)}
-                  </p>
-                </div>
-                <span className="num flex-none text-[13px] font-semibold tabular-nums text-muted">
-                  {data.upcoming.enrolledCount} / {data.upcoming.capacity}
-                </span>
-              </li>
-            </ul>
-          </Card>
-        </div>
-      ) : null}
     </>
   );
 }

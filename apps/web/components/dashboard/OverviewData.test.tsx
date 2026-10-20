@@ -75,6 +75,7 @@ describe('OverviewData', () => {
       insights: [{ type: 'low_enrollment', severity: 'warning', title: 'Baja inscripción próxima', message: 'Cine 2/50' }],
       salasHoy: { people: 12, entries: 9, salas: [{ id: 's1', name: 'Sala Ada', people: 12 }] },
     };
+    data.upcoming = { id: 'a1', name: 'Cine foro', date: '2026-10-25T19:00:00.000Z', enrolledCount: 12, capacity: 50 } as never;
     const { container } = render(await OverviewData({ period: '30d' }));
     const left = container.querySelector('[data-bento="izquierda"]') as HTMLElement;
     const right = container.querySelector('[data-bento="derecha"]') as HTMLElement;
@@ -86,6 +87,9 @@ describe('OverviewData', () => {
     expect(within(left).getByText('Asistencias del periodo')).toBeInTheDocument();
     expect(within(left).getByRole('heading', { name: 'Atención hoy' })).toBeInTheDocument();
     expect(within(left).getByRole('heading', { name: 'Asistencias' })).toBeInTheDocument();
+    // Próximas actividades vive debajo de la gráfica, en la columna izquierda.
+    expect(within(left).getByText('Próximas actividades')).toBeInTheDocument();
+    expect(within(left).getByText('Próximas actividades').closest('.app-reveal')!.className).toContain('order-7');
     const small = Array.from(right.querySelectorAll('section[data-tone="neutral"]'));
     expect(small).toHaveLength(2);
     for (const s of small) expect(s.getAttribute('data-compact')).toBe('true');
