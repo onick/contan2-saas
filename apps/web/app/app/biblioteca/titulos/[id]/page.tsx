@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { TitleDetail } from '../../../../../components/biblioteca/TitleDetail';
-import { BibliotecaTabsNav } from '../../../../../components/biblioteca/BibliotecaTabsNav';
+import { BibliotecaHeader } from '../../../../../components/biblioteca/BibliotecaHeader';
 import { getBiblioTitleDetail, getBiblioSites } from '../../../../../lib/api/biblio';
 
 // Biblioteca · ficha de título + ejemplares (shell: layout de /app/biblioteca).
@@ -14,7 +14,7 @@ export default async function BiblioTitlePage({ params }: { params: Promise<{ id
   if (!detail) notFound();
   return (
     <>
-      <div className="-mt-5 mb-5"><BibliotecaTabsNav /></div>
+      <BibliotecaHeader as="p" className="mb-6" />
       <TitleDetail initial={detail} sites={sites?.sites ?? []} />
     </>
   );

@@ -7,10 +7,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  ClipboardList, History, Search, Loader2, Check, X, ChevronLeft, ChevronRight,
-  BookOpen, Plus, ScanBarcode, Download, Printer, MapPin, Trash2, AlertTriangle,
-  CircleCheck, Eye,
+  ClipboardList, Search, Loader2, Check, X, ChevronLeft, ChevronRight,
+  BookOpen, Plus, ScanBarcode, Download, Printer,
+  CircleCheck, Eye, Inbox, ListChecks, ArrowUpRight,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type {
   BiblioInventoriesListResponse, BiblioInventoryItemsResponse,
   BiblioInventoryItem, BiblioInventoryScanResponse, BiblioSite,
@@ -20,7 +21,7 @@ import {
   Tabs, TabsContent, DataTableClient, cn, focusRing,
 } from '../ui';
 import type { DataTableColumn } from '../ui';
-import { BibliotecaTabsNav } from './BibliotecaTabsNav';
+import { BibliotecaHeader } from './BibliotecaHeader';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
@@ -168,14 +169,6 @@ export function InventarioClient({ initial, sites }: {
     { value: 'bajas', label: 'Bajas' },
   ];
 
-  const donut = viewing && viewing.scanned + viewing.missing + viewing.onLoan > 0 ? (() => {
-    const total = viewing.expected || 1;
-    const f = (viewing.found / total) * 360;
-    const m = (viewing.misplaced / total) * 360;
-    const l = (viewing.onLoan / total) * 360;
-    return `conic-gradient(var(--color-success-fg) 0deg ${f}deg, var(--color-warning-fg) ${f}deg ${f + m}deg, var(--color-info-text) ${f + m}deg ${f + m + l}deg, var(--color-surface-container) ${f + m + l}deg 360deg)`;
-  })() : null;
-
   const itemColumns: DataTableColumn<BiblioInventoryItem>[] = [
     {
       id: 'codigo',
@@ -253,110 +246,140 @@ export function InventarioClient({ initial, sites }: {
     },
   ];
 
-  return (
-    <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_290px] xl:items-start xl:gap-5">
-      <div className="min-w-0">
-        <div className="app-reveal">
-          <SectionHeader
-            level={1}
-            title="Inventario"
-            subtitle="Controla y verifica los ejemplares físicos: escanea uno a uno y el resultado se registra solo."
-            actions={!active ? <Button ref={nuevoInventarioBtnRef} variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nuevo inventario</Button> : undefined}
-          />
-        </div>
-        <BibliotecaTabsNav />
+  const estadoFaltantes = viewing?.status === 'finalizado' ? 'Faltantes' : 'Pendientes';
+  const tieneResultados = !!viewing && viewing.scanned + viewing.missing + viewing.onLoan > 0;
 
-        {/* ── Sesión activa / última ── */}
-        {viewing ? (
-          <Card padding="lg" className="app-reveal mt-5" style={{ animationDelay: '40ms' }}>
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div className="flex items-start gap-3.5">
-                <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-brand/10 text-brand-text"><ClipboardList size={22} strokeWidth={1.8} /></span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-[16px] font-extrabold tracking-tight text-ink">{viewing.name}</h2>
-                    {viewing.status === 'en_progreso'
-                      ? <Chip tone="brand" dot>En progreso</Chip>
-                      : <Chip tone="neutral">Finalizado</Chip>}
-                  </div>
-                  <p className="mt-1 text-[12.5px] text-muted">
-                    {viewing.startedByName ? <>Iniciado por: <b className="text-ink">{viewing.startedByName}</b> · </> : null}
-                    {fmtDate(viewing.startedAt)} · Alcance: <b className="text-ink">{viewing.siteName ?? 'Todo el acervo'}</b>
-                  </p>
-                </div>
+  return (
+    <div>
+      <BibliotecaHeader as="p" />
+
+      <div className="app-reveal mt-6">
+        <SectionHeader
+          level={1}
+          title="Inventario"
+          subtitle="Controla y verifica los ejemplares físicos: escanea uno a uno y el resultado se registra solo."
+          actions={!active ? <Button ref={nuevoInventarioBtnRef} variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nuevo inventario</Button> : undefined}
+        />
+      </div>
+
+      <div className="mt-5 flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+        <div className="flex min-w-0 flex-col gap-4">
+          {/* ── Inventario seleccionado (tarjeta oscura) ── */}
+          {viewing ? (
+            <section
+              data-testid="inventario-seleccionado"
+              className="app-reveal rounded-card bg-accent-strong p-6 text-accent-strong-fg md:p-8"
+              style={{ animationDelay: '40ms' }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.08em] text-accent-strong-fg/80">
+                  <ClipboardList size={16} strokeWidth={1.8} aria-hidden="true" /> Inventario seleccionado
+                </p>
+                <span className="inline-flex flex-none items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[12.5px] font-semibold text-white">
+                  <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', viewing.status === 'en_progreso' ? 'bg-brand' : 'bg-white/60')} />
+                  {viewing.status === 'en_progreso' ? 'En progreso' : 'Finalizado'}
+                </span>
               </div>
-              <div className="w-full md:w-72">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[12px] font-bold uppercase tracking-[0.04em] text-faint">Progreso</span>
-                  <span className="text-[18px] font-extrabold tabular-nums text-ink">{pct}%</span>
+
+              <h2 className="mt-4 text-[26px] font-bold leading-tight tracking-tight md:text-[28px]">{viewing.name}</h2>
+              <p className="mt-2 text-[13.5px] text-accent-strong-fg/80">
+                {viewing.startedByName ? <>Iniciado por: {viewing.startedByName} · </> : null}{fmtDate(viewing.startedAt)}
+              </p>
+              <p className="mt-0.5 text-[13.5px] text-accent-strong-fg/80">Alcance: {viewing.siteName ?? 'Todo el acervo'}</p>
+
+              <div className="mt-7">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-[11.5px] font-bold uppercase tracking-[0.08em] text-accent-strong-fg/70">Progreso</p>
+                    <p className="mt-1 text-[16px] font-semibold tabular-nums">Escaneados: {fmt(viewing.scanned)} / {fmt(viewing.expected)}</p>
+                  </div>
+                  <p className="num text-[48px] font-medium leading-none tracking-tight tabular-nums md:text-[56px]">{pct}%</p>
                 </div>
-                <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-surface-container">
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15">
                   <div className="h-full rounded-full bg-brand transition-[width] duration-300" style={{ width: `${pct}%` }} />
                 </div>
-                <p className="mt-1.5 text-[12px] tabular-nums text-muted">Escaneados: <b className="text-ink">{fmt(viewing.scanned)} / {fmt(viewing.expected)}</b></p>
-                {active ? (
-                  finishing ? (
-                    <div className="mt-2.5 flex items-center gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => setFinishing(false)} disabled={busyFinish}>Seguir escaneando</Button>
-                      <Button variant="primary" size="sm" onClick={finish} disabled={busyFinish}>
-                        {busyFinish ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} strokeWidth={2.2} />} Confirmar cierre
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button variant="secondary" size="sm" className="mt-2.5" onClick={() => setFinishing(true)}>Finalizar inventario</Button>
-                  )
-                ) : null}
               </div>
-            </div>
-            {finishing && active ? (
-              <p className="mt-3 rounded-xl bg-warning-bg px-3.5 py-2.5 text-[12.5px] leading-relaxed text-warning-fg">
-                Al cerrar, los {fmt(active.missing)} sin escanear (y sin préstamo) quedan como <b>FALTANTES</b> en el resumen. Puedes seguir escaneando si todavía falta recorrer estantes.
-              </p>
-            ) : null}
 
-            {/* Caja de escaneo — lógica INTOCABLE */}
-            {active ? (
-              <form className="mt-4" onSubmit={(e) => { e.preventDefault(); void scan(scanCode); }}>
-                <label className={cn('flex items-center gap-2.5 rounded-xl border-2 border-brand/40 bg-surface px-3.5 py-3', focusRing)}>
-                  <ScanBarcode size={19} className="flex-none text-brand-text" aria-hidden="true" />
+              {finishing && active ? (
+                <p className="mt-5 rounded-xl bg-white/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-white">
+                  Al cerrar, los {fmt(active.missing)} sin escanear (y sin préstamo) quedan como <b>FALTANTES</b> en el resumen. Puedes seguir escaneando si todavía falta recorrer estantes.
+                </p>
+              ) : null}
+
+              {active ? (
+                <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
+                  {finishing ? (
+                    <>
+                      <button type="button" onClick={() => setFinishing(false)} disabled={busyFinish}
+                        className={cn(darkBtn, 'border border-white/20 bg-white/10 text-white hover:bg-white/20')}>
+                        Seguir escaneando
+                      </button>
+                      <button type="button" onClick={finish} disabled={busyFinish}
+                        className={cn(darkBtn, 'bg-brand text-brand-fg hover:opacity-90')}>
+                        {busyFinish ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.2} />} Confirmar cierre
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => setFinishing(true)}
+                      className={cn(darkBtn, 'border border-white/20 bg-white/10 text-white hover:bg-white/20')}>
+                      Finalizar inventario
+                    </button>
+                  )}
+                </div>
+              ) : null}
+            </section>
+          ) : (
+            <Card padding="lg" className="app-reveal" style={{ animationDelay: '40ms' }}>
+              <EmptyState icon={ClipboardList}
+                title="Sin inventarios todavía"
+                description="Abre una sesión (todo el acervo o un sitio) y escanea los ejemplares uno a uno — el resultado se registra solo."
+                action={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={15} /> Nuevo inventario</Button>} />
+            </Card>
+          )}
+
+          {/* ── Escaneo (solo con inventario activo) — lógica INTOCABLE ── */}
+          {active ? (
+            <Card padding="lg" className="app-reveal" style={{ animationDelay: '55ms' }}>
+              <h2 className="flex items-center gap-2 text-[17px] font-bold tracking-tight text-ink">
+                <ScanBarcode size={19} strokeWidth={1.8} className="text-brand-text" aria-hidden="true" /> Escanear ejemplar
+              </h2>
+              <form className="mt-3.5" onSubmit={(e) => { e.preventDefault(); void scan(scanCode); }}>
+                <label className={cn('flex min-h-11 items-center gap-2.5 rounded-xl border-2 border-brand/40 bg-surface px-3.5', focusRing)}>
+                  <ScanBarcode size={18} className="flex-none text-brand-text" aria-hidden="true" />
                   <input ref={scanRef} value={scanCode} onChange={(e) => setScanCode(e.target.value)} autoFocus
                     placeholder="Escanea el código de barras del ejemplar (o escríbelo y Enter)…" aria-label="Escanear ejemplar"
-                    className="w-full bg-transparent font-mono text-[15px] text-ink outline-none placeholder:font-sans placeholder:text-faint" />
+                    className="min-h-11 w-full bg-transparent font-mono text-[15px] text-ink outline-none placeholder:font-sans placeholder:text-faint" />
                   {scanning ? <Loader2 size={16} className="animate-spin text-faint" /> : null}
                 </label>
               </form>
-            ) : null}
-            {scanMsg ? (
-              <p role="status" className={cn('mt-2.5 rounded-xl px-3.5 py-2.5 text-[13px] font-semibold',
-                scanMsg.kind === 'ok' ? 'bg-success-bg text-success-fg' : scanMsg.kind === 'warn' ? 'bg-warning-bg text-warning-fg' : 'bg-danger-bg text-danger-fg')}>
-                {scanMsg.text}
-              </p>
-            ) : null}
-          </Card>
-        ) : (
-          <Card padding="lg" className="app-reveal mt-5" style={{ animationDelay: '40ms' }}>
-            <EmptyState icon={ClipboardList}
-              title="Sin inventarios todavía"
-              description="Abre una sesión (todo el acervo o un sitio) y escanea los ejemplares uno a uno — el resultado se registra solo."
-              action={<Button variant="primary" onClick={() => setDrawer(true)}><Plus size={15} /> Nuevo inventario</Button>} />
-          </Card>
-        )}
+              {scanMsg ? (
+                <p role="status" className={cn('mt-2.5 rounded-xl px-3.5 py-2.5 text-[13px] font-semibold',
+                  scanMsg.kind === 'ok' ? 'bg-success-bg text-success-fg' : scanMsg.kind === 'warn' ? 'bg-warning-bg text-warning-fg' : 'bg-danger-bg text-danger-fg')}>
+                  {scanMsg.text}
+                </p>
+              ) : null}
+            </Card>
+          ) : null}
 
-        {/* ── Tabs del kit ── */}
-        <div className="app-reveal mt-4" style={{ animationDelay: '70ms' }}>
-          <Tabs
-            value={tab}
-            onValueChange={(v) => { setTab(v); setPage(1); }}
-            tabs={TABS_ITEMS}
-          >
-            <TabsContent value={tab} className="flex flex-col gap-4 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
-            {tab === 'anteriores' ? (
-              <div>
-                {sessions.previous.length === 0 ? (
-                  <Card padding="lg"><p className="text-[13.5px] text-muted">Todavía no hay inventarios finalizados.</p></Card>
-                ) : (
-                  <Card padding="none" className="overflow-hidden">
-                    <ul className="divide-y divide-line/70">
+          {/* ── Consulta de ejemplares ── */}
+          <Card padding="lg" className="app-reveal" style={{ animationDelay: '70ms' }}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-[17px] font-bold tracking-tight text-ink">Consulta de ejemplares</h2>
+              <BookOpen size={20} strokeWidth={1.5} aria-hidden="true" className="flex-none text-faint" />
+            </div>
+            <Tabs
+              className="mt-4"
+              value={tab}
+              onValueChange={(v) => { setTab(v); setPage(1); }}
+              tabs={TABS_ITEMS}
+            >
+              <TabsContent value={tab} className="flex flex-col gap-4 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+              {tab === 'anteriores' ? (
+                <div>
+                  {sessions.previous.length === 0 ? (
+                    <p className="py-6 text-center text-[13.5px] text-muted">Todavía no hay inventarios finalizados.</p>
+                  ) : (
+                    <ul className="divide-y divide-line/70 rounded-xl border border-line/70">
                       {sessions.previous.map((v) => (
                         <li key={v.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                           <span className="min-w-0 flex-1">
@@ -376,148 +399,156 @@ export function InventarioClient({ initial, sites }: {
                         </li>
                       ))}
                     </ul>
-                  </Card>
-                )}
-              </div>
-            ) : (
-              <>
-                <label className={cn('flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-2.5', focusRing)}>
-                  <Search size={16} className="text-faint" aria-hidden="true" />
-                  <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }}
-                    placeholder="Buscar por título, autor, ISBN, código de barras o signatura…" aria-label="Buscar ejemplares"
-                    className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
-                  {loading ? <Loader2 size={15} className="animate-spin text-faint" /> : null}
-                </label>
-
-                <div className={cn('transition-opacity', loading && 'opacity-50')}>
-                  {!items || items.items.length === 0 ? (
-                    <Card padding="lg">
-                      <p className="text-[13.5px] text-muted">
-                        {tab === 'bajas' ? 'No hay ejemplares dados de baja.' : !viewing ? 'Abre un inventario para ver los ejemplares.' : q ? 'Sin resultados con esa búsqueda.' : 'Nada en esta vista.'}
-                      </p>
-                    </Card>
-                  ) : (
-                    <DataTableClient
-                      data={items.items}
-                      columns={itemColumns}
-                      getRowId={(it) => it.itemId}
-                      ariaLabel="Ejemplares del inventario"
-                      mobileCard={(it) => (
-                        <div className="flex items-center gap-3 p-4">
-                          <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
-                            {it.coverUrl
-                              // eslint-disable-next-line @next/next/no-img-element
-                              ? <img src={it.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                              : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[13px] font-bold text-ink">{it.title}</p>
-                            <p className="font-mono text-[10.5px] text-faint tabular-nums">{it.inventoryCode}</p>
-                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                              {tab !== 'bajas' ? <Chip tone={ESTADO_META[it.estado].tone} dot>{ESTADO_META[it.estado].label}</Chip> : null}
-                              <ResultChip r={it.resultado} />
-                            </div>
-                          </div>
-                          <Link href={`/app/biblioteca/titulos/${it.titleId}`} aria-label={`Ver ficha de ${it.title}`}
-                            className={cn('inline-grid h-8 w-8 flex-none place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
-                            <Eye size={15} strokeWidth={1.9} />
-                          </Link>
-                        </div>
-                      )}
-                    />
                   )}
-
-                  {items && pages > 1 ? (
-                    <nav className="mt-3.5 flex items-center justify-center gap-1" aria-label="Paginación">
-                      <IconButton label="Página anterior" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                        <ChevronLeft size={15} />
-                      </IconButton>
-                      {pageWindow(items.page, pages).map((p, i) => p === '…' ? (
-                        <span key={`e${i}`} className="px-1 text-faint">…</span>
-                      ) : (
-                        <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === items.page ? 'page' : undefined}
-                          className={cn('grid h-8 min-w-8 place-items-center rounded-lg px-1 text-[12.5px] font-bold tabular-nums', focusRing,
-                            p === items.page ? 'bg-brand text-brand-fg' : 'text-muted hover:bg-surface-container')}>
-                          {p}
-                        </button>
-                      ))}
-                      <IconButton label="Página siguiente" variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
-                        <ChevronRight size={15} />
-                      </IconButton>
-                    </nav>
-                  ) : null}
                 </div>
-              </>
-            )}
-            </TabsContent>
-          </Tabs>
+              ) : (
+                <>
+                  <label className={cn('flex min-h-11 items-center gap-2.5 rounded-xl bg-surface-container px-3.5 py-2.5', focusRing)}>
+                    <Search size={16} className="text-faint" aria-hidden="true" />
+                    <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                      placeholder="Buscar por título, autor, ISBN, código de barras o signatura…" aria-label="Buscar ejemplares"
+                      className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
+                    {loading ? <Loader2 size={15} className="animate-spin text-faint" /> : null}
+                  </label>
+
+                  <div className={cn('transition-opacity', loading && 'opacity-50')}>
+                    {!items || items.items.length === 0 ? (
+                      <div className="flex flex-col items-center gap-4 px-4 py-12 text-center">
+                        <span className="grid h-16 w-16 place-items-center rounded-full bg-info-soft text-info-text">
+                          <Inbox size={28} strokeWidth={1.5} aria-hidden="true" />
+                        </span>
+                        <p className="text-[17px] font-semibold tracking-tight text-ink">
+                          {tab === 'bajas' ? 'No hay ejemplares dados de baja.' : !viewing ? 'Abre un inventario para ver los ejemplares.' : q ? 'Sin resultados con esa búsqueda.' : 'Nada en esta vista.'}
+                        </p>
+                      </div>
+                    ) : (
+                      <DataTableClient
+                        data={items.items}
+                        columns={itemColumns}
+                        getRowId={(it) => it.itemId}
+                        ariaLabel="Ejemplares del inventario"
+                        mobileCard={(it) => (
+                          <div className="flex items-center gap-3 p-4">
+                            <span className="grid h-11 w-8 flex-none place-items-center overflow-hidden rounded border border-line/60 bg-brand-accent">
+                              {it.coverUrl
+                                // eslint-disable-next-line @next/next/no-img-element
+                                ? <img src={it.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                : <BookOpen size={13} className="text-white/85" aria-hidden="true" />}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[13px] font-bold text-ink">{it.title}</p>
+                              <p className="font-mono text-[10.5px] text-faint tabular-nums">{it.inventoryCode}</p>
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                {tab !== 'bajas' ? <Chip tone={ESTADO_META[it.estado].tone} dot>{ESTADO_META[it.estado].label}</Chip> : null}
+                                <ResultChip r={it.resultado} />
+                              </div>
+                            </div>
+                            <Link href={`/app/biblioteca/titulos/${it.titleId}`} aria-label={`Ver ficha de ${it.title}`}
+                              className={cn('inline-grid h-8 w-8 flex-none place-items-center rounded-lg text-faint hover:bg-surface-container hover:text-ink', focusRing)}>
+                              <Eye size={15} strokeWidth={1.9} />
+                            </Link>
+                          </div>
+                        )}
+                      />
+                    )}
+
+                    {items && pages > 1 ? (
+                      <nav className="mt-3.5 flex items-center justify-center gap-1" aria-label="Paginación">
+                        <IconButton label="Página anterior" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                          <ChevronLeft size={15} />
+                        </IconButton>
+                        {pageWindow(items.page, pages).map((p, i) => p === '…' ? (
+                          <span key={`e${i}`} className="px-1 text-faint">…</span>
+                        ) : (
+                          <button key={p} type="button" onClick={() => setPage(p)} aria-current={p === items.page ? 'page' : undefined}
+                            className={cn('grid h-8 min-w-8 place-items-center rounded-lg px-1 text-[12.5px] font-bold tabular-nums', focusRing,
+                              p === items.page ? 'bg-brand text-brand-fg' : 'text-muted hover:bg-surface-container')}>
+                            {p}
+                          </button>
+                        ))}
+                        <IconButton label="Página siguiente" variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+                          <ChevronRight size={15} />
+                        </IconButton>
+                      </nav>
+                    ) : null}
+                  </div>
+                </>
+              )}
+              </TabsContent>
+            </Tabs>
+          </Card>
         </div>
-      </div>
 
-      {/* ── Carril derecho ── */}
-      <aside className="mt-5 xl:mt-0">
-        {viewing ? (
-          <>
-            <Card padding="md" className="app-reveal" style={{ animationDelay: '60ms' }}>
-              <h2 className="text-[14px] font-bold tracking-tight text-ink">Resumen del inventario</h2>
-              <dl className="mt-2 divide-y divide-line/60">
-                <SummaryRow label="Total de ejemplares" value={viewing.expected} tone="text-ink" />
-                <SummaryRow label="Escaneados" value={viewing.scanned} tone="text-ink" />
-                <SummaryRow label="Encontrados" value={viewing.found} tone="text-success-fg" />
-                <SummaryRow label="Fuera de ubicación" value={viewing.misplaced} tone={viewing.misplaced > 0 ? 'text-warning-fg' : 'text-ink'} />
-                <SummaryRow label="Prestados (en la calle)" value={viewing.onLoan} tone="text-info-text" />
-                <SummaryRow label={viewing.status === 'finalizado' ? 'Faltantes' : 'Pendientes por escanear'} value={viewing.missing} tone={viewing.status === 'finalizado' && viewing.missing > 0 ? 'text-danger-fg' : 'text-ink'} />
-              </dl>
-              <div className="mt-2.5 flex items-baseline justify-between border-t border-line/60 pt-2">
-                <span className="text-[12.5px] font-bold text-ink">Completado</span>
-                <span className="text-[16px] font-extrabold tabular-nums text-brand-text">{pct}%</span>
-              </div>
-            </Card>
-
-            {donut ? (
-              <Card padding="md" className="app-reveal mt-4" style={{ animationDelay: '90ms' }}>
-                <h2 className="text-[14px] font-bold tracking-tight text-ink">Resultados</h2>
-                <div className="mt-3 flex items-center gap-4">
-                  <span className="relative grid h-24 w-24 flex-none place-items-center rounded-full" style={{ background: donut }} aria-hidden="true">
-                    <span className="grid h-14 w-14 place-items-center rounded-full bg-surface text-[13px] font-extrabold tabular-nums text-ink">{pct}%</span>
-                  </span>
-                  <ul className="flex flex-col gap-1.5 text-[11.5px]">
-                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-success-fg" /> Encontrados <b className="tabular-nums">{fmt(viewing.found)}</b></li>
-                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-warning-fg" /> Fuera de ubicación <b className="tabular-nums">{fmt(viewing.misplaced)}</b></li>
-                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-info-text" /> Prestados <b className="tabular-nums">{fmt(viewing.onLoan)}</b></li>
-                    <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-surface-container" /> {viewing.status === 'finalizado' ? 'Faltantes' : 'Pendientes'} <b className="tabular-nums">{fmt(viewing.missing)}</b></li>
-                  </ul>
+        {/* ── Carril derecho ── */}
+        <aside className="flex flex-col gap-4">
+          {viewing ? (
+            <>
+              <Card padding="lg" className="app-reveal" style={{ animationDelay: '60ms' }}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-[17px] font-bold tracking-tight text-ink">Resumen del inventario</h2>
+                  <ListChecks size={20} strokeWidth={1.5} aria-hidden="true" className="flex-none text-faint" />
+                </div>
+                <dl className="mt-3 divide-y divide-line/60">
+                  <SummaryRow label="Total de ejemplares" value={viewing.expected} tone="text-ink" />
+                  <SummaryRow label="Escaneados" value={viewing.scanned} tone="text-ink" />
+                  <SummaryRow label="Encontrados" value={viewing.found} tone="text-success-fg" />
+                  <SummaryRow label="Fuera de ubicación" value={viewing.misplaced} tone={viewing.misplaced > 0 ? 'text-warning-fg' : 'text-ink'} />
+                  <SummaryRow label="Prestados (en la calle)" value={viewing.onLoan} tone="text-info-text" />
+                  <SummaryRow label={viewing.status === 'finalizado' ? 'Faltantes' : 'Pendientes por escanear'} value={viewing.missing} tone={viewing.status === 'finalizado' && viewing.missing > 0 ? 'text-danger-fg' : 'text-ink'} />
+                </dl>
+                <div className="mt-2.5 flex items-baseline justify-between border-t border-line/60 pt-3">
+                  <span className="text-[13px] font-bold text-ink">Completado</span>
+                  <span className="text-[17px] font-extrabold tabular-nums text-brand-text">{pct}%</span>
                 </div>
               </Card>
-            ) : null}
 
-            <Card padding="md" className="app-reveal mt-4" style={{ animationDelay: '120ms' }}>
-              <h2 className="text-[14px] font-bold tracking-tight text-ink">Herramientas</h2>
-              <div className="mt-2 flex flex-col gap-1">
-                <a href={`/app/biblioteca/api/inventories/${viewing.id}/export`} download
-                  className={cn('flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[12.5px] font-semibold text-ink hover:bg-surface-container', focusRing)}>
-                  <Download size={15} className="text-brand-text" strokeWidth={1.9} /> Exportar resultados (Excel)
-                </a>
-                <button type="button" onClick={() => { setTab('faltantes'); setPage(1); }}
-                  className={cn('flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[12.5px] font-semibold text-ink hover:bg-surface-container', focusRing)}>
-                  <Search size={15} className="text-brand-text" strokeWidth={1.9} /> Ver {viewing.status === 'finalizado' ? 'faltantes' : 'pendientes'}
-                </button>
-                <span className="flex cursor-default items-center gap-2.5 rounded-xl px-2.5 py-2 text-[12.5px] font-semibold text-faint" title="Llega en una fase posterior">
-                  <Printer size={15} strokeWidth={1.9} /> Imprimir etiquetas de códigos <Chip tone="neutral">Pronto</Chip>
-                </span>
-              </div>
-            </Card>
-          </>
-        ) : null}
+              {tieneResultados ? (
+                <Card padding="lg" className="app-reveal" style={{ animationDelay: '90ms' }}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h2 className="text-[17px] font-bold tracking-tight text-ink">Resultados</h2>
+                    <span className="text-[14px] font-bold tabular-nums text-brand-text">{pct}%</span>
+                  </div>
+                  <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
+                    <ResultStat dot="bg-success-fg" value={viewing.found} label="Encontrados" />
+                    <ResultStat dot="bg-warning-fg" value={viewing.misplaced} label="Fuera de ubicación" />
+                    <ResultStat dot="bg-info-text" value={viewing.onLoan} label="Prestados" />
+                    <ResultStat dot="bg-danger-fg" value={viewing.missing} label={estadoFaltantes} />
+                  </ul>
+                </Card>
+              ) : null}
 
-        <Card padding="md" className="app-reveal mt-4 border-brand/25 bg-brand/[0.04]" style={{ animationDelay: '150ms' }}>
-          <h2 className="flex items-center gap-1.5 text-[14px] font-bold tracking-tight text-ink"><CircleCheck size={14} className="text-brand-text" /> Consejo</h2>
-          <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
-            Escanea los códigos de los ejemplares uno por uno para verificar su existencia y ubicación.
-            Lo que figura prestado no cuenta como faltante: está en la calle, no perdido.
-          </p>
-        </Card>
-      </aside>
+              <Card padding="lg" className="app-reveal" style={{ animationDelay: '120ms' }}>
+                <h2 className="text-[17px] font-bold tracking-tight text-ink">Herramientas</h2>
+                <div className="mt-3 flex flex-col gap-1">
+                  <a href={`/app/biblioteca/api/inventories/${viewing.id}/export`} download
+                    className={cn(toolRow, 'text-ink hover:bg-surface-container', focusRing)}>
+                    <ToolChip icon={Download} /> <span className="min-w-0 flex-1">Exportar resultados (Excel)</span>
+                    <ArrowUpRight size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
+                  </a>
+                  <button type="button" onClick={() => { setTab('faltantes'); setPage(1); }}
+                    className={cn(toolRow, 'w-full text-left text-ink hover:bg-surface-container', focusRing)}>
+                    <ToolChip icon={Search} /> <span className="min-w-0 flex-1">Ver {viewing.status === 'finalizado' ? 'faltantes' : 'pendientes'}</span>
+                    <ArrowUpRight size={15} strokeWidth={1.8} aria-hidden="true" className="flex-none text-faint" />
+                  </button>
+                  <span className={cn(toolRow, 'cursor-default text-faint')} title="Llega en una fase posterior">
+                    <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-surface-container text-faint"><Printer size={17} strokeWidth={1.8} aria-hidden="true" /></span>
+                    <span className="min-w-0 flex-1">Imprimir etiquetas de códigos</span>
+                    <Chip tone="neutral">Pronto</Chip>
+                  </span>
+                </div>
+              </Card>
+            </>
+          ) : null}
+
+          <section className="app-reveal rounded-card bg-surface-container p-5" style={{ animationDelay: '150ms' }}>
+            <h2 className="flex items-center gap-1.5 text-[13.5px] font-bold tracking-tight text-ink"><CircleCheck size={14} className="text-brand-text" /> Consejo</h2>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
+              Escanea los códigos de los ejemplares uno por uno para verificar su existencia y ubicación.
+              Lo que figura prestado no cuenta como faltante: está en la calle, no perdido.
+            </p>
+          </section>
+        </aside>
+      </div>
 
       <NewInventoryDrawer
         open={drawer}
@@ -527,6 +558,27 @@ export function InventarioClient({ initial, sites }: {
         onCreated={() => { setDrawer(false); void refreshSessions(); setTab('todos'); setPage(1); }}
       />
     </div>
+  );
+}
+
+const darkBtn = cn('inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-[13.5px] font-bold transition-colors disabled:opacity-50', focusRing);
+const toolRow = 'flex items-center gap-3 rounded-xl px-2 py-2 text-[13.5px] font-semibold';
+
+function ToolChip({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-brand-soft text-brand-text">
+      <Icon size={17} strokeWidth={1.8} aria-hidden="true" />
+    </span>
+  );
+}
+
+function ResultStat({ dot, value, label }: { dot: string; value: number; label: string }) {
+  return (
+    <li className="flex items-center gap-2.5">
+      <span aria-hidden="true" className={cn('h-2 w-2 flex-none rounded-full', dot)} />
+      <span className="num text-[28px] font-medium leading-none tabular-nums text-ink">{fmt(value)}</span>
+      <span className="min-w-0 text-[12px] leading-tight text-muted">{label}</span>
+    </li>
   );
 }
 

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getAdminGate } from '../../../../../lib/auth/session';
 import { getBiblioFacets, getBiblioSites } from '../../../../../lib/api/biblio';
-import { BibliotecaTabsNav } from '../../../../../components/biblioteca/BibliotecaTabsNav';
+import { BibliotecaHeader } from '../../../../../components/biblioteca/BibliotecaHeader';
 import { NewTitleForm } from '../../../../../components/biblioteca/NewTitleForm';
 
 // Biblioteca · NUEVO TÍTULO: página completa de catalogación (modelo aprobado
@@ -27,7 +27,7 @@ export default async function BibliotecaNuevoTituloPage({ searchParams }: {
   const staffName = gate.status === 'ok' || gate.status === 'trial-ended' ? gate.staff.fullName : null;
   return (
     <>
-    <div className="-mt-5 mb-5"><BibliotecaTabsNav /></div>
+    <BibliotecaHeader as="p" className="mb-6" />
     <NewTitleForm
       staffName={staffName}
       subjectSuggestions={(facets?.subjects ?? []).map((s) => s.subject)}

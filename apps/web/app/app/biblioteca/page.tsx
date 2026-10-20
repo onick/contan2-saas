@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Library, BookOpen, PackageCheck, MapPin, ScanBarcode, Plus, History } from 'lucide-react';
-import { SectionHeader, ActivityFeed, Card, buttonVariants } from '../../../components/ui';
+import { ActivityFeed, Card, buttonVariants } from '../../../components/ui';
 import type { ActivityFeedItem } from '../../../components/ui';
 import { Unavailable } from '../../../components/shell/Unavailable';
 import { KpiHero } from '../../../components/dashboard/KpiHero';
-import { BibliotecaTabsNav } from '../../../components/biblioteca/BibliotecaTabsNav';
+import { BibliotecaHeader } from '../../../components/biblioteca/BibliotecaHeader';
 import { PrestamosVencerCard } from '../../../components/biblioteca/PrestamosVencerCard';
 import { numero } from '../../../lib/format';
 import {
@@ -49,25 +49,19 @@ export default async function BibliotecaInicioPage() {
 
   return (
     <div>
-      {/* Cabecera de sección */}
-      <SectionHeader
-        level={1}
-        title="Biblioteca"
-        subtitle="Catálogo, préstamos y lectores"
+      <BibliotecaHeader
+        as="h1"
         actions={
           <>
-            <Link href="/app/biblioteca/catalogo" className={buttonVariants({ variant: 'secondary' })}>
-              <ScanBarcode size={16} strokeWidth={1.9} /> Escanear ISBN
-            </Link>
-            <Link href="/app/biblioteca/circulacion" className={buttonVariants({ variant: 'primary' })}>
-              <Plus size={16} strokeWidth={2.2} /> Nuevo préstamo
-            </Link>
-          </>
+          <Link href="/app/biblioteca/catalogo" className={buttonVariants({ variant: 'secondary' })}>
+            <ScanBarcode size={16} strokeWidth={1.9} /> Escanear ISBN
+          </Link>
+          <Link href="/app/biblioteca/circulacion" className={buttonVariants({ variant: 'primary' })}>
+            <Plus size={16} strokeWidth={2.2} /> Nuevo préstamo
+          </Link>
+        </>
         }
-        className="app-reveal"
       />
-
-      <BibliotecaTabsNav />
 
       {/* Fila de 4 KPI (misma familia visual que Check-in y Actividades) */}
       <div className="app-reveal mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" style={{ animationDelay: '40ms' }}>
