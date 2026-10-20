@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { BrandingOrg } from '../../lib/branding/theme';
 import { SidebarToggle } from './SidebarShell';
 import { TopbarNotifications } from './TopbarNotifications';
@@ -10,6 +11,8 @@ export interface TopbarProps {
   title: string;
   // Texto opcional del chip a la derecha (ej. período).
   meta?: string;
+  // Sección padre opcional: «Inicio / <padre> / <title>» (el padre es un enlace).
+  parent?: { label: string; href: string };
 }
 
 // Top app bar · estilo Google/Material: breadcrumb, buscador, notificaciones
@@ -18,7 +21,7 @@ export interface TopbarProps {
 // Mi cuenta + Cerrar sesión). La navegación mobile la gestiona la barra
 // inferior (MobileNav), no un drawer desde este header. Server Component
 // (los hijos interactivos son client).
-export function Topbar({ branding, title, meta }: TopbarProps) {
+export function Topbar({ branding, title, meta, parent }: TopbarProps) {
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-surface/85 px-6 backdrop-blur">
       {/* Colapso del sidebar (movido del header del sidebar; el sidebar solo
@@ -44,6 +47,12 @@ export function Topbar({ branding, title, meta }: TopbarProps) {
       <nav aria-label="Ruta" className="hidden items-center gap-2 text-[13px] text-muted md:flex">
         <span>Inicio</span>
         <span className="text-faint">/</span>
+        {parent ? (
+          <>
+            <Link href={parent.href} className="hover:text-ink hover:underline">{parent.label}</Link>
+            <span className="text-faint">/</span>
+          </>
+        ) : null}
         <span className="font-semibold text-ink" aria-current="page">{title}</span>
       </nav>
 
