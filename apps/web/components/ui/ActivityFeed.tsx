@@ -13,6 +13,8 @@ export interface ActivityFeedItem {
   sujeto?: ReactNode;
   detalle?: ReactNode;
   at: string | Date;
+  // Repeticiones consecutivas agrupadas (>1 → "×N" junto a la frase).
+  count?: number;
 }
 
 export interface ActivityFeedProps {
@@ -59,6 +61,9 @@ export function ActivityFeed({ items, verTodoHref, className }: ActivityFeedProp
                 <p className="text-[13px] leading-snug text-ink [overflow-wrap:anywhere]">
                   {item.sujeto ? <>{item.sujeto} </> : null}
                   <span className="font-semibold">{meta.frase}</span>
+                  {item.count && item.count > 1 ? (
+                    <span className="num font-semibold tabular-nums text-muted"> ×{item.count}</span>
+                  ) : null}
                   {item.detalle ? <> · <span className="text-muted">{item.detalle}</span></> : null}
                 </p>
                 <RelativeTime
