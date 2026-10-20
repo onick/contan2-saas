@@ -9,9 +9,10 @@
 // sistema de diseño (Card/Button/Chip/EmptyState + drawer estándar).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, AlertTriangle, Plus, QrCode, Users, X, UserPlus, DoorOpen, Undo2, RotateCw } from 'lucide-react';
+import Link from 'next/link';
+import { Check, AlertTriangle, Plus, QrCode, Users, X, UserPlus, DoorOpen, Undo2, RotateCw, BarChart3 } from 'lucide-react';
 import type { PuertaSala } from '@contan2/contracts';
-import { Card, Button, IconButton, Chip, EmptyState, ErrorState, cn } from '../ui';
+import { Card, Button, IconButton, Chip, EmptyState, ErrorState, SectionHeader, cn, focusRing } from '../ui';
 import { DoorButton } from './DoorButton';
 import { SalaAgenda } from './SalaAgenda';
 import { EntradasHoy } from './EntradasHoy';
@@ -203,15 +204,30 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
 
   return (
     <div>
-      {!reg ? notices(false) : null}
+      {/* Encabezado: título y, en UNA sola fila a la derecha, las dos acciones de página (Reportes y
+          Registrar en ambas salas). Antes iban en dos filas distintas y parecían sueltas. */}
+      <div className="app-reveal">
+        <SectionHeader
+          level={1}
+          title="Puerta · Salas permanentes"
+          subtitle="Elige la sala (o ambas) y registra al visitante. Cada entrada suma a la estadística de esa sala."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/app/puerta/reportes" className={cn('inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-surface px-4 text-[13px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+                <BarChart3 size={16} strokeWidth={1.9} aria-hidden="true" /> Reportes y estadísticas
+              </Link>
+              {salas.length >= 2 ? (
+                <Button variant="secondary" className={T44} onClick={() => setReg({ salaIds: salas.map((s) => s.id) })}>
+                  <Users size={15} /> Registrar en ambas salas
+                </Button>
+              ) : null}
+            </div>
+          }
+        />
+      </div>
 
-      {salas.length >= 2 ? (
-        <div className="mb-4 flex justify-end">
-          <Button variant="secondary" className={T44} onClick={() => setReg({ salaIds: salas.map((s) => s.id) })}>
-            <Users size={15} /> Registrar en ambas salas
-          </Button>
-        </div>
-      ) : null}
+      <div className="app-reveal mt-6" style={{ animationDelay: '80ms' }}>
+      {!reg ? notices(false) : null}
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {salas.length === 0 && load === 'loading' ? (
@@ -296,6 +312,7 @@ export function PuertaBoard({ initial }: { initial: PuertaSala[] }) {
       ))}
 
       <RegisterSheet reg={reg} byId={byId} busy={busy} onClose={() => setReg(null)} onSubmit={submit} notice={reg ? notices(true) : null} />
+      </div>
     </div>
   );
 }
