@@ -57,7 +57,7 @@ run('Puerta · agenda · máquina de estados (PUE-A03)', () => {
     await mkStaff(orgAId, TOK.admin, 'admin');
     await mkStaff(orgAId, TOK.operator, 'operator');
     await mkStaff(orgBId, TOK.b, 'admin');
-    salaId = (await db.insertInto('activities').values({ id: randomUUID(), organization_id: orgAId, name: 'Sala VR', type: 'otro', location: 'VR', date: future, capacity: 8, enrolled_count: 0, status: 'activa', is_permanent: true }).returning('id').executeTakeFirstOrThrow()).id;
+    salaId = (await db.insertInto('activities').values({ id: randomUUID(), organization_id: orgAId, name: 'Sala VR', type: 'otro', location: 'VR', date: future, capacity: 8, enrolled_count: 0, status: 'activa', is_permanent: true, sala_kind: 'vr', has_agenda: true, aforo: 8 }).returning('id').executeTakeFirstOrThrow()).id;
     app = buildApp(); await app.ready();
   });
 

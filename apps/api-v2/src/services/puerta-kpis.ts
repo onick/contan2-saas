@@ -9,17 +9,19 @@
 import { sql, type DbClient } from '@contan2/db';
 
 import { REPORT_TZ as TZ } from './timezone.js';
+import { salaMeta, type SalaKind } from './puerta-salas.js';
 
 export const PEOPLE = sql<string>`coalesce(sum(1 + a.companions_children + a.companions_adults), 0)`;
 
-export interface PuertaSala { id: string; name: string; capacity: number }
+export interface PuertaSala { id: string; name: string; kind: SalaKind; hasAgenda: boolean; aforo: number | null }
 
-/** Salas permanentes del tenant (incluye desactivadas: su histórico cuenta). */
+/** Salas permanentes del tenant (incluye desactivadas: su histórico cuenta). Tipo/aforo = columnas de la mig. 057. */
 export async function listPuertaSalas(db: DbClient, orgId: string): Promise<PuertaSala[]> {
-  return db.selectFrom('activities')
-    .select(['id', 'name', 'capacity'])
+  const rows = await db.selectFrom('activities')
+    .select(['id', 'name', 'sala_kind', 'has_agenda', 'aforo'])
     .where('organization_id', '=', orgId).where('is_permanent', '=', true)
     .orderBy('name', 'asc').execute();
+  return rows.map((r) => ({ id: r.id, name: r.name, ...salaMeta(r) }));
 }
 
 /** Base de consulta: asistencias a salas permanentes dentro de la ventana. */

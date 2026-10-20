@@ -216,6 +216,11 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     // proyección SIN PII sensible (sin correo, código enmascarado) y la búsqueda
     // solo matchea por nombre (no por código/correo/teléfono → sin sondeo de PII).
     const restricted = !PADRON_READ_ROLES.has(guard.ctx.staff.role);
+    // Rol `puerta` (PUE-A08): busca para IDENTIFICAR a quien llega (nombre/código/
+    // sugerencias de duplicado, que siguen funcionando: la búsqueda matchea igual),
+    // pero la respuesta no lleva correo ni marca/invitaciones de protocolo. Su UI
+    // solo muestra nombre, código y visitas. owner/admin/operator/consulta: completa.
+    const doorOnly = guard.ctx.staff.role === 'puerta';
     return withTenant(db, orgId, async (db) => {
 
     const query = (req.query ?? {}) as Record<string, unknown>;
@@ -273,16 +278,18 @@ export const checkinRoute: FastifyPluginAsync = async (app) => {
     // Marca de protocolo (PR-5) + "en la lista de invitados" en un query por
     // lote cada uno; best-effort (un fallo no rompe la búsqueda).
     const ids = rows.map((r) => r.id);
-    const [marks, invites] = await Promise.all([
-      protocolMarksFor(db, orgId, ids).catch(() => new Map()),
-      invitedActivitiesFor(db, orgId, ids).catch(() => new Map()),
-    ]);
+    const [marks, invites] = doorOnly
+      ? [new Map(), new Map()]
+      : await Promise.all([
+        protocolMarksFor(db, orgId, ids).catch(() => new Map()),
+        invitedActivitiesFor(db, orgId, ids).catch(() => new Map()),
+      ]);
     const items: CheckinVisitorItem[] = rows.map((r) => ({
       id: r.id,
       code: restricted ? `•••${r.code.slice(-3)}` : r.code,
       firstName: r.first_name,
       lastName: r.last_name,
-      email: restricted ? null : r.email,
+      email: restricted || doorOnly ? null : r.email,
       visitCount: Number(r.visit_count),
       protocol: marks.get(r.id) ?? null,
       invitedTo: invites.get(r.id) ?? [],

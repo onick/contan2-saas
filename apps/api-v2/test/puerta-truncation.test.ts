@@ -65,7 +65,7 @@ run('export de la Puerta · aviso de truncado', () => {
     const staff = await db.insertInto('staff_members').values({ organization_id: orgId, email: `s-${stamp}@t.local`, password_hash: 'x', full_name: 'S', status: 'active', role: 'admin' }).returning('id').executeTakeFirstOrThrow();
     await db.insertInto('staff_auth_sessions').values({ staff_member_id: staff.id, token_hash: hashToken(tok), expires_at: new Date(Date.now() + 3_600_000).toISOString(), remember_me: false }).execute();
     salaId = randomUUID();
-    await db.insertInto('activities').values({ id: salaId, organization_id: orgId, name: 'Sala VR', type: 'otro', location: 'Lobby', date: new Date().toISOString(), capacity: 8, enrolled_count: 0, status: 'activa', description: '', image_url: null, is_permanent: true, audience: 'infantil' } as never).execute();
+    await db.insertInto('activities').values({ id: salaId, organization_id: orgId, name: 'Sala VR', type: 'otro', location: 'Lobby', date: new Date().toISOString(), capacity: 8, enrolled_count: 0, status: 'activa', description: '', image_url: null, is_permanent: true, sala_kind: 'vr', has_agenda: true, aforo: 8, audience: 'infantil' } as never).execute();
     for (let i = 0; i < 5; i++) {
       await db.insertInto('attendance').values({
         id: randomUUID(), organization_id: orgId, activity_id: salaId, activity_name: 'Sala VR', user_id: null, user_code: null,
