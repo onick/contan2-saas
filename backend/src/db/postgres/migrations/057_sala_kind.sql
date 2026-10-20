@@ -9,7 +9,7 @@
 --                           (CHECK enrolled_count <= capacity) y en las salas queda como
 --                           valor técnico (100000) que ya NO se interpreta como tipo.
 -- Backfill (solo is_permanent = true):
---   capacity <= 200 -> sala_kind 'vr', has_agenda true, aforo = 8
+--   capacity <= 200 -> sala_kind 'vr', has_agenda true, aforo = capacity
 --   resto           -> sala_kind 'exposicion', has_agenda false, aforo NULL
 -- Idempotente (el backfill solo toca filas con sala_kind NULL), una transacción.
 -- Rollback: docs/runbooks/puerta-mig-057.md
@@ -36,7 +36,7 @@ END
 $$;
 
 UPDATE activities
-   SET sala_kind = 'vr', has_agenda = true, aforo = 8
+   SET sala_kind = 'vr', has_agenda = true, aforo = capacity
  WHERE is_permanent = true AND sala_kind IS NULL AND capacity <= 200;
 
 UPDATE activities
