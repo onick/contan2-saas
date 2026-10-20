@@ -6,6 +6,7 @@
 // server (no en buildApp → los tests no lo disparan).
 
 import { sql, type DbClient } from '@contan2/db';
+import { closeUnattendedBookings } from './booking-close.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -29,6 +30,9 @@ export function startAutoFinalize(db: DbClient, intervalMs = HOUR_MS): NodeJS.Ti
     try {
       const n = await finalizePastActivities(db);
       if (n > 0) console.log(`[auto-finalize] ${n} actividad(es) finalizadas por hora de cierre`);
+      // Agenda de la Sala VR: reservas de días anteriores sin check-in → "No vino" (Q3).
+      const closed = await closeUnattendedBookings(db, { beforeToday: true });
+      if (closed.length > 0) console.log(`[auto-finalize] ${closed.length} reserva(s) de sala marcadas "No vino"`);
     } catch (e) {
       console.error('[auto-finalize] error:', (e as Error).message);
     }

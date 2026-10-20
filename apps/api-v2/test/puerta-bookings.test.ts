@@ -95,7 +95,8 @@ run('Puerta · agenda de reservas (Sala VR)', () => {
   });
 
   it('check-in desde la reserva → inserta attendance grupo (1+alumnos), status attended; repetir → 409', async () => {
-    const id = (await mkBooking({ studentCount: 10 })).json().booking.id;
+    // El check-in solo se permite el día de la reserva (PUE-A03): la agendamos para ahora.
+    const id = (await mkBooking({ studentCount: 10, scheduledAt: new Date().toISOString() })).json().booking.id;
     const res = await post(`/api/v2/puerta/bookings/${id}/checkin`, {}, TOK.admin);
     expect(res.statusCode).toBe(201);
     expect(res.json().partySize).toBe(11); // 1 profesor + 10 alumnos
