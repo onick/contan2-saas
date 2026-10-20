@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Info } from 'lucide-react';
 import { DeltaPill, Popover, PopoverTrigger, PopoverContent, focusRing, cn } from '../ui';
@@ -16,25 +17,31 @@ export interface KpiHeroProps {
   value: string;
   // Cifra secundaria junto al valor (p. ej. "(420 registros)").
   secondary?: string;
-  // Variación vs período anterior (% o puntos según `deltaUnit`).
-  delta: number;
+  // Variación vs período anterior (% o puntos según `deltaUnit`). Sin `delta` no hay pastilla.
+  delta?: number;
   deltaUnit?: 'pct' | 'points';
-  tooltipText: string;
-  // Icono grande y tenue, abajo a la derecha (solo en dark/warm).
+  // Sin `tooltipText` no hay botón "¿Cómo se calcula?".
+  tooltipText?: string;
+  // Icono: 'footer' (por defecto) grande y tenue abajo a la derecha (solo dark/warm);
+  // 'corner' pequeño arriba a la derecha, en cualquier tono (Actividades).
   icon?: LucideIcon;
+  iconPlacement?: 'footer' | 'corner';
+  // Contenido junto a la cifra (p. ej. barra de distribución) y pie propio bajo ella.
+  aside?: ReactNode;
+  footer?: ReactNode;
   // Compacta: menos alto y cifra más chica (las dos pequeñas del bento del Inicio,
   // para que Actividad reciente arranque más arriba que Atención hoy).
   compact?: boolean;
   className?: string;
 }
 
-const SURFACE: Record<KpiTone, string> = {
+export const SURFACE: Record<KpiTone, string> = {
   dark:    'bg-accent-strong text-accent-strong-fg',
   warm:    'bg-brand-soft text-ink',
   neutral: 'border border-line bg-surface text-ink',
 };
 
-const LABEL: Record<KpiTone, string> = {
+export const LABEL: Record<KpiTone, string> = {
   dark:    'text-accent-strong-fg',
   warm:    'text-ink',
   neutral: 'text-muted',
@@ -53,9 +60,10 @@ const INFO_BTN: Record<KpiTone, string> = {
 };
 
 export function KpiHero({
-  tone, label, value, secondary, delta, deltaUnit = 'pct', tooltipText, icon: Icon, compact = false, className,
+  tone, label, value, secondary, delta, deltaUnit = 'pct', tooltipText, icon: Icon, iconPlacement = 'footer', aside, footer, compact = false, className,
 }: KpiHeroProps) {
   const big = tone !== 'neutral';
+  const corner = iconPlacement === 'corner';
   return (
     <section
       data-tone={tone}
@@ -71,6 +79,15 @@ export function KpiHero({
         <p className={cn('leading-snug', big ? 'text-[13px] font-semibold md:text-[15px]' : compact ? 'text-[12px] font-medium' : 'text-[13px] font-medium', LABEL[tone])}>
           {label}
         </p>
+        {corner && Icon ? (
+          <Icon
+            size={20}
+            strokeWidth={1.5}
+            aria-hidden="true"
+            className={cn('flex-none', tone === 'dark' ? 'text-accent-strong-fg/60' : tone === 'warm' ? 'text-brand-text/70' : 'text-muted')}
+          />
+        ) : null}
+        {tooltipText ? (
         <Popover>
           <PopoverTrigger asChild>
             <button
@@ -94,6 +111,7 @@ export function KpiHero({
             {tooltipText}
           </PopoverContent>
         </Popover>
+        ) : null}
       </div>
 
       <div className={cn('flex flex-wrap items-baseline gap-x-3 gap-y-0.5', compact ? 'mt-2' : 'mt-3')}>
@@ -101,11 +119,15 @@ export function KpiHero({
           {value}
         </p>
         {secondary ? <span className={cn('text-[13px]', SECONDARY[tone])}>{secondary}</span> : null}
+        {aside ? <div className="min-w-[140px] flex-1 self-center">{aside}</div> : null}
       </div>
 
+      {footer ? <div className={cn('mt-auto', compact ? 'pt-3' : 'pt-4')}>{footer}</div> : null}
+
+      {delta !== undefined || (Icon && big && !corner) ? (
       <div className={cn('mt-auto flex items-end justify-between gap-3', compact ? 'pt-3' : 'pt-4')}>
-        <DeltaPill value={delta} unit={deltaUnit} onDark={tone === 'dark'} hint="vs período anterior" />
-        {Icon && big ? (
+        {delta !== undefined ? <DeltaPill value={delta} unit={deltaUnit} onDark={tone === 'dark'} hint="vs período anterior" /> : <span />}
+        {Icon && big && !corner ? (
           <Icon
             size={40}
             strokeWidth={1.25}
@@ -114,6 +136,7 @@ export function KpiHero({
           />
         ) : null}
       </div>
+      ) : null}
     </section>
   );
 }
