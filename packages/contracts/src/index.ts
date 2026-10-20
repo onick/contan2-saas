@@ -1751,6 +1751,10 @@ export const PuertaRegisterRequestSchema = z.object({
   companions: z.number().int().min(0).max(10).optional(), // +N acompañantes (identified/new/anonymous)
   visitor: PuertaVisitorSchema.optional(),             // datos del visitante (new)
   group: PuertaGroupSchema.optional(),
+  // PUE-A11: si es true y el visitante identificado ya entró a esa sala hace
+  // menos de PUERTA_RECENT_ENTRY_MIN minutos, el API responde 409 (code
+  // 'recent_entry' + lastEntryToday) SIN registrar, para que la UI confirme.
+  checkRecent: z.boolean().optional(),
 }).strict();
 export type PuertaRegisterRequest = z.infer<typeof PuertaRegisterRequestSchema>;
 
@@ -1759,8 +1763,25 @@ export const PuertaRegisterResponseSchema = z.object({
   registered: z.array(z.object({ salaId: z.string(), salaName: z.string(), partySize: z.number().int() })),
   visitor: z.string().nullable(),  // nombre si identificado/nuevo, o etiqueta
   code: z.string().nullable(),     // credencial del visitante (identified/new)
+  // Aditivos PR-P2 (PUE-A01/A11):
+  entryIds: z.array(z.string()),   // ids de las asistencias (una por sala) · para Deshacer
+  replay: z.boolean(),             // true = la Idempotency-Key ya se había procesado
+  lastEntryToday: z.string().nullable(), // ISO de la última entrada HOY del visitante identificado en esas salas (antes de esta)
 });
 export type PuertaRegisterResponse = z.infer<typeof PuertaRegisterResponseSchema>;
+
+/** Ventana (min) en la que el rol puerta puede deshacer sus propios registros. */
+export const PUERTA_UNDO_WINDOW_MIN = 10;
+/** Umbral (min) bajo el cual la UI pide confirmar una 2.ª entrada del mismo visitante. */
+export const PUERTA_RECENT_ENTRY_MIN = 15;
+
+// DELETE /puerta/entries/:id · Deshacer una entrada de la Puerta.
+export const PuertaVoidResponseSchema = z.object({
+  ok: z.literal(true),
+  entryId: z.string(),
+  partySize: z.number().int(),
+});
+export type PuertaVoidResponse = z.infer<typeof PuertaVoidResponseSchema>;
 
 export const PuertaOccupancyRequestSchema = z.object({ delta: z.number().int().min(-50).max(50) }).strict();
 export type PuertaOccupancyRequest = z.infer<typeof PuertaOccupancyRequestSchema>;
