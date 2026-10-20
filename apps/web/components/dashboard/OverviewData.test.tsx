@@ -69,6 +69,37 @@ describe('OverviewData', () => {
     expect(screen.queryByTestId('salas-hoy')).toBeNull();
   });
 
+  it('bento: columna izquierda = KPIs grandes → Atención hoy → gráfica; derecha = KPIs compactas → Actividad reciente → Salas hoy', async () => {
+    data = {
+      ...base(),
+      insights: [{ type: 'low_enrollment', severity: 'warning', title: 'Baja inscripción próxima', message: 'Cine 2/50' }],
+      salasHoy: { people: 12, entries: 9, salas: [{ id: 's1', name: 'Sala Ada', people: 12 }] },
+    };
+    const { container } = render(await OverviewData({ period: '30d' }));
+    const left = container.querySelector('[data-bento="izquierda"]') as HTMLElement;
+    const right = container.querySelector('[data-bento="derecha"]') as HTMLElement;
+    // Por debajo de xl las columnas son `contents` (una sola rejilla); a xl, columnas flex.
+    for (const col of [left, right]) {
+      expect(col.className).toContain('contents');
+      expect(col.className).toContain('xl:flex-col');
+    }
+    expect(within(left).getByText('Asistencias del periodo')).toBeInTheDocument();
+    expect(within(left).getByRole('heading', { name: 'Atención hoy' })).toBeInTheDocument();
+    expect(within(left).getByRole('heading', { name: 'Asistencias' })).toBeInTheDocument();
+    const small = Array.from(right.querySelectorAll('section[data-tone="neutral"]'));
+    expect(small).toHaveLength(2);
+    for (const s of small) expect(s.getAttribute('data-compact')).toBe('true');
+    expect(within(right).getByLabelText('Actividad reciente (mock)')).toBeInTheDocument();
+    expect(within(right).getByTestId('salas-hoy')).toBeInTheDocument();
+    // Orden: a xl Actividad reciente va ANTES que Salas hoy; por debajo, Salas hoy antes (operativo).
+    const recent = within(right).getByLabelText('Actividad reciente (mock)').parentElement!;
+    const salas = within(right).getByTestId('salas-hoy').parentElement!;
+    expect(recent.className).toContain('xl:order-4');
+    expect(salas.className).toContain('xl:order-6');
+    expect(recent.className).toContain('order-6');
+    expect(salas.className).toContain('order-4');
+  });
+
   it('muestra la gráfica y la actividad reciente', async () => {
     data = base();
     render(await OverviewData({ period: '30d' }));
