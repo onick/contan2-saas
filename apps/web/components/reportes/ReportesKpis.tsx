@@ -5,9 +5,7 @@
 
 import { Calendar, Users, User, TrendingUp } from 'lucide-react';
 import type { PeriodSummaryResponse } from '@contan2/contracts';
-import { Card, Skeleton, cn } from '../ui';
-import { DeltaPct } from '../charts/primitives';
-import { DeltaPoints } from './DeltaPoints';
+import { Card, DeltaPill, Skeleton, cn } from '../ui';
 import { fmt } from './shared';
 
 export function ReportesKpis({ data, loading }: { data: PeriodSummaryResponse; loading: boolean }) {
@@ -37,7 +35,7 @@ export function ReportesKpis({ data, loading }: { data: PeriodSummaryResponse; l
                   <p className="text-[30px] font-extrabold leading-none tracking-tight text-ink tabular-nums"><span data-count={kp.value}>{fmt(kp.value)}</span>{kp.suffix}</p>
                 )}
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
-                  {kp.deltaPoints ? <DeltaPoints pts={kp.delta} /> : <DeltaPct pct={kp.delta} />}
+                  <DeltaPill value={kp.delta} unit={kp.deltaPoints ? 'points' : 'pct'} />
                   <span className="tabular-nums">{fmt(kp.prev)}{kp.suffix ?? ''} antes</span>
                 </div>
                 {kp.sub ? <p className="mt-1 text-[11px] text-faint tabular-nums">{kp.sub}</p> : null}

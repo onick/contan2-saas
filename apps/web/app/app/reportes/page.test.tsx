@@ -60,7 +60,7 @@ describe('/app/reportes · dashboard', () => {
     expect(screen.getAllByText('Visitantes únicos').length).toBeGreaterThan(0);
     expect(screen.getAllByText('301').length).toBeGreaterThan(0); // PERSONAS: cifra principal (P2)
     expect(screen.getAllByText('238 registros').length).toBeGreaterThan(0); // registros: dato secundario
-    expect(screen.getAllByText('10 pp').length).toBeGreaterThan(0); // ocupación: variación en puntos
+    expect(screen.getAllByText(/^[+-]10 pp$/).length).toBeGreaterThan(0); // ocupación: variación en puntos
     // Filtros
     expect(screen.getByText('Este mes')).toBeInTheDocument();
     expect(screen.getByText('Todos los tipos')).toBeInTheDocument();

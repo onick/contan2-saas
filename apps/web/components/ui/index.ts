@@ -6,6 +6,7 @@ export { Button, buttonVariants, type ButtonProps, type ButtonVariant, type Butt
 export { Badge, type BadgeProps, type BadgeTone } from './Badge';
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, type CardProps, type CardPadding } from './Card';
 export { StatCard, type StatCardProps, type StatTrend } from './StatCard';
+export { DeltaPill, type DeltaPillProps } from './DeltaPill';
 export { Input, type InputProps } from './Input';
 export { Field, type FieldProps } from './Field';
 export { Avatar, type AvatarProps } from './Avatar';

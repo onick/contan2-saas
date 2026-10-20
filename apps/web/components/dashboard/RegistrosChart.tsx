@@ -6,6 +6,18 @@ import { cn } from '../ui/cn';
 import { useDataAnim } from '../charts/useDataAnim';
 import { numero } from '../../lib/format';
 
+// Eje Y con ticks "redondos" (0/25/50/75…): ~3 intervalos, paso entero ≥1, techo = múltiplo del paso.
+export function niceAxis(max: number): { top: number; ticks: number[] } {
+  const raw = Math.max(1, max) / 3;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const mult = [1, 2, 2.5, 5, 10].find((m) => m * pow >= raw) ?? 10;
+  const step = Math.max(1, Math.round(mult * pow));
+  const top = step * Math.ceil(Math.max(1, max) / step);
+  const ticks: number[] = [];
+  for (let v = 0; v <= top; v += step) ticks.push(v);
+  return { top, ticks };
+}
+
 interface Props {
   series: { date: string; value: number }[];
 }
@@ -48,19 +60,21 @@ export function RegistrosChart({ series }: Props) {
   const empty = items.length === 0 || items.every((i) => i.value === 0);
   const peak = empty ? -1 : items.reduce((b, it, i) => (it.value > items[b]!.value ? i : b), 0);
   const max = empty ? 1 : Math.max(1, ...items.map((i) => i.value));
+  const axis = niceAxis(max);
+  // Con muchas barras el valor sobre cada una se pisa en móvil: solo se rotula la barra
+  // máxima (y la que se señala); desde sm (≥640 px) caben todas.
+  const crowded = items.length > 14;
 
   return (
-    <Card padding="lg">
+    <Card padding="lg" className="min-w-0">
       <div ref={rootRef}>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-faint">
-          Asistencias
-        </p>
-        <div className="mt-1 flex items-center gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-[17px] font-semibold tracking-tight text-ink">Asistencias</h3>
           <span className="inline-flex items-center gap-1.5 text-[12px] text-muted">
             <span
               aria-hidden="true"
-              className="inline-block h-2.5 w-2.5 flex-none rounded-sm"
-              style={{ background: 'var(--color-brand)' }}
+              className="inline-block h-2.5 w-2.5 flex-none rounded-full"
+              style={{ background: 'var(--chart-2)' }}
             />
             Asistencias
           </span>
@@ -70,62 +84,91 @@ export function RegistrosChart({ series }: Props) {
           <p className="mt-6 text-[13px] text-muted">Sin asistencias en el período.</p>
         ) : (
           <>
-            <div className="mt-3 flex h-[136px] items-end gap-px border-b border-line sm:gap-[3px]">
-              {items.map((it, k) => {
-                const h = (it.value / max) * 100;
-                const dim = hi !== null && hi !== k;
-                const lit = hi === k || (hi === null && k === peak);
-                return (
-                  <div
-                    key={k}
-                    onMouseEnter={() => setHi(k)}
-                    onMouseLeave={() => setHi(null)}
-                    className="flex h-full flex-1 cursor-default flex-col items-center justify-end gap-1"
-                  >
-                    <span
-                      className={cn(
-                        'num text-[10px] font-bold tabular-nums transition-colors',
-                        it.value === 0 ? 'opacity-0' : hi === k ? 'text-ink' : 'text-faint',
-                      )}
-                    >
-                      {numero(it.value)}
-                    </span>
-                    <i
-                      className="w-full rounded-t-[2px] transition-all duration-150"
-                      data-bar="h"
-                      data-val={h}
-                      style={{
-                        height: `${h}%`,
-                        minHeight: it.value > 0 ? 4 : 0,
-                        background: lit ? 'var(--color-brand)' : 'var(--color-brand-accent)',
-                        opacity: dim ? 0.35 : 1,
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-            {/* Eje: con muchos días (p.ej. 30) las etiquetas no caben a 820 px y
-                desbordaban la página. Cada celda es flex-1 + min-w-0 (nunca más ancha
-                que su columna) y, cuando hay más de 12, solo se rotula 1 de cada
-                `labelStep` (la resaltada siempre). */}
-            <div className="mt-1.5 flex gap-px sm:gap-[3px]">
-              {items.map((it, k) => {
-                const show = hi === k || k % labelStep === 0;
-                return (
+            <div className="mt-4 flex gap-2">
+              <div aria-hidden="true" className="relative h-[200px] w-7 flex-none">
+                {axis.ticks.map((t) => (
                   <span
-                    key={k}
-                    className={cn(
-                      'num min-w-0 flex-1 overflow-hidden text-center text-[10px] tabular-nums transition-colors',
-                      hi === k ? 'font-bold text-ink' : 'text-faint',
-                    )}
+                    key={t}
+                    data-tick={t}
+                    className="num absolute right-0 translate-y-1/2 text-[11px] tabular-nums text-faint"
+                    style={{ bottom: `${(t / axis.top) * 100}%` }}
                   >
-                    {/* Un <span> sin rol no admite aria-label (axe aria-prohibited-attr):
-                        la etiqueta omitida queda como texto solo para lectores de pantalla. */}
-                    {show ? it.label : <span className="sr-only">{it.label}</span>}
+                    {t}
                   </span>
-                );
-              })}
+                ))}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="relative h-[200px] border-b border-line">
+                  {axis.ticks.filter((t) => t > 0).map((t) => (
+                    <i
+                      key={t}
+                      aria-hidden="true"
+                      className="absolute inset-x-0 border-t border-line"
+                      style={{ bottom: `${(t / axis.top) * 100}%` }}
+                    />
+                  ))}
+                  <div className="absolute inset-0 flex items-end gap-px sm:gap-[3px]">
+                    {items.map((it, k) => {
+                      const h = (it.value / axis.top) * 100;
+                      const dim = hi !== null && hi !== k;
+                      const lit = hi === k || (hi === null && k === peak);
+                      const labelVisible = !crowded || k === peak || hi === k;
+                      return (
+                        <div
+                          key={k}
+                          onMouseEnter={() => setHi(k)}
+                          onMouseLeave={() => setHi(null)}
+                          className="flex h-full min-w-0 flex-1 cursor-default flex-col items-center justify-end gap-1"
+                        >
+                          <span
+                            className={cn(
+                              'num text-[10px] font-bold tabular-nums transition-colors',
+                              it.value === 0 ? 'opacity-0' : hi === k || k === peak ? 'text-ink' : 'text-faint',
+                              !labelVisible && 'max-sm:hidden',
+                            )}
+                          >
+                            {numero(it.value)}
+                          </span>
+                          <i
+                            className="w-full rounded-t-[3px] transition-all duration-150"
+                            data-bar="h"
+                            data-val={h}
+                            data-peak={k === peak ? 'true' : undefined}
+                            style={{
+                              height: `${h}%`,
+                              minHeight: it.value > 0 ? 4 : 0,
+                              background: lit ? 'var(--chart-1)' : 'var(--chart-2)',
+                              opacity: dim ? 0.35 : 1,
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* Eje: con muchos días (p.ej. 30) las etiquetas no caben a 820 px y
+                    desbordaban la página. Cada celda es flex-1 + min-w-0 (nunca más ancha
+                    que su columna) y, cuando hay más de 12, solo se rotula 1 de cada
+                    `labelStep` (la resaltada siempre). */}
+                <div className="mt-1.5 flex gap-px sm:gap-[3px]">
+                  {items.map((it, k) => {
+                    const show = hi === k || k % labelStep === 0;
+                    return (
+                      <span
+                        key={k}
+                        className={cn(
+                          'num min-w-0 flex-1 overflow-hidden text-center text-[10px] tabular-nums transition-colors',
+                          hi === k ? 'font-bold text-ink' : 'text-faint',
+                        )}
+                      >
+                        {/* Un <span> sin rol no admite aria-label (axe aria-prohibited-attr):
+                            la etiqueta omitida queda como texto solo para lectores de pantalla. */}
+                        {show ? it.label : <span className="sr-only">{it.label}</span>}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </>
         )}

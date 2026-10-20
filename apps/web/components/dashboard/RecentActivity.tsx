@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
-import { Card, ActivityFeed, type ActivityFeedItem } from '../ui';
+import Link from 'next/link';
+import { ArrowUpRight, Loader2 } from 'lucide-react';
+import { Card, ActivityFeed, focusRing, cn, type ActivityFeedItem } from '../ui';
+import { groupConsecutive } from '../../lib/dashboard/groupActivity';
 import { RecentVisitors } from './RecentVisitors';
 import { RECENT_VISITORS } from '../../lib/dashboard/demoData';
 
@@ -14,6 +16,8 @@ interface AuditRow {
 }
 
 type Phase = 'loading' | 'ready' | 'empty' | 'fallback' | 'forbidden';
+
+const VISIBLE_GROUPS = 5;
 
 const PERIOD_DAYS: Record<string, number> = {
   today: 1, '7d': 7, '30d': 30, '90d': 90,
@@ -32,19 +36,22 @@ export function RecentActivity({ demoAllowed, period }: Props) {
     let ignore = false;
     const days = period ? (PERIOD_DAYS[period] ?? 30) : 30;
     const from = new Date(Date.now() - days * 86_400_000).toISOString();
-    const url = `/app/historial/api/audit?limit=5&from=${encodeURIComponent(from)}`;
+    const url = `/app/historial/api/audit?limit=30&from=${encodeURIComponent(from)}`;
     void fetch(url, { cache: 'no-store' })
       .then(async (r) => {
         if (ignore) return;
         if (r.status === 403) { setPhase('forbidden'); return; }
         if (!r.ok) { setPhase('fallback'); return; }
         const b = (await r.json()) as { items?: AuditRow[] };
-        const list = (b.items ?? []).map((it): ActivityFeedItem => ({
+        // Se piden más filas de las que se muestran: al agrupar repeticiones consecutivas
+        // (p. ej. 4 exportaciones seguidas → "×4") siguen quedando 5 eventos distintos.
+        const raw = (b.items ?? []).map((it): ActivityFeedItem => ({
           id: it.id,
           action: it.action,
           detalle: it.actorEmailMasked ?? undefined,
           at: it.createdAt,
         }));
+        const list = groupConsecutive(raw).slice(0, VISIBLE_GROUPS);
         setItems(list);
         setPhase(list.length === 0 ? 'empty' : 'ready');
       })
@@ -93,10 +100,16 @@ export function RecentActivity({ demoAllowed, period }: Props) {
 
   return (
     <Card padding="lg" className="min-w-0">
-      <h3 className="mb-3 text-[15px] font-semibold tracking-tight text-ink">
-        Actividad reciente
-      </h3>
-      <ActivityFeed items={items} verTodoHref="/app/historial" />
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="text-[17px] font-semibold tracking-tight text-ink">Actividad reciente</h3>
+        <Link
+          href="/app/historial"
+          className={cn('-mx-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-[13px] font-semibold text-brand-text hover:underline', focusRing)}
+        >
+          Ver todo <ArrowUpRight size={14} strokeWidth={2} aria-hidden="true" />
+        </Link>
+      </div>
+      <ActivityFeed items={items} />
     </Card>
   );
 }
