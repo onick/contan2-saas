@@ -268,7 +268,7 @@ export function UserProfilePanel({ code, onClose, canEdit = false, initialEdit =
       tab={tab}
       onTabChange={(v) => setTab(v as TabKey)}
       footer={footer}
-      empty={{ icon: IdCard, title: 'Detalles de la persona', description: 'Selecciona una fila para ver su perfil, sus visitas y su credencial.' }}
+      empty={{ icon: IdCard, title: 'Detalles de la persona', description: 'Selecciona una fila para ver su perfil y su historial de visitas.' }}
     >
       {shown ? (<>
         <TabsContent value="informacion" className="space-y-5 pt-2">

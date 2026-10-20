@@ -77,6 +77,19 @@ describe('DetailPanel · xl (columna fija)', () => {
     expect(screen.getByText('Selecciona una fila…')).toBeInTheDocument();
   });
 
+  it('Escape cierra la columna (foco dentro o en el disparador) y no hace nada con el panel cerrado', async () => {
+    stubMatchMedia(true);
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness onClose={onClose} />);
+    screen.getByRole('button', { name: 'Cerrar perfil' }).focus();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Selecciona una fila…')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('cambiar de pestaña muestra su contenido', async () => {
     stubMatchMedia(true);
     const user = userEvent.setup();

@@ -22,6 +22,16 @@ export function activityRow(page: Page, name: string): Locator {
   return page.locator('tr, li').filter({ hasText: name }).filter({ visible: true }).first();
 }
 
+/**
+ * Panel de detalle de un perfil de usuario (master-detail). En desktop-1440 es una region
+ * (columna fija, \`aside\`) y por debajo de xl un dialogo: ambos llevan \`data-detail-panel\`.
+ * Filtra por el texto (codigo): el estado vacio de la columna no lo contiene, asi que tras
+ * cerrar el perfil el locator queda en 0.
+ */
+export function profilePanel(page: Page, code: string): Locator {
+  return page.locator('[data-detail-panel]').filter({ hasText: code }).filter({ visible: true });
+}
+
 /** Espera a que Next termine de hidratar (los handlers de React ya estan montados). */
 export async function settle(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle').catch(() => undefined);

@@ -113,13 +113,14 @@ describe.each([['xl · columna fija', true], ['< xl · panel lateral', false]] a
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('Escape cierra en el panel lateral; en la columna fija no cierra', async () => {
+  it('Escape cierra el perfil (panel lateral y columna)', async () => {
     const onClose = vi.fn();
     installFetch({});
     render(<UserProfilePanel code="CCB-7K2P9Q" onClose={onClose} />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
+    screen.getByRole('button', { name: /Cerrar perfil/ }).focus();
     await userEvent.setup().keyboard('{Escape}');
-    expect(onClose).toHaveBeenCalledTimes(xl ? 0 : 1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('code=null: sin diálogo; la columna muestra el estado vacío', () => {

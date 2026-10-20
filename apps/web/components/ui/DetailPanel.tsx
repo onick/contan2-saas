@@ -4,7 +4,8 @@
 //
 //  - xl (≥1280px): el detalle es una COLUMNA FIJA a la derecha de la lista (la tabla no
 //    se tapa). Cerrado, la columna muestra un estado vacío ("Selecciona una fila…").
-//    Raíz: <aside role="region" aria-label={title} data-detail-panel>.
+//    Raíz: <aside role="region" aria-label={title} data-detail-panel>. Escape lo cierra
+//    (foco dentro, en el disparador o en el body).
 //  - < xl: PANEL LATERAL (overlay modal): <div role="dialog" aria-modal data-detail-panel>
 //    con fondo, foco atrapado, Escape y clic fuera para cerrar (Radix Dialog). Cerrado
 //    no renderiza nada.
@@ -16,7 +17,7 @@
 // `children` son los <TabsContent> (si hay `tabs`) o el cuerpo directo.
 // `mode="overlay"` fuerza siempre el panel lateral (páginas sin columna reservada).
 
-import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn } from './cn';
@@ -89,6 +90,21 @@ export function DetailPanel({
     wasOpen.current = open;
   }, [open, asColumn]);
 
+  // Escape cierra la columna cuando el foco está dentro, en el disparador o en el <body>
+  // (en el overlay lo hace Radix). No pisa a menús/diálogos que ya manejaron la tecla.
+  const asideRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose); closeRef.current = onClose;
+  useEffect(() => {
+    if (!open || !asColumn) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      const t = e.target as Node | null;
+      if (t === document.body || t === triggerRef.current || (t && asideRef.current?.contains(t))) closeRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, asColumn]);
+
   const [innerTab, setInnerTab] = useState(defaultTab ?? tabs?.[0]?.value ?? '');
   const wanted = tab ?? innerTab;
   const current = tabs && tabs.length > 0 && !tabs.some((t) => t.value === wanted) ? tabs[0]!.value : wanted;
@@ -126,6 +142,7 @@ export function DetailPanel({
     const Icon = empty?.icon;
     return (
       <aside
+        ref={asideRef}
         role="region"
         data-detail-panel
         {...labelProps}
