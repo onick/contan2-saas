@@ -19,7 +19,7 @@ import {
   DetailPanel, DetailLayout, TabsContent, DataTableClient, cn, focusRing,
 } from '../ui';
 import type { DataTableColumn } from '../ui';
-import { BibliotecaTabsNav } from './BibliotecaTabsNav';
+import { BibliotecaHeader } from './BibliotecaHeader';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
@@ -171,7 +171,8 @@ export function LectoresClient({ initial, initialStats }: {
   return (
     <DetailLayout width="md">
       <div className="min-w-0">
-        <div className="app-reveal">
+        <BibliotecaHeader as="p" />
+        <div className="app-reveal mt-6">
           <SectionHeader
             level={1}
             title="Lectores"
@@ -186,7 +187,6 @@ export function LectoresClient({ initial, initialStats }: {
             }
           />
         </div>
-        <BibliotecaTabsNav />
 
         {/* ── KPIs ── */}
         {stats ? (

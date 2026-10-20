@@ -18,7 +18,7 @@ import {
   Tabs, TabsContent, DataTableClient, cn, focusRing,
 } from '../ui';
 import type { DataTableColumn } from '../ui';
-import { BibliotecaTabsNav } from './BibliotecaTabsNav';
+import { BibliotecaHeader } from './BibliotecaHeader';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('es', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
@@ -222,7 +222,8 @@ export function ReservasClient({ initial, initialSummary }: {
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_290px] xl:items-start xl:gap-5">
       <div className="min-w-0">
-        <div className="app-reveal">
+        <BibliotecaHeader as="p" />
+        <div className="app-reveal mt-6">
           <SectionHeader
             level={1}
             title="Reservas"
@@ -230,7 +231,6 @@ export function ReservasClient({ initial, initialSummary }: {
             actions={<Button ref={nuevaReservaBtnRef} variant="primary" onClick={() => setDrawer(true)}><Plus size={16} strokeWidth={2.2} /> Nueva reserva</Button>}
           />
         </div>
-        <BibliotecaTabsNav />
 
         {/* ── Tabs del kit ── */}
         <div className="app-reveal mt-4" style={{ animationDelay: '30ms' }}>

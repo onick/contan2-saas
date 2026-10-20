@@ -31,7 +31,10 @@ describe('/app/biblioteca · BIB-09a', () => {
     facets.mockResolvedValue({ ok: true, data: { total: 7, items: { total: 2, active: 2 } } });
     render(await BibliotecaInicioPage());
     expect(screen.getByRole('heading', { level: 1, name: 'Biblioteca' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('navigation', { name: 'Secciones de Biblioteca' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Escanear ISBN' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Nuevo préstamo' })).toBeInTheDocument();
     const pairs: [string, string][] = [['Títulos', 'En el catálogo'], ['Ejemplares', 'Colección física'], ['En buen estado', 'Ejemplares'], ['Sitios físicos', 'Ubicaciones']];
     for (const [label, hint] of pairs) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
