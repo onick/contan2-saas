@@ -16,7 +16,7 @@ import type { ActivityCreateRequest, ActivityUpdateRequest, ActivityDetail } fro
 export const ACTIVITY_DETAIL_COLUMNS = [
   'id', 'name', 'type', 'location', 'date', 'end_date', 'capacity',
   'enrolled_count', 'status', 'description', 'image_url', 'image_pos_y', 'category',
-  'audience', 'created_at', 'updated_at',
+  'audience', 'is_permanent', 'created_at', 'updated_at',
 ] as const;
 
 // Fila tal como la devuelve Kysely al seleccionar ACTIVITY_DETAIL_COLUMNS.
@@ -35,6 +35,7 @@ export interface ActivityDetailRow {
   image_pos_y: number | null;
   category: string | null;
   audience: ActivityDetail['audience'];
+  is_permanent: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -55,6 +56,7 @@ export function mapActivityDetailRow(r: ActivityDetailRow): ActivityDetail {
     imagePosY: r.image_pos_y,
     category: r.category,
     audience: r.audience,
+    isPermanent: r.is_permanent,
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
   };

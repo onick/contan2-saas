@@ -21,3 +21,13 @@ export function reportableActivity(alias = 'a') {
 
 /** Fragmento SQL crudo equivalente para consultas escritas a mano (alias `a`). */
 export const REPORTABLE_ACTIVITY_RAW = sql`(a.is_permanent = false and a.status <> 'cancelada')`;
+
+/**
+ * Predicado de "evento" (PUE-A02, decisión P1): excluye las salas permanentes.
+ * A diferencia de `reportableActivity`, NO excluye canceladas: las listas de
+ * Actividades y el Inicio siguen mostrándolas. Úsalo en toda superficie que
+ * liste o cuente "eventos"; las salas viven en Puerta.
+ */
+export function eventActivity(alias = 'a') {
+  return sql<boolean>`(${sql.ref(`${alias}.is_permanent`)} = false)`;
+}

@@ -3,9 +3,12 @@ import { getDb, sql, withTenant } from '@contan2/db';
 import type { DashboardMetricsResponse, DashboardOverviewResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { dashboardOverview, parsePeriod } from '../services/dashboard-overview.js';
+import { eventActivity } from '../services/reports/scope.js';
 import { resolveCheckinTz } from './checkin.js';
 
 const TZ = resolveCheckinTz();
+// Roles que ven Puerta en la nav (lib/shell/nav.ts): la tarjeta "Salas hoy" solo para ellos.
+const SALAS_HOY_ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'operator', 'puerta']);
 
 // GET /api/v2/dashboard/metrics · KPIs agregados del tenant (read-only).
 // GET /api/v2/dashboard/overview?period= · agregado período-aware (paridad v1).
@@ -20,7 +23,9 @@ export const dashboardMetricsRoute: FastifyPluginAsync = async (app) => {
     }
     const period = parsePeriod((req.query as Record<string, unknown>).period);
     return withTenant(db, guard.ctx.org.id, async (db) => {
-    const body: DashboardOverviewResponse = await dashboardOverview(db, guard.ctx.org.id, period, TZ);
+    const body: DashboardOverviewResponse = await dashboardOverview(db, guard.ctx.org.id, period, TZ, {
+      includeSalas: SALAS_HOY_ROLES.has(guard.ctx.staff.role),
+    });
     return body;
     });
   });
@@ -39,17 +44,19 @@ export const dashboardMetricsRoute: FastifyPluginAsync = async (app) => {
       db.selectFrom('users').select(db.fn.countAll<string>().as('n'))
         .where('organization_id', '=', orgId).executeTakeFirstOrThrow(),
       db.selectFrom('activities').select(db.fn.countAll<string>().as('n'))
-        .where('organization_id', '=', orgId).executeTakeFirstOrThrow(),
+        .where('organization_id', '=', orgId).where(eventActivity('activities')).executeTakeFirstOrThrow(),
       db.selectFrom('activities').select(db.fn.countAll<string>().as('n'))
-        .where('organization_id', '=', orgId).where('status', '=', 'activa').executeTakeFirstOrThrow(),
+        .where('organization_id', '=', orgId).where('status', '=', 'activa')
+        .where(eventActivity('activities')).executeTakeFirstOrThrow(),
       // PERSONAS, no filas: cada asistencia vale 1 + sus acompañantes (los
       // acompañantes ocupan cupo pero no tienen fila propia).
       db.selectFrom('attendance')
         .select(sql<string>`count(*) + coalesce(sum(companions_children + companions_adults), 0)`.as('n'))
-        .where('organization_id', '=', orgId).executeTakeFirstOrThrow(),
+        .where('organization_id', '=', orgId).where('is_permanent', '=', false).executeTakeFirstOrThrow(),
       db.selectFrom('attendance')
         .select(sql<string>`count(*) + coalesce(sum(companions_children + companions_adults), 0)`.as('n'))
-        .where('organization_id', '=', orgId).where('checked_in_at', 'is not', null).executeTakeFirstOrThrow(),
+        .where('organization_id', '=', orgId).where('is_permanent', '=', false)
+        .where('checked_in_at', 'is not', null).executeTakeFirstOrThrow(),
     ]);
 
     const body: DashboardMetricsResponse = {

@@ -10,7 +10,7 @@ import {
   type ActivityCreateResponse,
   type ActivitySummaryResponse,
 } from '@contan2/contracts';
-import type { ActivityStatus } from '@contan2/db';
+import type { ActivityStatus, DbClient } from '@contan2/db';
 import { requireTenantStaff } from '../guard.js';
 import { parsePage } from '../query.js';
 import {
@@ -27,6 +27,7 @@ import {
 } from '../services/cover-upload.js';
 import { ensureWritableRoot, deletePreviousCoverIfV2, StorageError } from '../storage.js';
 import { writeActivityAudit } from '../services/audit-activity.js';
+import { eventActivity } from '../services/reports/scope.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 
 // Escrituras admin de actividades: 30/min por org+IP (auditoría 2026-06-10:
@@ -57,6 +58,16 @@ const ALLOWED_TRANSITIONS: Record<ActivityStatus, ReadonlySet<ActivityStatus>> =
   cancelada: new Set(['activa']),
 };
 
+// Las salas permanentes (is_permanent) se gestionan SOLO desde Puerta (decisión
+// P1, PUE-A02): ninguna mutación de Actividades puede tocarlas, porque finalizar
+// o cambiar su capacidad deja la puerta inoperativa.
+const SALA_PERMANENTE_MSG = 'Esta sala permanente se gestiona desde Puerta.';
+async function isSalaPermanente(db: DbClient, orgId: string, id: string): Promise<boolean> {
+  const r = await db.selectFrom('activities').select('is_permanent')
+    .where('organization_id', '=', orgId).where('id', '=', id).executeTakeFirst();
+  return r?.is_permanent === true;
+}
+
 // GET /api/v2/activities?status=&limit=&offset= · listado tenant-scoped.
 export const activitiesRoute: FastifyPluginAsync = async (app) => {
   app.get('/activities', async (req, reply) => {
@@ -78,11 +89,13 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     let rowsQ = db
       .selectFrom('activities')
       .select(['id', 'name', 'type', 'location', 'date', 'capacity', 'enrolled_count', 'status', 'category', 'image_url', 'image_pos_y', 'audience'])
-      .where('organization_id', '=', orgId);
+      .where('organization_id', '=', orgId)
+      .where(eventActivity('activities'));
     let countQ = db
       .selectFrom('activities')
       .select(db.fn.countAll<string>().as('n'))
-      .where('organization_id', '=', orgId);
+      .where('organization_id', '=', orgId)
+      .where(eventActivity('activities'));
     if (status) {
       rowsQ = rowsQ.where('status', '=', status);
       countQ = countQ.where('status', '=', status);
@@ -396,6 +409,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
+    if (await isSalaPermanente(db, orgId, id)) {
+      reply.code(409);
+      return { error: SALA_PERMANENTE_MSG };
+    }
 
     // La actividad debe existir DENTRO del tenant (cross-tenant → 404).
     const existing = await db
@@ -523,6 +540,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
+    if (await isSalaPermanente(db, orgId, id)) {
+      reply.code(409);
+      return { error: SALA_PERMANENTE_MSG };
+    }
 
     const parsed = ActivityUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -623,6 +644,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
+    if (await isSalaPermanente(db, orgId, id)) {
+      reply.code(409);
+      return { error: SALA_PERMANENTE_MSG };
+    }
 
     const parsed = ActivityStatusUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -806,6 +831,10 @@ export const activitiesRoute: FastifyPluginAsync = async (app) => {
     const orgId = guard.ctx.org.id;
     return withTenant(db, orgId, async (db) => {
     const id = (req.params as { id: string }).id;
+    if (await isSalaPermanente(db, orgId, id)) {
+      reply.code(409);
+      return { error: SALA_PERMANENTE_MSG };
+    }
 
     const existing = await db
       .selectFrom('activities')

@@ -349,6 +349,7 @@ export const ActivityDetailSchema = z.object({
   imagePosY: z.number().int().nullable(), // encuadre vertical 0–100 (null = centro)
   category: z.string().nullable(),
   audience: ActivityAudienceSchema, // tipo de público (adultos | infantil)
+  isPermanent: z.boolean().default(false), // tolerante a APIs previas; sala permanente: se gestiona desde Puerta, no es editable en Actividades
   createdAt: z.string(), // ISO 8601
   updatedAt: z.string(), // ISO 8601
 });
@@ -1247,6 +1248,13 @@ export const DashboardOverviewResponseSchema = z.object({
     title: z.string(),
     message: z.string(),
   })),
+  // "Salas hoy" (PUE-A02): personas que pasaron hoy por las salas permanentes, por
+  // sala. Aparte de los KPIs de eventos. null/ausente = sin salas o rol sin acceso a Puerta.
+  salasHoy: z.object({
+    people: z.number().int(),
+    entries: z.number().int(),
+    salas: z.array(z.object({ id: z.string(), name: z.string(), people: z.number().int() })),
+  }).nullable().optional(),
 });
 export type DashboardOverviewResponse = z.infer<typeof DashboardOverviewResponseSchema>;
 
