@@ -5,7 +5,7 @@ import type { APIRequestContext, APIResponse } from '@playwright/test';
 import { jsonOf, trackVisitor } from './q3-api';
 import { trackAttendanceRow } from './q4-common';
 
-export interface Sala { id: string; name: string; aforo: number | null; occupancy: number; visitorsToday: number; visitorsWeek: number; audience: string; todayBookings: Array<Record<string, any>> }
+export interface Sala { id: string; name: string; aforo: number | null; kind?: 'exposicion' | 'vr' | 'otra'; hasAgenda?: boolean; occupancy: number; visitorsToday: number; visitorsWeek: number; audience: string; todayBookings: Array<Record<string, any>> }
 
 export async function salasOf(api: APIRequestContext): Promise<Sala[]> {
   const j = await jsonOf<{ salas: Sala[] }>(await api.get('/app/puerta/api/salas'));

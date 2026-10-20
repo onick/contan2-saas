@@ -2,10 +2,10 @@
 // permanentes (Ada Balcácer, Sala VR). Distinto del kiosko de actividades con
 // fecha: acá CADA ENTRADA CUENTA (sin dedup, sin filtro de cupo). Grupos
 // escolares = profesor identificado + alumnos como cantidad (companions).
-//   GET  /puerta/salas               · salas + visitantes hoy + ocupación + reservas de hoy
+//   GET  /puerta/salas               · salas (kind/hasAgenda/aforo) + visitantes hoy/semana + reservas de hoy
 //   POST /puerta/registrar           · registra entrada (identified|anonymous|group) en 1+ salas · idempotente
 //   DELETE /puerta/entries/:id       · Deshacer (mismo staff <=10 min; owner/admin siempre)
-//   POST /puerta/salas/:id/occupancy · ajusta el contador de ocupación (VR)
+//   GET  /puerta/export.xlsx         · descarga de las salas (REPORT_EXPORT_ROLES, limitador propio)
 
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
@@ -13,27 +13,28 @@ import { getDb, sql, withTenant, type DbClient } from '@contan2/db';
 import { generateUserCode } from '@contan2/codes';
 import {
   PuertaRegisterRequestSchema,
-  PuertaOccupancyRequestSchema,
   PUERTA_RECENT_ENTRY_MIN,
   PUERTA_UNDO_WINDOW_MIN,
   type PuertaVoidResponse,
   type PuertaSalasResponse,
   type PuertaRegisterResponse,
-  type PuertaOccupancyResponse,
   type PuertaSala,
 } from '@contan2/contracts';
 import { requireRole, requireTenantStaff } from '../guard.js';
-import { DOOR_WRITE_ROLES, PADRON_READ_ROLES } from '../rbac-roles.js';
+import { DOOR_WRITE_ROLES, REPORT_EXPORT_ROLES } from '../rbac-roles.js';
 import { createRateLimiter, endpointPrefix } from '../rate-limit.js';
 import { buildPuertaExportWorkbook, puertaExportRowCap, type PuertaExportRow } from '../services/puerta-export.js';
 import { safeFilename } from '../services/csv.js';
+import { salaMeta } from '../services/puerta-salas.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 import { REPORT_TZ as TZ } from '../services/timezone.js';
-const AFORO_MAX = 200; // capacity > esto ⇒ sala "ilimitada" (no muestra ocupación)
 const puertaLimiter = createRateLimiter({ max: 180, windowMs: 60_000, prefix: endpointPrefix('puerta') });
+
+// Límite propio del export (descargas pesadas): no comparte cubeta con el registro.
+const exportLimiter = createRateLimiter({ max: 20, windowMs: 60_000, prefix: endpointPrefix('puerta-export') });
 
 const voidLimiter = createRateLimiter({ max: 30, windowMs: 60_000, prefix: endpointPrefix('puerta-void') });
 
@@ -54,7 +55,7 @@ const todaySql = sql`(date_trunc('day', now() AT TIME ZONE ${sql.lit(TZ)}) AT TI
 
 async function loadPermanentSala(db: DbClient, orgId: string, id: string) {
   return db.selectFrom('activities')
-    .select(['id', 'name', 'type', 'audience', 'capacity', 'occupancy'])
+    .select(['id', 'name', 'type', 'audience', 'occupancy'])
     .where('id', '=', id).where('organization_id', '=', orgId)
     .where('is_permanent', '=', true).where('status', '=', 'activa')
     .executeTakeFirst();
@@ -70,44 +71,53 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     return withTenant(db, orgId, async (db) => {
 
     const salas = await db.selectFrom('activities')
-      .select(['id', 'name', 'type', 'audience', 'capacity', 'occupancy'])
+      .select(['id', 'name', 'type', 'audience', 'occupancy', 'sala_kind', 'has_agenda', 'aforo'])
       .where('organization_id', '=', orgId).where('is_permanent', '=', true).where('status', '=', 'activa')
       .orderBy('name', 'asc').execute();
+    const ids = salas.map((s) => s.id);
 
-    const out: PuertaSala[] = [];
-    for (const s of salas) {
-      const vt = await db.selectFrom('attendance')
-        .select(sql<number>`coalesce(sum(1 + companions_children + companions_adults), 0)`.as('n'))
-        .where('organization_id', '=', orgId).where('activity_id', '=', s.id)
-        .where('checked_in_at', 'is not', null)
-        .where(sql<boolean>`registered_at >= ${todaySql}`)
-        .executeTakeFirst();
-      const vw = await db.selectFrom('attendance')
-        .select(sql<number>`coalesce(sum(1 + companions_children + companions_adults), 0)`.as('n'))
-        .where('organization_id', '=', orgId).where('activity_id', '=', s.id)
+    // Una consulta agregada por tabla (antes: 3 por sala, en serie): personas de
+    // hoy y de los últimos 7 días por sala, y las reservas de hoy de todas.
+    const peopleExpr = sql<number>`1 + companions_children + companions_adults`;
+    const [counts, bks] = ids.length === 0 ? [[], []] as const : await Promise.all([
+      db.selectFrom('attendance')
+        .select([
+          'activity_id',
+          sql<number>`coalesce(sum(${peopleExpr}) filter (where registered_at >= ${todaySql}), 0)`.as('today'),
+          sql<number>`coalesce(sum(${peopleExpr}), 0)`.as('week'),
+        ])
+        .where('organization_id', '=', orgId).where('activity_id', 'in', ids)
         .where('checked_in_at', 'is not', null)
         .where(sql<boolean>`registered_at >= ${todaySql} - interval '6 days'`)
-        .executeTakeFirst();
-      const bks = await db.selectFrom('space_bookings')
-        .select(['id', 'scheduled_at', 'colegio', 'group_kind', 'level', 'student_count', 'status'])
-        .where('activity_id', '=', s.id)
+        .groupBy('activity_id').execute(),
+      db.selectFrom('space_bookings')
+        .select(['id', 'activity_id', 'scheduled_at', 'colegio', 'group_kind', 'level', 'student_count', 'status'])
+        .where('organization_id', '=', orgId).where('activity_id', 'in', ids)
         .where(sql<boolean>`scheduled_at >= ${todaySql} AND scheduled_at < ${todaySql} + interval '1 day'`)
         .where('status', '!=', 'cancelled')
-        .orderBy('scheduled_at', 'asc').execute();
-      out.push({
+        .orderBy('scheduled_at', 'asc').execute(),
+    ]);
+    const countBy = new Map(counts.map((c) => [c.activity_id, c]));
+
+    const out: PuertaSala[] = salas.map((s) => {
+      const meta = salaMeta(s);
+      const c = countBy.get(s.id);
+      return {
         id: s.id, name: s.name, type: s.type,
         audience: s.audience as PuertaSala['audience'],
-        aforo: s.capacity <= AFORO_MAX ? s.capacity : null,
+        aforo: meta.aforo,
+        kind: meta.kind,
+        hasAgenda: meta.hasAgenda,
         occupancy: s.occupancy,
-        visitorsToday: Number(vt?.n ?? 0),
-        visitorsWeek: Number(vw?.n ?? 0),
-        todayBookings: bks.map((b) => ({
+        visitorsToday: Number(c?.today ?? 0),
+        visitorsWeek: Number(c?.week ?? 0),
+        todayBookings: bks.filter((b) => b.activity_id === s.id).map((b) => ({
           id: b.id, time: hhmm(b.scheduled_at as unknown as string), colegio: b.colegio,
           kind: b.group_kind ?? null, level: b.level ?? null, studentCount: b.student_count,
           status: b.status as PuertaSala['todayBookings'][number]['status'],
         })),
-      });
-    }
+      };
+    });
     const body: PuertaSalasResponse = { salas: out };
     return body;
     });
@@ -385,39 +395,18 @@ export const puertaRoute: FastifyPluginAsync = async (app) => {
     });
   });
 
-  // ── POST /puerta/salas/:id/occupancy · ajusta el contador (VR) ──────────────
-  app.post('/puerta/salas/:id/occupancy', async (req: FastifyRequest, reply) => {
-    const db = getDb();
-    const guard = requireRole(await requireTenantStaff(db, req), DOOR_WRITE_ROLES, 'No tienes permiso para ajustar la ocupación de la sala.');
-    if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
-    const orgId = guard.ctx.org.id;
-    return withTenant(db, orgId, async (db) => {
-    const parsed = PuertaOccupancyRequestSchema.safeParse(req.body);
-    if (!parsed.success) { reply.code(400); return { error: 'Delta inválido.' }; }
-    const id = (req.params as { id: string }).id;
-    const sala = await loadPermanentSala(db, orgId, id);
-    if (!sala) { reply.code(404); return { error: 'Sala no encontrada.' }; }
-
-    const aforo = sala.capacity <= AFORO_MAX ? sala.capacity : null;
-    const next = Math.max(0, Math.min(aforo ?? 9999, sala.occupancy + parsed.data.delta));
-    await db.updateTable('activities').set({ occupancy: next }).where('id', '=', id).execute();
-    const body: PuertaOccupancyResponse = { occupancy: next, aforo };
-    return body;
-    });
-  });
-
   // ── GET /puerta/export.xlsx · descarga la data de las salas permanentes ─────
   // El departamento de Puerta descarga la actividad de SUS salas: ambas juntas
   // (por defecto) o filtrada a una (?sala=<id>), con rango opcional (?from=&to=
-  // YYYY-MM-DD). Cualquier staff del tenant (el rol 'puerta' pasa por
-  // requireTenantStaff). Scoped a las salas permanentes → nunca expone el padrón.
+  // YYYY-MM-DD). Solo REPORT_EXPORT_ROLES (owner/admin/puerta; operator y consulta
+  // → 403, PUE-A08). Scoped a las salas permanentes → nunca expone el padrón.
   app.get('/puerta/export.xlsx', async (req: FastifyRequest, reply) => {
     const db = getDb();
-    const guard = requireRole(await requireTenantStaff(db, req), PADRON_READ_ROLES, 'No tienes permiso para exportar los registros de la puerta.');
+    const guard = requireRole(await requireTenantStaff(db, req), REPORT_EXPORT_ROLES, 'No tienes permiso para exportar los registros de la puerta.');
     if (!guard.ok) { reply.code(guard.status); return { error: guard.error }; }
     const { org, staff } = guard.ctx;
     return withTenant(db, org.id, async (db) => {
-    if ((await puertaLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas descargas seguidas. Espera un momento.' }; }
+    if ((await exportLimiter.hit(`${org.id}:${req.ip}`)).limited) { reply.code(429); return { error: 'Demasiadas descargas seguidas. Espera un momento.' }; }
 
     const q = req.query as Record<string, unknown>;
     const salaId = typeof q.sala === 'string' && q.sala.trim() ? q.sala.trim() : null;

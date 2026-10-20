@@ -51,6 +51,12 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
   const [range, setRange] = useState(initialRange);
   const [sala, setSala] = useState('all');
   const [loading, setLoading] = useState(false);
+  // PUE-A10: si el refresco falla, las cifras en pantalla siguen siendo las del
+  // período ANTERIOR (data.range). Se marcan como viejas (atenuadas + aviso con
+  // Reintentar) en vez de pasar por buenas bajo el filtro nuevo.
+  const [failed, setFailed] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState(() => new Date());
+  const [attempt, setAttempt] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const first = useRef(true);
 
@@ -59,15 +65,20 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
     if (first.current) { first.current = false; return; }
     let cancel = false;
     setLoading(true);
+    setFailed(false);
     const p = new URLSearchParams({ from: range.from, to: range.to });
     if (sala !== 'all') p.set('sala', sala);
     fetch(`/app/puerta/api/stats?${p.toString()}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (!cancel && j && j.kpis) setData(j as PuertaStatsResponse); })
-      .catch(() => {})
+      .then((j) => {
+        if (cancel) return;
+        if (j && j.kpis) { setData(j as PuertaStatsResponse); setUpdatedAt(new Date()); }
+        else setFailed(true);
+      })
+      .catch(() => { if (!cancel) setFailed(true); })
       .finally(() => { if (!cancel) setLoading(false); });
     return () => { cancel = true; };
-  }, [range, sala]);
+  }, [range, sala, attempt]);
 
   function pickRange(r: { from: string; to: string }, key: string | null) { setPeriodKey(key); setRange(r); }
 
@@ -152,7 +163,7 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
         {data.salas.map((s) => (
           <button key={s.id} type="button" onClick={() => setSala(s.id)}
             className={cn('inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[12.5px] font-semibold transition-colors', focusRing, sala === s.id ? 'bg-ink text-white' : 'border border-line bg-surface text-muted hover:bg-surface-container')}>
-            <span className="h-2 w-2 flex-none rounded-full" style={{ background: salaColor(s.aforo).c }} aria-hidden="true" /> {s.name}
+            <span className="h-2 w-2 flex-none rounded-full" style={{ background: salaColor(s.kind).c }} aria-hidden="true" /> {s.name}
           </button>
         ))}
       </div>
@@ -165,7 +176,21 @@ export function PuertaStats({ initial, initialRange }: PuertaStatsProps) {
         </p>
       ) : null}
 
-      <div className={cn('transition-opacity', loading && 'opacity-50')}>
+      {failed ? (
+        <div role="alert" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-warning-bg px-3 py-2 text-[12.5px] font-medium text-warning-fg">
+          <span>
+            No pudimos actualizar las cifras. Lo que ves son los datos de las{' '}
+            {updatedAt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: false })}
+            {' '}del período {data.range.from} a {data.range.to}.
+          </span>
+          <button type="button" onClick={() => setAttempt((n) => n + 1)}
+            className={cn('inline-flex min-h-11 items-center rounded-lg border border-line bg-surface px-4 text-[12.5px] font-bold text-ink hover:bg-surface-container', focusRing)}>
+            Reintentar
+          </button>
+        </div>
+      ) : null}
+
+      <div className={cn('transition-opacity', (loading || failed) && 'opacity-50')}>
         {/* KPIs */}
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {kpis.map((kp) => (

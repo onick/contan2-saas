@@ -75,10 +75,10 @@ class BookingAbort extends Error {
   constructor(readonly status: number, readonly body: Record<string, unknown>) { super(String(body.error ?? 'abort')); }
 }
 
-interface SalaRow { id: string; name: string; capacity: number; occupancy: number }
+interface SalaRow { id: string; name: string; has_agenda: boolean }
 async function loadPermanentSala(db: DbClient, orgId: string, id: string): Promise<SalaRow | undefined> {
   return db.selectFrom('activities')
-    .select(['id', 'name', 'capacity', 'occupancy'])
+    .select(['id', 'name', 'has_agenda'])
     .where('id', '=', id).where('organization_id', '=', orgId)
     .where('is_permanent', '=', true).where('status', '=', 'activa')
     .executeTakeFirst();
@@ -228,10 +228,22 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
       .select([...BOOKING_COLS])
       .where('b.organization_id', '=', orgId);
     if (typeof q.salaId === 'string' && q.salaId) query = query.where('b.activity_id', '=', q.salaId);
-    const from = typeof q.from === 'string' && q.from ? new Date(q.from) : null;
-    const to = typeof q.to === 'string' && q.to ? new Date(q.to) : null;
-    if (from && !Number.isNaN(from.getTime())) query = query.where('b.scheduled_at', '>=', from);
-    if (to && !Number.isNaN(to.getTime())) query = query.where('b.scheduled_at', '<', to);
+    // `from`/`to` aceptan YMD (AAAA-MM-DD, día local de REPORT_TZ, `to` inclusivo — PUE-A13)
+    // o un instante ISO (semántica previa: `to` exclusivo).
+    const parseBound = (v: unknown): { ymd: string } | { at: Date } | null => {
+      if (typeof v !== 'string' || !v) return null;
+      if (YMD_RE.test(v)) return Number.isNaN(new Date(`${v}T00:00:00Z`).getTime()) ? null : { ymd: v };
+      const d = new Date(v);
+      return Number.isNaN(d.getTime()) ? null : { at: d };
+    };
+    const from = parseBound(q.from);
+    const to = parseBound(q.to);
+    if (from) query = query.where('ymd' in from
+      ? sql<boolean>`b.scheduled_at >= (${from.ymd}::timestamp AT TIME ZONE ${sql.lit(TZ)})`
+      : sql<boolean>`b.scheduled_at >= ${from.at}`);
+    if (to) query = query.where('ymd' in to
+      ? sql<boolean>`b.scheduled_at < ((${to.ymd}::date + 1)::timestamp AT TIME ZONE ${sql.lit(TZ)})`
+      : sql<boolean>`b.scheduled_at < ${to.at}`);
     // Default (sin rango): desde el inicio de hoy (local) hacia adelante.
     if (!from && !to) query = query.where(sql<boolean>`b.scheduled_at >= ${todayStartSql}`);
 
@@ -259,6 +271,8 @@ export const puertaBookingsRoute: FastifyPluginAsync = async (app) => {
     if (Number.isNaN(scheduledAt.getTime())) { reply.code(400); return { error: 'Fecha/hora inválida.' }; }
     const sala = await loadPermanentSala(db, orgId, d.salaId);
     if (!sala) { reply.code(404); return { error: 'Sala no encontrada.' }; }
+    // Solo las salas con agenda (mig. 057, decisión Q1: hoy la Sala VR) reciben reservas.
+    if (!sala.has_agenda) { reply.code(409); return { error: 'Esta sala no tiene agenda de reservas.' }; }
 
     const inserted = await db.insertInto('space_bookings').values({
       organization_id: orgId,

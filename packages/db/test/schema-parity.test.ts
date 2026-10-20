@@ -72,7 +72,7 @@ const EXPECTED: Record<keyof Database, string[]> = {
     'id', 'name', 'type', 'location', 'date', 'end_date', 'capacity', 'description',
     'image_url', 'enrolled_count', 'status', 'organization_id', 'category',
     'image_pos_y', 'audience', 'created_at', 'updated_at',
-    'is_permanent', 'open_schedule', 'occupancy',
+    'is_permanent', 'open_schedule', 'occupancy', 'sala_kind', 'has_agenda', 'aforo',
   ],
   attendance: [
     'id', 'user_id', 'user_code', 'activity_id', 'activity_name',

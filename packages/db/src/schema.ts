@@ -254,7 +254,12 @@ export interface ActivitiesTable {
   // Espacio PERMANENTE (migración 041): exento de auto-cierre y filtro de cupo.
   is_permanent: DefaultedBool;
   open_schedule: unknown | null; // JSONB {semana:[9,22],finde:[10,18]}
-  occupancy: DefaultedInt; // contador vivo (ej. VR N/8), informativo
+  occupancy: DefaultedInt; // contador vivo (ej. VR N/8), informativo · OBSOLETO (sin uso desde R4; POST /occupancy retirado)
+  // Migración 057 (PUE-A09): tipo explícito de sala permanente (NULL en actividades con
+  // fecha). aforo es el aforo real de la sala (NULL = sin límite), independiente de capacity.
+  sala_kind: string | null; // 'exposicion' | 'vr' | 'otra'
+  has_agenda: DefaultedBool;
+  aforo: number | null;
   created_at: CreatedAt;
   updated_at: UpdatedAt;
 }

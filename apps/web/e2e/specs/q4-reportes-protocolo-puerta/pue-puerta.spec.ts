@@ -209,18 +209,13 @@ test.describe('PUE-01 salas permanentes: registrar', { tag: '@write' }, () => {
       expect(allowed, `${name}: HTTP ${res.status()}`).toContain(res.status());
       expect(res.status(), `${name}: no debe registrar`).not.toBe(201);
     }
-  });
-
-  test('PUE-01j [S3] contador de ocupación VR: -1 y +1 vuelven al valor inicial (clamp a aforo)', async () => {
-    const start = (await salasOf(door)).find((s) => s.id === vr.id)!.occupancy;
-    const down = await door.post(`/app/puerta/api/salas/${vr.id}/occupancy`, { data: { delta: -1 } });
-    expect(down.status()).toBe(200);
-    const d = await down.json();
-    expect(d.occupancy).toBe(Math.max(0, start - 1));
-    const up = await door.post(`/app/puerta/api/salas/${vr.id}/occupancy`, { data: { delta: 1 } });
-    expect((await up.json()).occupancy).toBe(start);
-    const bad = await door.post(`/app/puerta/api/salas/${vr.id}/occupancy`, { data: { delta: 51 } });
-    expect(bad.status()).toBe(400);
+    // PUE-A09 (mig. 057): solo la sala con agenda recibe reservas; Ada (sin agenda) -> 409, y no se crea nada.
+    expect(ada.hasAgenda, 'Ada no tiene agenda').toBe(false);
+    expect(ada.kind).toBe('exposicion');
+    const bk = await door.post('/app/puerta/api/bookings', {
+      data: { salaId: ada.id, scheduledAt: new Date(Date.now() + 7 * 86_400_000).toISOString(), colegio: 'E2E sin agenda', contactName: 'E2E', studentCount: 5 },
+    });
+    expect(bk.status(), 'reserva en sala sin agenda').toBe(409);
   });
 });
 
@@ -456,8 +451,9 @@ test.describe('PUE-04 flag de producción (solo lectura de código)', () => {
     const board = readFileSync(path.join(web, 'app/app/puerta/page.tsx'), 'utf8');
     const reportes = readFileSync(path.join(web, 'app/app/puerta/reportes/page.tsx'), 'utf8');
     expect(nav).toMatch(/PUERTA_ENABLED\s*=\s*process\.env\.NEXT_PUBLIC_PUERTA_ENABLED === '1'/);
-    expect(board).toContain('if (!PUERTA_ENABLED) notFound()');
-    expect(reportes).toContain('if (!PUERTA_ENABLED) notFound()');
+    // PUE-A13: las páginas usan el mismo puertaEnabled() (runtime, luego build) que el BFF.
+    expect(board).toContain('if (!puertaEnabled()) notFound()');
+    expect(reportes).toContain('if (!puertaEnabled()) notFound()');
     for (const f of ['registrar', 'salas', 'bookings', 'stats', 'export']) {
       const src = readFileSync(path.join(web, `app/app/puerta/api/${f}/route.ts`), 'utf8');
       // PR-10: el BFF respeta el flag (404 apagado). La API api-v2 /puerta/* sigue sin consultarlo (decisión del owner).

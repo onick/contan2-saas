@@ -6,7 +6,7 @@ import { AppShell } from '../../../components/shell/AppShell';
 import { SectionHeader, cn, focusRing } from '../../../components/ui';
 import { getTenantBranding } from '../../../lib/branding/tenant';
 import { PuertaBoard } from '../../../components/puerta/PuertaBoard';
-import { PUERTA_ENABLED } from '../../../lib/shell/nav';
+import { puertaEnabled } from '../../../lib/puerta/flag';
 
 export const metadata: Metadata = {
   title: 'Puerta',
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function PuertaPage() {
   // Feature oculta salvo donde el flag esté encendido (staging). En prod → 404.
-  if (!PUERTA_ENABLED) notFound();
+  if (!puertaEnabled()) notFound();
   const branding = await getTenantBranding();
   return (
     <AppShell branding={branding} title="Puerta" activeKey="puerta" sidebarDefault="collapsed">

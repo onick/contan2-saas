@@ -35,7 +35,7 @@ run('puerta · salas permanentes', () => {
     await db.insertInto('staff_auth_sessions').values({ staff_member_id: pta.id, token_hash: hashToken(tokPuerta), expires_at: new Date(Date.now() + 3_600_000).toISOString(), remember_me: false }).execute();
     // sala permanente tipo VR (aforo 8)
     salaId = randomUUID();
-    await db.insertInto('activities').values({ id: salaId, organization_id: orgId, name: 'Sala VR', type: 'otro', location: 'Lobby', date: new Date().toISOString(), capacity: 8, enrolled_count: 0, status: 'activa', description: '', image_url: null, is_permanent: true, audience: 'infantil' } as never).execute();
+    await db.insertInto('activities').values({ id: salaId, organization_id: orgId, name: 'Sala VR', type: 'otro', location: 'Lobby', date: new Date().toISOString(), capacity: 8, enrolled_count: 0, status: 'activa', description: '', image_url: null, is_permanent: true, sala_kind: 'vr', has_agenda: true, aforo: 8, audience: 'infantil' } as never).execute();
     const u = await db.insertInto('users').values({ id: randomUUID(), organization_id: orgId, code: 'PTA-AB12CD', first_name: 'Ana', last_name: 'Gómez', email: null, phone: null, visit_count: 0 } as never).returning('code').executeTakeFirstOrThrow();
     userCode = u.code;
     app = buildApp(); await app.ready();
@@ -111,17 +111,6 @@ run('puerta · salas permanentes', () => {
     const grp = await db.selectFrom('attendance').select(['group_kind', 'group_contact']).where('activity_id', '=', salaId).where('group_label', '=', 'Jóvenes de Villa Consuelo').executeTakeFirstOrThrow();
     expect(grp.group_kind).toBe('Grupo comunitario');
     expect(grp.group_contact).toBe('Pedro Núñez');
-  });
-
-  it('ocupación: +1 sube, se clampa al aforo; 404 sala inexistente', async () => {
-    const r = await post(`/api/v2/puerta/salas/${salaId}/occupancy`, { delta: 3 });
-    expect(r.statusCode).toBe(200);
-    expect(r.json()).toEqual({ occupancy: 3, aforo: 8 });
-    // clamp al aforo
-    expect((await post(`/api/v2/puerta/salas/${salaId}/occupancy`, { delta: 20 })).json().occupancy).toBe(8);
-    // clamp a 0
-    expect((await post(`/api/v2/puerta/salas/${salaId}/occupancy`, { delta: -50 })).json().occupancy).toBe(0);
-    expect((await post(`/api/v2/puerta/salas/00000000-0000-0000-0000-000000000000/occupancy`, { delta: 1 })).statusCode).toBe(404);
   });
 
   it('mode new: crea el visitante (code) + acompañantes por audiencia; cada entrada cuenta; find-or-create por email', async () => {
