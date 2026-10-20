@@ -74,7 +74,7 @@ test.describe('ADM-03/04 · crear con portada, editar y estados (UI)', () => {
     await page.getByLabel('Capacidad').fill('15');
     await page.getByLabel('Lugar').fill('Sala E2E');
     // DateTimeField: texto tipeable (d/m/yyyy H:mm, 24 h); parsea al perder el foco.
-    const dateField = page.getByLabel('Fecha y hora');
+    const dateField = page.getByLabel('Fecha y hora', { exact: true }); // exact: el botón "Elegir fecha y hora" del DateTimeField también coincide sin exact
     await dateField.fill(localDateTimeText(5));
     await dateField.press('Tab');
     await expect(dateField).toHaveValue(/^\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2} [ap]\. m\.$/);
