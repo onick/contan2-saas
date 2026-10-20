@@ -1,25 +1,25 @@
 import type { ComponentProps } from 'react';
 import { cn, focusRing } from '../ui';
+import { DOOR_FILL } from './salaColors';
 
-// Botón primario de la PUERTA con el naranja de marca #e65100 (bg-brand),
-// consistente con el kiosko ("Toca para registrarte") — la puerta es una
-// superficie kiosko-adjacente. (El kit usa brand-strong #c44400 para el admin
-// general; acá el usuario pidió el naranja del kiosko.) Mantiene el foco visible
-// y los touch targets del kit; el hover aclara como en el kiosko.
+// Botón primario de la PUERTA: relleno de marca del tenant (bg-brand) con el texto
+// derivado por contraste (text-brand-fg, AA), igual que el Button del kit. Nunca
+// texto blanco sobre el naranja (2,35:1, PUE-A05). Targets de 44 px en todos los
+// tamaños (la puerta se opera en una tablet), foco visible y hover que aclara.
 
 type Size = 'sm' | 'md' | 'lg';
 const SIZES: Record<Size, string> = {
-  sm: 'min-h-9 gap-1.5 px-3 text-[13px]',
+  sm: 'min-h-11 gap-1.5 px-3.5 text-[13px]',
   md: 'min-h-11 gap-2 px-4 text-sm',
   lg: 'min-h-12 gap-2 px-5 text-[15px]',
 };
 
-// Identidad por sala (pedido del usuario): Ada = naranja de marca (kiosko);
-// Sala VR y su agenda = el azul de la franja de la tarjeta VR (#2f9fd6).
+// Identidad por sala: Ada = marca del tenant; Sala VR y su agenda = azul secundario
+// derivado (info-text, 4,78:1 con blanco; ver salaColors.ts).
 export type DoorTone = 'brand' | 'vr';
 const TONES: Record<DoorTone, string> = {
-  brand: 'bg-brand',
-  vr: 'bg-[#2f9fd6]',
+  brand: DOOR_FILL.brand,
+  vr: DOOR_FILL.vr,
 };
 
 export interface DoorButtonProps extends ComponentProps<'button'> {
@@ -32,7 +32,7 @@ export function DoorButton({ size = 'md', tone = 'brand', className, type = 'but
     <button
       type={type}
       className={cn(
-        'inline-flex flex-none items-center justify-center rounded-xl font-bold text-white shadow-sm transition',
+        'inline-flex flex-none items-center justify-center rounded-xl font-bold shadow-sm transition',
         'hover:brightness-[1.07] active:brightness-95 disabled:pointer-events-none disabled:opacity-50',
         TONES[tone],
         focusRing,
