@@ -102,7 +102,7 @@ const ROWS: Row[] = [
   { id: 'RBAC-R23', sev: 'S1', method: 'GET', path: g('/app/usuarios/api/import/template'), allowed: ADMINS, forbidden: without(...ADMINS) },
   { id: 'RBAC-R24', sev: 'S2', method: 'GET', path: g('/app/segmentos/e2e/api/export'), allowed: ADMINS, forbidden: without(...ADMINS) },
   { id: 'RBAC-R25', sev: 'S2', method: 'GET', path: g('/app/puerta/api/bookings'), allowed: ['owner', 'admin', 'operator', 'puerta'], forbidden: ['protocolo', 'biblioteca'], note: 'reservas de salas: datos de contacto de visitantes' },
-  { id: 'RBAC-R26', sev: 'S2', method: 'GET', path: g('/app/puerta/api/export'), allowed: ['owner', 'admin', 'operator', 'puerta'], forbidden: ['protocolo', 'biblioteca'], note: 'xlsx de salas permanentes' },
+  { id: 'RBAC-R26', sev: 'S2', method: 'GET', path: g('/app/puerta/api/export'), allowed: ['owner', 'admin', 'puerta'], forbidden: ['operator', 'consulta', 'protocolo', 'biblioteca'], note: 'xlsx de salas permanentes (PUE-A08: solo REPORT_EXPORT_ROLES)' },
   { id: 'RBAC-R27', sev: 'S3', method: 'GET', path: g('/app/api/shell/summary'), allowed: ALL, forbidden: [] },
   { id: 'RBAC-R28', sev: 'S3', method: 'GET', path: g('/app/cuenta/api/me'), allowed: ALL, forbidden: [] },
   { id: 'RBAC-R29', sev: 'S3', method: 'GET', path: g('/app/cuenta/api/sessions'), allowed: ALL, forbidden: [] },
@@ -113,7 +113,6 @@ const ROWS: Row[] = [
   { id: 'RBAC-W04', sev: 'S1', method: 'POST', path: g('/app/puerta/api/bookings'), body: () => ({}), allowed: ['owner', 'admin', 'operator', 'puerta'], forbidden: ['consulta', 'protocolo', 'biblioteca'], note: 'crear reserva de sala' },
   { id: 'RBAC-W05', sev: 'S1', method: 'PATCH', path: () => `/app/puerta/api/bookings/${FAKE}`, body: () => ({}), allowed: ['owner', 'admin', 'operator', 'puerta'], forbidden: ['consulta', 'protocolo', 'biblioteca'] },
   { id: 'RBAC-W06', sev: 'S1', method: 'POST', path: () => `/app/puerta/api/bookings/${FAKE}/checkin`, body: () => ({}), allowed: ['owner', 'admin', 'operator', 'puerta'], forbidden: ['consulta', 'protocolo', 'biblioteca'] },
-  { id: 'RBAC-W07', sev: 'S1', method: 'POST', path: () => `/app/puerta/api/salas/${FAKE}/occupancy`, body: () => ({}), allowed: ['owner', 'admin', 'operator', 'puerta'], forbidden: ['consulta', 'protocolo', 'biblioteca'] },
   { id: 'RBAC-W08', sev: 'S1', method: 'PATCH', path: () => `/app/check-in/api/attendance/${FAKE}`, body: () => ({ companionsAdults: 0 }), allowed: ADMINS, forbidden: without(...ADMINS) },
   { id: 'RBAC-W09', sev: 'S1', method: 'DELETE', path: () => `/app/check-in/api/attendance/${FAKE}`, allowed: ADMINS, forbidden: without(...ADMINS) },
   // ---- Escrituras: padron (H2 complemento) ------------------------------------------------------
