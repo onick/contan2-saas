@@ -20,10 +20,11 @@ export interface ProgramPickerProps {
   onChange: (v: string) => void;
   year?: number;
   selectClassName?: string;
+  selectId?: string; // id del <select> (para <label htmlFor>)
   disabled?: boolean;
 }
 
-export function ProgramPicker({ value, onChange, year, selectClassName = '', disabled }: ProgramPickerProps) {
+export function ProgramPicker({ value, onChange, year, selectClassName = '', selectId, disabled }: ProgramPickerProps) {
   const [programs, setPrograms] = useState<Program[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -78,6 +79,7 @@ export function ProgramPicker({ value, onChange, year, selectClassName = '', dis
   return (
     <div>
       <select
+        id={selectId}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled || programs === null}

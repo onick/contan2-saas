@@ -13,6 +13,8 @@ export interface AppShellProps {
   activeKey?: string;
   // Chip de contexto opcional en el Topbar (ej. período).
   meta?: string;
+  // Sección padre opcional para el breadcrumb: «Inicio / <padre> / <title>».
+  parent?: { label: string; href: string };
   // Rol del staff: filtra nav en Sidebar y MobileNav.
   // undefined → se lee del gate (producción); null → sin filtro (tests).
   role?: string | null;
@@ -42,7 +44,7 @@ export const CONTENT_WIDTH_CLASS = {
 // `minmax(0,1fr)` en la columna de contenido evita overflow horizontal.
 // getAdminGate usa React.cache → una sola llamada por request compartida con
 // el layout; en tests (sin contexto Next.js) el try/catch deja role=null.
-export async function AppShell({ branding, title, activeKey, meta, children, role: roleProp, wide = false, sidebarDefault = 'expanded' }: AppShellProps) {
+export async function AppShell({ branding, title, activeKey, meta, parent, children, role: roleProp, wide = false, sidebarDefault = 'expanded' }: AppShellProps) {
   // Cuando roleProp no se pasa (undefined), leemos el rol del gate cacheado.
   // En tests, getAdminGate lanza (cookies() no está disponible) → role=null.
   let role: string | null = roleProp !== undefined ? roleProp : null;
@@ -62,7 +64,7 @@ export async function AppShell({ branding, title, activeKey, meta, children, rol
       <MobileNav activeKey={activeKey} role={role} />
 
       <div className="flex min-w-0 flex-col">
-        <Topbar branding={branding} title={title} meta={meta} />
+        <Topbar branding={branding} title={title} meta={meta} parent={parent} />
         {/* pb-[...] reserva espacio para la barra inferior en mobile. */}
         <main className="flex-1 p-5 pb-[calc(5rem+env(safe-area-inset-bottom))] md:p-7 md:pb-7 xl:p-8 xl:pb-8">
           <div data-content-width={wide ? 'wide' : 'default'} className={CONTENT_WIDTH_CLASS[wide ? 'wide' : 'default']}>

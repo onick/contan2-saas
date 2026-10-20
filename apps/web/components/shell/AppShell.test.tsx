@@ -35,6 +35,17 @@ describe('AppShell', () => {
     expect(screen.getByRole('button', { name: 'Colapsar navegación' })).toBeInTheDocument();
   });
 
+  it('con `parent`, el breadcrumb es Inicio / Padre (enlace) / Título', async () => {
+    render(await AppShell({
+      branding: DEFAULT_BRANDING, title: 'Nueva actividad', role: 'owner',
+      parent: { label: 'Actividades', href: '/app/actividades' }, children: <p>x</p>,
+    }));
+    const crumb = screen.getByRole('navigation', { name: 'Ruta' });
+    expect(crumb).toHaveTextContent('Inicio/Actividades/Nueva actividad');
+    expect(crumb.querySelector('a')).toHaveAttribute('href', '/app/actividades');
+    expect(crumb.querySelector('[aria-current="page"]')).toHaveTextContent('Nueva actividad');
+  });
+
   it('aplica la regla ÚNICA de ancho: el hijo de <main> centra y topa con --content-max', async () => {
     render(await AppShell({ branding: DEFAULT_BRANDING, title: 'Inicio', role: 'owner', children: <h1>Título</h1> }));
     const main = screen.getByRole('main');

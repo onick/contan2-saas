@@ -17,7 +17,6 @@ import {
 import { ActivitiesTable } from './ActivitiesTable';
 import { ActivitiesGrid } from './ActivitiesGrid';
 import { ActivityDetailDrawer } from './ActivityDetailDrawer';
-import { EditActivityDrawer } from './EditActivityDrawer';
 import { Card, cn, focusRing } from '../ui';
 import { DateRangePicker } from '../ui/arc/date-range-picker/DateRangePicker';
 import { matchPreset, type RangePreset } from '../ui/arc/date-range-picker/presets';
@@ -89,13 +88,15 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
     window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
   }, [query, status, category, date, range, view]);
   const [selected, setSelected] = useState<Activity | null>(null);
-  const [editing, setEditing] = useState<Activity | null>(null);
   const router = useRouter();
 
-  // Tras editar/transicionar (200), cerrar drawers y refrescar el Server
-  // Component (re-fetch real). Los filtros/búsqueda/página/vista son estado
+  // Tras transicionar estado/eliminar (200), cerrar el detalle y refrescar el
+  // Server Component (re-fetch real). Los filtros/búsqueda/página/vista son estado
   // cliente de este componente → SOBREVIVEN al router.refresh().
-  const afterMutation = () => { setEditing(null); setSelected(null); router.refresh(); };
+  const afterMutation = () => { setSelected(null); router.refresh(); };
+  // Editar = página completa /app/actividades/<id>/editar. Sólo owner/admin
+  // editan (la página lo exige); el resto no ve la opción.
+  const goEdit = canWrite ? (a: Activity) => router.push(`/app/actividades/${encodeURIComponent(a.id)}/editar`) : undefined;
 
   const categories = useMemo(() => uniqueCategories(activities), [activities]);
 
@@ -200,7 +201,7 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
       {/* Lista o grid */}
       <div className="mt-4">
         {view === 'list'
-          ? <ActivitiesTable activities={filtered} onView={setSelected} onEdit={setEditing} onChanged={afterMutation} />
+          ? <ActivitiesTable activities={filtered} onView={setSelected} onEdit={goEdit} onChanged={afterMutation} />
           : <ActivitiesGrid activities={filtered} onView={setSelected} />}
       </div>
 
@@ -214,10 +215,9 @@ export function ActivitiesView({ activities, total, canWrite = false }: Activiti
       <ActivityDetailDrawer
         activity={selected}
         onClose={() => setSelected(null)}
-        onEdit={(a) => { setSelected(null); setEditing(a); }}
+        onEdit={goEdit ? (a) => { setSelected(null); goEdit(a); } : undefined}
         canExportAttendees={canWrite}
       />
-      <EditActivityDrawer activity={editing} onClose={() => setEditing(null)} onSaved={afterMutation} />
     </>
   );
 }

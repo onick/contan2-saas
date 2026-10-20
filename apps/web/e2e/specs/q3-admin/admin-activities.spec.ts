@@ -45,37 +45,41 @@ test.describe('ADM-03/04 · crear con portada, editar y estados (UI)', () => {
     name = tag('Actividad UI');
     await page.goto('/app/actividades');
     await settle(page);
-    await page.getByRole('button', { name: 'Nueva actividad' }).first().click();
-    const dialog = page.getByRole('dialog', { name: 'Crear actividad' });
-    await expect(dialog).toBeVisible();
+    await page.getByRole('link', { name: 'Nueva actividad' }).first().click();
+    await expect(page).toHaveURL(/\/app\/actividades\/nueva$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Nueva actividad' })).toBeVisible();
+    const submit = page.getByRole('button', { name: 'Crear actividad' });
 
-    // Sin portada: el boton esta deshabilitado y el servidor/cliente exige la portada.
-    await expect(dialog.getByRole('button', { name: 'Crear actividad' })).toBeDisabled();
+    // Sin portada: el boton queda aria-disabled (sigue enfocable) y la barra dice que falta.
+    await expect(submit).toHaveAttribute('aria-disabled', 'true');
 
-    await dialog.locator('input[type="file"]').setInputFiles({ name: 'portada-e2e.png', mimeType: 'image/png', buffer: makePng(1200, 675) });
-    await expect(dialog.getByText(/Imagen lista|optimizada/i).first()).toBeVisible({ timeout: 20_000 });
+    await page.locator('input[type="file"]').setInputFiles({ name: 'portada-e2e.png', mimeType: 'image/png', buffer: makePng(1200, 675) });
+    await expect(page.getByText(/Imagen lista|optimizada/i).first()).toBeVisible({ timeout: 20_000 });
 
     // Validacion de campos: capacidad vacia / tipo sin elegir -> mensajes visibles, sin request.
-    await dialog.getByLabel('Nombre').fill(name);
-    await dialog.getByRole('button', { name: 'Crear actividad' }).click();
-    await expect(dialog.getByText('Selecciona un tipo')).toBeVisible();
-    await expect(dialog.getByText('Requerido').first()).toBeVisible();
+    // (force: Playwright trata aria-disabled como deshabilitado; el clic real si llega al handler.)
+    await page.getByLabel('Nombre').fill(name);
+    await submit.click({ force: true });
+    await expect(page.getByText('Selecciona un tipo')).toBeVisible();
+    await expect(page.getByText('Requerido').first()).toBeVisible();
 
-    await dialog.getByLabel(/^Tipo(?! de)/).selectOption('otro');
-    await dialog.getByLabel('Capacidad').fill('15');
-    await dialog.getByLabel('Lugar').fill('Sala E2E');
-    await dialog.getByLabel('Fecha y hora').fill(localDateTime(5));
-    await dialog.getByLabel(/Cierre/).fill(localDateTime(185));
+    await page.getByLabel('Tipo', { exact: true }).selectOption('otro');
+    await page.getByLabel('Capacidad').fill('15');
+    await page.getByLabel('Lugar').fill('Sala E2E');
+    await page.getByLabel('Fecha y hora').fill(localDateTime(5));
+    await page.getByLabel(/Cierre/).fill(localDateTime(185));
+    await expect(submit).not.toHaveAttribute('aria-disabled', 'true');
 
     const created = page.waitForResponse((r) => r.url().includes('/app/actividades/api/with-cover') && r.request().method() === 'POST');
-    await dialog.getByRole('button', { name: 'Crear actividad' }).click();
+    await submit.click();
     const res = await created;
     expect(res.status(), 'POST with-cover').toBe(201);
     const body = (await res.json()) as { activity: { id: string; imageUrl: string | null } };
     id = body.activity.id;
     trackActivity(id, name);
 
-    await expect(dialog).toHaveCount(0);
+    // Vuelve a la lista y aparece la fila.
+    await expect(page).toHaveURL(/\/app\/actividades$/, { timeout: 15_000 });
     await expect(activityRow(page, name)).toBeVisible({ timeout: 15_000 });
 
     // La portada queda servida por /uploads (200, imagen).
@@ -94,13 +98,13 @@ test.describe('ADM-03/04 · crear con portada, editar y estados (UI)', () => {
     await page.goto('/app/actividades');
     await settle(page);
     await rowMenu(page, name, 'Editar');
-    const dialog = page.getByRole('dialog', { name });
-    await expect(dialog).toBeVisible();
-    await dialog.getByLabel('Lugar').fill('Sala E2E editada');
+    await expect(page).toHaveURL(new RegExp(`/app/actividades/${id}/editar$`));
+    await expect(page.getByRole('heading', { level: 1, name: 'Editar actividad' })).toBeVisible();
+    await page.getByLabel('Lugar').fill('Sala E2E editada');
     const patch = page.waitForResponse((r) => r.url().includes(apiActivity(id)) && r.request().method() === 'PATCH');
-    await dialog.getByRole('button', { name: 'Guardar cambios' }).click();
+    await page.getByRole('button', { name: 'Guardar cambios' }).click();
     expect((await patch).status(), 'PATCH actividad').toBe(200);
-    await expect(dialog).toHaveCount(0);
+    await expect(page).toHaveURL(/\/app\/actividades$/, { timeout: 15_000 });
     await expect(activityRow(page, name)).toContainText('Sala E2E editada').catch(() => undefined);
     const fresh = await jsonOf<{ location: string }>(await api.get(apiActivity(id)));
     expect(fresh.location).toBe('Sala E2E editada');

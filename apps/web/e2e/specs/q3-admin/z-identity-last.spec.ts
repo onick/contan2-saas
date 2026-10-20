@@ -28,7 +28,7 @@ test.describe('ADM-18 · identidad', () => {
   test('ADM-18a [S1] el CTA primario ("Nueva actividad") cumple AA con la marca actual', async ({ page }) => {
     await page.goto('/app/actividades');
     await settle(page);
-    const cta = page.getByRole('button', { name: 'Nueva actividad' }).first();
+    const cta = page.getByRole('link', { name: 'Nueva actividad' }).first();
     const { bg, fg } = await cta.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, fg: getComputedStyle(el).color }));
     const r = ratio(bg, fg);
     test.info().annotations.push({ type: 'contraste', description: `CTA ${bg} / ${fg} = ${r.toFixed(2)}:1` });
@@ -61,7 +61,7 @@ test.describe('ADM-18 · identidad', () => {
       const changed = await readVar(page.locator('div[style*="--color-brand"]').first(), '--color-brand');
       expect(changed.toLowerCase(), 'el color primario cambio').not.toBe(primary.toLowerCase());
       // CTA sigue cumpliendo AA con el color nuevo (el sistema elige texto oscuro/claro).
-      const cta = page.getByRole('button', { name: 'Nueva actividad' }).first();
+      const cta = page.getByRole('link', { name: 'Nueva actividad' }).first();
       const { bg, fg } = await cta.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, fg: getComputedStyle(el).color }));
       test.info().annotations.push({ type: 'contraste-paleta-verde', description: `${bg} / ${fg} = ${ratio(bg, fg).toFixed(2)}:1` });
       expect.soft(ratio(bg, fg), `CTA con la paleta Verde: ${bg} sobre ${fg}`).toBeGreaterThanOrEqual(4.5);
