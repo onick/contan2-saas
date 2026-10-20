@@ -1,7 +1,8 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { act } from 'react';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
-import { UserProfileDrawer } from './UserProfileDrawer';
+import userEvent from '@testing-library/user-event';
+import { UserProfilePanel } from './UserProfilePanel';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); document.body.style.overflow = ''; });
 
@@ -27,27 +28,43 @@ function installFetch(h: H) {
   return fn;
 }
 const settle = (ms = 0) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
-const panel = () => document.querySelector('.drawer-panel') as HTMLElement | null;
+const panelEl = () => document.querySelector('[data-detail-panel]') as HTMLElement | null;
+const tab = (name: string) => fireEvent.mouseDown(screen.getByRole('tab', { name }), { button: 0 });
+function stubViewport(xl: boolean) {
+  vi.stubGlobal('matchMedia', (q: string) => ({
+    matches: q.includes('min-width') ? xl : false, media: q,
+    addEventListener: () => {}, removeEventListener: () => {},
+  }));
+}
 
-describe('UserProfileDrawer', () => {
+// El perfil se renderiza como columna fija (xl) o como panel lateral modal (< xl): cubrimos ambos.
+describe.each([['xl · columna fija', true], ['< xl · panel lateral', false]] as const)('UserProfilePanel · %s', (_label, xl) => {
+  beforeEach(() => stubViewport(xl));
+
   it('carga y muestra nombre, código, métricas, contacto, afinidad e historial', async () => {
     installFetch({});
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} />);
     await waitFor(() => expect(screen.getByRole('heading', { name: /Sofía Méndez/ })).toBeInTheDocument());
     expect(screen.getAllByText('CCB-7K2P9Q').length).toBeGreaterThan(0);
     expect(screen.getByText('sofia@ccb.do')).toBeInTheDocument();
     expect(screen.getByText(/Activo/)).toBeInTheDocument();
     expect(screen.getByText(/Credencial enviada/)).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText(/Tipos de actividad/)).toBeInTheDocument());
-    expect(screen.getAllByText('Concierto').length).toBeGreaterThan(0); // afinidad + historial
+    // Visitas: métricas + historial
+    tab('Visitas');
     await waitFor(() => expect(screen.getByText(/Asistió/)).toBeInTheDocument());
+    expect(screen.getByText('Última visita')).toBeInTheDocument();
+    // Afinidad: pestaña presente sólo con asistencias
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Afinidad' })).toBeInTheDocument());
+    tab('Afinidad');
+    await waitFor(() => expect(screen.getByText(/Tipos de actividad/)).toBeInTheDocument());
+    expect(screen.getAllByText('Concierto').length).toBeGreaterThan(0);
   });
 
   it('copiar código: usa clipboard + aria-live', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('navigator', { clipboard: { writeText } });
     installFetch({});
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('CCB-7K2P9Q'));
@@ -58,7 +75,9 @@ describe('UserProfileDrawer', () => {
     installFetch({ activities: (off) => off === 0
       ? J({ items: [histItem({ activityId: 'a1', name: 'Acto 1' })], total: 2, limit: 10, offset: 0 })
       : J({ items: [histItem({ activityId: 'a2', name: 'Acto 2', attended: false, checkedInAt: null })], total: 2, limit: 10, offset: 1 }) });
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} />);
+    await waitFor(() => screen.getByRole('tab', { name: 'Visitas' }));
+    tab('Visitas');
     await waitFor(() => expect(screen.getByText('Acto 1')).toBeInTheDocument());
     expect(screen.queryByText('Acto 2')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Cargar más/ }));
@@ -71,59 +90,72 @@ describe('UserProfileDrawer', () => {
       activities: () => J({ items: [], total: 0, limit: 10, offset: 0 }),
       affinity: () => J(affinity({ byType: [], byCategory: [], byLocation: [], totalAttended: 0, lastVisitAt: null, status: 'dormant' })),
     });
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} />);
-    await waitFor(() => expect(screen.getByText(/Aún sin asistencias registradas/)).toBeInTheDocument());
-    expect(screen.getByText(/Todavía no participó en actividades/)).toBeInTheDocument();
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} />);
+    await waitFor(() => screen.getByRole('tab', { name: 'Visitas' }));
+    await settle(10);
+    expect(screen.queryByRole('tab', { name: 'Afinidad' })).toBeNull(); // sin asistencias no hay pestaña de afinidad
+    tab('Visitas');
+    await waitFor(() => expect(screen.getByText(/Todavía no participó en actividades/)).toBeInTheDocument());
   });
 
   it('error de detalle: muestra alerta honesta', async () => {
     installFetch({ detail: () => J({ error: 'No pudimos cargar el visitante.' }, 502) });
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} />);
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/No pudimos cargar el visitante/));
   });
 
-  it('cierre animado: X cierra → permanece montado en closing → desmonta tras animationend', async () => {
+  it('la X cierra el perfil (onClose)', async () => {
     const onClose = vi.fn();
     installFetch({});
-    const { rerender } = render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={onClose} />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={onClose} />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
     fireEvent.click(screen.getByRole('button', { name: /Cerrar perfil/ }));
     expect(onClose).toHaveBeenCalled();
-    // el contenedor controla `code`: simulamos el cierre (code=null)
-    rerender(<UserProfileDrawer code={null} onClose={onClose} />);
-    expect(panel()).toHaveClass('drawer-panel--closing'); // sigue montado, animando
-    act(() => { fireEvent.animationEnd(panel()!); });
-    expect(document.querySelector('[role="dialog"]')).toBeNull(); // desmontó
   });
 
-  it('Escape cierra (onEscape)', async () => {
+  it('Escape cierra en el panel lateral; en la columna fija no cierra', async () => {
     const onClose = vi.fn();
     installFetch({});
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={onClose} />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={onClose} />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(onClose).toHaveBeenCalled();
+    await userEvent.setup().keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(xl ? 0 : 1);
   });
 
-  it('no monta cuando code=null', () => {
+  it('code=null: sin diálogo; la columna muestra el estado vacío', () => {
     installFetch({});
-    render(<UserProfileDrawer code={null} onClose={() => {}} />);
+    render(<UserProfilePanel code={null} onClose={() => {}} />);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+    if (xl) expect(screen.getByText(/Selecciona una fila/)).toBeInTheDocument(); // columna con estado vacío
+    else expect(panelEl()).toBeNull();
   });
 
   it('canEdit=false → sin botón Editar', async () => {
     installFetch({});
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit={false} />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} canEdit={false} />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
     expect(screen.queryByRole('button', { name: /^Editar$/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reenviar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Archivar visitante/ })).toBeNull();
+    expect(screen.getByRole('link', { name: /Imprimir credencial/ })).toBeInTheDocument(); // lectura: sí
+  });
+
+  it('initialEdit + canEdit: abre directo en modo edición; sin permiso no edita', async () => {
+    installFetch({});
+    const { unmount } = render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} canEdit initialEdit />);
+    await waitFor(() => expect(within(panelEl()!).getByLabelText('Nombre')).toBeInTheDocument());
+    unmount();
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} initialEdit />);
+    await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
+    expect(screen.queryByLabelText('Nombre')).toBeNull();
   });
 
   it('canEdit: Editar → form → Guardar envía PATCH parcial y actualiza el detalle', async () => {
     const fn = installFetch({ patch: (b) => J(detail({ firstName: String(b.firstName), lastName: 'Méndez' })) });
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía Méndez/ }));
     fireEvent.click(screen.getByRole('button', { name: /^Editar$/ }));
-    const nombre = within(screen.getByRole('dialog')).getByLabelText('Nombre');
+    const nombre = within(panelEl()!).getByLabelText('Nombre');
     fireEvent.change(nombre, { target: { value: 'Sofía Beatriz' } });
     fireEvent.click(screen.getByRole('button', { name: /Guardar cambios/ }));
     await waitFor(() => expect(screen.getByRole('heading', { name: /Sofía Beatriz/ })).toBeInTheDocument());
@@ -134,7 +166,7 @@ describe('UserProfileDrawer', () => {
   it('reenviar credencial: confirm con email enmascarado → dry-run honesto (no "enviado") + key reusada', async () => {
     const keys: string[] = [];
     const fn = installFetch({ credential: (k) => { keys.push(k); return J({ result: 'dry-run', credentialSentAt: null, message: 'Dry-run: sin clave de envío, no se envió.' }); } });
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Reenviar' }));
     expect(screen.getByText(/s\*\*\*@ccb\.do/)).toBeInTheDocument(); // email enmascarado
@@ -150,7 +182,7 @@ describe('UserProfileDrawer', () => {
   it('reenviar: error mantiene el confirm para reintentar', async () => {
     let first = true;
     installFetch({ credential: () => { if (first) { first = false; return J({ error: 'Problema de red.' }, 502); } return J({ result: 'sent', credentialSentAt: new Date().toISOString(), message: 'Credencial enviada al email del visitante.' }); } });
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Reenviar' }));
     fireEvent.click(screen.getByRole('button', { name: /Sí, enviar/ }));
@@ -161,7 +193,7 @@ describe('UserProfileDrawer', () => {
 
   it('archivar: confirm → "Sí, archivar" → muestra chip Archivado + botón Reactivar', async () => {
     installFetch({});
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
     fireEvent.click(screen.getByRole('button', { name: /Archivar visitante/ }));
     fireEvent.click(screen.getByRole('button', { name: /Sí, archivar/ }));
@@ -171,7 +203,7 @@ describe('UserProfileDrawer', () => {
 
   it('reactivar: visitante archivado → "Reactivar" lo vuelve activo', async () => {
     installFetch({ detail: () => J(detail({ deletedAt: new Date().toISOString() })) });
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
     await waitFor(() => expect(screen.getByText('Archivado')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /Reactivar visitante/ }));
     await waitFor(() => expect(screen.queryByText('Archivado')).toBeNull());
@@ -180,19 +212,19 @@ describe('UserProfileDrawer', () => {
 
   it('canEdit=false → sin botón de reenviar', async () => {
     installFetch({});
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit={false} />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} canEdit={false} />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
     expect(screen.queryByRole('button', { name: 'Reenviar' })).toBeNull();
   });
 
   it('edición: email duplicado (409) muestra error y mantiene el form', async () => {
     installFetch({ patch: () => J({ error: 'Ya existe un visitante con ese email.' }, 409) });
-    render(<UserProfileDrawer code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
+    render(<UserProfilePanel code="CCB-7K2P9Q" onClose={() => {}} canEdit />);
     await waitFor(() => screen.getByRole('heading', { name: /Sofía/ }));
     fireEvent.click(screen.getByRole('button', { name: /^Editar$/ }));
-    fireEvent.change(within(screen.getByRole('dialog')).getByLabelText('Email'), { target: { value: 'otra@ccb.do' } });
+    fireEvent.change(within(panelEl()!).getByLabelText('Email'), { target: { value: 'otra@ccb.do' } });
     fireEvent.click(screen.getByRole('button', { name: /Guardar cambios/ }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Ya existe un visitante/));
-    expect(within(screen.getByRole('dialog')).getByLabelText('Email')).toBeInTheDocument(); // sigue en edición
+    expect(within(panelEl()!).getByLabelText('Email')).toBeInTheDocument(); // sigue en edición
   });
 });

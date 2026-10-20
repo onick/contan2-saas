@@ -2,15 +2,17 @@
 
 import { Eye } from 'lucide-react';
 
-// components/usuarios/ProfileProvider.tsx · abre el drawer de perfil desde la tabla
-// (UI-2b/F2E). Estado del visitante seleccionado en cliente → abrir/cerrar NO altera
-// la URL (página/filtros/cohorte se mantienen). Provee open() y openEdit() (abre en
-// modo edición). Apertura por click de fila + teclado (↑/↓) + deep-link `?ver=`.
+// components/usuarios/ProfileProvider.tsx · abre el panel de detalle del perfil desde la
+// tabla (UI-2b/F2E). Estado del visitante seleccionado en cliente → abrir/cerrar NO altera
+// la URL (página/filtros/cohorte se mantienen). Provee open() y openEdit() (abre en modo
+// edición). Apertura por click de fila + teclado (↑/↓) + deep-link `?ver=`.
+// layout="column" (Usuarios): lista + columna fija de detalle en xl (master-detail) y panel
+// lateral debajo. layout="overlay" (por defecto; Actividades): siempre panel lateral.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { useSearchParamsSafe } from '../../lib/navigation/safe';
-import { UserProfileDrawer } from './UserProfileDrawer';
-import { cn, focusRing, IconButton } from '../ui';
+import { UserProfilePanel } from './UserProfilePanel';
+import { DetailLayout, IconButton } from '../ui';
 
 interface ProfileActions { open: (code: string) => void; openEdit: (code: string) => void; }
 const ProfileCtx = createContext<ProfileActions>({ open: () => {}, openEdit: () => {} });
@@ -18,7 +20,7 @@ export function useProfileActions() { return useContext(ProfileCtx); }
 
 const CODE_RE = /^[A-Za-z]{2,6}-[A-Za-z0-9]{4,10}$/;
 
-export function ProfileProvider({ children, canEdit = false }: { children: ReactNode; canEdit?: boolean }) {
+export function ProfileProvider({ children, canEdit = false, layout = 'overlay' }: { children: ReactNode; canEdit?: boolean; layout?: 'overlay' | 'column' }) {
   const [code, setCode] = useState<string | null>(null);
   const [editIntent, setEditIntent] = useState(false);
   const open = useCallback((c: string) => { setEditIntent(false); setCode(c); }, []);
@@ -49,10 +51,23 @@ export function ProfileProvider({ children, canEdit = false }: { children: React
     if (next) { e.preventDefault(); next.focus(); }
   }
 
+  const panel = (
+    <UserProfilePanel code={code} onClose={() => setCode(null)} canEdit={canEdit} initialEdit={editIntent} mode={layout === 'column' ? 'auto' : 'overlay'} />
+  );
+
   return (
     <ProfileCtx.Provider value={{ open, openEdit }}>
-      <div onClick={onWrapClick} onKeyDown={onWrapKeyDown}>{children}</div>
-      <UserProfileDrawer code={code} onClose={() => setCode(null)} canEdit={canEdit} initialEdit={editIntent} />
+      {layout === 'column' ? (
+        <DetailLayout>
+          <div className="min-w-0" onClick={onWrapClick} onKeyDown={onWrapKeyDown}>{children}</div>
+          {panel}
+        </DetailLayout>
+      ) : (
+        <>
+          <div onClick={onWrapClick} onKeyDown={onWrapKeyDown}>{children}</div>
+          {panel}
+        </>
+      )}
     </ProfileCtx.Provider>
   );
 }

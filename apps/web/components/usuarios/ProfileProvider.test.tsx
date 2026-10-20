@@ -17,9 +17,9 @@ function installFetch() {
   }));
 }
 // Tabla mínima con filas data-user-row + acción "Ver".
-function Table() {
+function Table({ layout }: { layout?: 'overlay' | 'column' }) {
   return (
-    <ProfileProvider>
+    <ProfileProvider layout={layout}>
       <table><tbody>
         <tr data-user-row="CCB-AAA111"><td>Ana</td><td><ProfileLink code="CCB-AAA111" /></td></tr>
         <tr data-user-row="CCB-BBB222"><td>Beto</td><td><ProfileLink code="CCB-BBB222" /></td></tr>
@@ -28,11 +28,19 @@ function Table() {
   );
 }
 
-beforeEach(() => { state.params = new URLSearchParams(); installFetch(); });
+function stubViewport(xl: boolean) {
+  vi.stubGlobal('matchMedia', (q: string) => ({
+    matches: q.includes('min-width') ? xl : false, media: q,
+    addEventListener: () => {}, removeEventListener: () => {},
+  }));
+}
+const hasProfile = () => screen.queryByRole('heading', { name: /Sofía Méndez/ }) !== null;
+
+beforeEach(() => { state.params = new URLSearchParams(); installFetch(); stubViewport(false); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('ProfileProvider · UI-2b interacción', () => {
-  it('click en "Ver" abre el drawer', async () => {
+  it('click en "Ver" abre el panel de detalle', async () => {
     render(<Table />);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     fireEvent.click(screen.getAllByRole('button', { name: /Ver perfil/ })[0]!);
@@ -56,6 +64,7 @@ describe('ProfileProvider · UI-2b interacción', () => {
     render(<Table />);
     await new Promise((r) => setTimeout(r, 20));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(hasProfile()).toBe(false);
   });
 
   it('↓ mueve el foco entre botones "Ver"', () => {
@@ -67,5 +76,42 @@ describe('ProfileProvider · UI-2b interacción', () => {
     expect(document.activeElement).toBe(b1);
     fireEvent.keyDown(b1, { key: 'ArrowUp' });
     expect(document.activeElement).toBe(b0);
+  });
+});
+
+describe('ProfileProvider · master-detail (layout="column")', () => {
+  it('xl: columna fija con estado vacío; "Ver perfil" llena la región sin abrir un diálogo', async () => {
+    stubViewport(true);
+    render(<Table layout="column" />);
+    const region = screen.getByRole('region', { name: 'Detalles de la persona' });
+    expect(region).toHaveTextContent(/Selecciona una fila/);
+    fireEvent.click(screen.getAllByRole('button', { name: /Ver perfil/ })[0]!);
+    await waitFor(() => expect(region).toHaveTextContent(/Sofía Méndez/));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar perfil' }));
+    expect(region).toHaveTextContent(/Selecciona una fila/);
+  });
+
+  it('xl: el deep-link ?ver= abre el perfil en la columna', async () => {
+    stubViewport(true);
+    state.params = new URLSearchParams('ver=CCB-AAA111');
+    render(<Table layout="column" />);
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Detalles de la persona' })).toHaveTextContent(/Sofía Méndez/));
+  });
+
+  it('< xl: el mismo perfil es un panel lateral (diálogo)', async () => {
+    stubViewport(false);
+    render(<Table layout="column" />);
+    expect(screen.queryByRole('region')).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: /Ver perfil/ })[0]!);
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Detalles de la persona' })).toBeInTheDocument());
+  });
+
+  it('layout por defecto (Actividades): siempre panel lateral, aunque el viewport sea xl', async () => {
+    stubViewport(true);
+    render(<Table />);
+    expect(screen.queryByRole('region')).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: /Ver perfil/ })[0]!);
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
   });
 });
