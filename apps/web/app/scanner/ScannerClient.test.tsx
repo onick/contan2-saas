@@ -41,7 +41,7 @@ describe('/scanner · PIN', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
     fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '1234' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+    // Con 4 dígitos el PIN se envía solo (completeLength = 4); no hace falta pulsar «Entrar».
     expect(await screen.findByText('¿Qué vas a escanear?')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith('/scanner/api/pin', expect.objectContaining({ method: 'POST' }));
   });
@@ -50,7 +50,7 @@ describe('/scanner · PIN', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(res(401, { error: 'PIN incorrecto.' })));
     render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
     fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '0000' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+    // Con 4 dígitos el PIN se envía solo (completeLength = 4); no hace falta pulsar «Entrar».
     expect(await screen.findByRole('alert')).toHaveTextContent('PIN incorrecto');
     expect(screen.getByLabelText('PIN del centro')).toBeInTheDocument();
   });
@@ -105,7 +105,7 @@ describe('/scanner · PIN (OtpInput)', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(res(429, {})));
     const { container } = render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
     fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '1234' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+    // Con 4 dígitos el PIN se envía solo (completeLength = 4); no hace falta pulsar «Entrar».
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.getByLabelText('PIN del centro')).not.toHaveAttribute('aria-invalid');
     expect(container.querySelector('.arc-otp')).not.toHaveAttribute('data-shake');
