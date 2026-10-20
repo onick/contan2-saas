@@ -39,6 +39,7 @@ export {
 } from './DropdownMenu';
 export { Tooltip, TooltipProvider, TooltipRoot, TooltipTrigger, TooltipContent } from './Tooltip';
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from './Popover';
+export { DateTimeField, type DateTimeFieldProps } from './arc/date-time-field';
 
 // Componentes de formato y actividad
 export { RelativeTime, type RelativeTimeProps } from './RelativeTime';
