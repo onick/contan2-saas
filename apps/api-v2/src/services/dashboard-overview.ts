@@ -16,6 +16,9 @@
 //     near_full (90–99%), empty_activities (activas futuras con 0 inscritos).
 
 import { sql, type DbClient } from '@contan2/db';
+import { eventActivity } from './reports/scope.js';
+import { listPuertaSalas, puertaBySala } from './puerta-kpis.js';
+import { REPORT_TZ } from './timezone.js';
 import { newVisitorCountQuery } from './users-query.js';
 
 export const DASHBOARD_PERIODS = { today: 1, '7d': 7, '30d': 30, '90d': 90 } as const;
@@ -52,6 +55,22 @@ export interface DashboardOverview {
   featured: (OverviewActivity & { periodAttendances: number }) | null;
   topActivities: Array<OverviewActivity & { periodAttendances: number }>;
   insights: OverviewInsight[];
+  /** Salas permanentes hoy (aparte de los eventos). null = sin salas / sin acceso. */
+  salasHoy: { people: number; entries: number; salas: Array<{ id: string; name: string; people: number }> } | null;
+}
+
+/** "Salas hoy": personas por sala en el día local de la puerta (reusa puerta-kpis, R7). */
+export async function salasHoyOverview(db: DbClient, orgId: string): Promise<DashboardOverview['salasHoy']> {
+  const salas = await listPuertaSalas(db, orgId);
+  if (salas.length === 0) return null;
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: REPORT_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const by = await puertaBySala(db, orgId, salas.map((s) => s.id), today, today);
+  const rows = salas.map((s) => ({ id: s.id, name: s.name, people: by.get(s.id)?.people ?? 0 }));
+  return {
+    people: rows.reduce((a, r) => a + r.people, 0),
+    entries: [...by.values()].reduce((a, r) => a + r.entries, 0),
+    salas: rows,
+  };
 }
 
 export async function dashboardOverview(
@@ -59,6 +78,7 @@ export async function dashboardOverview(
   orgId: string,
   period: DashboardPeriod,
   tz: string,
+  opts: { includeSalas?: boolean } = {},
 ): Promise<DashboardOverview> {
   const days = DASHBOARD_PERIODS[period];
   // Hoy 00:00 LOCAL del tenant, como timestamptz (mismo patrón validado de checkin).
@@ -67,14 +87,14 @@ export async function dashboardOverview(
   const end = sql<Date>`(${todayStart} + interval '1 day')`;
   const prevStart = sql<Date>`(${todayStart} - ${sql.lit(String(2 * days - 1))}::int * interval '1 day')`;
 
-  const [serieRows, counts, occ, ret, upcomingRow, topRows, emptyActive] = await Promise.all([
+  const [serieRows, counts, occ, ret, upcomingRow, topRows, emptyActive, salasHoy] = await Promise.all([
     // Serie diaria (día LOCAL) de asistencias del período.
     db.selectFrom('attendance')
       .select([
         sql<string>`to_char(checked_in_at AT TIME ZONE ${sql.lit(tz)}, 'YYYY-MM-DD')`.as('d'),
         sql<string>`count(*) + coalesce(sum(companions_children + companions_adults), 0)`.as('n'),
       ])
-      .where('organization_id', '=', orgId)
+      .where('organization_id', '=', orgId).where('is_permanent', '=', false)
       .where('checked_in_at', '>=', start)
       .where('checked_in_at', '<', end)
       .groupBy('d')
@@ -83,11 +103,11 @@ export async function dashboardOverview(
     db.selectNoFrom((eb) => [
       // Personas = filas + acompañantes (decisión 6.5); registros = filas.
       eb.selectFrom('attendance').select(sql<string>`count(*) + coalesce(sum(companions_children + companions_adults), 0)`.as('n'))
-        .where('organization_id', '=', orgId).where('checked_in_at', '>=', start).where('checked_in_at', '<', end).as('att_curr'),
+        .where('organization_id', '=', orgId).where('is_permanent', '=', false).where('checked_in_at', '>=', start).where('checked_in_at', '<', end).as('att_curr'),
       eb.selectFrom('attendance').select(sql<string>`count(*) + coalesce(sum(companions_children + companions_adults), 0)`.as('n'))
-        .where('organization_id', '=', orgId).where('checked_in_at', '>=', prevStart).where('checked_in_at', '<', start).as('att_prev'),
+        .where('organization_id', '=', orgId).where('is_permanent', '=', false).where('checked_in_at', '>=', prevStart).where('checked_in_at', '<', start).as('att_prev'),
       eb.selectFrom('attendance').select(eb.fn.countAll<string>().as('n'))
-        .where('organization_id', '=', orgId).where('checked_in_at', '>=', start).where('checked_in_at', '<', end).as('rec_curr'),
+        .where('organization_id', '=', orgId).where('is_permanent', '=', false).where('checked_in_at', '>=', start).where('checked_in_at', '<', end).as('rec_curr'),
       newVisitorCountQuery(db, orgId, start, end).as('new_curr'),
       newVisitorCountQuery(db, orgId, prevStart, start).as('new_prev'),
     ]).executeTakeFirstOrThrow(),
@@ -95,11 +115,11 @@ export async function dashboardOverview(
     db.selectNoFrom((eb) => [
       eb.selectFrom('activities')
         .select(sql<string | null>`round(avg(enrolled_count * 100.0 / capacity))`.as('v'))
-        .where('organization_id', '=', orgId).where('capacity', '>', 0)
+        .where('organization_id', '=', orgId).where(eventActivity('activities')).where('capacity', '>', 0)
         .where('date', '>=', start).where('date', '<', end).as('occ_curr'),
       eb.selectFrom('activities')
         .select(sql<string | null>`round(avg(enrolled_count * 100.0 / capacity))`.as('v'))
-        .where('organization_id', '=', orgId).where('capacity', '>', 0)
+        .where('organization_id', '=', orgId).where(eventActivity('activities')).where('capacity', '>', 0)
         .where('date', '>=', prevStart).where('date', '<', start).as('occ_prev'),
     ]).executeTakeFirstOrThrow(),
     // Retorno: asistencias del período de visitantes con >1 visita total.
@@ -107,23 +127,23 @@ export async function dashboardOverview(
       eb.selectFrom('attendance')
         .innerJoin('users', 'users.id', 'attendance.user_id')
         .select(eb.fn.countAll<string>().as('n'))
-        .where('attendance.organization_id', '=', orgId)
+        .where('attendance.organization_id', '=', orgId).where('attendance.is_permanent', '=', false)
         .where('attendance.checked_in_at', '>=', start).where('attendance.checked_in_at', '<', end)
         .where('users.visit_count', '>', 1).as('ret_curr'),
       eb.selectFrom('attendance')
         .innerJoin('users', 'users.id', 'attendance.user_id')
         .select(eb.fn.countAll<string>().as('n'))
-        .where('attendance.organization_id', '=', orgId)
+        .where('attendance.organization_id', '=', orgId).where('attendance.is_permanent', '=', false)
         .where('attendance.checked_in_at', '>=', prevStart).where('attendance.checked_in_at', '<', start)
         .where('users.visit_count', '>', 1).as('ret_prev'),
       eb.selectFrom('attendance').select(eb.fn.countAll<string>().as('n'))
-        .where('organization_id', '=', orgId)
+        .where('organization_id', '=', orgId).where('is_permanent', '=', false)
         .where('checked_in_at', '>=', prevStart).where('checked_in_at', '<', start).as('ret_prev_den'),
     ]).executeTakeFirstOrThrow(),
     // Próxima actividad activa futura.
     db.selectFrom('activities')
       .select(['id', 'name', 'type', 'category', 'location', 'date', 'capacity', 'enrolled_count', 'image_url', 'image_pos_y'])
-      .where('organization_id', '=', orgId).where('status', '=', 'activa')
+      .where('organization_id', '=', orgId).where('status', '=', 'activa').where(eventActivity('activities'))
       .where('date', '>', sql<Date>`now()`)
       .orderBy('date', 'asc').limit(1).executeTakeFirst(),
     // Top del período (la #1 es la "destacada"): por asistencias DENTRO del rango.
@@ -134,14 +154,15 @@ export async function dashboardOverview(
         .on('att.checked_in_at', '<', end))
       .select(['a.id', 'a.name', 'a.type', 'a.category', 'a.location', 'a.date', 'a.capacity', 'a.enrolled_count', 'a.image_url', 'a.image_pos_y'])
       .select((eb) => eb.fn.count('att.id').as('n'))
-      .where('a.organization_id', '=', orgId)
+      .where('a.organization_id', '=', orgId).where(eventActivity('a'))
       .groupBy(['a.id', 'a.name', 'a.type', 'a.category', 'a.location', 'a.date', 'a.capacity', 'a.enrolled_count', 'a.image_url', 'a.image_pos_y'])
       .orderBy('n', 'desc').limit(5).execute(),
     // Activas futuras sin inscritos (insight).
     db.selectFrom('activities').select(db.fn.countAll<string>().as('n'))
-      .where('organization_id', '=', orgId).where('status', '=', 'activa')
+      .where('organization_id', '=', orgId).where('status', '=', 'activa').where(eventActivity('activities'))
       .where('date', '>', sql<Date>`now()`).where('enrolled_count', '=', 0)
       .executeTakeFirstOrThrow(),
+    opts.includeSalas ? salasHoyOverview(db, orgId) : Promise.resolve(null),
   ]);
 
   // Serie completa con huecos en 0 (días locales consecutivos).
@@ -209,5 +230,6 @@ export async function dashboardOverview(
     featured: topRows[0] ? { ...toActivity(topRows[0]), periodAttendances: Number(topRows[0].n) } : null,
     topActivities: topRows.map((r) => ({ ...toActivity(r), periodAttendances: Number(r.n) })),
     insights,
+    salasHoy,
   };
 }

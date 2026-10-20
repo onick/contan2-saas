@@ -6,6 +6,8 @@ import { NewActivityButton } from '../../components/activities/NewActivityButton
 import { SegmentedControl, Card, Skeleton } from '../../components/ui';
 import { StatCardWithInfo } from '../../components/dashboard/StatCardWithInfo';
 import { RegistrosChart } from '../../components/dashboard/RegistrosChart';
+import { SalasHoyCard } from '../../components/dashboard/SalasHoyCard';
+import { PUERTA_ENABLED } from '../../lib/shell/nav';
 import { RecentActivity } from '../../components/dashboard/RecentActivity';
 import { Unavailable } from '../../components/shell/Unavailable';
 import { DemoBanner } from '../../components/shell/DemoBanner';
@@ -97,6 +99,13 @@ async function OverviewData({ period }: { period: string }) {
         <RegistrosChart series={data.series} />
         <RecentActivity demoAllowed={isDemoFallbackAllowed()} period={period} />
       </div>
+
+      {/* Salas hoy: las salas permanentes viven en Puerta, fuera de los KPIs de eventos */}
+      {PUERTA_ENABLED && data.salasHoy ? (
+        <div className="app-reveal mt-4 max-w-md" style={{ animationDelay: '100ms' }}>
+          <SalasHoyCard data={data.salasHoy} />
+        </div>
+      ) : null}
 
       {/* Próximas actividades */}
       {data.upcoming ? (

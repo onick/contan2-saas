@@ -4,6 +4,7 @@ import type { ShellSummaryResponse, SearchResponse } from '@contan2/contracts';
 import { requireTenantStaff } from '../guard.js';
 import { PADRON_READ_ROLES } from '../rbac-roles.js';
 import { parseSearch, likeContains } from '../query.js';
+import { eventActivity } from '../services/reports/scope.js';
 import { resolveCheckinTz } from './checkin.js';
 
 const TZ = resolveCheckinTz();
@@ -30,14 +31,17 @@ export const shellRoute: FastifyPluginAsync = async (app) => {
 
     const [activeActivities, checkinsToday, protocolPending] = await Promise.all([
       db.selectFrom('activities').select(db.fn.countAll<string>().as('n'))
-        .where('organization_id', '=', orgId).where('status', '=', 'activa').executeTakeFirstOrThrow(),
+        .where('organization_id', '=', orgId).where('status', '=', 'activa')
+        .where(eventActivity('activities')).executeTakeFirstOrThrow(),
       // PERSONAS = filas con check-in + acompañantes (misma definición que checkin/metrics);
       // `records` = solo filas. Las reservas (checked_in_at nulo) no cuentan.
+      // Solo EVENTOS: las visitas de las salas permanentes viven en Puerta (PUE-A02).
       db.selectFrom('attendance').select([
         db.fn.countAll<string>().as('records'),
         sql<string>`count(*) + coalesce(sum(companions_children + companions_adults), 0)`.as('n'),
       ])
-        .where('organization_id', '=', orgId).where('checked_in_at', 'is not', null)
+        .where('organization_id', '=', orgId).where('is_permanent', '=', false)
+        .where('checked_in_at', 'is not', null)
         .where('checked_in_at', '>=', todayStart).executeTakeFirstOrThrow(),
       db.selectFrom('invitations').select(db.fn.countAll<string>().as('n'))
         .where('organization_id', '=', orgId).where('kind', '=', 'protocol')
@@ -87,6 +91,7 @@ export const shellRoute: FastifyPluginAsync = async (app) => {
       db.selectFrom('activities').select(['id', 'name'])
         .where('organization_id', '=', orgId)
         .where('name', 'ilike', pattern)
+        .where(eventActivity('activities'))
         .orderBy('date', 'desc').limit(SEARCH_LIMIT).execute(),
       db.selectFrom('users').select(['id', 'first_name', 'last_name', 'code'])
         .where('organization_id', '=', orgId)
