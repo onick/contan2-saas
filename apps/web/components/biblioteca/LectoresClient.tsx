@@ -16,7 +16,7 @@ import { LoanStatusChip } from './CirculacionClient';
 import { ReservationStatusChip } from './ReservasClient';
 import {
   Card, Button, IconButton, Field, Chip, EmptyState, SectionHeader, Sheet,
-  Tabs, TabsContent, DataTableClient, cn, focusRing,
+  DetailPanel, DetailLayout, TabsContent, DataTableClient, cn, focusRing,
 } from '../ui';
 import type { DataTableColumn } from '../ui';
 
@@ -168,7 +168,7 @@ export function LectoresClient({ initial, initialStats }: {
   ];
 
   return (
-    <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-5">
+    <DetailLayout width="md">
       <div className="min-w-0">
         <div className="app-reveal">
           <SectionHeader
@@ -318,26 +318,8 @@ export function LectoresClient({ initial, initialStats }: {
         </div>
       </div>
 
-      {/* ── Panel de detalles: columna en xl, overlay en pantallas chicas ── */}
-      <aside className="mt-5 hidden xl:mt-0 xl:block">
-        {selected ? (
-          <ReaderPanel reader={selected} onClose={() => setSelected(null)} onUpdated={applyUpdated} />
-        ) : (
-          <Card padding="lg" className="app-reveal text-center" style={{ animationDelay: '110ms' }}>
-            <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-surface-container text-faint"><IdCard size={22} strokeWidth={1.7} /></span>
-            <p className="mt-3 text-[13.5px] font-bold text-ink">Detalles del lector</p>
-            <p className="mt-1 text-[12.5px] leading-relaxed text-muted">Selecciona una fila para ver el perfil, editar lo bibliotecario o suspender el servicio.</p>
-          </Card>
-        )}
-      </aside>
-      {selected ? (
-        <div className="fixed inset-0 z-40 xl:hidden" role="dialog" aria-modal="true" aria-label="Detalles del lector">
-          <button type="button" aria-label="Cerrar" onClick={() => setSelected(null)} className="absolute inset-0 bg-ink/40" />
-          <div className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto bg-page p-4 shadow-xl">
-            <ReaderPanel reader={selected} onClose={() => setSelected(null)} onUpdated={applyUpdated} />
-          </div>
-        </div>
-      ) : null}
+      {/* ── Panel de detalles: columna en xl, panel lateral debajo (DetailPanel) ── */}
+      <ReaderPanel reader={selected} onClose={() => setSelected(null)} onUpdated={applyUpdated} />
 
       <NewReaderDrawer
         open={drawer}
@@ -350,13 +332,13 @@ export function LectoresClient({ initial, initialStats }: {
           void refreshStats();
         }}
       />
-    </div>
+    </DetailLayout>
   );
 }
 
 // ── Panel de detalles + edición del perfil bibliotecario ─────────────────────
 function ReaderPanel({ reader, onClose, onUpdated }: {
-  reader: BiblioReader; onClose: () => void; onUpdated: (r: BiblioReader) => void;
+  reader: BiblioReader | null; onClose: () => void; onUpdated: (r: BiblioReader) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [suspending, setSuspending] = useState(false);
@@ -365,11 +347,11 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
   const [tab, setTab] = useState<'informacion' | 'prestamos' | 'reservas'>('informacion');
   const [loans, setLoans] = useState<BiblioLoan[] | null>(null);
   const [reservations, setReservations] = useState<BiblioReservation[] | null>(null);
-  const est = estadoDe(reader);
+  const userId = reader?.userId ?? null;
 
-  const lastId = useRef(reader.userId);
-  if (lastId.current !== reader.userId) {
-    lastId.current = reader.userId;
+  const lastId = useRef(userId);
+  if (lastId.current !== userId) {
+    lastId.current = userId;
     if (editing) setEditing(false);
     if (suspending) setSuspending(false);
     if (error) setError(null);
@@ -379,32 +361,33 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
   }
 
   useEffect(() => {
-    if (tab !== 'prestamos' || loans !== null) return;
+    if (!userId || tab !== 'prestamos' || loans !== null) return;
     const ctl = new AbortController();
     (async () => {
       try {
-        const res = await fetch(`/app/biblioteca/api/readers/${reader.userId}/loans`, { cache: 'no-store', signal: ctl.signal });
+        const res = await fetch(`/app/biblioteca/api/readers/${userId}/loans`, { cache: 'no-store', signal: ctl.signal });
         if (res.ok) setLoans(((await res.json()) as { loans: BiblioLoan[] }).loans);
         else setLoans([]);
       } catch { /* abort */ }
     })();
     return () => ctl.abort();
-  }, [tab, loans, reader.userId]);
+  }, [tab, loans, userId]);
 
   useEffect(() => {
-    if (tab !== 'reservas' || reservations !== null) return;
+    if (!userId || tab !== 'reservas' || reservations !== null) return;
     const ctl = new AbortController();
     (async () => {
       try {
-        const res = await fetch(`/app/biblioteca/api/readers/${reader.userId}/reservations`, { cache: 'no-store', signal: ctl.signal });
+        const res = await fetch(`/app/biblioteca/api/readers/${userId}/reservations`, { cache: 'no-store', signal: ctl.signal });
         if (res.ok) setReservations(((await res.json()) as { reservations: BiblioReservation[] }).reservations);
         else setReservations([]);
       } catch { /* abort */ }
     })();
     return () => ctl.abort();
-  }, [tab, reservations, reader.userId]);
+  }, [tab, reservations, userId]);
 
   async function suspend(suspended: boolean, reason: string) {
+    if (!reader) return;
     setBusy(true); setError(null);
     try {
       const res = await fetch(`/app/biblioteca/api/readers/${reader.userId}/suspend`, {
@@ -426,32 +409,35 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
     </div>
   );
 
+  const est = reader ? estadoDe(reader) : null;
+
   return (
-    <Card padding="lg" className="app-reveal">
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="text-[14px] font-bold tracking-tight text-ink">Detalles del lector</h2>
-        <IconButton label="Cerrar detalles" variant="outline" size="sm" onClick={onClose}><X size={15} /></IconButton>
-      </div>
-
-      <div className="mt-3 flex items-center gap-3">
-        <span className="grid h-12 w-12 flex-none place-items-center rounded-full bg-brand/10 text-[15px] font-extrabold text-brand-text">{initials(reader.firstName, reader.lastName)}</span>
-        <span className="min-w-0">
-          <span className="flex items-center gap-2">
-            <span className="truncate text-[15px] font-extrabold leading-tight text-ink">{reader.firstName} {reader.lastName}</span>
-            <Chip tone={est.tone} dot>{est.label}</Chip>
+    <DetailPanel
+      open={reader !== null}
+      onClose={onClose}
+      title="Detalles del lector"
+      tab={tab}
+      onTabChange={(v) => setTab(v as typeof tab)}
+      tabs={[
+        { value: 'informacion', label: 'Información' },
+        { value: 'prestamos', label: 'Préstamos' },
+        { value: 'reservas', label: 'Reservas' },
+      ]}
+      empty={{ icon: IdCard, title: 'Detalles del lector', description: 'Selecciona una fila para ver el perfil, editar lo bibliotecario o suspender el servicio.' }}
+      header={reader && est ? (
+        <div className="flex items-center gap-3">
+          <span className="grid h-12 w-12 flex-none place-items-center rounded-full bg-brand/10 text-[15px] font-extrabold text-brand-text">{initials(reader.firstName, reader.lastName)}</span>
+          <span className="min-w-0">
+            <span className="flex items-center gap-2">
+              <span className="truncate text-[15px] font-extrabold leading-tight text-ink">{reader.firstName} {reader.lastName}</span>
+              <Chip tone={est.tone} dot>{est.label}</Chip>
+            </span>
+            <span className="mt-0.5 flex items-center gap-1 font-mono text-[11.5px] text-faint tabular-nums"><QrCode size={12} aria-hidden="true" /> {reader.code}</span>
           </span>
-          <span className="mt-0.5 flex items-center gap-1 font-mono text-[11.5px] text-faint tabular-nums"><QrCode size={12} aria-hidden="true" /> {reader.code}</span>
-        </span>
-      </div>
-
-      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}
-        tabs={[
-          { value: 'informacion', label: 'Información' },
-          { value: 'prestamos', label: 'Préstamos' },
-          { value: 'reservas', label: 'Reservas' },
-        ]}
-        className="mt-3.5 gap-2">
-
+        </div>
+      ) : null}
+    >
+      {reader ? (<>
         <TabsContent value="prestamos">
           <ReaderLoans loans={loans} />
         </TabsContent>
@@ -506,8 +492,8 @@ function ReaderPanel({ reader, onClose, onUpdated }: {
             </>
           )}
         </TabsContent>
-      </Tabs>
-    </Card>
+      </>) : null}
+    </DetailPanel>
   );
 }
 
