@@ -37,26 +37,9 @@ function pinErrorFor(status: number): string {
   return 'No pudimos conectar. Intenta de nuevo.';
 }
 
-// Longitud del PIN aprendida (se guarda tras un 200): habilita el autoenvío al completarla.
-const PIN_LENGTH_KEY = 'scanner:pinLength';
-
-function readPinLength(): number | null {
-  try {
-    const n = Number(window.localStorage.getItem(PIN_LENGTH_KEY));
-    return Number.isInteger(n) && n >= 4 && n <= 8 ? n : null;
-  } catch {
-    return null;
-  }
-}
-
-function writePinLength(n: number | null): void {
-  try {
-    if (n === null) window.localStorage.removeItem(PIN_LENGTH_KEY);
-    else window.localStorage.setItem(PIN_LENGTH_KEY, String(n));
-  } catch {
-    /* almacenamiento bloqueado: sin autoenvío, el botón sigue funcionando */
-  }
-}
+// El PIN de puerta es de 4 dígitos exactos (decisión del dueño 2026-10-20): cuatro casillas
+// fijas, no se aceptan más dígitos y se envía solo al completar el cuarto.
+const PIN_LENGTH = 4;
 
 function buzz(kind: 'ok' | 'bad'): void {
   if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
@@ -74,12 +57,7 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
   const [pinBusy, setPinBusy] = useState(false);
   // 'wrong' = 401 (sacude y limpia); 'other' = 429/red (mensaje sin sacudir).
   const [pinErrorKind, setPinErrorKind] = useState<'wrong' | 'other' | null>(null);
-  const [pinLength, setPinLength] = useState<number | null>(null);
   const pinBusyRef = useRef(false);
-
-  useEffect(() => {
-    setPinLength(readPinLength());
-  }, []);
 
   // ─ Escaneo ─
   const [manual, setManual] = useState('');
@@ -109,15 +87,10 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
         body: JSON.stringify({ pin: value }),
       });
       if (res.status === 200) {
-        writePinLength(value.length);
-        setPinLength(value.length);
         setPin('');
         setScreen('select');
       } else {
-        // PIN rechazado: la longitud aprendida ya no es de fiar.
         if (res.status === 401) {
-          writePinLength(null);
-          setPinLength(null);
           setPin(''); // límite 8/min por IP: no dejamos un PIN malo listo para reenviar
         }
         setPinError(pinErrorFor(res.status));
@@ -234,7 +207,9 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
               }}
               error={pinErrorKind === 'wrong'}
               errorId="scanner-pin-error"
-              completeLength={pinLength}
+              minLength={PIN_LENGTH}
+              maxLength={PIN_LENGTH}
+              completeLength={PIN_LENGTH}
               onComplete={(v) => void sendPin(v)}
               className="mb-4"
             />
@@ -245,7 +220,7 @@ export function ScannerClient({ initialAuthed, activities, brandName, logoUrl }:
             )}
             <button
               type="submit"
-              disabled={pin.length < 4 || pinBusy}
+              disabled={pin.length < PIN_LENGTH || pinBusy}
               className="w-full rounded-pill bg-brand px-4 py-3.5 font-semibold text-brand-fg shadow-sm transition hover:brightness-95 disabled:opacity-50"
             >
               {pinBusy ? 'Verificando…' : 'Entrar'}

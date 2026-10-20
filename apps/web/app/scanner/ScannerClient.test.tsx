@@ -68,29 +68,27 @@ describe('/scanner · PIN (OtpInput)', () => {
     });
   });
 
-  it('autoenvía al completar la longitud aprendida', async () => {
-    localStorage.setItem('scanner:pinLength', '4');
+  it('autoenvía al completar los 4 dígitos (PIN de 4 exactos)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(res(200, { ok: true }));
     vi.stubGlobal('fetch', fetchMock);
     render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
     fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '1234' } });
     expect(await screen.findByText('¿Qué vas a escanear?')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toEqual({ pin: '1234' });
   });
 
-  it('sin longitud aprendida no autoenvía; tras 200 la aprende', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(res(200, { ok: true }));
-    vi.stubGlobal('fetch', fetchMock);
-    render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
-    fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '123456' } });
-    expect(fetchMock).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
-    await screen.findByText('¿Qué vas a escanear?');
-    expect(localStorage.getItem('scanner:pinLength')).toBe('6');
+  it('no acepta más de 4 dígitos: el campo recorta y solo hay 4 casillas', () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const { container } = render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
+    const input = screen.getByLabelText('PIN del centro');
+    expect(input).toHaveAttribute('maxlength', '4');
+    fireEvent.change(input, { target: { value: '12345' } });
+    expect(input).toHaveValue('1234');
+    expect(container.querySelectorAll('.arc-otp-slots > *')).toHaveLength(4);
   });
 
-  it('401: aria-invalid, limpia el PIN, olvida la longitud y devuelve el foco', async () => {
-    localStorage.setItem('scanner:pinLength', '4');
+  it('401: aria-invalid, limpia el PIN y devuelve el foco', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(res(401, { error: 'x' })));
     render(<ScannerClient initialAuthed={false} activities={ACTS} brandName="CCB" />);
     fireEvent.change(screen.getByLabelText('PIN del centro'), { target: { value: '0000' } });
@@ -101,7 +99,6 @@ describe('/scanner · PIN (OtpInput)', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input).toHaveAttribute('aria-describedby', alert.id);
     expect(input).toHaveFocus();
-    expect(localStorage.getItem('scanner:pinLength')).toBeNull();
   });
 
   it('429: mensaje de espera, sin sacudir', async () => {

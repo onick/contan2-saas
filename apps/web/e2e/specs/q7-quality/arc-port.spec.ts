@@ -195,7 +195,12 @@ test.describe('arc · OtpInput', () => {
     await expect(pin).toBeFocused();
     await expect(page.locator('input[aria-label="PIN del centro"]')).toHaveCount(1);
     const slots = page.locator('.arc-otp-slots[aria-hidden="true"] > *');
-    expect(await slots.count()).toBeGreaterThanOrEqual(4);
+    // PIN de puerta = 4 dígitos exactos (2026-10-20): cuatro casillas fijas y el campo recorta lo que sobre.
+    await expect(slots).toHaveCount(4);
+    await expect(pin).toHaveAttribute('maxlength', '4');
+    await pin.fill('123456');
+    await expect(pin).toHaveValue('1234');
+    await expect(slots).toHaveCount(4);
     await pin.fill('12 34');
     await expect(pin).toHaveValue('1234');
     await expect(page.locator('.arc-otp-slots > [data-filled="true"]')).toHaveCount(4);
