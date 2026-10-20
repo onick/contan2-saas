@@ -145,3 +145,135 @@ describe('PuertaBoard · registro idempotente (PUE-A01)', () => {
     expect(screen.getByRole('button', { name: /^Registrar entrada$/ })).toBeInTheDocument();
   });
 });
+
+// ── PR-P5 · tablet y accesibilidad (PUE-A06) ──────────────────────────────────
+const VR = { ...SALA, id: 's2', name: 'Sala VR', aforo: 8 };
+
+function stubStorage(initial: Record<string, string> = {}) {
+  const m = new Map(Object.entries(initial));
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); } },
+  });
+  return m;
+}
+
+// Un control mide ≥44 px si tiene min-h-11/h-11/h-12 y NO lo baja a 40 px en md+.
+const BIG = /(^|\s)(min-h-1[1-9]|h-1[1-9])(\s|$)/;
+function undersized(root: ParentNode): string[] {
+  return Array.from(root.querySelectorAll<HTMLElement>('button, a[href], input'))
+    .filter((el) => el.tabIndex !== -1)
+    .filter((el) => {
+      // Los <input> del kit (Field) miden su caja contenedora, que sube a 44 px con [&>div]:md:min-h-11.
+      const box = el.tagName === 'INPUT' ? el.closest('label')?.className ?? '' : '';
+      if (/\[&>div\]:md:min-h-11/.test(box)) return false;
+      return !BIG.test(el.className) || /md:min-h-10\b|sm:min-h-9\b/.test(el.className);
+    })
+    .map((el) => `${el.tagName}:${el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 30)}`);
+}
+
+describe('PuertaBoard · tablet (PUE-A06)', () => {
+  it('las tarjetas de sala van en 2 columnas desde md (820 px)', () => {
+    mockApi(() => J(201, OK_BODY));
+    const { container } = render(<PuertaBoard initial={[SALA, VR] as never} />);
+    const grid = container.querySelector('.grid')!;
+    expect(grid.className).toMatch(/md:grid-cols-2/);
+    expect(grid.className).not.toMatch(/lg:grid-cols-2/);
+  });
+
+  it('ningún control del tablero ni del drawer mide menos de 44 px', async () => {
+    mockApi(() => J(201, OK_BODY));
+    const { container } = render(<PuertaBoard initial={[SALA, VR] as never} />);
+    expect(undersized(container)).toEqual([]);
+    fireEvent.click(screen.getAllByRole('button', { name: /Registrar entrada/ })[0]!);
+    const dlg = await screen.findByRole('dialog');
+    expect(undersized(dlg)).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: /Grupo/ }));
+    expect(undersized(dlg)).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: /Buscar \/ QR/ }));
+    expect(undersized(dlg)).toEqual([]);
+  });
+
+  it('los contadores +/− de la puerta usan el tamaño kiosk (48 px)', async () => {
+    mockApi(() => J(201, OK_BODY));
+    render(<PuertaBoard initial={[SALA] as never} />);
+    fireEvent.click(screen.getByRole('button', { name: /Registrar entrada/ }));
+    expect((await screen.findByRole('button', { name: 'Más acompañantes' })).className).toMatch(/\bh-12\b/);
+    fireEvent.click(screen.getByRole('button', { name: /Grupo/ }));
+    expect(screen.getByRole('button', { name: /^Más alumnos$/i }).className).toMatch(/\bh-12\b/);
+  });
+
+  it('el cierre del aviso tiene nombre accesible', async () => {
+    mockApi(() => J(201, OK_BODY));
+    await openAndRegisterAnon();
+    await screen.findByRole('status');
+    expect(await screen.findByRole('button', { name: 'Cerrar aviso' })).toBeInTheDocument();
+  });
+});
+
+describe('PuertaBoard · pestaña recordada', () => {
+  it('abre en "Nuevo visitante" por defecto y recuerda la última pestaña usada', async () => {
+    const store = stubStorage();
+    mockApi(() => J(201, OK_BODY));
+    const { unmount } = render(<PuertaBoard initial={[SALA] as never} />);
+    fireEvent.click(screen.getByRole('button', { name: /Registrar entrada/ }));
+    expect(await screen.findByRole('textbox', { name: /Nombre/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Buscar \/ QR/ }));
+    expect(store.get('puerta:reg-tab')).toBe('search');
+    unmount(); cleanup();
+
+    render(<PuertaBoard initial={[SALA] as never} />);
+    fireEvent.click(screen.getByRole('button', { name: /Registrar entrada/ }));
+    expect(await screen.findByPlaceholderText(/Buscar por nombre/)).toBeInTheDocument();
+  });
+
+  it('un valor inválido o un localStorage roto cae en "Nuevo visitante" sin romper', async () => {
+    stubStorage({ 'puerta:reg-tab': 'zzz' });
+    mockApi(() => J(201, OK_BODY));
+    render(<PuertaBoard initial={[SALA] as never} />);
+    fireEvent.click(screen.getByRole('button', { name: /Registrar entrada/ }));
+    expect(await screen.findByRole('textbox', { name: /Nombre/ })).toBeInTheDocument();
+    cleanup();
+    Object.defineProperty(window, 'localStorage', { configurable: true, get: () => { throw new Error('bloqueado'); } });
+    render(<PuertaBoard initial={[SALA] as never} />);
+    fireEvent.click(screen.getByRole('button', { name: /Registrar entrada/ }));
+    expect(await screen.findByRole('textbox', { name: /Nombre/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Grupo/ })); // escribir tampoco rompe
+  });
+});
+
+describe('PuertaBoard · +1 anónimo por tarjeta', () => {
+  it('registra una entrada anónima en esa sala con Idempotency-Key y aviso con Deshacer, sin abrir el drawer', async () => {
+    const calls = mockApi(() => J(201, OK_BODY));
+    render(<PuertaBoard initial={[SALA, VR] as never} />);
+    fireEvent.click(screen.getByRole('button', { name: '+1 anónimo en Sala VR' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Entrada registrada · 1 persona'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const reg = calls.filter((c) => c.url.endsWith('/registrar'));
+    expect(reg).toHaveLength(1);
+    expect(reg[0]!.body).toMatchObject({ salaIds: ['s2'], mode: 'anonymous', companions: 0 });
+    expect(reg[0]!.headers['idempotency-key']).toMatch(/\S{8,}/);
+    expect(screen.getByRole('button', { name: /Deshacer/ })).toBeInTheDocument();
+  });
+
+  it('tras un fallo de red, reintentar reutiliza la misma clave; un +1 nuevo usa otra', async () => {
+    const calls = mockApi((_c, n) => (n === 1 ? Promise.reject(new Error('red')) : J(201, OK_BODY)));
+    render(<PuertaBoard initial={[SALA] as never} />);
+    fireEvent.click(screen.getByRole('button', { name: '+1 anónimo en Ada Balcácer' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Reintentar' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Entrada registrada'));
+    expect(calls[1]!.headers['idempotency-key']).toBe(calls[0]!.headers['idempotency-key']);
+    fireEvent.click(screen.getByRole('button', { name: '+1 anónimo en Ada Balcácer' }));
+    await waitFor(() => expect(calls).toHaveLength(3));
+    expect(calls[2]!.headers['idempotency-key']).not.toBe(calls[0]!.headers['idempotency-key']);
+  });
+
+  it('el doble toque rápido manda una sola petición', async () => {
+    const calls = mockApi(() => new Promise<Response>((r) => setTimeout(() => r(J(201, OK_BODY)), 30)));
+    render(<PuertaBoard initial={[SALA] as never} />);
+    const b = screen.getByRole('button', { name: '+1 anónimo en Ada Balcácer' });
+    fireEvent.click(b); fireEvent.click(b);
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Entrada registrada'));
+    expect(calls).toHaveLength(1);
+  });
+});

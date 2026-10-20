@@ -191,6 +191,7 @@ export function NumberField({
               'num rounded-lg border border-border-strong bg-surface py-1 text-center font-bold tabular-nums text-ink',
               block ? 'mx-2 min-w-0 flex-1' : INPUT_W[size],
               size === 'sm' ? 'text-sm' : 'text-[17px]',
+              size === 'kiosk' && 'h-12', // misma altura que los botones +/− (target de 44 px+)
               ring,
             )}
           />
